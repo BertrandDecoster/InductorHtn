@@ -183,7 +183,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
 
             bool customVariables = hasCustomVariables(programString);
             bool htnSyntax = hasHtnKeywords(programString);
-            std::cout << "Variables are of type:" << (customVariables ? "?var" : "Var") << " and syntax is: " << (htnSyntax ? "Prolog" : "HTN") << std::endl;
+            std::cout << "Variables are of type:" << (customVariables ? "?var" : "Var") << " and syntax is: " << (htnSyntax ? "HTN" : "Prolog") << std::endl;
 
             if(!htnSyntax && customVariables){
                 if (!ptr->m_prologCompilerCustomVariables->Compile(programString))
@@ -278,6 +278,72 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
             // Prolog parsing rules *except* that variables start with ? and
             // capitalization doesn't mean anything special
             shared_ptr<PrologStandardQueryCompiler> queryCompiler = shared_ptr<PrologStandardQueryCompiler>(new PrologStandardQueryCompiler(ptr->m_factory.get()));
+
+            if (queryCompiler->Compile(queryString))
+            {
+                int64_t highestMemoryUsedReturn;
+                int furthestFailureIndex;
+                std::vector<std::shared_ptr<HtnTerm>> farthestFailureContext;
+
+                ptr->m_lastSolutions = ptr->m_planner->FindAllPlans(ptr->m_factory.get(),
+                                                                    ptr->m_state,
+                                                                    queryCompiler->result(),
+                                                                    (int) ptr->m_budgetBytes,
+                                                                    &highestMemoryUsedReturn,
+                                                                    &furthestFailureIndex,
+                                                                    &farthestFailureContext);
+                
+                if(ptr->m_factory->outOfMemory())
+                {
+                    string outOfMemoryString =  "out of memory: Budget:" + lexical_cast<string>(ptr->m_budgetBytes) +
+                                               ", Highest total memory used: " + lexical_cast<string>(highestMemoryUsedReturn) +
+                                               ", Memory used only by term names: " + lexical_cast<string>(ptr->m_factory->dynamicSize()) +
+                                               ", The difference was probably used by the resolver, either in its stack memory or memory used by the number of terms that unify with a single term. Turn on tracing to see more details.";
+                    *result = nullptr;
+                    return GetCharPtrFromString(outOfMemoryString);
+                }
+                else if(ptr->m_lastSolutions == nullptr)
+                {
+                    string failureContextString;
+                    if(farthestFailureContext.size() > 0)
+                    {
+                        failureContextString = ", " + HtnTerm::ToString(farthestFailureContext, false, true);
+                    }
+                    *result = GetCharPtrFromString("[{\"false\" :[]}, {\"failureIndex\" :[{\"-1\" :[]}]}" + failureContextString + "]");
+                }
+                else
+                {
+                    *result = GetCharPtrFromString(HtnPlanner::ToStringSolutions(ptr->m_lastSolutions, true));
+                }
+                
+                return nullptr;
+            }
+            else
+            {
+                *result = nullptr;
+                return GetCharPtrFromString(queryCompiler->GetErrorString());
+            }
+        }
+        catch (runtime_error & error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+// Returns result in Json format
+    __declspec(dllexport) char* __stdcall HtnFindAllPlansCustomVariables(HtnPlannerPythonWrapper* ptr, char *queryChars, char **result)
+    {
+        // Catch any FailFasts and return their description
+        TreatFailFastAsException(true);
+        try
+        {
+            string queryString = string(queryChars);
+
+            // The PrologQueryCompiler will compile Prolog queries using the normal
+            // Prolog parsing rules *except* that variables start with ? and
+            // capitalization doesn't mean anything special
+            shared_ptr<PrologQueryCompiler> queryCompiler = shared_ptr<PrologQueryCompiler>(new PrologQueryCompiler(ptr->m_factory.get()));
 
             if (queryCompiler->Compile(queryString))
             {

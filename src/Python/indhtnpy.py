@@ -163,6 +163,8 @@ class HtnPlanner(object):
         self.indhtnLib.FreeString.argtypes = [ctypes.POINTER(ctypes.c_char)]
         self.indhtnLib.HtnFindAllPlans.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
         self.indhtnLib.HtnFindAllPlans.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnFindAllPlansCustomVariables.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
+        self.indhtnLib.HtnFindAllPlansCustomVariables.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.PrologQuery.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
         self.indhtnLib.PrologQuery.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.SetDebugTracing.argtypes = [ctypes.c_int64]
@@ -278,6 +280,26 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
+        
+        
+    def FindAllPlansCustomVariables(self, value):
+        # Pointer to pointer conversion: https://stackoverflow.com/questions/4213095/python-and-ctypes-how-to-correctly-pass-pointer-to-pointer-into-dll
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnFindAllPlansCustomVariables(self.obj, value.encode('UTF-8', 'strict'), ctypes.byref(mem))
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info("FindAllPlans %s ms: %s", str(elapsedTimeNS / 1000000), value)
+
+        resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if resultBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            return resultBytes.decode(), None
+        else:
+            resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
+            self.indhtnLib.FreeString(mem)
+            return None, resultQuery
+        
 
     # returns compileError, solutions
     # compileError = None if no compile error, or a string error message OR a string that starts with "out of memory:"
