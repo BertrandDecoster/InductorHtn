@@ -1,0 +1,243 @@
+
+agent(player).
+%agent(companionI).
+%agent(companionF).
+agent(companionE).
+agent(companionW).
+agent(gob).
+
+ally(player).
+%ally(companionI).
+%ally(companionF).
+ally(companionE).
+ally(companionW).
+enemy(gob).
+enemy(mimic).
+enemy(electricityElemental).
+enemy(teslaTower).
+
+at(player, room).
+%at(companionI, inn).
+%at(companionF, inn).
+at(companionE, hut).
+at(companionW, inn).
+at(mimic, room).
+at(gob, hut).
+at(electricityElemental, mountain).
+at(teslaTower, lake).
+
+location(room).
+location(inn).
+location(hut).
+location(mountain).
+location(lake).
+
+locationCanApplyTag(lake, wet).
+locationCanApplyTag(sea, wet).
+
+distance(inn, hut, 10).
+distance(inn, room, 10).
+distance(inn, inn, 10).
+distance(inn, mountain, 10).
+distance(inn, lake, 10).
+
+immune(electricityElemental, electrocute).
+
+static(teslaTower).
+
+%hasSkill(companionI, ice).
+%hasSkill(companionF, fireball).
+hasSkill(companionE, lightningSkill).
+hasSkill(companionW, waterSkill).
+
+hasSkill(teslaTower, lightningSkill).
+hasSkill(electricityElemental, lightningSkill).
+
+
+skillAppliesTag(iceSkill, ice).
+skillAppliesTag(fireballSkill, fire).
+skillAppliesTag(lightningSkill, electrocute).
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(waterSkill, clean).
+
+
+
+hasMana(player, 100).
+hasMana(companionE, 50).
+hasMana(companionW, 40).
+
+manaCost(waterSkill, 20).
+manaCost(lightningSkill, 50).
+
+allyEffort(player, 0).
+allyEffort(companionE, 0).
+allyEffort(companionW, 0).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Attacker damages target
+planToDamage(?t) :- if(enemy(?t)),
+    do(stunAndBurn(?t)).
+
+planToDamage(?t) :- if(enemy(?t)),
+    do(wetAndElectrocute(?t)).
+
+stunAndBurn(?t) :- 
+    if(enemy(?t)), 
+    do(applyTag(ice, ?t), applyTag(fire, ?t), opInflictDamage(?t)).
+
+wetAndElectrocute(?t) :- 
+    if(enemy(?t)), 
+    do(applyTag(wet, ?t), applyTag(electrocute, ?t), opInflictDamage(?t)).
+
+applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), 
+    do(opTagAlreadyOnTarget(?tag, ?t)).
+
+opTagAlreadyOnTarget(?tag, ?t) :-
+    del(), add().
+
+applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag))), 
+    do(applyTagNotPresent(?tag, ?t)).
+
+applyTagNotPresent(?tag, ?t) :- if(skillAppliesTag(?s,?tag), hasSkill(?a, ?s), ally(?a)),
+    do(useSkillOnTarget(?a, ?s, ?t)).
+
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag)),
+    do(bringMobToLocation(?t, ?l), useLocationToApplyTag(?l, ?tag, ?t)).
+
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?m, ?s), \==(?m, ?t), not(ally(?m)), skillAppliesTag(?s,?tag)),
+    do(bringMobsTogether(?t, ?m), useMobToApplyTag(?m, ?s, ?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cast skill
+
+useSkillOnTarget(?a, ?tag, ?t) :- if(),
+    do(goToSameLocation(?a,?t), castSpellToTarget(?a, ?tag, ?t)).
+
+useSkillOnTargetSafe(?a, ?tag, ?t) :- if(ally(?a), hasSkill(?a, ?s), skillAppliesTag(?s,?tag)),
+    do(goToSameLocation(?a,?t), castSpellToTarget(?a, ?s, ?t)).
+
+
+
+castSpellToTargetSafe(?a,?s,?t) :- if(
+        not(hasTag(?t, ?s)),
+        hasSkill(?a,?s), 
+        at(?a,?loc), 
+        at(?t,?loc),
+        hasMana(?a,?oldMana),
+        manaCost(?s,?c),
+        is(?newMana, -(?oldMana,?c)),
+        >=(?newMana,0)
+    ), 
+    do(
+        opSetMana(?a,?oldMana,?newMana),
+        applySpellToTarget(?a, ?s, ?t)
+    ).
+
+castSpellToTarget(?a,?s,?t) :- if(
+        hasMana(?a,?oldMana),
+        manaCost(?s,?c),
+        is(?newMana, -(?oldMana,?c)),
+        >=(?newMana,0)
+    ), 
+    do(
+        opSetMana(?a,?oldMana,?newMana),
+        applySkillTags(?s, ?t)
+    ).
+
+opSetMana(?a,?oldMana,?newMana) :-
+    del(hasMana(?a, ?oldMana)), add(hasMana(?a, ?newMana)).
+
+applySkillTags(?s, ?t) :- anyOf, if(skillAppliesTag(?s, ?tag)),
+    do(opApplyTag(?tag, ?t)).
+
+applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))),
+    do().
+
+opApplyTag(?tag, ?t) :- 
+    del(), add(hasTag(?t, ?tag)).
+
+
+opInflictDamage(?t) :- 
+    del(), add(damaged(?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Use location to apply effect
+
+useLocationToApplyTag(?l, ?tag, ?t) :- if(),
+    do().
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Use non-ally agent to apply effect
+% Assume that we bring one mob to the other, we don't bring them both to a 3rd location
+
+bringMobsTogether(?m1, ?m2) :- if(at(?m1, ?location), at(?m2, ?location)), 
+    do().
+
+bringMobsTogether(?m1, ?m2) :- if(not(static(?m1)), at(?m2, ?m2Location)), 
+    do(bringMobToLocation(?m1, ?m2Location)).
+
+bringMobsTogether(?m1, ?m2) :- if(not(static(?m2)), at(?m1, ?m1Location)), 
+    do(bringMobToLocation(?m2, ?m1Location)).
+
+useMobToApplyTag(?m, ?tag, ?t) :- if(),
+    do().
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Move related
+goToSameLocation(?a,?t) :- if(at(?a, ?location), at(?t, ?location)),
+    do(opStayInLocation(?a)).
+goToSameLocation(?a,?t) :- if(not(static(?a)), at(?a, ?aOldLocation), at(?t, ?tOldLocation), \==(?aOldLocation, ?tOldLocation)),
+    do(goToLocation(?a, ?tOldLocation)).
+
+% Unsafe
+goToLocation(?a, ?l) :- if(at(?a, ?aOldLocation), moveEffort(?aOldLocation, ?l, ?effort)), 
+    do(opMoveTo(?a, ?aOldLocation, ?l), increaseEffort(?a, ?effort)).
+
+opMoveTo(?a, ?oldLocation, ?newLocation) :- 
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opAggroMoveTo(?a, ?oldLocation, ?newLocation) :- 
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opStayInLocation(?a) :- 
+    del(), add().
+
+moveEffort(?oldLocation, ?newLocation, 10) :- location(?oldLocation) , location(?newLocation).
+
+increaseEffort(?a, ?e) :- if(allyEffort(?a, ?currentEffort), is(?newEffort, +(?currentEffort,?e))), 
+    do(opUpdateEffort(?a, ?currentEffort, ?newEffort)).
+
+opUpdateEffort(?a, ?currentEffort, ?newEffort) :-
+    del(allyEffort(?a, ?currentEffort)), add(allyEffort(?a, ?newEffort)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Aggro related
+bringMobToLocation(?t, ?l) :- if(at(?t, ?l)), 
+    do().
+bringMobToLocation(?t, ?l) :- if(at(?t, ?tOldLocation), \==(?l, ?tOldLocation), not(static(?t)), ally(?a), at(?a, ?aOldLocation)), 
+    do(goToLocation(?a, ?tOldLocation), aggroTarget(?t, ?a), goToLocation(?a, ?l), opAggroMoveTo(?t, ?tOldLocation, ?l)).
+
+
+aggroTarget(?t, ?a) :- if(aggro(?t, ?oldTarget), \==(?t, ?a), \==(?oldTarget, ?a)), 
+    do(opRemoveAggro(?t, ?oldTarget), opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(not(aggro(?t, ?oldTarget)), \==(?t, ?a)), 
+    do(opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(aggro(?t, ?a)), 
+    do(opTargetAlreadyAggroed()).
+
+opRemoveAggro(?t, ?a) :-
+    del(aggro(?t, ?a)), add().
+opAggro(?t, ?a) :-
+    del(), add(aggro(?t, ?a)).
+opTargetAlreadyAggroed() :- 
+    del(), add().
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+
+
+
+    
+
+

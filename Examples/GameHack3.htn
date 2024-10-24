@@ -1,0 +1,173 @@
+
+agent(player).
+%agent(companionI).
+%agent(companionF).
+agent(companionE).
+agent(companionW).
+agent(gob).
+
+ally(player).
+%ally(companionI).
+%ally(companionF).
+ally(companionE).
+ally(companionW).
+enemy(gob).
+enemy(mimic).
+enemy(electricityElemental).
+enemy(teslaTower).
+
+at(player, room).
+%at(companionI, inn).
+%at(companionF, inn).
+at(companionE, inn).
+at(companionW, inn).
+at(mimic, room).
+at(gob, hut).
+at(electricityElemental, mountain).
+at(teslaTower, lake).
+
+locationProperty(lake, wet).
+locationProperty(sea, wet).
+
+immune(electricityElemental, electrocute).
+
+%hasSkill(companionI, ice).
+%hasSkill(companionF, fireball).
+hasSkill(companionE, electrocute).
+hasSkill(companionW, wet).
+
+skill(ice).
+skill(fireball).
+skill(electrocute).
+skill(wet).
+
+
+
+hasMana(player, 100).
+hasMana(companionE, 50).
+
+manaCost(wet, 20).
+manaCost(electrocute, 50).
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Attacker damages target
+planToDamage(?t) :- if(enemy(?t)),
+    do(stunAndBurn(?t)).
+
+planToDamage(?t) :- if(enemy(?t)),
+    do(wetAndElectrocute(?t)).
+
+stunAndBurn(?t) :- 
+    if(enemy(?t)), 
+    do(applyIce(?a1, ?t), applyFireball(?a2, ?t), opInflictDamage(?t)).
+
+wetAndElectrocute(?t) :- 
+    if(enemy(?t)), 
+    do(applyEffect(wet, ?t), applyEffect(electrocute, ?t), opInflictDamage(?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cast skill
+applyEffect(?e, ?t) :- if(hasSkill(?a, ?e)),
+    do(castSkillOnTarget(?a, ?e, ?t)).
+
+castSkillOnTarget(?a, ?e, ?t) :- if(hasSkill(?a, ?e), enemy(?t)),
+    do(goToSameLocation(?a,?t), castSkill(?a, ?t, ?e)).
+
+castSkill(?a, ?t, wet) :- if(), 
+    do(opCastWet(?a,?t)).
+
+castSkill(?a, ?t, electrocute) :- if(), 
+    do(opCastElectrocute(?a,?t)).
+
+opCastWet(?a,?t) :- 
+    del(), add().
+opCastElectrocute(?a,?t) :- del(), 
+    add().
+
+
+castSpellToTarget(?a,?s,?t) :- if(
+        hasSkill(?a,?s), 
+        at(?a,?loc), 
+        at(?t,?loc),
+        hasMana(?a,?oldMana),
+        manaCost(?s,?c),
+        is(?newMana, -(?oldMana,?c)),
+        >=(?newMana,0)
+    ), 
+    do(
+        doSetMana(?a,?oldMana,?newMana),
+        doCastSpellToTarget(?a, ?s, ?t)
+    ).
+
+%castSkill(?a,wet,?t) :- if(), do(applyWet(?a, ?t)).
+doCastSpellToTarget(?a,wet,?t) :- del(), add().
+doCastSpellToTarget(?a,?s,?t) :- del(), add().
+
+doSetMana(?a,?oldMana,?newMana) :-
+    del(hasMana(?a, ?oldMana)), add(hasMana(?a, ?newMana)).
+
+
+
+opInflictDamage(?t) :- 
+    del(), add(damaged(?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Use location to apply effect
+applyEffect(?e, ?t) :- if(locationProperty(?l, ?e)),
+    do(bringMobToLocation(?t, ?l), useLocationToApplyEffect(?l, ?e, ?t)).
+
+
+
+useLocationToApplyEffect(?l, ?e, ?t) :- if(),
+    do().
+    
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Move related
+goToSameLocation(?a,?t) :- if(at(?a, ?location), at(?t, ?location)),
+    do(opStayInLocation()).
+goToSameLocation(?a,?t) :- if(at(?a, ?aOldLocation), at(?t, ?tOldLocation)),
+    do(opMoveTo(?a, ?aOldLocation, ?tOldLocation)).
+
+opMoveTo(?a, ?oldLocation, ?newLocation) :- 
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opAggroMoveTo(?a, ?oldLocation, ?newLocation) :- 
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opStayInLocation() :- 
+    del(), add().
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Aggro related
+bringMobToLocation(?t, ?l) :- if(at(?t, ?l)), 
+    do().
+bringMobToLocation(?t, ?l) :- if(at(?t, ?tOldLocation), \==(?l, ?tOldLocation), not(static(?t)), ally(?a), at(?a, ?aOldLocation)), 
+    do(opMoveTo(?a, ?aOldLocation, ?tOldLocation), aggroTarget(?t, ?a), opMoveTo(?a, ?tOldLocation, ?l), opAggroMoveTo(?t, ?tOldLocation, ?l)).
+
+
+aggroTarget(?t, ?a) :- if(aggro(?t, ?oldTarget), \==(?t, ?a), \==(?oldTarget, ?a)), 
+    do(opRemoveAggro(?t, ?oldTarget), opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(not(aggro(?t, ?oldTarget)), \==(?t, ?a)), 
+    do(opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(aggro(?t, ?a)), 
+    do(opTargetAlreadyAggroed()).
+
+opRemoveAggro(?t, ?a) :-
+    del(aggro(?t, ?a)), add().
+opAggro(?t, ?a) :-
+    del(), add(aggro(?t, ?a)).
+opTargetAlreadyAggroed() :- 
+    del(), add().
+
+%aggro(gob, player).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+
+
+
+    
+
+

@@ -505,7 +505,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
 
     char* CompileQueryResult(HtnPlannerPythonWrapper* ptr, const std::string& queryString, bool& compileQuerySuccess, std::vector<shared_ptr<HtnTerm>>& compileQueryResult, char** result){
         bool customVariables = hasCustomVariables(queryString);
-        std::cout << "This is a " << (customVariables?"htn":"prolog") << " syntax query" << std::endl;
+        std::cout << "Query " << queryString << " is a " << (customVariables?"htn":"prolog") << " syntax query" << std::endl;
         if(hasCustomVariables(queryString)){
             shared_ptr<PrologQueryCompiler> queryCompiler = shared_ptr<PrologQueryCompiler>(new PrologQueryCompiler(ptr->m_factory.get()));
             if(queryCompiler->Compile(queryString)){

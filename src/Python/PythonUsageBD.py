@@ -3,6 +3,7 @@
 from indhtnpy import *
 import json
 import pprint
+import re
 
 # The only class for InductorHtn is called HtnPlanner
 # Passing true as the (only) argument turns on debug mode
@@ -10,7 +11,123 @@ import pprint
 # seen on windows with https://docs.microsoft.com/en-us/sysinternals/downloads/debugview
 # These traces are much like the standard Prolog traces and will help you understand how 
 # the queries and HTN tasks are running and what path they are taking
-test = HtnPlanner(False)
+debugPlan = False
+test = HtnPlanner(debugPlan)
+
+def stringToAcronym(s, keepFirstWord:bool = False):
+    if keepFirstWord:
+        start = re.split('[A-Z]', s)[0]
+    else:
+        start = s[0] 
+    return start + ''.join([c for c in s if c.isupper()])
+
+def shortenList(l):
+    if len(l) == 1:
+        return shorten(l[0])
+    return [shorten(e) for e in l]
+
+def shortenDict(d:dict):
+    if len(d) == 1:
+        v = list(d.values())[0]
+        if not(v):
+            return {list(d.keys())[0]}
+        
+    return {k:shorten(v) for (k,v) in d.items()}
+    
+def shorten(o):
+    if type(o) == list:
+        return shortenList(o)
+    if type(o) == dict:
+        return shortenDict(o)
+    return o
+
+def output(success, result, query, message = "Query", verbosity = 3):
+    if success is not None:
+        print(query + " // " + message + " error: " + success)
+        sys.exit()
+
+    solutions = json.loads(result)
+    if len(solutions) == 1 and not solutions[0]:
+        print(f"OUTPUT: Query {query} is true (if it's a plan, it requires nothing)")
+        print()
+        return
+    
+    #print(f"{message} result for \t{query} :")
+    #pp = pprint.PrettyPrinter(indent=4)
+    #pp.pprint(solutions)
+    #s = shorten(solutions)
+    #print(f"{message} short result for \t{query} :")
+    #pp.pprint(shorten(solutions))
+    
+    if len(solutions) == 2 and 'false' in solutions[0] and 'failureIndex' in solutions[1]:
+        print(f"OUTPUT: No solution for query: {query}")
+        print()
+        return
+    
+    for i, solution in enumerate(solutions):
+        print(f"OUTPUT #{i}\t: {prettySolution(solution, verbosity)}")
+    print()
+        
+# Sentence example : 
+# - [{'companionE': []}, {'gob': []}] -> returns (companionE, gob)
+def sentenceToString(l, verbosity):
+    answer = []
+    for i in range(len(l)):
+        answer.append(termToString(l[i], verbosity))
+        if i<len(l) - 1:
+            answer.append(", ")
+    return '(' + ''.join(answer) + ')'
+
+# Term example : 
+# - {'opMoveTo': [{'companionW': []}, {'inn': []}, {'hut': []}]} -> returns opMoveTo(companionW, inn, hut)
+def termToString(d, verbosity):
+    answer = []
+
+    for k in sorted(d.keys()):
+        #answer.append(k)
+        v = verbosity
+        childV = verbosity
+        atom = k
+        
+        # m1_applyEffect(electrocute, gob) -> m1applyE(e, g)
+        if re.match(r"^(m[0-9]+)_", k):
+            term = k.split("_")[-1]
+            atom = k[0:3]+atomToString(term, v-1)
+            childV = v-2
+
+        if d[k]:
+            if isinstance(d[k], list):
+                answer.append(atomToString(atom, v)+sentenceToString(d[k], childV))
+            elif isinstance(d[k], dict):
+                answer.append(atomToString(atom, v)+'('+termToString(d[k], childV)+')')
+        else:
+            # Ex : {'inn': []}
+            answer.append(atomToString(atom, v))
+
+    answer = sorted(answer)
+    answerSorted = [answer[i//2] if i%2==0 else ', ' for i in range(2*len(answer)-1)]
+    
+    return ''.join(answerSorted)
+
+def atomToString(s, verbosity: int):
+    if verbosity >= 3:
+        return s
+    elif verbosity == 2:
+        return stringToAcronym(s, keepFirstWord=True)
+    elif verbosity == 1:
+        return stringToAcronym(s, keepFirstWord=False)
+    else:
+        return ''   
+
+def prettySolution(solution, verbosity):
+    if isinstance(solution, list):
+        return sentenceToString(solution, verbosity)[1:-1]
+    elif isinstance(solution, dict):
+        return termToString(solution, verbosity)
+    else:
+        raise Exception("Unknown")
+            
+    
 
 
 # HtnPlanner.HtnCompile()
@@ -18,129 +135,193 @@ test = HtnPlanner(False)
 # The HtnCompile() uses the standard Prolog syntax
 # Calling HtnCompile() multiple times will keep adding statements to the database.
 # You will get an error if some already exist
-prog = """
-have-taxi-fare(?distance) :- have-cash(?m), 
-							 >=(?m, +(1.5, ?distance)).
-walking-distance(?u,?v) :- weather-is(good), 
-						   distance(?u,?v,?w), =<(?w, 3).
-walking-distance(?u,?v) :- distance(?u,?v,?w), =<(?w, 0.5).
 
 
-pay-driver(?fare) :- 
-	if(have-cash(?m), >=(?m, ?fare)), 
-	do(set-cash(?m, -(?m,?fare))).
+prog2 = """
 
-travel-to(?q) :- 
-	if(at(?p), walking-distance(?p, ?q)), 
-	do(walk(?p, ?q)).
-travel-to(?y) :- 
-	if(first(at(?x), at-taxi-stand(?t, ?x), 
-		distance(?x, ?y, ?d), have-taxi-fare(?d))), 
-	do(hail(?t,?x), ride(?t, ?x, ?y), pay-driver(+(1.50, ?d))).
-travel-to(?y) :- 
-	if(at(?x), bus-route(?bus, ?x, ?y)), 
-	do(wait-for(?bus, ?x), pay-driver(1.00), ride(?bus, ?x, ?y)).
+"""
 
-hail(?vehicle, ?location) :- 
-	del(), add(at(?vehicle, ?location)).
-wait-for(?bus, ?location) :- 
-	del(), add(at(?bus, ?location)).
-ride(?vehicle, ?a, ?b) :- 
-	del(at(?a), at(?vehicle, ?a)), add(at(?b), at(?vehicle, ?b)).
-set-cash(?old, ?new) :- 
-	del(have-cash(?old)), add(have-cash(?new)).
-walk(?here, ?there) :- 
-	del(at(?here)), add(at(?there)).
+facts = [
+    'at(?a,?l).',
+    'hasMana(?a,?m).',
+    'hasTag(?a,?tag).',
+    'allyEffort(?a, ?e).'
+]
 
-distance(downtown, park, 2).
-distance(downtown, uptown, 8).
-distance(downtown, suburb, 12).
-at-taxi-stand(taxi1, downtown).
-at-taxi-stand(taxi2, downtown).
-bus-route(bus1, downtown, park).
-bus-route(bus2, downtown, uptown).
-bus-route(bus3, downtown, suburb).
-at(downtown).
-weather-is(good).
-have-cash(12).
-location(downtown).
-location(park).
-location(uptown).
-location(suburb).
 
-opponent(player1, player2) :- .
-opponent(player2, player1) :- .
 
-    """
+
+
+def preprocessRuleset(ruleset):
+    def strip_after_percent(ruleset):
+        lines = ruleset.splitlines()  # Split text into lines
+        stripped_lines = []
+        
+        for line in lines:
+            if '%' in line:
+                stripped_lines.append(line.split('%')[0])  # Strip everything after '%'
+            else:
+                stripped_lines.append(line)
+        
+        return '\n'.join(stripped_lines)  # Join lines back together
+
+    def parse_parentheses(expression):
+        # Use regular expression to tokenize the string, keeping parentheses and commas separate
+        tokens = re.findall(r'[^\s(),]+|[(),]', expression)
+        
+        stack = []
+        current = []
+        
+        for token in tokens:
+            if token == '(':
+                # Push the current list to the stack and start a new level
+                stack.append(current)
+                current = []
+            elif token == ')':
+                # Pop from the stack and append the current list to it
+                if stack:
+                    top = stack.pop()
+                    top.append(current)
+                    current = top
+            elif token == ',':
+                # Skip commas (they simply separate elements)
+                continue
+            else:
+                # Append the token (whole name or element)
+                current.append(token)
+        
+        # Return the tree structure
+        return current
+
+
+    def addMethodNameAndArity(text):
+        lines = text.split('do(')  # Split text into lines
+        dummyMethods = []
+        for i in range(len(lines) - 1):
+            line = lines[i]
+            idx1 = line.rfind(':-')
+            idx2 = line[:idx1].rfind('(')
+            delta =  re.search(r'\s', line[:idx2][::-1]).start()
+            fullMethod = line[idx2-delta: idx1]
+            
+            fakeNextLine = lines[i+1]
+            fakeNextLine = 'do(' + fakeNextLine
+            grammar = parse_parentheses(fakeNextLine)
+            doArguments = grammar[1]
+            arity = len(doArguments)//2
+            
+            arguments = [a.strip() for a in fullMethod.split('(')[1].split(')')[0].split(',')]
+            variableArguments = ['?' in arg for arg in arguments]
+            
+            if all(variableArguments):
+                dummyMethod = 'm' + str(arity) + '_' + fullMethod
+            else:
+                inOpName = '_'.join(['-' if varArg else arg for (arg, varArg) in zip(arguments, variableArguments)])
+                newArgs = ', '.join([arg for (arg, varArg) in zip(arguments, variableArguments) if varArg])
+                dummyMethod = 'm' + str(arity) + '_' + inOpName + '_' + line[idx2-delta:idx2] + '(' + newArgs + ')'
+                pass
+            
+            if fullMethod.startswith('castSkill('):
+                pass
+            dummyMethods.append(dummyMethod)
+            lines[i+1] = dummyMethod + (', ' if arity else '') + lines[i+1]
+        
+        lines = 'do('.join(lines)  # Join lines back together
+        lines + '\n'
+        emptyOpForMethods = '\n'.join([m+' :- del(), add().'for m in dummyMethods])
+        return lines + '\n' + emptyOpForMethods
     
-# prog = """
-# travel-to(Q) :- 
-#         if(at(P), walking-distance(P, Q)), 
-#         do(walk(P, Q)).
-#     walk(Here, There) :- 
-#         del(at(Here)), add(at(There)).
-#     walking-distance(U,V) :- weather-is(good), 
-#                                distance(U,V,W), =<(W, 3).
-#     walking-distance(U,V) :- distance(U,V,W), =<(W, 0.5).
-#     distance(downtown, park, 2).
-#     distance(downtown, uptown, 8).
-#     at(downtown).
-#     weather-is(good).
-#     """
-
-f = open("Examples/GameHack.htn", "r")
-#prog = f.read()
+    # Remove comments
+    answer = strip_after_percent(ruleset)
     
+    # goToSameLocation(?a,?t) end with do(opMoveTo(?a, ?aOldLocation, ?tOldLocation))
+    # It becomes -> do(m1_goToSameLocation(?a,?t), opMoveTo(?a, ?aOldLocation, ?tOldLocation))
+    answer = addMethodNameAndArity(answer)
+    
+    # Remove op from all the operators
+    # opMoveTo -> MoveTo
+    answer = re.sub(r'op([A-Z])', '\\1', answer)
+    
+    return answer
+    
+f = open("Examples/GameHack4.htn", "r")
+prog = f.read()
+#prog = prog2
+
+prog = preprocessRuleset(prog)
+#print(prog)
 result = test.Compile(prog)
 if result is not None:
     print("HtnCompile Error:" + result)
     sys.exit()
-
-# HtnPlanner.PrologCompile()
-# Compile a standard Prolog program and *add* it to the above, just like HtnCompile() does
-# PrologCompile() uses all of the Prolog standard syntax
-prog = """
-    mortal(X) :- human(X).
-    human(socrates).
-    """
-result = test.Compile(prog)
-if result is not None:
-    print("PrologCompile Error:" + result)
-    sys.exit()
+  
+# Add extra rules
+#test.Compile("hasTag(gob, wet).")
 
 ####
 # Now the database contains *all* of the facts, rules, and tasks from both programs above!
 ####
 
-def output(success, result, query, message = "Query"):
-    if success is not None:
-        print(query + " // " + message + " error: " + success)
-        sys.exit()
-
-    solutions = json.loads(result)
-    print(f"{message} result for \t{query} :")
-    pp = pprint.PrettyPrinter(indent=4)
-    pp.pprint(solutions)
 
 
+query = ""
+#query = "aggro(?t, ?a)."
+if query:
+    output(*test.PrologQuery(query), query, "PrologQuery")
+    sys.exit()
+if not debugPlan:
+    for fact in facts:
+#        pass
+        output(*test.PrologQuery(fact), fact, "Fact before")
 
 # HtnPlanner.FindAllPlans()
 # Gets all possible plans that are generated by a query (will return a list of plans, each
 # which is a list of terms)
 # results are returned in Json format (described farther down)
 
-query = "travel-to(downtown)."
-success, result = test.FindAllPlans(query)
-output(success, result, query, "FindAllPlans")
+
+query = "castSkill(player,?s,mimic)."
+query = "castSpellToTarget(player,?s,mimic)."
+query = "burn2(?x)."
+query = "doBlo(?a)."
+
+query = "travel-to(park)."
+query = "castTargetedSkill(?s, ?a, ?t)."
+query = "planToDamage(?t)."
+query = "doElectrocute2(player,gob)."
+query = "applyElectrocute(player, gob)."
+query = "doWet(gob)."
+query = "stunAndBurn(gob)."
+query = "skill(?s)."
+query = "doElectrocute(gob)."
+query = "aggroTarget(gob, player)."
+query = "applyEffect(wet, gob)."
+query = "applyEffect(electrocute, gob)."
+query = "goToSameLocation(companionE,gob)."
+query = "castSkill(companionE, gob, electrocute)."
+query = "wetAndElectrocute(gob)."
+query = "castSpellToTargetSafe(companionE, electrocute, gob)."
+query = "stunAndBurn(gob)."
+query = "useSkillOnTarget(companionE,electrocute,gob)."
+query = "useSkillOnTargetSafe(companionW,wet,gob)."
+query = "planToDamage(gob)."
+query = "applyTag(electrocute, gob)."
+query = "applySkillTags(waterSkill, gob)."
+query = "goToLocation(player, lake)."
+query = "applyTag(wet, gob)."
+
+print(f"FIND PLAN FOR QUERY {query}")
+output(*test.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity = 3)
+#sys.exit()
 
 
+planNumber = 0
+success = test.ApplySolution(planNumber)
+print(f"Apply plan {planNumber}")
 
-success = test.ApplySolution(0)
-
-query = "at(?Location)."
-success, result = test.PrologQuery(query)
-output(success, result, query, "PrologQuery")
-
+if not debugPlan:
+    for fact in facts:
+        output(*test.PrologQuery(fact), fact, "Fact after")
 
 
 # HtnPlanner.HtnQuery()
@@ -173,15 +354,15 @@ term = json.loads("{\"?tile\" : [] }")
 term = {"tile" : [{"position" : [1]}, 1]}
 
 # first arg of known term "tile"
-print(term["tile"][0])
+#print(term["tile"][0])
 
 # There are some helper functions to make accessing things "prettier"
 # foo(bar, goo), tile(position(1), 1)
 termList = json.loads("[{\"foo\" : [\"bar\", \"goo\"]}, {\"tile\" : [\"firstArg\", \"secondArg\"] }]")
 
 # termName() gives the name of the term
-print(termName(termList[0]))
+#print(termName(termList[0]))
 
 # termArgs() gets the args for a term
-print(termArgs(termList[0])[0])
+#print(termArgs(termList[0])[0])
 

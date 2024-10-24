@@ -3,14 +3,14 @@ agent(player).
 %agent(companionI).
 %agent(companionF).
 agent(companionE).
-%agent(companionW).
+agent(companionW).
 agent(gob).
 
 ally(player).
 %ally(companionI).
 %ally(companionF).
 ally(companionE).
-%ally(companionW).
+ally(companionW).
 enemy(gob).
 enemy(mimic).
 enemy(electricityElemental).
@@ -20,7 +20,7 @@ at(player, room).
 %at(companionI, inn).
 %at(companionF, inn).
 at(companionE, inn).
-%at(companionW, inn).
+at(companionW, inn).
 at(mimic, room).
 at(gob, hut).
 at(electricityElemental, mountain).
@@ -34,7 +34,7 @@ immune(electricityElemental, electrocute).
 %hasSkill(companionI, ice).
 %hasSkill(companionF, fireball).
 hasSkill(companionE, electrocute).
-%hasSkill(companionW, wet).
+hasSkill(companionW, wet).
 
 skill(ice).
 skill(fireball).
@@ -58,12 +58,62 @@ planToDamage(?t) :- if(enemy(?t)),
     do(wetAndElectrocute(?t)).
 
 stunAndBurn(?t) :- 
-    if(hasSkill(?a1, ice), hasSkill(?a2, fireball), \==(?a1, ?a2)), 
-    do(applyice(?a1, ?t), applyFireball(?a2, ?t), inflictDamage(?t)).
+    if(enemy(?t)), 
+    do(applyIce(?a1, ?t), applyFireball(?a2, ?t), inflictDamage(?t)).
 
 wetAndElectrocute(?t) :- 
-    if(ifCanApply(wet, ?t), ifCanApply(electrocute, ?t)), 
+    if(enemy(?t)), 
     do(doWet(?t), doElectrocute(?t), inflictDamage(?t)).
+
+% Cast skill
+doWet(?t) :- if(canSkillApplyEffect(?a,wet)),
+    do(applyEffect(wet, ?t)).
+
+doWet(?t) :- if(canLocationApplyEffect(?l, wet, ?t), ally(?a), at(?a, ?aOldLocation), at(?t, ?tOldLocation)),
+    do(moveTo(?a, ?aOldLocation, ?tOldLocation), takeAggro(?t, ?a), moveTo(?a, ?tOldLocation, ?l), aggroMoveTo(?t, ?tOldLocation, ?l)).
+
+
+doElectrocute(?t) :- if(),
+    do(applyElectrocute(?a, ?t)).
+
+doElectrocute(?t) :- if(canLocationApplyEffect(?l, electrocute, ?t), ally(?a), at(?a, ?aOldLocation), at(?t, ?tOldLocation)),
+    do(moveTo(?a, ?aOldLocation, ?tOldLocation), takeAggro(?t, ?a), moveTo(?a, ?tOldLocation, ?l), aggroMoveTo(?t, ?tOldLocation, ?l)).
+
+
+ifCanApply(?e, ?t) :- canSkillApplyEffect(?a, ?e), not(immune(?t, ?e)), !.
+ifCanApply(?e, ?t) :- canLocationApplyEffect(?l, ?e, ?t), not(immune(?t, ?e)), !.
+
+ifCanSkillApplyEffect(?a,?e) :- ally(?a), hasSkill(?a, ?e), !.
+ifCanLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), at(?t, ?l), !.
+ifCanLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), not(static(?t)), !.
+
+canApply(?e, ?t) :- canSkillApplyEffect(?a, ?e), not(immune(?t, ?e)).
+canApply(?e, ?t) :- canLocationApplyEffect(?l, ?e, ?t), not(immune(?t, ?e)).
+
+canSkillApplyEffect(?a,?e) :- ally(?a), hasSkill(?a, ?e).
+canLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), at(?t, ?l).
+canLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), agent(?t), not(static(?t)).
+
+applyEffect(?e, ?t) :- if(hasSkill(?a, ?e), enemy(?t)),
+    do(goToSameLocation(?a,?t), applySkill(?a, ?t, ?e)).
+
+goToSameLocation(?a,?t) :- if(at(?a, ?location), at(?t, ?location)),
+    do(doStayInLocation()).
+
+doStayInLocation() :- del(), add().
+
+goToSameLocation(?a,?t) :- if(at(?a, ?aOldLocation), at(?t, ?tOldLocation)),
+    do(moveTo(?a, ?aOldLocation, ?tOldLocation)).
+
+
+
+applySkill(?a, ?t, wet) :- if(), do(doApplyWet(?a,?t)).
+applySkill(?a, ?t, electrocute) :- if(), do(doApplyElectrocute(?a,?t)).
+
+doApplyWet(?a,?t) :- del(), add().
+doApplyElectrocute(?a,?t) :- del(), add().
+
+
 
 test_wetAndElectrocute(?t) :- ifCanApply(wet, ?t), ifCanApply(electrocute, ?t).
 
@@ -80,19 +130,7 @@ wetAndElectrocute4(?t) :-
     do(doEffectTE(?t,wet), doEffectTE(?t,electrocute), inflictDamage(?t)).
 
 
-ifCanApply(?e, ?t) :- canSkillApplyEffect(?a, ?e), not(immune(?t, ?e)), !.
-ifCanApply(?e, ?t) :- canLocationApplyEffect(?l, ?e, ?t), not(immune(?t, ?e)), !.
 
-ifCanSkillApplyEffect(?a,?e) :- ally(?a), hasSkill(?a, ?e), !.
-ifCanLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), at(?t, ?l), !.
-ifCanLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), not(static(?t)), !.
-
-canApply(?e, ?t) :- canSkillApplyEffect(?a, ?e), not(immune(?t, ?e)).
-canApply(?e, ?t) :- canLocationApplyEffect(?l, ?e, ?t), not(immune(?t, ?e)).
-
-canSkillApplyEffect(?a,?e) :- ally(?a), hasSkill(?a, ?e).
-canLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), at(?t, ?l).
-canLocationApplyEffect(?l, ?e, ?t):- locationProperty(?l, ?e), agent(?t), not(static(?t)).
 
 
 % Apply effect by casting skill
@@ -113,18 +151,6 @@ skillApplyEffect(?a,?t,?s) :- if(=(?s, electrocute)),
 
 
 
-doWet(?t) :- if(canSkillApplyEffect(?a,wet)),
-    do(applyWet(?a, ?t)).
-
-doWet(?t) :- if(canLocationApplyEffect(?l, wet, ?t), ally(?a), at(?a, ?aOldLocation), at(?t, ?tOldLocation)),
-    do(moveTo(?a, ?aOldLocation, ?tOldLocation), takeAggro(?t, ?a), moveTo(?a, ?tOldLocation, ?l), aggroMoveTo(?t, ?tOldLocation, ?l)).
-
-
-doElectrocute(?t) :- if(canSkillApplyEffect(?a,electrocute)),
-    do(applyElectrocute(?a, ?t)).
-
-doElectrocute(?t) :- if(canLocationApplyEffect(?l, electrocute, ?t), ally(?a), at(?a, ?aOldLocation), at(?t, ?tOldLocation)),
-    do(moveTo(?a, ?aOldLocation, ?tOldLocation), takeAggro(?t, ?a), moveTo(?a, ?tOldLocation, ?l), aggroMoveTo(?t, ?tOldLocation, ?l)).
 
 wetAndElectrocute2(?t) :- 
     if(canApply2(?a, ?t, wet), canApply2(?b, ?t, electrocute)), 
@@ -191,7 +217,7 @@ casticeOperator(?a, ?t) :-
 castWetOperator(?a, ?t) :- 
     del(), add().
 
-applyice(?a, ?t) :- 
+applyIce(?a, ?t) :- 
     del(), add().
 
 applyFireball(?a, ?t) :- 
