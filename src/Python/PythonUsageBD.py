@@ -11,7 +11,7 @@ import re
 # seen on windows with https://docs.microsoft.com/en-us/sysinternals/downloads/debugview
 # These traces are much like the standard Prolog traces and will help you understand how 
 # the queries and HTN tasks are running and what path they are taking
-debugPlan = False
+debugPlan = True
 test = HtnPlanner(debugPlan)
 
 def stringToAcronym(s, keepFirstWord:bool = False):
@@ -95,14 +95,19 @@ def termToString(d, verbosity):
             atom = k[0:3]+atomToString(term, v-1)
             childV = v-2
 
-        if d[k]:
+        atomString = atomToString(atom, v)
+        # if atomString.startswith('m1'):
+        #     atomString = ''
+
+        if d[k] and atomString:
             if isinstance(d[k], list):
-                answer.append(atomToString(atom, v)+sentenceToString(d[k], childV))
+                answer.append(atomString+sentenceToString(d[k], childV))
             elif isinstance(d[k], dict):
-                answer.append(atomToString(atom, v)+'('+termToString(d[k], childV)+')')
+                if atomString:
+                    answer.append(atomString+'('+termToString(d[k], childV)+')')
         else:
             # Ex : {'inn': []}
-            answer.append(atomToString(atom, v))
+            answer.append(atomString)
 
     answer = sorted(answer)
     answerSorted = [answer[i//2] if i%2==0 else ', ' for i in range(2*len(answer)-1)]
@@ -244,7 +249,7 @@ def preprocessRuleset(ruleset):
     
     return answer
     
-f = open("Examples/GameHack4.htn", "r")
+f = open("Examples/GameHack6SwapSkills.htn", "r")
 prog = f.read()
 #prog = prog2
 
@@ -299,19 +304,21 @@ query = "applyEffect(wet, gob)."
 query = "applyEffect(electrocute, gob)."
 query = "goToSameLocation(companionE,gob)."
 query = "castSkill(companionE, gob, electrocute)."
-query = "wetAndElectrocute(gob)."
 query = "castSpellToTargetSafe(companionE, electrocute, gob)."
 query = "stunAndBurn(gob)."
 query = "useSkillOnTarget(companionE,electrocute,gob)."
 query = "useSkillOnTargetSafe(companionW,wet,gob)."
-query = "planToDamage(gob)."
-query = "applyTag(electrocute, gob)."
 query = "applySkillTags(waterSkill, gob)."
 query = "goToLocation(player, lake)."
-query = "applyTag(wet, gob)."
+query = "applyTag(electrocute, gob)."
+query = "applyTagNotPresent(wet, gob)."
+query = "planToDamage(gob)."
+query = "bringMobToLocation(gob, lake)."
+query = "applyTag(electrocute, gob)."
+query = "wetAndElectrocute(gob)."
 
 print(f"FIND PLAN FOR QUERY {query}")
-output(*test.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity = 3)
+output(*test.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity = 4)
 #sys.exit()
 
 
