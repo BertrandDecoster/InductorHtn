@@ -86,7 +86,7 @@ stunAndSlowSkill(?t) :-
         \==(?a1, ?a2)
     ), 
     do(
-        prepareToApplyTag(?a1, ?stunSkill, ?t), 
+        prepareToUseSkill(?a1, ?stunSkill, ?t), 
         prepareToUseSkill(?a2, ?slowSkill, ?t), 
         opSynchronize(?a1, ?a2),
         useSkillOnTarget(?a1,?stunSkill,?t),
