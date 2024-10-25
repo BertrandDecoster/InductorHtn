@@ -249,7 +249,7 @@ def preprocessRuleset(ruleset):
     
     return answer
     
-f = open("Examples/GameHack6SwapSkills.htn", "r")
+f = open("Examples/GameHack7Combined.htn", "r")
 prog = f.read()
 #prog = prog2
 
@@ -316,6 +316,12 @@ query = "planToDamage(gob)."
 query = "bringMobToLocation(gob, lake)."
 query = "applyTag(electrocute, gob)."
 query = "wetAndElectrocute(gob)."
+query = "prepareToUseSkill(companionF, fireballSkill, gob)."
+query = "prepareToUseSkill(player, iceBlastSkill, gob)."
+query = "prepareToUseSkill(companionF, fireballSkill, gob)."
+query = "stunAndSlowSkillDebug(gob, player, companionF)."
+query = "stunAndSlowSkillDebug(gob, companionI, companionF)."
+query = "stunAndSlowSkill(gob)."
 
 print(f"FIND PLAN FOR QUERY {query}")
 output(*test.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity = 4)
