@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/bertranddecoster/mambaforge/envs/epymarl/lib/python3.10/runpy.py", line 187, in _run_module_as_main
+    mod_name, mod_spec, code = _get_module_details(mod_name, _Error)
+  File "/Users/bertranddecoster/mambaforge/envs/epymarl/lib/python3.10/runpy.py", line 110, in _get_module_details
+    __import__(pkg_name)
+  File "/Users/bertranddecoster/Projects/InductorHtn/mcp-server/indhtn_mcp/__init__.py", line 3, in <module>
+    from .server import IndHTNMCPServer
+  File "/Users/bertranddecoster/Projects/InductorHtn/mcp-server/indhtn_mcp/server.py", line 11, in <module>
+    from mcp.server import Server
+ModuleNotFoundError: No module named 'mcp'
