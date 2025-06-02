@@ -1,0 +1,65 @@
+area(a0).
+area(a1).
+area(a2).
+area(a3).
+connected(a0, a1, free).
+connected(a0, a2, free).
+connected(a2, a3, door_0).
+
+connected_1(?a, ?b) :- connected(?a, ?b, free).
+connected_1(?a, ?b) :- connected(?b, ?a, free).
+
+connected_2(?a, ?b, ?seen) :-
+    not_member(?b, ?seen),
+    connected_1(?a, ?b).
+connected_2(?a, ?b, ?seen) :-
+    connected_1(?a, ?x),
+    not_member(?x, ?seen),
+    connected_2(?x, ?b, [?a,?seen]).
+
+free_connected(?a, ?b) :- connected_2(?a, ?b, []).
+
+not_member(?x, []) :- .
+not_member(?x, [?h,?t]) :- \==(?x, ?h), not_member(?x, ?t).
+
+
+location(player, a0).
+location(companion, a0).
+location(button, a1).
+location(boss, a3).
+
+button_connection(button, door_0).
+
+
+o_move(?actor, ?loc1, ?loc2) :-
+    del(location(?actor, ?loc1)),
+    add(location(?actor, ?loc2)).
+
+o_trigger_button(?loc1, ?loc2, ?d) :-
+    del(connected(?loc1, ?loc2, ?d)),
+    add(connected(?loc1, ?loc2, free)).
+
+go_to(?actor, ?location) :-
+    if(
+        location(?actor, ?loc_actor),
+        free_connected(?loc_actor, ?location)
+    ),
+    do(o_move(?actor, ?loc_actor, ?location)).
+
+trigger_button(?actor, ?b) :-
+    if(
+        location(?actor, ?location),
+        location(?b, ?location),
+        button_connection(?b, ?d),
+        connected(?loc1, ?loc2, ?d)
+    ),
+    do(
+        o_trigger_button(?loc1, ?loc2, ?d)
+    ).
+
+
+do_ai(?actor) :- if(location(boss, ?loc_boss)), do(go_to(?actor, ?loc_boss)).
+do_ai(?actor) :- else, if(), do(trigger_button(?actor, button)).
+do_ai(?actor) :- else, if(location(button, ?loc_button)), do(go_to(?actor, ?loc_button)).
+
+
