@@ -1,4 +1,5 @@
 {
+    "cmake.sourceDirectory": "${workspaceFolder}/src",
     "files.associations": {
         "string": "cpp",
         "__bit_reference": "cpp",
