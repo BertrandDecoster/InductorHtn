@@ -18,7 +18,7 @@ HtnTermFactory::HtnTermFactory() :
     m_termsCreated(0),
     m_uniquifier(0)
 {
-    m_uniqueIDBufferEnd = m_uniqueIDBuffer + MaxIndexTerms;
+    m_uniqueIDBufferEnd = m_uniqueIDBuffer.data() + MaxIndexTerms;
 }
 
 void HtnTermFactory::BeginTracking(const string &key)
@@ -89,11 +89,8 @@ shared_ptr<HtnCustomData> HtnTermFactory::customData(const string &name)
 
 void HtnTermFactory::DebugDumpAllocations()
 {
-    int count = 0;
-    for(auto item : m_internedTerms)
-    {
-        if(++count > 1000) break;
-    }
+    // Debug output: show total number of interned terms
+    DebugLogMessage(0, TraceDetail::Normal, ("Total interned terms: " + lexical_cast<std::string>(m_internedTerms.size()) + "\n").c_str());
 }
 
 shared_ptr<HtnTerm> HtnTermFactory::EmptyList()
@@ -144,8 +141,8 @@ const string *HtnTermFactory::GetInternedString(const string &value)
 
 shared_ptr<HtnTerm> HtnTermFactory::GetInternedTerm(shared_ptr<HtnTerm> &term)
 {
-    term->GetUniqueID(m_uniqueIDBuffer, m_uniqueIDBufferEnd);
-    InternedTermMap::iterator found = m_internedTerms.find(m_uniqueIDBuffer);
+    term->GetUniqueID(m_uniqueIDBuffer.data(), m_uniqueIDBufferEnd);
+    InternedTermMap::iterator found = m_internedTerms.find(m_uniqueIDBuffer.data());
     if(found != m_internedTerms.end())
     {
         // Element did exist, return that one
@@ -155,9 +152,9 @@ shared_ptr<HtnTerm> HtnTermFactory::GetInternedTerm(shared_ptr<HtnTerm> &term)
     else
     {
         // Element didn't exist, intern it
-        size_t keySize = (size_t) *m_uniqueIDBuffer;
+        size_t keySize = (size_t) *m_uniqueIDBuffer.data();
         const string **id = new const string *[keySize];
-        memcpy(id, m_uniqueIDBuffer, keySize * sizeof(string *));
+        memcpy(id, m_uniqueIDBuffer.data(), keySize * sizeof(std::string *));
         m_internedTerms.insert(pair<const string **, weak_ptr<HtnTerm>>(id, term));
         m_otherAllocations += sizeof(pair<const string **, weak_ptr<HtnTerm>>) + keySize * sizeof(const string *);
         term->SetInterned();
@@ -204,11 +201,11 @@ void HtnTermFactory::ReleaseInternedString(const string *value)
 
 void HtnTermFactory::ReleaseInternedTerm(HtnTerm *term)
 {
-    term->GetUniqueID(m_uniqueIDBuffer, m_uniqueIDBufferEnd);
-    size_t keySize = (size_t) *m_uniqueIDBuffer;
+    term->GetUniqueID(m_uniqueIDBuffer.data(), m_uniqueIDBufferEnd);
+    size_t keySize = (size_t) *m_uniqueIDBuffer.data();
     m_otherAllocations -= sizeof(pair<const string **, weak_ptr<HtnTerm>>) + keySize * sizeof(const string *);
 
-    InternedTermMap::iterator found = m_internedTerms.find(m_uniqueIDBuffer);
+    InternedTermMap::iterator found = m_internedTerms.find(m_uniqueIDBuffer.data());
     FailFastAssert(found != m_internedTerms.end());
 	const string** temp = found->first;
     m_internedTerms.erase(found);

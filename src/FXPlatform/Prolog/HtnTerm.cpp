@@ -11,11 +11,10 @@
 #include "HtnArithmeticOperators.h"
 #include "HtnTermFactory.h"
 #include <stack>
-using namespace std;
 
-HtnTerm::HtnTerm(const HtnTerm &other, weak_ptr<HtnTermFactory> factory)
+HtnTerm::HtnTerm(const HtnTerm &other, std::weak_ptr<HtnTermFactory> factory)
 {
-    shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
+    std::shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
     m_namePtr = factoryStrong->GetInternedString(*other.m_namePtr);
     m_isVariable = other.m_isVariable;
     m_arguments = other.m_arguments;
@@ -25,43 +24,43 @@ HtnTerm::HtnTerm(const HtnTerm &other, weak_ptr<HtnTermFactory> factory)
 }
 
 // Create a constant
-HtnTerm::HtnTerm(const string &constantName, weak_ptr<HtnTermFactory> factory) :
+HtnTerm::HtnTerm(const std::string &constantName, std::weak_ptr<HtnTermFactory> factory) :
     m_isInterned(false),
     m_isVariable(false),
     m_factory(factory)
 {
-    shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
+    std::shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
     m_namePtr = factoryStrong->GetInternedString(constantName);
     factoryStrong->RecordAllocation(this);
 }
 
 // Create a constant or variable
-HtnTerm::HtnTerm(const string &constantName, bool isVariable, weak_ptr<HtnTermFactory> factory) :
+HtnTerm::HtnTerm(const std::string &constantName, bool isVariable, std::weak_ptr<HtnTermFactory> factory) :
     m_isInterned(false),
     m_isVariable(isVariable),
     m_factory(factory)
 {
-    shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
-    string adjustedName = isVariable ? "?" + constantName : constantName;
+    std::shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
+    std::string adjustedName = isVariable ? "?" + constantName : constantName;
     m_namePtr = factoryStrong->GetInternedString(adjustedName);
     factoryStrong->RecordAllocation(this);
 }
 
 // Create a functor
-HtnTerm::HtnTerm(const string &functorName, vector<shared_ptr<HtnTerm>> arguments, weak_ptr<HtnTermFactory> factory) :
+HtnTerm::HtnTerm(const std::string &functorName, std::vector<std::shared_ptr<HtnTerm>> arguments, std::weak_ptr<HtnTermFactory> factory) :
     m_arguments(arguments),
     m_isInterned(false),
     m_isVariable(false),
     m_factory(factory)
 {
-    shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
+    std::shared_ptr<HtnTermFactory> factoryStrong = factory.lock();
     m_namePtr = factoryStrong->GetInternedString(functorName);
     factoryStrong->RecordAllocation(this);
 }
 
 HtnTerm::~HtnTerm()
 {
-    if(shared_ptr<HtnTermFactory> strongFactory = m_factory.lock())
+    if(std::shared_ptr<HtnTermFactory> strongFactory = m_factory.lock())
     {
         if(m_isInterned)
         {
@@ -77,14 +76,14 @@ HtnTerm::~HtnTerm()
 int64_t HtnTerm::dynamicSize()
 {
     int termSize = sizeof(HtnTerm);
-    int ptrSize = sizeof(shared_ptr<HtnTerm>);
+    int ptrSize = sizeof(std::shared_ptr<HtnTerm>);
     return termSize +
         // Account for all the shared_ptrs in the arguments array
         ptrSize * m_arguments.size();
 }
 
 // Returns nullptr if not possible to eval
-shared_ptr<HtnTerm> HtnTerm::Eval(HtnTermFactory *factory)
+std::shared_ptr<HtnTerm> HtnTerm::Eval(HtnTermFactory *factory)
 {
     // Make sure we are not intermixing terms from different factories
     FXDebugAssert(this->m_factory.lock().get() == factory);
@@ -205,7 +204,7 @@ bool HtnTerm::isGround() const
     }
     else
     {
-        for(shared_ptr<HtnTerm> arg : m_arguments)
+        for(std::shared_ptr<HtnTerm> arg : m_arguments)
         {
             if(!arg->isGround())
             {
@@ -236,7 +235,7 @@ bool HtnTerm::isArithmetic() const
     }
 }
 
-void HtnTerm::GetAllVariables(vector<string> *result)
+void HtnTerm::GetAllVariables(std::vector<std::string> *result)
 {
     if(m_isVariable)
     {
@@ -244,14 +243,14 @@ void HtnTerm::GetAllVariables(vector<string> *result)
     }
     else
     {
-        for(shared_ptr<HtnTerm> arg : m_arguments)
+        for(std::shared_ptr<HtnTerm> arg : m_arguments)
         {
             arg->GetAllVariables(result);
         }
     }
 }
 
-void HtnTerm::GetAllVariables(set<shared_ptr<HtnTerm>, HtnTermComparer> *result)
+void HtnTerm::GetAllVariables(std::set<std::shared_ptr<HtnTerm>, HtnTermComparer> *result)
 {
     if(m_isVariable)
     {
@@ -259,7 +258,7 @@ void HtnTerm::GetAllVariables(set<shared_ptr<HtnTerm>, HtnTermComparer> *result)
     }
     else
     {
-        for(shared_ptr<HtnTerm> arg : m_arguments)
+        for(std::shared_ptr<HtnTerm> arg : m_arguments)
         {
             arg->GetAllVariables(result);
         }
@@ -293,7 +292,7 @@ HtnTermType HtnTerm::GetTermType() const
         lexical_cast_result<double>(*m_namePtr, success);
         if(success)
         {
-            if(m_namePtr->find_first_of(".") == string::npos)
+            if(m_namePtr->find_first_of(".") == std::string::npos)
             {
                 // no period, couldn't have been a float
                 return HtnTermType::IntType;
@@ -349,14 +348,14 @@ public:
         m_index++;
     }
     
-    inline vector<intptr_t> &GetData()
+    inline std::vector<intptr_t> &GetData()
     {
         return m_data;
     }
     
     int m_index;
     intptr_t *m_currentData;
-    vector<intptr_t> m_data;
+    std::vector<intptr_t> m_data;
 };
 
 // Allows us to compare terms for equality simply by comparing bytes
@@ -370,25 +369,25 @@ public:
 // Structure is:
 // string *count - number of string *s. This is a fake string * that is really a count
 // string *[] - one string * for every term that points to its name, followed by a set of fake string *s that are from the StructureBuilder that represent the shape of the term
-void HtnTerm::GetUniqueID(const string **buffer, const string **bufferEnd) const
+void HtnTerm::GetUniqueID(const std::string **buffer, const std::string **bufferEnd) const
 {
     StructureBuilder shape;
-    vector<pair<const HtnTerm *, int>> stack;
+    std::vector<std::pair<const HtnTerm *, int>> stack;
     
     // first pointer value is actually the length
-    const string **origBuffer = buffer;
+    const std::string **origBuffer = buffer;
     buffer++;
-    if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<string>(HtnTermFactory::MaxIndexTerms)).c_str());
+    if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<std::string>(HtnTermFactory::MaxIndexTerms)).c_str());
     
     // Do the root
     *buffer = m_namePtr;
     buffer++;
-    if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<string>(HtnTermFactory::MaxIndexTerms)).c_str());
+    if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<std::string>(HtnTermFactory::MaxIndexTerms)).c_str());
     
     if(m_arguments.size() > 0)
     {
         // Push the first node to process its arguments
-        stack.push_back(pair<const HtnTerm *, int>(this, 0));
+        stack.push_back(std::pair<const HtnTerm *, int>(this, 0));
         shape.StartTerm();
         
         while(stack.size() > 0)
@@ -405,12 +404,12 @@ void HtnTerm::GetUniqueID(const string **buffer, const string **bufferEnd) const
                 // Add this child's name
                 *buffer = next->m_namePtr;
                 buffer++;
-                if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<string>(HtnTermFactory::MaxIndexTerms)).c_str());
+                if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<std::string>(HtnTermFactory::MaxIndexTerms)).c_str());
                 
                 if(next->m_arguments.size() > 0)
                 {
                     // Push to process its arguments
-                    stack.push_back(pair<HtnTerm *, int>(next, 0));
+                    stack.push_back(std::pair<HtnTerm *, int>(next, 0));
                     shape.StartTerm();
                 }
             }
@@ -424,16 +423,16 @@ void HtnTerm::GetUniqueID(const string **buffer, const string **bufferEnd) const
     }
        
     // Now write out the shape as a series of fake string *s
-    vector<intptr_t> &shapeData = shape.GetData();
+    std::vector<intptr_t> &shapeData = shape.GetData();
     for(auto data : shapeData)
     {
-        *buffer = reinterpret_cast<string *>(data);
+        *buffer = reinterpret_cast<std::string *>(data);
         buffer++;
-        if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<string>(HtnTermFactory::MaxIndexTerms)).c_str());
+        if(buffer == bufferEnd) StaticFailFastAssertDesc(false, ("Too many terms, max = " + lexical_cast<std::string>(HtnTermFactory::MaxIndexTerms)).c_str());
     }
     
     // Put the size as the first "pointer"
-    *origBuffer = (string *) (buffer - origBuffer);
+    *origBuffer = (std::string *) (buffer - origBuffer);
     return;
 }
 
@@ -446,7 +445,7 @@ HtnTerm::HtnTermID HtnTerm::GetUniqueID() const
     return reinterpret_cast<HtnTermID>(this);
 }
 
-shared_ptr<HtnTerm> HtnTerm::MakeVariablesUnique(HtnTermFactory *factory, bool onlyDontCareVariables, const string &uniquifier, int *dontCareCount, std::map<std::string, std::shared_ptr<HtnTerm>> &variableMap)
+std::shared_ptr<HtnTerm> HtnTerm::MakeVariablesUnique(HtnTermFactory *factory, bool onlyDontCareVariables, const std::string &uniquifier, int *dontCareCount, std::map<std::string, std::shared_ptr<HtnTerm>> &variableMap)
 {
     // Make sure we are not intermixing terms from different factories
     // Too expensive to have in retail
@@ -454,13 +453,13 @@ shared_ptr<HtnTerm> HtnTerm::MakeVariablesUnique(HtnTermFactory *factory, bool o
     
     if(this->isVariable())
     {
-        const string &variableName = this->name();
+        const std::string &variableName = this->name();
         if(variableName[0] == '_')
         {
             // These cannot match each other so they can't use the same uniquifier
             // make sure they continue to start with "_" (illegal for a prolog name) so we can tell if they
             // are anonymous in rules
-            shared_ptr<HtnTerm> result = factory->CreateVariable("_" + uniquifier + variableName + lexical_cast<std::string>(*dontCareCount));
+            std::shared_ptr<HtnTerm> result = factory->CreateVariable("_" + uniquifier + variableName + lexical_cast<std::string>(*dontCareCount));
             variableMap[variableName] = result;
             (*dontCareCount) = (*dontCareCount) + 1;
             return result;
@@ -471,7 +470,7 @@ shared_ptr<HtnTerm> HtnTerm::MakeVariablesUnique(HtnTermFactory *factory, bool o
         }
         else
         {
-            shared_ptr<HtnTerm> newVariable = factory->CreateVariable(uniquifier + variableName);
+            std::shared_ptr<HtnTerm> newVariable = factory->CreateVariable(uniquifier + variableName);
             variableMap[variableName] = newVariable;
             return newVariable;
         }
@@ -483,10 +482,10 @@ shared_ptr<HtnTerm> HtnTerm::MakeVariablesUnique(HtnTermFactory *factory, bool o
     else
     {
         // This is a functor
-        vector<shared_ptr<HtnTerm>> newArguments;
-        for(vector<shared_ptr<HtnTerm>>::const_iterator argIter = m_arguments.begin(); argIter != m_arguments.end(); ++argIter)
+        std::vector<std::shared_ptr<HtnTerm>> newArguments;
+        for(std::vector<std::shared_ptr<HtnTerm>>::const_iterator argIter = m_arguments.begin(); argIter != m_arguments.end(); ++argIter)
         {
-            shared_ptr<HtnTerm> term = *argIter;
+            std::shared_ptr<HtnTerm> term = *argIter;
             newArguments.push_back(term->MakeVariablesUnique(factory, onlyDontCareVariables, uniquifier, dontCareCount, variableMap));
         }
         
@@ -494,7 +493,7 @@ shared_ptr<HtnTerm> HtnTerm::MakeVariablesUnique(HtnTermFactory *factory, bool o
     }
 }
 
-bool HtnTerm::OccursCheck(shared_ptr<HtnTerm> variable) const
+bool HtnTerm::OccursCheck(std::shared_ptr<HtnTerm> variable) const
 {
     // Make sure we are not intermixing terms from different factories
     FXDebugAssert(this->m_factory.lock() == variable->m_factory.lock());
@@ -505,7 +504,7 @@ bool HtnTerm::OccursCheck(shared_ptr<HtnTerm> variable) const
     }
     else
     {
-        for(shared_ptr<HtnTerm> term : m_arguments)
+        for(std::shared_ptr<HtnTerm> term : m_arguments)
         {
             if(term->OccursCheck(variable))
             {
@@ -551,14 +550,14 @@ bool HtnTerm::operator==(const HtnTerm &other) const
     }
 }
 
-shared_ptr<HtnTerm> HtnTerm::RemovePrefixFromVariables(HtnTermFactory *factory, const string &prefix)
+std::shared_ptr<HtnTerm> HtnTerm::RemovePrefixFromVariables(HtnTermFactory *factory, const std::string &prefix)
 {
     // Make sure we are not intermixing terms from different factories
     // Too expensive to have in retail
     FXDebugAssert(factory != nullptr && this->m_factory.lock().get() == factory);
     if(this->isVariable())
     {
-        const string &variableName = this->name();
+        const std::string &variableName = this->name();
         int pos = (int) variableName.find(prefix);
         if(pos == 0)
         {
@@ -576,10 +575,10 @@ shared_ptr<HtnTerm> HtnTerm::RemovePrefixFromVariables(HtnTermFactory *factory, 
     else
     {
         // This is a functor
-        vector<shared_ptr<HtnTerm>> newArguments;
-        for(vector<shared_ptr<HtnTerm>>::const_iterator argIter = m_arguments.begin(); argIter != m_arguments.end(); ++argIter)
+        std::vector<std::shared_ptr<HtnTerm>> newArguments;
+        for(std::vector<std::shared_ptr<HtnTerm>>::const_iterator argIter = m_arguments.begin(); argIter != m_arguments.end(); ++argIter)
         {
-            shared_ptr<HtnTerm> term = *argIter;
+            std::shared_ptr<HtnTerm> term = *argIter;
             newArguments.push_back(term->RemovePrefixFromVariables(factory, prefix));
         }
         
@@ -587,14 +586,14 @@ shared_ptr<HtnTerm> HtnTerm::RemovePrefixFromVariables(HtnTermFactory *factory, 
     }
 }
 
-shared_ptr<HtnTerm> HtnTerm::RenameVariables(HtnTermFactory *factory, std::map<std::string, std::shared_ptr<HtnTerm>> variableMap)
+std::shared_ptr<HtnTerm> HtnTerm::RenameVariables(HtnTermFactory *factory, std::map<std::string, std::shared_ptr<HtnTerm>> variableMap)
 {
     // Make sure we are not intermixing terms from different factories
     // Too expensive to have in retail
     FXDebugAssert(factory != nullptr && this->m_factory.lock().get() == factory);
     if(this->isVariable())
     {
-        const string &variableName = this->name();
+        const std::string &variableName = this->name();
         auto found = variableMap.find(variableName);
         if(found != variableMap.end())
         {
@@ -612,10 +611,10 @@ shared_ptr<HtnTerm> HtnTerm::RenameVariables(HtnTermFactory *factory, std::map<s
     else
     {
         // This is a functor
-        vector<shared_ptr<HtnTerm>> newArguments;
-        for(vector<shared_ptr<HtnTerm>>::const_iterator argIter = m_arguments.begin(); argIter != m_arguments.end(); ++argIter)
+        std::vector<std::shared_ptr<HtnTerm>> newArguments;
+        for(std::vector<std::shared_ptr<HtnTerm>>::const_iterator argIter = m_arguments.begin(); argIter != m_arguments.end(); ++argIter)
         {
-            shared_ptr<HtnTerm> term = *argIter;
+            std::shared_ptr<HtnTerm> term = *argIter;
             newArguments.push_back(term->RenameVariables(factory, variableMap));
         }
         
@@ -623,7 +622,7 @@ shared_ptr<HtnTerm> HtnTerm::RenameVariables(HtnTermFactory *factory, std::map<s
     }
 }
 
-shared_ptr<HtnTerm> HtnTerm::ResolveArithmeticTerms(HtnTermFactory *factory)
+std::shared_ptr<HtnTerm> HtnTerm::ResolveArithmeticTerms(HtnTermFactory *factory)
 {
     // Make sure we are not intermixing terms from different factories
     FXDebugAssert(factory != nullptr && this->m_factory.lock().get() == factory);
@@ -635,7 +634,7 @@ shared_ptr<HtnTerm> HtnTerm::ResolveArithmeticTerms(HtnTermFactory *factory)
     
     if(isArithmetic())
     {
-        shared_ptr<HtnTerm> newTerm = Eval(factory);
+        std::shared_ptr<HtnTerm> newTerm = Eval(factory);
         if(newTerm != nullptr)
         {
             return newTerm;
@@ -643,10 +642,10 @@ shared_ptr<HtnTerm> HtnTerm::ResolveArithmeticTerms(HtnTermFactory *factory)
     }
     
     // See if we can resolve any children
-    vector<shared_ptr<HtnTerm>> newChildren;
+    std::vector<std::shared_ptr<HtnTerm>> newChildren;
     for(auto term : m_arguments)
     {
-        shared_ptr<HtnTerm> newTerm = term->ResolveArithmeticTerms(factory);
+        std::shared_ptr<HtnTerm> newTerm = term->ResolveArithmeticTerms(factory);
         if(newTerm != nullptr)
         {
             newChildren.push_back(newTerm);
@@ -676,19 +675,19 @@ public:
     
     int m_argIndex;
     // If the item is a functor, this is used
-    vector<shared_ptr<HtnTerm>> m_newArguments;
-    shared_ptr<HtnTerm> m_returnValue;
+    std::vector<std::shared_ptr<HtnTerm>> m_newArguments;
+    std::shared_ptr<HtnTerm> m_returnValue;
     HtnTerm *m_term;
 };
 
 
-shared_ptr<HtnTerm> HtnTerm::SubstituteTermForVariable(HtnTermFactory *factory, shared_ptr<HtnTerm> newTerm, shared_ptr<HtnTerm> existingVariable)
+std::shared_ptr<HtnTerm> HtnTerm::SubstituteTermForVariable(HtnTermFactory *factory, std::shared_ptr<HtnTerm> newTerm, std::shared_ptr<HtnTerm> existingVariable)
 {
     // Make sure we are not intermixing terms from different factories
     FXDebugAssert(this->m_factory.lock().get() == factory && newTerm->m_factory.lock().get() == factory && existingVariable->m_factory.lock().get() == factory);
     FXDebugAssert(existingVariable->isVariable());
     
-    vector<SubstituteStackFrame> stack;
+    std::vector<SubstituteStackFrame> stack;
     stack.push_back(SubstituteStackFrame(this));
     
     SubstituteStackFrame last;
@@ -844,9 +843,9 @@ int HtnTerm::TermCompare(const HtnTerm &other)
     }
 }
 
-string HtnTerm::ToString(bool isSecondTermInList, bool json)
+std::string HtnTerm::ToString(bool isSecondTermInList, bool json)
 {
-    stringstream stream;
+    std::stringstream stream;
     if(isList() && arity() == 0)
     {
         // Empty list
@@ -862,7 +861,7 @@ string HtnTerm::ToString(bool isSecondTermInList, bool json)
             }
             else
             {
-                string test = *m_namePtr;
+                std::string test = *m_namePtr;
                 // If it starts with a number and is a legitimate number, don't escape it
                 if(test[0] >= '0' && test[0] <= '9')
                 {
@@ -886,7 +885,7 @@ string HtnTerm::ToString(bool isSecondTermInList, bool json)
                     // If it starts with uppercase or _ it must be escaped or it gets confused with a variable
                     // otherwise we escape anything but A-Z and a-z and _
                     else if(!(test[0] >= 'a' && test[0] <= 'z') ||
-                       (test.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890_") != string::npos))
+                       (test.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890_") != std::string::npos))
                     {
                         stream << "{\"'" << test << "'\":[]}";
                     }
@@ -959,9 +958,9 @@ string HtnTerm::ToString(bool isSecondTermInList, bool json)
     return stream.str();
 }
 
-string HtnTerm::ToString(const vector<shared_ptr<HtnTerm>> &goals, bool surroundWithParenthesis, bool json)
+std::string HtnTerm::ToString(const std::vector<std::shared_ptr<HtnTerm>> &goals, bool surroundWithParenthesis, bool json)
 {
-    stringstream stream;
+    std::stringstream stream;
     
     if(surroundWithParenthesis) { stream << "("; }
     bool hasItem = false;

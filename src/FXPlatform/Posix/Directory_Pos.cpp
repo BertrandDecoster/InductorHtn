@@ -1,10 +1,9 @@
 #include "Directory.h"
-using namespace std;
 
-void Directory::SplitPath(const string &pathAndFile, string &path, string &fileWithoutExtension, string &extension)
+void Directory::SplitPath(const std::string &pathAndFile, std::string &path, std::string &fileWithoutExtension, std::string &extension)
 {
     size_t lastDash = pathAndFile.find_last_of("/");
-    string fileAndExtension;
+    std::string fileAndExtension;
     if(lastDash == -1)
     {
         path = "";

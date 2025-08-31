@@ -59,13 +59,13 @@ public:
     int64_t GetInt() const;
     HtnTermType GetTermType() const;
     // Terms should never change after they are created
-    typedef uint64_t HtnTermID;
+    using HtnTermID = uint64_t;
     HtnTermID GetUniqueID() const;
     void GetUniqueID(const std::string **buffer, const std::string **bufferEnd) const;
     bool isArithmetic() const;
     bool isCompoundTerm() { return arity() > 0; }
     bool isConstant() const { return !m_isVariable && m_arguments.size() == 0; }
-	bool isCut() const { return  *m_namePtr == "!";  }
+	bool isCut() const { return *m_namePtr == "!"; }
     // We can compare pointers for equivalence because names are interned
     bool isEquivalentCompoundTerm(const HtnTerm *other) const { return arity() == other->arity() && m_namePtr == other->m_namePtr; }
     bool isList() const { return (arity() == 0 && name() == "[]") || (arity() == 2 && name() == ".");  }
@@ -100,7 +100,7 @@ private:
     HtnTerm(const std::string &constantName, bool isVariable, std::weak_ptr<HtnTermFactory> factory);
     // Create a functor
     HtnTerm(const std::string &functorName, std::vector<std::shared_ptr<HtnTerm>> arguments, std::weak_ptr<HtnTermFactory> factory);
-    void arguments(std::vector<std::shared_ptr<HtnTerm>> args) { m_arguments = args; }
+    void arguments(const std::vector<std::shared_ptr<HtnTerm>>& args) { m_arguments = args; }
     void isVariable(bool value) { m_isVariable = value; }
     
     // *** Remember to update dynamicSize() if you change any member variables!

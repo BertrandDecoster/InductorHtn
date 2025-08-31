@@ -8,6 +8,7 @@
 
 #ifndef HtnTermFactory_hpp
 #define HtnTermFactory_hpp
+#include <array>
 #include <cstring>
 #include <map>
 #include <unordered_map>
@@ -18,9 +19,8 @@ class HtnTerm;
 // to a HtnGoalResolver custom rule
 class HtnCustomData
 {
-private:
-    // This is here to guarantee the class will be polymorphic
-    virtual void bogus() {};
+public:
+    virtual ~HtnCustomData() = default;
 };
 
 class HtnTermFactory : public std::enable_shared_from_this<HtnTermFactory>
@@ -138,7 +138,7 @@ private:
     std::map<std::string, std::pair<int, int>> m_termCreationTracking;
     int m_termsCreated;
     std::shared_ptr<HtnTerm> m_true;
-    const std::string *m_uniqueIDBuffer[MaxIndexTerms];
+    std::array<const std::string*, MaxIndexTerms> m_uniqueIDBuffer;
     std::string const ** m_uniqueIDBufferEnd;
     // Global counter that is incremented every time it is used
     uint64_t m_uniquifier;

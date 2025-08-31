@@ -60,7 +60,7 @@ void NanoTrace::FormatTrace(TraceRecord& record, ostream& stream)
 		}
 	}
 
-	stream << "\r\n";
+	stream << std::endl;
 }
 
 // Normally this is all true, but removed that code to reduce complexity and just returns 0:
