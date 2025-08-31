@@ -1,7 +1,7 @@
 #include "Lexer.h"
 #include "Parser.h"
 using namespace FXPlat;
-using namespace std;
+
 
 void Lexer::AbortTransaction(long position)
 {

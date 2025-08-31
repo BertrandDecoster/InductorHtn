@@ -24,10 +24,13 @@ void NanoTrace::FormatTrace(TraceRecord& record, ostream& stream)
 	char buffer[20];
 	time_t timestamp = record.timestamp();
 	
-	// Disable "unsafe" warning in Microsoft C++
-	#pragma warning( disable : 4996 )
-	strftime(buffer, 20, "%m%d %H:%M:%S ", localtime(&timestamp));
-	stream << buffer;
+	// Format timestamp safely
+	struct tm* timeinfo = localtime(&timestamp);
+	if (timeinfo != nullptr && strftime(buffer, 20, "%m%d %H:%M:%S ", timeinfo) > 0) {
+		stream << buffer;
+	} else {
+		stream << "[time?] ";
+	}
 
 	if (record.isTiming())
 	{
@@ -90,27 +93,37 @@ double NanoTrace::TraceImpl(const string &traceKey, const double startTime, int 
     {
     case 10:
         record.data()[9] = data10;
+        // fallthrough
     case 9:
         record.data()[8] = data9;
+        // fallthrough
     case 8:
         record.data()[7] = data8;
+        // fallthrough
     case 7:
         record.data()[6] = data7;
+        // fallthrough
     case 6:
         record.data()[5] = data6;
+        // fallthrough
     case 5:
         record.data()[4] = data5;
+        // fallthrough
     case 4:
         record.data()[3] = data4;
+        // fallthrough
     case 3:
         record.data()[2] = data3;
+        // fallthrough
     case 2:
         record.data()[1] = data2;        
+        // fallthrough
     case 1:
         record.data()[0] = data1;
+        break;
     }
         
-    stringstream stream;
+    std::stringstream stream;
     FormatTrace(record, stream);
     DebugLogMessage(traceType, levelOfDetail, stream.str().c_str());
     

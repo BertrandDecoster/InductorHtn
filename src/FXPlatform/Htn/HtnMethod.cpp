@@ -8,11 +8,10 @@
 
 #include "HtnMethod.h"
 #include "HtnTerm.h"
-using namespace std;
 
-string HtnMethod::ToString() const
+std::string HtnMethod::ToString() const
 {
-    stringstream stream;
+    std::stringstream stream;
     stream << head()->ToString() << " => ";
     if(m_isDefault)
     {
@@ -30,7 +29,7 @@ string HtnMethod::ToString() const
     
     stream << "if(";
     bool has = false;
-    for(shared_ptr<HtnTerm>term : condition())
+    for(std::shared_ptr<HtnTerm>term : condition())
     {
         stream << (has ? ", " : "") << term->ToString();
         has = true;
@@ -38,7 +37,7 @@ string HtnMethod::ToString() const
     
     stream << "), do(";
     has = false;
-    for(shared_ptr<HtnTerm>term : tasks())
+    for(std::shared_ptr<HtnTerm>term : tasks())
     {
         stream << (has ? ", " : "") << term->ToString();
         has = true;

@@ -30,12 +30,15 @@ cmake -G "Unix Makefiles" ../src
 # or for Xcode:
 cmake -G "Xcode" ../src
 
-# Build
+# Build (generic)
 cmake --build ./ --config Release
 # or
 cmake --build ./ --config Debug
 
-# Run tests
+# VSCode/Homebrew CMake specific build command (use this one)
+/opt/homebrew/bin/cmake --build /Users/bertranddecoster/Projects/InductorHtn/build --config Debug --target all
+
+# Run tests (from project root)
 ./runtests
 
 # Python tests (requires libindhtnpy.dylib in /usr/local/lib)

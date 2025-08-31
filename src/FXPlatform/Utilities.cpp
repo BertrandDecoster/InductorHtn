@@ -1,6 +1,6 @@
 #include "Stopwatch.h"
 #include "Utilities.h"
-using namespace std;
+
 
 double HighPerformanceGetTimeInSeconds()
 {
@@ -38,7 +38,7 @@ std::string lexical_cast<std::string>(const char *arg, int precision)
 {
     if(arg == nullptr)
     {
-        return string();
+        return std::string();
     }
     std::string result(arg);
     return result;
@@ -49,7 +49,7 @@ std::string lexical_cast<std::string>(char *arg, int precision)
 {
     if(arg == nullptr)
     {
-        return string();
+        return std::string();
     }
 
     std::string result(arg);

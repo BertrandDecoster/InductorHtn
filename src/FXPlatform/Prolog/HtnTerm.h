@@ -86,8 +86,6 @@ public:
     std::string ToString(bool isSecondTermInList = false, bool json = false);
     static std::string ToString(const std::vector<std::shared_ptr<HtnTerm>> &goals, bool surroundWithParenthesis = true, bool json = false);
     
-    const std::string *m_namePtr;
-
 private:
     // All constructors are private so that TermFactory is used so we can track memory easier
     friend class HtnTermFactory;
@@ -107,6 +105,7 @@ private:
     std::vector<std::shared_ptr<HtnTerm>> m_arguments;
     bool m_isInterned;
     bool m_isVariable;
+    const std::string *m_namePtr;
     std::weak_ptr<HtnTermFactory> m_factory;
 };
 

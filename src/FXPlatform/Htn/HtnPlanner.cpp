@@ -15,7 +15,6 @@
 #include "HtnTerm.h"
 #include "HtnTermFactory.h"
 #include "FXPlatform/NanoTrace.h"
-using namespace std;
 
 uint8_t HtnPlanner::m_abort = 0;
 

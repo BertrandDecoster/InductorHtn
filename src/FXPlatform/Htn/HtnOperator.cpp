@@ -8,15 +8,15 @@
 
 #include "HtnOperator.h"
 #include "HtnTerm.h"
-using namespace std;
 
-string HtnOperator::ToString() const
+
+std::string HtnOperator::ToString() const
 {
-    stringstream stream;
+    std::stringstream stream;
     stream << head()->ToString() << " => del(";
     
     bool has = false;
-    for(shared_ptr<HtnTerm>term : deletions())
+    for(std::shared_ptr<HtnTerm>term : deletions())
     {
         stream << (has ? ", " : "") << term->ToString();
         has = true;
@@ -24,7 +24,7 @@ string HtnOperator::ToString() const
     
     stream << "), add(";
     has = false;
-    for(shared_ptr<HtnTerm>term : additions())
+    for(std::shared_ptr<HtnTerm>term : additions())
     {
         stream << (has ? ", " : "") << term->ToString();
         has = true;

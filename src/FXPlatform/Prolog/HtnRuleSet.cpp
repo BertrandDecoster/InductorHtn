@@ -10,9 +10,8 @@
 #include "FXPlatform/SystemTraceType.h"
 #include "HtnRuleSet.h"
 #include "HtnTerm.h"
-using namespace std;
 
-void HtnRuleSet::HtnSharedRules::AddRule(shared_ptr<HtnTerm> head, vector<shared_ptr<HtnTerm>> tail)
+void HtnRuleSet::HtnSharedRules::AddRule(std::shared_ptr<HtnTerm> head, std::vector<std::shared_ptr<HtnTerm>> tail)
 {
     FailFastAssertDesc(!m_isLocked, "Internal Error");
     FailFastAssertDesc(head->name().size() > 0, "term name must have at least one character");

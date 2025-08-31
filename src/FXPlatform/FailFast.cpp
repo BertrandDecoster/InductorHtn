@@ -1,7 +1,7 @@
 #include "FailFast.h"
 #include "NanoTrace.h"
 #include <string>
-using namespace std;
+
 
 std::terminate_handler previousHandler = std::set_terminate(uncaught_exception_handler);
 bool failFastIsException = false;

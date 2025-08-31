@@ -10,66 +10,65 @@
 #include "HtnArithmeticOperators.h"
 #include "HtnTerm.h"
 #include "HtnTermFactory.h"
-using namespace std;
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Float(HtnTermFactory *factory, shared_ptr<HtnTerm> left)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Float(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left)
 {
-    shared_ptr<HtnTerm> leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm> leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
-        return factory->CreateConstant(lexical_cast<string>(leftEval->GetDouble()));
+        return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetDouble()));
     }
     
     return nullptr;
 }
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Integer(HtnTermFactory *factory, shared_ptr<HtnTerm> left)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Integer(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left)
 {
-    shared_ptr<HtnTerm> leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm> leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
-        return factory->CreateConstant(lexical_cast<string>(leftEval->GetInt()));
+        return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetInt()));
     }
     
     return nullptr;
 }
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Abs(HtnTermFactory *factory, shared_ptr<HtnTerm> left)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Abs(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
         HtnTermType leftType = leftEval->GetTermType();
         if(leftType == HtnTermType::IntType)
         {
-            return factory->CreateConstant(lexical_cast<string>(abs(leftEval->GetInt())));
+            return factory->CreateConstant(lexical_cast<std::string>(abs(leftEval->GetInt())));
         }
         else
         {
-            return factory->CreateConstant(lexical_cast<string>(abs(leftEval->GetDouble())));
+            return factory->CreateConstant(lexical_cast<std::string>(abs(leftEval->GetDouble())));
         }
     }
     
     return nullptr;
 }
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Divide(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Divide(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
         HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             HtnTermType rightType = rightEval->GetTermType();
             if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
             {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetInt() / rightEval->GetInt()));
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetInt() / rightEval->GetInt()));
             }
             else
             {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetDouble() / rightEval->GetDouble()));
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetDouble() / rightEval->GetDouble()));
             }
         }
     }
@@ -77,13 +76,13 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::Divide(HtnTermFactory *factory, shar
     return nullptr;
 }
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Equal(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Equal(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
         HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             HtnTermType rightType = rightEval->GetTermType();
@@ -102,12 +101,12 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::Equal(HtnTermFactory *factory, share
 }
 
 // Both sides get evaluated, converted to float, then compared
-shared_ptr<HtnTerm> HtnArithmeticOperators::GreaterThan(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::GreaterThan(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             if(leftEval->GetDouble() > rightEval->GetDouble())
@@ -125,12 +124,12 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::GreaterThan(HtnTermFactory *factory,
 }
 
 // Both sides get evaluated, converted to float, then compared
-shared_ptr<HtnTerm> HtnArithmeticOperators::GreaterThanOrEqual(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::GreaterThanOrEqual(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             if(leftEval->GetDouble() >= rightEval->GetDouble())
@@ -148,12 +147,12 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::GreaterThanOrEqual(HtnTermFactory *f
 }
 
 // Both sides get evaluated, converted to float, then compared
-shared_ptr<HtnTerm> HtnArithmeticOperators::LessThan(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::LessThan(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             if(leftEval->GetDouble() < rightEval->GetDouble())
@@ -171,12 +170,12 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::LessThan(HtnTermFactory *factory, sh
 }
 
 // Both sides get evaluated, converted to float, then compared
-shared_ptr<HtnTerm> HtnArithmeticOperators::LessThanOrEqual(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::LessThanOrEqual(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             if(leftEval->GetDouble() <= rightEval->GetDouble())
@@ -194,23 +193,23 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::LessThanOrEqual(HtnTermFactory *fact
 }
 
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Max(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Max(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
         HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             HtnTermType rightType = rightEval->GetTermType();
             if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
             {
-                return factory->CreateConstant(lexical_cast<string>(std::max(leftEval->GetInt(), rightEval->GetInt())));
+                return factory->CreateConstant(lexical_cast<std::string>(std::max(leftEval->GetInt(), rightEval->GetInt())));
             }
             else
             {
-                return factory->CreateConstant(lexical_cast<string>(std::max(leftEval->GetDouble(), rightEval->GetDouble())));
+                return factory->CreateConstant(lexical_cast<std::string>(std::max(leftEval->GetDouble(), rightEval->GetDouble())));
             }
         }
     }
@@ -218,72 +217,23 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::Max(HtnTermFactory *factory, shared_
     return nullptr;
 }
 
-shared_ptr<HtnTerm> HtnArithmeticOperators::Min(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Min(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
         HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             HtnTermType rightType = rightEval->GetTermType();
             if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
             {
-                return factory->CreateConstant(lexical_cast<string>(std::min(leftEval->GetInt(), rightEval->GetInt())));
+                return factory->CreateConstant(lexical_cast<std::string>(std::min(leftEval->GetInt(), rightEval->GetInt())));
             }
             else
             {
-                return factory->CreateConstant(lexical_cast<string>(std::min(leftEval->GetDouble(), rightEval->GetDouble())));
-            }
-        }
-    }
-    
-    return nullptr;
-}
-
-// Keep the type the same if we can.  If we can't, convert to double
-shared_ptr<HtnTerm> HtnArithmeticOperators::Minus(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
-{
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
-    if(leftEval != nullptr)
-    {
-        HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
-        if(rightEval != nullptr)
-        {
-            HtnTermType rightType = rightEval->GetTermType();
-            if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
-            {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetInt() - rightEval->GetInt()));
-            }
-            else
-            {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetDouble() - rightEval->GetDouble()));
-            }
-        }
-    }
-    
-    return nullptr;
-}
-
-shared_ptr<HtnTerm> HtnArithmeticOperators::Multiply(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
-{
-    shared_ptr<HtnTerm>leftEval = left->Eval(factory);
-    if(leftEval != nullptr)
-    {
-        HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm>rightEval = right->Eval(factory);
-        if(rightEval != nullptr)
-        {
-            HtnTermType rightType = rightEval->GetTermType();
-            if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
-            {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetInt() * rightEval->GetInt()));
-            }
-            else
-            {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetDouble() * rightEval->GetDouble()));
+                return factory->CreateConstant(lexical_cast<std::string>(std::min(leftEval->GetDouble(), rightEval->GetDouble())));
             }
         }
     }
@@ -292,23 +242,72 @@ shared_ptr<HtnTerm> HtnArithmeticOperators::Multiply(HtnTermFactory *factory, sh
 }
 
 // Keep the type the same if we can.  If we can't, convert to double
-shared_ptr<HtnTerm> HtnArithmeticOperators::Plus(HtnTermFactory *factory, shared_ptr<HtnTerm> left, shared_ptr<HtnTerm> right)
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Minus(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
 {
-    shared_ptr<HtnTerm> leftEval = left->Eval(factory);
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
     if(leftEval != nullptr)
     {
         HtnTermType leftType = leftEval->GetTermType();
-        shared_ptr<HtnTerm> rightEval = right->Eval(factory);
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
         if(rightEval != nullptr)
         {
             HtnTermType rightType = rightEval->GetTermType();
             if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
             {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetInt() + rightEval->GetInt()));
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetInt() - rightEval->GetInt()));
             }
             else
             {
-                return factory->CreateConstant(lexical_cast<string>(leftEval->GetDouble() + rightEval->GetDouble()));
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetDouble() - rightEval->GetDouble()));
+            }
+        }
+    }
+    
+    return nullptr;
+}
+
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Multiply(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
+{
+    std::shared_ptr<HtnTerm>leftEval = left->Eval(factory);
+    if(leftEval != nullptr)
+    {
+        HtnTermType leftType = leftEval->GetTermType();
+        std::shared_ptr<HtnTerm>rightEval = right->Eval(factory);
+        if(rightEval != nullptr)
+        {
+            HtnTermType rightType = rightEval->GetTermType();
+            if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
+            {
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetInt() * rightEval->GetInt()));
+            }
+            else
+            {
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetDouble() * rightEval->GetDouble()));
+            }
+        }
+    }
+    
+    return nullptr;
+}
+
+// Keep the type the same if we can.  If we can't, convert to double
+std::shared_ptr<HtnTerm> HtnArithmeticOperators::Plus(HtnTermFactory *factory, std::shared_ptr<HtnTerm> left, std::shared_ptr<HtnTerm> right)
+{
+    std::shared_ptr<HtnTerm> leftEval = left->Eval(factory);
+    if(leftEval != nullptr)
+    {
+        HtnTermType leftType = leftEval->GetTermType();
+        std::shared_ptr<HtnTerm> rightEval = right->Eval(factory);
+        if(rightEval != nullptr)
+        {
+            HtnTermType rightType = rightEval->GetTermType();
+            if(leftType == HtnTermType::IntType && rightType == HtnTermType::IntType)
+            {
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetInt() + rightEval->GetInt()));
+            }
+            else
+            {
+                return factory->CreateConstant(lexical_cast<std::string>(leftEval->GetDouble() + rightEval->GetDouble()));
             }
         }
     }
