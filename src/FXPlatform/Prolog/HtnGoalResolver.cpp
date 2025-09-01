@@ -1972,6 +1972,7 @@ void HtnGoalResolver::RuleForAll(ResolveState *state)
     }
 }
 
+// Used for arithmetic
 // The second argument must be ground
 // The first argument can be ground OR a variable
 // is(?Variable | ?Term, ?Term)

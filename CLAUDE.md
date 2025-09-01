@@ -58,13 +58,39 @@ python PythonUsage.py
 - Python interface tests: `python src/Python/PythonUsage.py`
 - Test files are in `src/Tests/`
 
+## Prolog
+
+### Prolog architecture
+ - Default Prolog syntax has variables starting with an uppercase letter `constant`, `Variable`
+ - When you ask a Prolog Compiler to compile strings, it will split the standard rules with those with the special keyword goals()
+ - The Prolog compiler has SolveGoals to directly do Prolog resolution (it has an inner HtnGoalResolver)
+ - It is advised to never use the goals() keyword and instead...
+ - You can ask it to ResolveAll, and provide it a list of terms, and it will unify
+
+### Custom rules
+
+### first() - Return First Solution Only
+Returns only the first solution from a Prolog query, useful for deterministic behavior.
+
+```prolog
+% Get the first available taxi (don't try all taxis)
+getTaxi() :- if(first(available(?taxi))), do(hire(?taxi)).
+
+% State: multiple taxis available
+available(taxi1). available(taxi2). available(taxi3).
+
+% Result: Only binds ?taxi to taxi1 (first match), doesn't try taxi2, taxi3
+```
+## HTN
+
 ### HTN Syntax Key Points
-- Variables use `?varname` (not Prolog capitalization)
+- HTN syntax (also referred to as CustomVariables) start with a question mark `?` : `?varname` (instead of Prolog capitalization)
 - Methods decompose complex tasks: `travel-to(?dest) :- if(...), do(...).`
 - Operators are primitive actions: `walk(?from, ?to) :- del(at(?from)), add(at(?to)).`
 - Mix HTN constructs with standard Prolog rules
+- Methods (if/do) can accept the keywords `else`, `allOf`, `anyOf`
+- Operators (del/add) can accept the keyword `hidden`
 
-## HTN Advanced Constructs
 
 ### anyOf - Multiple Variable Bindings (OR Logic)
 The `anyOf` modifier handles multiple variable bindings within a SINGLE method. It executes the `do()` clause for each variable binding that satisfies the `if()` condition, wrapping each execution in try() blocks. The method succeeds if **at least one** execution succeeds.
@@ -102,20 +128,16 @@ repair(?unit) :- del(isDamaged(?unit)), add(fullyRepaired(?unit)).
 % Succeeds only if ALL repairs succeed
 ```
 
-### first() - Return First Solution Only
-Returns only the first solution from a Prolog query, useful for deterministic behavior.
+### else - Method Priority (Fallback)
+Provides fallback method selection with explicit priority ordering.
 
 ```prolog
-% Get the first available taxi (don't try all taxis)
-getTaxi() :- if(first(available(?taxi))), do(hire(?taxi)).
-
-% State: multiple taxis available
-available(taxi1). available(taxi2). available(taxi3).
-
-% Result: Only binds ?taxi to taxi1 (first match), doesn't try taxi2, taxi3
+travel(?dest) :- if(hasCarKey), do(drive(?dest)).
+travel(?dest) :- else, if(hasBusPass), do(takeBus(?dest)).
+travel(?dest) :- else, if(), do(walk(?dest)).
 ```
 
-### try() - Optional Execution 
+### try() - Optional Execution (HtnPlanner::CheckForSpecialTask)
 Wraps operations for optional execution that shouldn't cause the entire plan to fail.
 
 ```prolog
@@ -125,14 +147,6 @@ collectRewards() :- if(), do(getMainReward, try(getBonusItem)).
 % If getBonusItem fails, the method still succeeds with just getMainReward
 ```
 
-### else - Method Priority (Fallback)
-Provides fallback method selection with explicit priority ordering.
-
-```prolog
-travel(?dest) :- if(hasCarKey), do(drive(?dest)).
-travel(?dest) :- else, if(hasBusPass), do(takeBus(?dest)).
-travel(?dest) :- else, if(), do(walk(?dest)).
-```
 
 ## Creating HTN Plans - Best Practices
 
