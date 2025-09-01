@@ -23,6 +23,8 @@ SUITE(HtnRuleSetTests)
 {
     void CheckRuleExistsAllWays(bool expectedExists, shared_ptr<HtnRuleSet> ruleSet, shared_ptr<HtnTerm> ruleHead, const vector<shared_ptr<HtnTerm>> &ruleTail)
     {
+        // Rules can be stored as facts or as rules
+        // This function takes a head and an optional tail and check if it is in the facts xor the rules
         HtnRule rule(ruleHead, ruleTail);
         string ruleID = rule.GetUniqueID();
 
@@ -66,6 +68,7 @@ SUITE(HtnRuleSetTests)
     
     TEST(RuleSetRuleInterning)
     {
+        // Interned = hashed in the factory, so all identical terms point to the same memory space
         shared_ptr<HtnTermFactory> factory;
         shared_ptr<HtnRuleSet> ruleSet;
         
@@ -79,7 +82,14 @@ SUITE(HtnRuleSetTests)
         ruleHead = factory->CreateFunctor("Head1", { factory->CreateConstant("X") });
         ruleSet->AddRule(ruleHead, { });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { });
-        
+
+        HtnTerm::HtnTermID oldID = ruleHead->GetUniqueID();
+
+        ruleHead = factory->CreateFunctor("Head1", { factory->CreateConstant("X") });
+        CheckRuleExistsAllWays(true, ruleSet, ruleHead, { });
+        HtnTerm::HtnTermID newID = ruleHead->GetUniqueID();
+        StaticFailFastAssert(oldID == newID);
+
         CheckRuleOrder(ruleSet, {
             "Head1(?X) => ",
             "Head1(X) => "
@@ -96,11 +106,13 @@ SUITE(HtnRuleSetTests)
         ruleSet = shared_ptr<HtnRuleSet>(new HtnRuleSet());
         shared_ptr<HtnTerm> ruleHead = factory->CreateFunctor("Head1", { factory->CreateVariable("X") });
         shared_ptr<HtnTerm> ruleTail = factory->CreateFunctor("Tail1", { factory->CreateVariable("X") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { ruleTail });
         ruleSet->AddRule(ruleHead, { ruleTail });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { ruleTail });
 
         // Add a fact
         ruleHead = factory->CreateFunctor("Fact1", { factory->CreateConstant("Value") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { });
         ruleSet->AddRule(ruleHead, { });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { });
 
@@ -145,25 +157,30 @@ SUITE(HtnRuleSetTests)
         // Add 3 rules
         ruleHead = factory->CreateFunctor("Head1", { factory->CreateVariable("X") });
         ruleTail = factory->CreateFunctor("Tail1", { factory->CreateVariable("X") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { ruleTail });
         ruleSet->AddRule(ruleHead, { ruleTail });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { ruleTail });
 
         ruleHead = factory->CreateFunctor("Head1", { factory->CreateVariable("X") });
         ruleTail = factory->CreateFunctor("Tail2", { factory->CreateVariable("X") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { ruleTail });
         ruleSet->AddRule(ruleHead, { ruleTail });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { ruleTail });
 
         ruleHead = factory->CreateFunctor("Head2", { factory->CreateVariable("X") });
         ruleTail = factory->CreateFunctor("Tail3", { factory->CreateVariable("X") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { ruleTail });
         ruleSet->AddRule(ruleHead, { ruleTail });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { ruleTail });
 
         // Add two facts
         ruleHead = factory->CreateFunctor("Fact1", { factory->CreateConstant("True") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { });
         ruleSet->AddRule(ruleHead, { });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { });
 
         ruleHead = factory->CreateFunctor("Fact2", { factory->CreateConstant("True") });
+        CheckRuleExistsAllWays(false, ruleSet, ruleHead, { });
         ruleSet->AddRule(ruleHead, { });
         CheckRuleExistsAllWays(true, ruleSet, ruleHead, { });
         CheckRuleOrder(ruleSet, {

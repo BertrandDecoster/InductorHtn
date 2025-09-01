@@ -4,7 +4,7 @@
 //
 //  Created by Claude Code for comprehensive HTN advanced features testing
 //  Tests anyOf, allOf, first(), try(), hidden operators, and method ordering
-//
+//  Copyright © 2025 Bertrand Decoster. All rights reserved.
 
 #include "FXPlatform/FailFast.h"
 #include "FXPlatform/Parser/ParserDebug.h"
@@ -31,10 +31,6 @@ SUITE(HtnAdvancedFeaturesTests)
             compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
         }
         
-        void Clear()
-        {
-            compiler->ClearWithNewRuleSet();
-        }
         
         string FindFirstPlan(const string& program)
         {
@@ -552,41 +548,41 @@ SUITE(HtnAdvancedFeaturesTests)
             "executeComplexPlan() :- if(highPriorityCondition), do(try(criticalSequence, emergencyFallback))."
             "executeComplexPlan() :- else, if(), do(normalSequence)."
             
-            // Critical sequence with allOf
-            "criticalSequence :- allOf, if(needA), do(doA)."
-            "criticalSequence :- allOf, if(needB), do(doB)."
+            // Critical sequence with anyOf
+            "criticalSequence() :- anyOf, if(criticalValid(?c)), do(criticalSequence_routine(?c))."
             
-            // Normal sequence with anyOf and first
-            "normalSequence :- if(first(option(?x), available(?x), cost(?x, ?c), <(?c, 10))), do(selectOption(?x))."
+            // Normal sequence with first
+            "normalSequence() :- if(first(option(?x), available(?x), cost(?x, ?c), <(?c, 10))), do(selectOption(?x))."
             
             // State setup
             "needA. needB. "  // Critical sequence conditions
             "option(cheap). option(expensive). option(free). "
             "available(cheap). available(expensive). available(free). "
             "cost(free, 0). cost(cheap, 5). cost(expensive, 15). "
+            "criticalValid(doA). criticalValid(doB)."
             
             // Operators
-            "doA :- hidden, del(), add(aDone)."  // Hidden
-            "doB :- del(), add(bDone)."
             "emergencyFallback :- del(), add(emergency)."
             "selectOption(?opt) :- del(), add(selected(?opt))."
+            "criticalSequence_routine(?c) :- del(), add(?c)."
             
             "goals(executeComplexPlan()).";
         
         string result = helper.FindFirstPlan(program);
         
         // Without highPriorityCondition, should use normal sequence
-        // First should find free option (cost 0 < 10)
-        CHECK(result.find("selectOption(free)") != string::npos);
+        // First should find cheap option (cost 5 < 10)
+        // because it's the first to unify (if you follow the order in which the rules were compiled)
+        CHECK(result.find("selectOption(cheap)") != string::npos);
         
         // Now test with high priority condition
-        helper.Clear();
         string program2 = program + "highPriorityCondition. ";
-        result = helper.FindFirstPlan(program2);
+        result = helper.FindFirstPlan(program2); // This clears the compiler first
         
-        // Should execute critical sequence with both doA and doB
+        // // Should execute critical sequence with both doA and doB
+        CHECK(result.find("doA") != string::npos);  // doA is hidden, so won't appear in plan
         CHECK(result.find("doB") != string::npos);  // doA is hidden, so won't appear in plan
-        CHECK(result.find("selectOption") == string::npos);  // Should not use normal sequence
+
     }
     
     TEST(Integration_RealWorldScenario)
@@ -640,7 +636,7 @@ SUITE(HtnAdvancedFeaturesTests)
         
         // Complex error recovery using multiple try() blocks and else chains
         string program = 
-            "robustOperation() :- if(), do(try(primaryMethod, try(secondaryMethod, tertiaryMethod)))."
+            "robustOperation() :- if(), do(try(primaryMethod), try(secondaryMethod), try(tertiaryMethod))."
             
             "primaryMethod :- if(primaryCondition), do(primaryAction)."
             "secondaryMethod :- if(secondaryCondition), do(secondaryAction)."

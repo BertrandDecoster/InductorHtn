@@ -4,7 +4,7 @@
 //
 //  Tests only the working parts of the InductorHTN system
 //  Focuses on operators and basic functionality that doesn't crash
-//
+//  Copyright © 2025 Bertrand Decoster. All rights reserved.
 
 #include "FXPlatform/FailFast.h"
 #include "FXPlatform/Parser/ParserDebug.h"

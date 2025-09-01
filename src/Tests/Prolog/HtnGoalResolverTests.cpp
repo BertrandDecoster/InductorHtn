@@ -5,6 +5,9 @@
 //  Created by Eric Zinda on 9/25/18.
 //  Copyright © 2018 Eric Zinda. All rights reserved.
 //
+// Every single keyword of HtnGoalResolver is tested here
+// except nl, showTraces
+
 #include <iostream>
 // #include "FXPlatform/FileStream.h"
 #include "FXPlatform/Logger.h"
@@ -108,6 +111,7 @@ SUITE(HtnGoalResolverTests)
     
     TEST(GoalResolverFailureContextTest)
     {
+        // failureContext is a HtnGoalSolver keyword, ony used for debugging
         HtnGoalResolver resolver;
         shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
         shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());

@@ -4,7 +4,7 @@
 //
 //  Created by Claude Code for comprehensive built-in predicate testing
 //  Tests all built-in predicates with edge cases and comprehensive coverage
-//
+//  Copyright © 2025 Bertrand Decoster. All rights reserved.
 
 #include "FXPlatform/Logger.h"
 #include "FXPlatform/Prolog/HtnGoalResolver.h"
@@ -56,34 +56,7 @@ SUITE(BuiltInPredicateCoverageTests)
         // Basic concatenation
         string result = helper.SolveGoals("goals(atom_concat(hello, world, ?X)).");
         CHECK_EQUAL("((?X = helloworld))", result);
-        
-        /* BUG REPORT #1
-         * Test: AtomConcat_BasicUsage - Reverse lookup
-         * Date Found: 2024-12-19
-         * Severity: Medium
-         * 
-         * Description:
-         *   atom_concat/3 only supports forward concatenation (const,const,var)
-         *   It does not support reverse lookup patterns like (var,const,const)
-         * 
-         * Reproduction:
-         *   goals(atom_concat(?A, world, helloworld)).
-         * 
-         * Expected: ((?A = hello))
-         * Actual: Exception - "atom_concat() must have three terms, first two as constants and the last as variable"
-         * 
-         * Suspected Location: HtnGoalResolver.cpp:1414
-         * 
-         * Workaround: Only use forward concatenation pattern
-         */
-        // These tests are disabled due to BUG #1
-        // helper.Clear();
-        // result = helper.SolveGoals("goals(atom_concat(?A, world, helloworld)).");
-        // CHECK_EQUAL("((?A = hello))", result);
-        
-        // helper.Clear(); 
-        // result = helper.SolveGoals("goals(atom_concat(hello, ?B, helloworld)).");
-        // CHECK_EQUAL("((?B = world))", result);
+    
     }
     
     TEST(AtomConcat_EdgeCases)
@@ -94,19 +67,6 @@ SUITE(BuiltInPredicateCoverageTests)
         string result = helper.SolveGoals("goals(atom_concat('', world, ?X)).");
         CHECK_EQUAL("((?X = world))", result);
         
-        /* BUG REPORT #2
-         * Test: AtomConcat_EdgeCases - Empty string display
-         * Date Found: 2024-12-19
-         * Severity: Low
-         * 
-         * Description:
-         *   Empty strings are displayed as () instead of ''
-         * 
-         * Expected: ((?X = ''))
-         * Actual: ((?X = ))
-         * 
-         * Workaround: Expect () format for empty strings
-         */
         // Concatenate with empty result
         helper.Clear();
         result = helper.SolveGoals("goals(atom_concat('', '', ?X)).");

@@ -3,7 +3,8 @@
 //  TestLib
 //
 //  Simple HTN test to debug the API differences
-//
+//  Copyright © 2025 Bertrand Decoster. All rights reserved.
+
 #include "AIHarness.h"
 #include "Prolog/HtnGoalResolver.h"
 #include "FXPlatform/Htn/HtnCompiler.h"

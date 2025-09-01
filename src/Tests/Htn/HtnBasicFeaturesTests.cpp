@@ -4,7 +4,7 @@
 //
 //  Working HTN features tests based on actual implementation
 //  Focuses on features that are known to work (not anyOf/allOf/first/try)
-//
+//  Copyright © 2025 Bertrand Decoster. All rights reserved.
 
 #include "FXPlatform/FailFast.h"
 #include "FXPlatform/Parser/ParserDebug.h"
@@ -41,12 +41,14 @@ SUITE(HtnBasicFeaturesTests)
         {
             compiler->ClearWithNewRuleSet();  
             CHECK(compiler->Compile(program));
-            lastSolutions = planner->FindAllPlans(factory.get(), compiler->compilerOwnedRuleSet(), compiler->goals());
-            
+            //lastSolutions = planner->FindAllPlans(factory.get(), compiler->compilerOwnedRuleSet(), compiler->goals());
+            auto solution = planner->FindPlan(factory.get(), compiler->compilerOwnedRuleSet(), compiler->goals());
             // Extract first solution if available
-            if (lastSolutions && !lastSolutions->empty())
+            lastSolutions = make_shared<HtnPlanner::SolutionsType>();
+            if(solution)
             {
-                return HtnPlanner::ToStringSolution((*lastSolutions)[0]);
+                lastSolutions->push_back(solution);
+                return HtnPlanner::ToStringSolution(solution);
             }
             return "null";
         }
@@ -429,7 +431,7 @@ SUITE(HtnBasicFeaturesTests)
         string result = helper.FindFirstPlan(program);
         
         // Should find route via station
-        CHECK(result.find("traveledVia(home,station,downtown)") != string::npos);
+        CHECK(result.find("travelVia(home,station,downtown)") != string::npos);
     }
 
     // ========== Error Handling Tests ==========

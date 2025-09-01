@@ -4,7 +4,19 @@
 //
 //  Fixed version working with actual InductorHTN implementation
 //  Tests built-in predicates with realistic expectations
-//
+//  Copyright © 2025 Bertrand Decoster. All rights reserved.
+
+/**
+ * Test HtnGoalResolver custom keywords
+ * This is pure Prolog
+ * 
+ *  - atom_concat
+ *  atom_concat(hello, world, ?X) -> (?X = helloworld)
+ *  - downcase_atom
+ *  - atom_chars
+ *  - count
+ *  - distinct
+ */
 
 #include "FXPlatform/Logger.h"
 #include "FXPlatform/Prolog/HtnGoalResolver.h"
@@ -29,13 +41,9 @@ SUITE(BuiltInPredicateRealWorldTests)
             resolver = shared_ptr<HtnGoalResolver>(new HtnGoalResolver());
         }
         
-        void Clear()
-        {
-            compiler->Clear();
-        }
-        
         string SolveGoals(const string& program)
         {
+            compiler->Clear();
             CHECK(compiler->Compile(program));
             auto unifier = compiler->SolveGoals(resolver.get());
             return HtnGoalResolver::ToString(unifier.get());
@@ -53,22 +61,22 @@ SUITE(BuiltInPredicateRealWorldTests)
     {
         BuiltInTestHelper helper;
         
-        // Basic concatenation (forward direction only - BUG #1 limitation)
+        // Basic concatenation (forward direction only - limitation)
         string result = helper.SolveGoals("goals(atom_concat(hello, world, ?X)).");
         CHECK_EQUAL("((?X = helloworld))", result);
         
         // Empty string concatenation
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atom_concat('', world, ?X)).");
         CHECK_EQUAL("((?X = world))", result);
         
-        // Concatenate empty strings (BUG #2: displays as () not '')
-        helper.Clear();
+        // Concatenate empty strings
+        
         result = helper.SolveGoals("goals(atom_concat('', '', ?X)).");
         CHECK_EQUAL("((?X = ))", result);
         
         // Numbers as atoms
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atom_concat(123, 456, ?X)).");
         CHECK_EQUAL("((?X = 123456))", result);
     }
@@ -83,27 +91,27 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("((?X = hello))", result);
         
         // Mixed case
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(downcase_atom('HeLLo', ?X)).");
         CHECK_EQUAL("((?X = hello))", result);
         
         // Already lowercase
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(downcase_atom(hello, ?X)).");
         CHECK_EQUAL("((?X = hello))", result);
         
         // Empty string (BUG #2: displays as () not '')
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(downcase_atom('', ?X)).");
         CHECK_EQUAL("((?X = ))", result);
         
         // Numbers (BUG #3: unquoted output)
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(downcase_atom('123', ?X)).");
         CHECK_EQUAL("((?X = 123))", result);
         
         // Special characters (BUG #3: unquoted output)  
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(downcase_atom('HELLO!@#', ?X)).");
         CHECK_EQUAL("((?X = hello!@#))", result);
     }
@@ -118,12 +126,12 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("((?X = [h,e,l,l,o]))", result);
         
         // Single character
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atom_chars(a, ?X)).");
         CHECK_EQUAL("((?X = [a]))", result);
         
         // Empty atom
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atom_chars('', ?X)).");
         CHECK_EQUAL("((?X = []))", result);
     }
@@ -140,7 +148,7 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("((?X = 3))", result);
         
         // Count with no matches
-        helper.Clear();
+        
         program = "person(john). "
                  "goals(count(?X, animal(?X))).";
         result = helper.SolveGoals(program);
@@ -176,14 +184,14 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("((?Children = [bob,liz]))", result);
         
         // Findall with no solutions
-        helper.Clear();
+        
         program = "parent(tom, bob). "
                  "goals(findall(?X, parent(mary, ?X), ?Result)).";
         result = helper.SolveGoals(program);
         CHECK_EQUAL("((?Result = []))", result);
         
         // Findall with complex template
-        helper.Clear();
+        
         program = "score(alice, 85). score(bob, 92). score(charlie, 78). "
                  "goals(findall(grade(?Name, ?Score), score(?Name, ?Score), ?Grades)).";
         result = helper.SolveGoals(program);
@@ -203,7 +211,7 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("(())", result); // Empty unifier means success
         
         // Forall condition that should fail
-        helper.Clear();
+        
         program = "person(john). person(mary). person(child). "
                  "adult(john). adult(mary). "
                  "goals(forall(person(?X), adult(?X))).";
@@ -211,7 +219,7 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("null", result); // Should fail because child is not adult
         
         // Forall with empty domain (vacuously true)
-        helper.Clear();
+        
         program = "goals(forall(nonexistent(?X), adult(?X))).";
         result = helper.SolveGoals(program);
         CHECK_EQUAL("(())", result); // Should succeed vacuously
@@ -229,7 +237,7 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("((?X = taxi))", result); // Should return first match only
         
         // First with no solutions
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(first(nonexistent(?X))).");
         CHECK_EQUAL("null", result);
     }
@@ -243,20 +251,20 @@ SUITE(BuiltInPredicateRealWorldTests)
         string result = helper.SolveGoals("goals(is(?X, +(5, 3))).");
         CHECK_EQUAL("((?X = 8))", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(is(?X, -(10, 4))).");
         CHECK_EQUAL("((?X = 6))", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(is(?X, *(7, 6))).");
         CHECK_EQUAL("((?X = 42))", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(is(?X, /(15, 3))).");
         CHECK_EQUAL("((?X = 5))", result);
         
         // Nested arithmetic
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(is(?X, +(*(2, 3), -(10, 4)))).");
         CHECK_EQUAL("((?X = 12))", result);
     }
@@ -269,10 +277,6 @@ SUITE(BuiltInPredicateRealWorldTests)
         string result = helper.SolveGoals("goals(is(?X, /(5, 0))).");
         CHECK_EQUAL("((?X = 0))", result); // Known incorrect behavior
         
-        // BUG #4: mod() function not supported - test would throw exception
-        // helper.Clear();
-        // result = helper.SolveGoals("goals(is(?X, mod(17, 5))).");
-        // Expected: ((?X = 2)) but throws exception
     }
 
     // ========== atomic/1 Working Tests ==========
@@ -285,17 +289,17 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("(())", result);
         
         // Test with numbers
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atomic(42)).");
         CHECK_EQUAL("(())", result);
         
         // Test with unbound variables (should fail)
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atomic(?X)).");
         CHECK_EQUAL("null", result);
         
         // Test with compound terms (should fail)
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(atomic(foo(bar))).");
         CHECK_EQUAL("null", result);
     }
@@ -312,7 +316,7 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("(())", result);
         
         // Not of true condition should fail
-        helper.Clear();
+        
         program = "person(john). "
                  "goals(not(person(john))).";
         result = helper.SolveGoals(program);
@@ -329,29 +333,29 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK_EQUAL("((?X = hello))", result);
         
         // Identical terms
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(==(hello, hello)).");
         CHECK_EQUAL("(())", result);
         
         // Non-identical terms
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(\\==(hello, world)).");
         CHECK_EQUAL("(())", result);
         
         // Arithmetic comparisons
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(>(5, 3)).");
         CHECK_EQUAL("(())", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(<(3, 5)).");
         CHECK_EQUAL("(())", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(>=(5, 5)).");
         CHECK_EQUAL("(())", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(=<(3, 5)).");
         CHECK_EQUAL("(())", result);
     }
@@ -365,15 +369,15 @@ SUITE(BuiltInPredicateRealWorldTests)
         string result = helper.SolveGoals("goals(write(hello)).");
         CHECK_EQUAL("(())", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(writeln('hello world')).");
         CHECK_EQUAL("(())", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(nl).");
         CHECK_EQUAL("(())", result);
         
-        helper.Clear();
+        
         result = helper.SolveGoals("goals(print([1,2,3])).");
         CHECK_EQUAL("(())", result);
     }
@@ -391,7 +395,7 @@ SUITE(BuiltInPredicateRealWorldTests)
         CHECK(result == "(())" || result == "null");
         
         // Retractall
-        helper.Clear();
+        
         program = "temp(a). temp(b). temp(c). "
                  "goals(retractall(temp(?X))).";
         result = helper.SolveGoals(program);
