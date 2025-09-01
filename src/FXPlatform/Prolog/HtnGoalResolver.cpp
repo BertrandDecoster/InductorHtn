@@ -486,17 +486,17 @@ shared_ptr<UnifierType> ResolveState::SimplifySolution(const UnifierType &soluti
 HtnGoalResolver::HtnGoalResolver()
 {
     AddCustomRule("assert", CustomRuleType({ CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleAssert, std::placeholders::_1)));
-    AddCustomRule("atom_concat", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::ResolvedTerm, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RuleAtomConcat, std::placeholders::_1)));
-    AddCustomRule("downcase_atom", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RuleAtomDowncase, std::placeholders::_1)));
+    AddCustomRule("atomic", CustomRuleType({ CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleIsAtom, std::placeholders::_1)));
     AddCustomRule("atom_chars", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RuleAtomChars, std::placeholders::_1)));
+    AddCustomRule("atom_concat", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::ResolvedTerm, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RuleAtomConcat, std::placeholders::_1)));
     AddCustomRule("count", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleCount, std::placeholders::_1)));
     AddCustomRule("distinct", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleDistinct, std::placeholders::_1)));
+    AddCustomRule("downcase_atom", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RuleAtomDowncase, std::placeholders::_1)));
     AddCustomRule("failureContext", CustomRuleType({ CustomRuleArgType::SetOfTerms }, std::bind(&HtnGoalResolver::RuleFailureContext, std::placeholders::_1)));
     AddCustomRule("findall", CustomRuleType({ CustomRuleArgType::Term, CustomRuleArgType::ResolvedTerm, CustomRuleArgType::ResolvedTerm }, std::bind(&HtnGoalResolver::RuleFindAll, std::placeholders::_1)));
     AddCustomRule("first", CustomRuleType({ CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleFirst, std::placeholders::_1)));
     AddCustomRule("forall", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::ResolvedTerm }, std::bind(&HtnGoalResolver::RuleForAll, std::placeholders::_1)));
     AddCustomRule("is", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::Arithmetic }, std::bind(&HtnGoalResolver::RuleIs, std::placeholders::_1)));
-    AddCustomRule("atomic", CustomRuleType({ CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleIsAtom, std::placeholders::_1)));
     AddCustomRule("max", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::Variable, CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleAggregate, std::placeholders::_1)));
     AddCustomRule("min", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::Variable, CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleAggregate, std::placeholders::_1)));
     AddCustomRule("nl", CustomRuleType({ }, std::bind(&HtnGoalResolver::RuleNewline, std::placeholders::_1)));

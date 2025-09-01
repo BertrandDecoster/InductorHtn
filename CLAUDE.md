@@ -68,6 +68,15 @@ python PythonUsage.py
  - You can ask it to ResolveAll, and provide it a list of terms, and it will unify
 
 ### Custom rules
+ - assert(fact(agent)) : adds the term inside assert() to the ruleset. See retract
+ - atomic(k) : checks that what's inside atomic is an atom (atomic term, not composed)
+ - atom_chars(foo, ?List) : from string to char list and back. ?List = [f,o,o]. Also atom_chars(?List, [f, o, o]) gives you ?List = foo
+ - atom_concat(bot, 2, ?name) : create new names, now you have ?name == bot2
+ - count(?count, letter(?X)) : ?count now contains how many valid unifications of the 2nd argument there are
+ - distinct(_, letter(?X), letter(?Y))
+ - downcase_atom(Hello1, ?newName) : lowercase, ?newName == hello1
+ - retract(fact(?x)) : removes the first term that unify inside retract() from the ruleset. See assert
+ - retractall(fact(?x)) : removes all terms that unify inside retractall() from the ruleset. See assert
 
 ### first() - Return First Solution Only
 Returns only the first solution from a Prolog query, useful for deterministic behavior.
