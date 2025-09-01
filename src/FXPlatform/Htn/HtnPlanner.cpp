@@ -567,7 +567,7 @@ shared_ptr<PlanNode> HtnPlanner::FindNodeWithID(vector<shared_ptr<PlanNode>> &st
  - Variable: Used when running queries. Replace a term argument with a variable to ask a question of a set of Axioms and Constants
  - Ground Term: if a Term has no variables, it is considered "Ground"
 
- From Heirarchical Task Networks
+ From Hierarchical Task Networks
  - Task: Declares that something needs to be *done*. It can be Primitive: it can be done simply by modifying state in the world with no further processing, or Compound: It must be further refined in order to be accomplished in the state
     - Has a Name, and a set of Terms
  - Operator: Describes how to accomplish a Primitive Task.

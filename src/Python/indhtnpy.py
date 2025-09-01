@@ -1,10 +1,18 @@
-import sys, platform
-import ctypes, ctypes.util
-from sys import platform
+import ctypes
+import ctypes.util
 import json
 import logging
+import platform
+import sys
+from sys import platform
 from time import perf_counter_ns
-perfLogger = logging.getLogger('indhtnpy.performance')
+
+perfLogger = logging.getLogger("indhtnpy.performance")
+
+""" 
+This is a python wrapper around self.indhtnLib, which is itself the library of functions in PythonWrapper.py
+This library also contains a single class HtnPlannerPythonWrapper that is stored in self.obj
+"""
 
 
 # Prolog json term format used by the code below is:
@@ -63,10 +71,13 @@ def queryResultToPrologStringList(queryResult):
         for solution in jsonQuery:
             assignmentList = []
             for variableName in solution.keys():
-                assignmentList.append("{} = {}".format(variableName, termToString(solution[variableName])))
+                assignmentList.append(
+                    "{} = {}".format(variableName, termToString(solution[variableName]))
+                )
             solutionList.append(", ".join(assignmentList))
 
     return solutionList
+
 
 # Properly converts all solutions (or errors) returned from FindAllPlans()
 # into a list of strings with Prolog predicates
@@ -82,6 +93,7 @@ def findAllPlansResultToPrologStringList(queryResult):
             solutionList.append(termListToString(solution))
 
     return solutionList
+
 
 def termListToString(termList):
     termStringList = []
@@ -129,13 +141,15 @@ class HtnPlanner(object):
             elif platform == "win32":
                 # Windows...
                 libname = "./indhtnpy"
-            else:   
+            else:
                 print("Unknown OS: {}".format(platform))
                 sys.exit()
 
             indhtnPath = ctypes.util.find_library(libname)
             if not indhtnPath:
-                print("Unable to find the indhtnpy library, please make sure it is on your path.")
+                print(
+                    "Unable to find the indhtnpy library, please make sure it is on your path."
+                )
                 sys.exit()
             try:
                 self.indhtnLib = ctypes.CDLL(indhtnPath)
@@ -154,22 +168,48 @@ class HtnPlanner(object):
         self.indhtnLib.HtnCompile.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.PrologCompile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
         self.indhtnLib.PrologCompile.restype = ctypes.POINTER(ctypes.c_char)
-        self.indhtnLib.HtnCompileCustomVariables.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        self.indhtnLib.HtnCompileCustomVariables.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+        ]
         self.indhtnLib.HtnCompileCustomVariables.restype = ctypes.POINTER(ctypes.c_char)
-        self.indhtnLib.PrologCompileCustomVariables.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-        self.indhtnLib.PrologCompileCustomVariables.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.PrologCompileCustomVariables.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+        ]
+        self.indhtnLib.PrologCompileCustomVariables.restype = ctypes.POINTER(
+            ctypes.c_char
+        )
         self.indhtnLib.Compile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
         self.indhtnLib.Compile.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.FreeString.argtypes = [ctypes.POINTER(ctypes.c_char)]
-        self.indhtnLib.HtnFindAllPlans.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
+        self.indhtnLib.HtnFindAllPlans.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
         self.indhtnLib.HtnFindAllPlans.restype = ctypes.POINTER(ctypes.c_char)
-        self.indhtnLib.HtnFindAllPlansCustomVariables.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
-        self.indhtnLib.HtnFindAllPlansCustomVariables.restype = ctypes.POINTER(ctypes.c_char)
-        self.indhtnLib.PrologQuery.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
+        self.indhtnLib.HtnFindAllPlansCustomVariables.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnFindAllPlansCustomVariables.restype = ctypes.POINTER(
+            ctypes.c_char
+        )
+        self.indhtnLib.PrologQuery.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
         self.indhtnLib.PrologQuery.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.SetDebugTracing.argtypes = [ctypes.c_int64]
         self.indhtnLib.LogStdErrToFile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-        self.indhtnLib.PrologQueryToJson.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char))]
+        self.indhtnLib.PrologQueryToJson.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
         self.indhtnLib.PrologQueryToJson.restype = ctypes.POINTER(ctypes.c_char)
 
         # Now create an instance of the object
@@ -188,7 +228,9 @@ class HtnPlanner(object):
     # Clears the file every time it is called
     # Pass "" to stop logging
     def LogToFile(self, fileNameAndPath):
-        self.indhtnLib.LogStdErrToFile(self.obj, fileNameAndPath.encode('UTF-8', 'strict'))
+        self.indhtnLib.LogStdErrToFile(
+            self.obj, fileNameAndPath.encode("UTF-8", "strict")
+        )
 
     # Returns true if the index is in range, false otherwise
     def ApplySolution(self, index):
@@ -196,7 +238,7 @@ class HtnPlanner(object):
 
     def HtnCompile(self, value):
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.HtnCompile(self.obj, value.encode('UTF-8', 'strict'))
+        resultPtr = self.indhtnLib.HtnCompile(self.obj, value.encode("UTF-8", "strict"))
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info("HtnCompile %s ms", str(elapsedTimeNS / 1000000))
 
@@ -205,10 +247,12 @@ class HtnPlanner(object):
             self.indhtnLib.FreeString(resultPtr)
             return resultBytes.decode()
         return resultBytes
-    
+
     def HtnCompileCustomVariables(self, value):
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.HtnCompileCustomVariables(self.obj, value.encode('UTF-8', 'strict'))
+        resultPtr = self.indhtnLib.HtnCompileCustomVariables(
+            self.obj, value.encode("UTF-8", "strict")
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info("HtnCompileCustomVariables %s ms", str(elapsedTimeNS / 1000000))
 
@@ -220,7 +264,9 @@ class HtnPlanner(object):
 
     def PrologCompile(self, value):
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.PrologCompile(self.obj, value.encode('UTF-8', 'strict'))
+        resultPtr = self.indhtnLib.PrologCompile(
+            self.obj, value.encode("UTF-8", "strict")
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info("PrologCompile %s ms", str(elapsedTimeNS / 1000000))
 
@@ -232,9 +278,13 @@ class HtnPlanner(object):
 
     def PrologCompileCustomVariables(self, value):
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.PrologCompileCustomVariables(self.obj, value.encode('UTF-8', 'strict'))
+        resultPtr = self.indhtnLib.PrologCompileCustomVariables(
+            self.obj, value.encode("UTF-8", "strict")
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
-        perfLogger.info("PrologCompileCustomVariables %s ms", str(elapsedTimeNS / 1000000))
+        perfLogger.info(
+            "PrologCompileCustomVariables %s ms", str(elapsedTimeNS / 1000000)
+        )
 
         resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
         if resultBytes is not None:
@@ -244,9 +294,11 @@ class HtnPlanner(object):
 
     def Compile(self, value):
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.Compile(self.obj, value.encode('UTF-8', 'strict'))
+        resultPtr = self.indhtnLib.Compile(self.obj, value.encode("UTF-8", "strict"))
         elapsedTimeNS = perf_counter_ns() - startTime
-        perfLogger.info("PrologCompileCustomVariables %s ms", str(elapsedTimeNS / 1000000))
+        perfLogger.info(
+            "PrologCompileCustomVariables %s ms", str(elapsedTimeNS / 1000000)
+        )
 
         resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
         if resultBytes is not None:
@@ -268,7 +320,9 @@ class HtnPlanner(object):
         mem = ctypes.POINTER(ctypes.c_char)()
 
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.HtnFindAllPlans(self.obj, value.encode('UTF-8', 'strict'), ctypes.byref(mem))
+        resultPtr = self.indhtnLib.HtnFindAllPlans(
+            self.obj, value.encode("UTF-8", "strict"), ctypes.byref(mem)
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info("FindAllPlans %s ms: %s", str(elapsedTimeNS / 1000000), value)
 
@@ -280,14 +334,15 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
-        
-        
+
     def FindAllPlansCustomVariables(self, value):
         # Pointer to pointer conversion: https://stackoverflow.com/questions/4213095/python-and-ctypes-how-to-correctly-pass-pointer-to-pointer-into-dll
         mem = ctypes.POINTER(ctypes.c_char)()
 
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.HtnFindAllPlansCustomVariables(self.obj, value.encode('UTF-8', 'strict'), ctypes.byref(mem))
+        resultPtr = self.indhtnLib.HtnFindAllPlansCustomVariables(
+            self.obj, value.encode("UTF-8", "strict"), ctypes.byref(mem)
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info("FindAllPlans %s ms: %s", str(elapsedTimeNS / 1000000), value)
 
@@ -299,7 +354,6 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
-        
 
     # returns compileError, solutions
     # compileError = None if no compile error, or a string error message OR a string that starts with "out of memory:"
@@ -313,7 +367,9 @@ class HtnPlanner(object):
         mem = ctypes.POINTER(ctypes.c_char)()
 
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.PrologQuery(self.obj, value.encode('UTF-8', 'strict'), ctypes.byref(mem))
+        resultPtr = self.indhtnLib.PrologQuery(
+            self.obj, value.encode("UTF-8", "strict"), ctypes.byref(mem)
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info("PrologQuery %s ms: %s", str(elapsedTimeNS / 1000000), value)
 
@@ -325,7 +381,6 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
-
 
     # returns compileError, json
     # compileError = None if no compile error, or a string error message OR a string that starts with "out of memory:"
@@ -342,9 +397,13 @@ class HtnPlanner(object):
         mem = ctypes.POINTER(ctypes.c_char)()
 
         startTime = perf_counter_ns()
-        resultPtr = self.indhtnLib.PrologQueryToJson(self.obj, value.encode('UTF-8', 'strict'), ctypes.byref(mem))
+        resultPtr = self.indhtnLib.PrologQueryToJson(
+            self.obj, value.encode("UTF-8", "strict"), ctypes.byref(mem)
+        )
         elapsedTimeNS = perf_counter_ns() - startTime
-        perfLogger.info("PrologQueryToJson %s ms: %s", str(elapsedTimeNS / 1000000), value)
+        perfLogger.info(
+            "PrologQueryToJson %s ms: %s", str(elapsedTimeNS / 1000000), value
+        )
 
         resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
         if resultBytes is not None:
@@ -355,6 +414,5 @@ class HtnPlanner(object):
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
 
-    def __del__(self): 
+    def __del__(self):
         self.indhtnLib.DeleteHtnPlanner(self.obj)
-

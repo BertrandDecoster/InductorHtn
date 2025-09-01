@@ -38,24 +38,35 @@ public:
         // of the HTN are stored. 
         m_state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
 
+        
+        
+        """ 
+        If you work only with pure Prolog. You query about the current state
+        The compiler will add rules to the state
+        The resolver will perform Prolog unification, and find the variable assignments that comply with the query you asked for
+        """
+        
+        // PrologStandardCompiler uses all of the Prolog standard syntax
+        m_prologCompiler = shared_ptr<PrologStandardCompiler>(new PrologStandardCompiler(m_factory.get(), m_state.get()));
+        // The Prolog compiler will uses the custom HTN syntax
+        m_prologCompilerCustomVariables = shared_ptr<PrologCompiler>(new PrologCompiler(m_factory.get(), m_state.get()));
+        // HtnGoalResolver is the Prolog "engine" that resolves queries
+        m_resolver = shared_ptr<HtnGoalResolver>(new HtnGoalResolver());
+        
+        """
+        If you work with HTN. You query about future state that can be reached via a sequence of actions.
+        The compiler add rules to the state
+        The planner will perform HTN resolution and produce a sequence of actions that will lead to a goal that can unify with the goal you asked
+        """
+        // The HtnCompiler will uses the standard Prolog syntax
+        m_htnCompiler = shared_ptr<HtnStandardCompiler>(new HtnStandardCompiler(m_factory.get(), m_state.get(), m_planner.get()));
+        // The HtnCompiler will uses the custom HTN syntax
+        m_htnCompilerCustomVariables = shared_ptr<HtnCompiler>(new HtnCompiler(m_factory.get(), m_state.get(), m_planner.get()));
         // HtnPlanner is a subclass of HtnDomain which stores the Operators and 
         // Methods as well as having the code that implements the HTN algorithm
         m_planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        
 
-        // The HtnCompiler will uses the standard Prolog syntax
-        m_htnCompiler = shared_ptr<HtnStandardCompiler>(new HtnStandardCompiler(m_factory.get(), m_state.get(), m_planner.get()));
-
-        // PrologStandardCompiler uses all of the Prolog standard syntax
-        m_prologCompiler = shared_ptr<PrologStandardCompiler>(new PrologStandardCompiler(m_factory.get(), m_state.get()));
-
-        // The HtnCompiler will uses the custom HTN syntax
-        m_htnCompilerCustomVariables = shared_ptr<HtnCompiler>(new HtnCompiler(m_factory.get(), m_state.get(), m_planner.get()));
-
-        // The Prolog compiler will uses the custom HTN syntax
-        m_prologCompilerCustomVariables = shared_ptr<PrologCompiler>(new PrologCompiler(m_factory.get(), m_state.get()));
-
-        // HtnGoalResolver is the Prolog "engine" that resolves queries
-        m_resolver = shared_ptr<HtnGoalResolver>(new HtnGoalResolver());
     }
 
 public:
@@ -266,6 +277,8 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
      }
 
     // Returns result in Json format
+    // Either it finds a plan, it returns null and stores the plans in result
+    // Or it fails, returns the error and result is null
     __declspec(dllexport) char* __stdcall HtnFindAllPlans(HtnPlannerPythonWrapper* ptr, char *queryChars, char **result)
     {
         // Catch any FailFasts and return their description
