@@ -7,7 +7,7 @@
 #include "FXPlatform/Htn/HtnCompiler.h"
 #include "FXPlatform/Htn/HtnPlanner.h"
 #include "FXPlatform/Prolog/PrologQueryCompiler.h"
-using namespace std;
+// using namespace std;
 // https://solarianprogrammer.com/2019/07/18/python-using-c-cpp-libraries-ctypes/
 // https://dbader.org/blog/python-ctypes-tutorial
 // http://svn.python.org/projects/ctypes/trunk/ctypes/docs/manual/tutorial.html#pointers
@@ -40,47 +40,48 @@ public:
 
         
         
-        """ 
-        If you work only with pure Prolog. You query about the current state
-        The compiler will add rules to the state
-        The resolver will perform Prolog unification, and find the variable assignments that comply with the query you asked for
-        """
         
+        /** 
+         * If you work only with pure Prolog. You query about the current state
+         * The compiler will add rules to the state
+         * The resolver will perform Prolog unification, and find the variable assignments that comply with the query you asked for
+         **/
+        
+        // HtnGoalResolver is the Prolog "engine" that resolves queries
+        m_resolver = shared_ptr<HtnGoalResolver>(new HtnGoalResolver());
         // PrologStandardCompiler uses all of the Prolog standard syntax
         m_prologCompiler = shared_ptr<PrologStandardCompiler>(new PrologStandardCompiler(m_factory.get(), m_state.get()));
         // The Prolog compiler will uses the custom HTN syntax
         m_prologCompilerCustomVariables = shared_ptr<PrologCompiler>(new PrologCompiler(m_factory.get(), m_state.get()));
-        // HtnGoalResolver is the Prolog "engine" that resolves queries
-        m_resolver = shared_ptr<HtnGoalResolver>(new HtnGoalResolver());
         
-        """
-        If you work with HTN. You query about future state that can be reached via a sequence of actions.
-        The compiler add rules to the state
-        The planner will perform HTN resolution and produce a sequence of actions that will lead to a goal that can unify with the goal you asked
-        """
+        /** 
+         * If you work with HTN. You query about future state that can be reached via a sequence of actions.
+         * The compiler add rules to the state
+         * The planner will perform HTN resolution and produce a sequence of actions that will lead to a goal that can unify with the goal you asked
+         */
+        // HtnPlanner is a subclass of HtnDomain which stores the Operators and 
+        // Methods as well as having the code that implements the HTN algorithm
+        m_planner = shared_ptr<HtnPlanner>(new HtnPlanner());
         // The HtnCompiler will uses the standard Prolog syntax
         m_htnCompiler = shared_ptr<HtnStandardCompiler>(new HtnStandardCompiler(m_factory.get(), m_state.get(), m_planner.get()));
         // The HtnCompiler will uses the custom HTN syntax
         m_htnCompilerCustomVariables = shared_ptr<HtnCompiler>(new HtnCompiler(m_factory.get(), m_state.get(), m_planner.get()));
-        // HtnPlanner is a subclass of HtnDomain which stores the Operators and 
-        // Methods as well as having the code that implements the HTN algorithm
-        m_planner = shared_ptr<HtnPlanner>(new HtnPlanner());
         
 
     }
 
 public:
     uint64_t m_budgetBytes;
-    shared_ptr<HtnStandardCompiler> m_htnCompiler;
-    shared_ptr<PrologStandardCompiler> m_prologCompiler;
-    shared_ptr<HtnCompiler> m_htnCompilerCustomVariables;
-    shared_ptr<PrologCompiler> m_prologCompilerCustomVariables;
     shared_ptr<HtnTermFactory> m_factory;
+    shared_ptr<HtnRuleSet> m_state;
     // We save the last set of solutions so their state can be applied if the user chooses to
     shared_ptr<HtnPlanner::SolutionsType> m_lastSolutions;
-    shared_ptr<HtnPlanner> m_planner;
+    shared_ptr<PrologStandardCompiler> m_prologCompiler;
+    shared_ptr<PrologCompiler> m_prologCompilerCustomVariables;
     shared_ptr<HtnGoalResolver> m_resolver;
-    shared_ptr<HtnRuleSet> m_state;
+    shared_ptr<HtnStandardCompiler> m_htnCompiler;
+    shared_ptr<HtnCompiler> m_htnCompilerCustomVariables;
+    shared_ptr<HtnPlanner> m_planner;
 };
 
 #if defined(_MSC_VER)
@@ -582,6 +583,58 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                                                                                         &highestMemoryUsedReturn,
                                                                                         &furthestFailureIndex,
                                                                                         &farthestFailureContext);
+            if(ptr->m_factory->outOfMemory())
+            {
+                string outOfMemoryString =  "out of memory: Budget:" + lexical_cast<string>(ptr->m_budgetBytes) +
+                                            ", Highest total memory used: " + lexical_cast<string>(highestMemoryUsedReturn) +
+                                            ", Memory used only by term names: " + lexical_cast<string>(ptr->m_factory->dynamicSize()) +
+                                            ", The difference was probably used by the resolver, either in its stack memory or memory used by the number of terms that unify with a single term. Turn on tracing to see more details.";
+                *result = nullptr;
+                return GetCharPtrFromString(outOfMemoryString);
+            }
+            else if(queryResult == nullptr)
+            {
+                string failureContextString;
+                if(farthestFailureContext.size() > 0)
+                {
+                    failureContextString = ", " + HtnTerm::ToString(farthestFailureContext, false, true);
+                }
+                *result = GetCharPtrFromString("[{\"false\" :[]}, {\"failureIndex\" :[{\"" + lexical_cast<string>(furthestFailureIndex) + "\" :[]}]}" + failureContextString + "]");
+            }
+            else
+            {
+                *result = GetCharPtrFromString(HtnGoalResolver::ToString(queryResult.get(), true));
+            }
+
+            return nullptr;
+
+        }
+        catch (runtime_error & error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+    // returns result in Json format
+    // if the query failed, it will be a False term
+    __declspec(dllexport) char* __stdcall PrologSolveGoals(HtnPlannerPythonWrapper* ptr, char** result)
+    {
+        // Catch any FailFasts and return their description
+        TreatFailFastAsException(true);
+        try
+        {
+
+            // The resolver can give one answer at a time using ResolveNext(), or just get them all using ResolveAll()
+            int64_t highestMemoryUsedReturn;
+            int furthestFailureIndex;
+            std::vector<std::shared_ptr<HtnTerm>> farthestFailureContext;
+            shared_ptr<vector<UnifierType>> queryResult = ptr->m_prologCompiler->SolveGoals(ptr->m_resolver.get(),
+                                                                                        (int) ptr->m_budgetBytes,
+                                                                                        &highestMemoryUsedReturn,
+                                                                                        &furthestFailureIndex,
+                                                                                        &farthestFailureContext);
+
             if(ptr->m_factory->outOfMemory())
             {
                 string outOfMemoryString =  "out of memory: Budget:" + lexical_cast<string>(ptr->m_budgetBytes) +

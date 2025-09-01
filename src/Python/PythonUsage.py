@@ -1,14 +1,15 @@
-# See GettingStarted.md for a whole bunch of pointers to understand HTNs, Prolog, etc. This 
+# See GettingStarted.md for a whole bunch of pointers to understand HTNs, Prolog, etc. This
 # file just describes how to use the framework
-from indhtnpy import *
 import json
 import pprint
 
+from indhtnpy import *
+
 # The only class for InductorHtn is called HtnPlanner
 # Passing true as the (only) argument turns on debug mode
-# Traces of what is happening are sent to the system debug output stream which can be 
+# Traces of what is happening are sent to the system debug output stream which can be
 # seen on windows with https://docs.microsoft.com/en-us/sysinternals/downloads/debugview
-# These traces are much like the standard Prolog traces and will help you understand how 
+# These traces are much like the standard Prolog traces and will help you understand how
 # the queries and HTN tasks are running and what path they are taking
 test = HtnPlanner(False)
 
@@ -31,6 +32,7 @@ travel-to(Q) :-
     distance(downtown, uptown, 8).
     at(downtown).
     weather-is(good).
+    
     """
 result = test.HtnCompile(prog)
 if result is not None:
@@ -43,6 +45,7 @@ if result is not None:
 prog = """
     mortal(X) :- human(X).
     human(socrates).
+    goals(human(H)).
     """
 result = test.PrologCompile(prog)
 if result is not None:
@@ -94,31 +97,41 @@ print("PrologQuery result:")
 pp = pprint.PrettyPrinter(indent=4)
 pp.pprint(answer)
 
-# Results are always returned as Json.  
-# Terms are just dictionaries with one key, the name of the term, and one value: a list 
+success, result = test.PrologSolveGoals()
+if success is not None:
+    print("PrologSolveGoals error: " + success)
+    sys.exit()
+answer = json.loads(result)
+print("PrologSolveGoals result:")
+pp = pprint.PrettyPrinter(indent=4)
+pp.pprint(answer)
+
+# Results are always returned as Json.
+# Terms are just dictionaries with one key, the name of the term, and one value: a list
 # of more terms
 # termName(arg1, arg2) => {"termName":[ {"arg1":[]}, {"arg2":[]} ]}
 
 # Here are some examples:
 # term that is a constant (aka a term name with no arguments): e.g. tile
-term = json.loads("{\"tile\" : [] }")
+term = json.loads('{"tile" : [] }')
 
 # term that is a variable always has a ? in front of it: ?tile
-term = json.loads("{\"?tile\" : [] }")
+term = json.loads('{"?tile" : [] }')
 
 # term with arguments: tile(position(1), 1)
-term = {"tile" : [{"position" : [1]}, 1]}
+term = {"tile": [{"position": [1]}, 1]}
 
 # first arg of known term "tile"
 print(term["tile"][0])
 
 # There are some helper functions to make accessing things "prettier"
 # foo(bar, goo), tile(position(1), 1)
-termList = json.loads("[{\"foo\" : [\"bar\", \"goo\"]}, {\"tile\" : [\"firstArg\", \"secondArg\"] }]")
+termList = json.loads(
+    '[{"foo" : ["bar", "goo"]}, {"tile" : ["firstArg", "secondArg"] }]'
+)
 
 # termName() gives the name of the term
 print(termName(termList[0]))
 
 # termArgs() gets the args for a term
 print(termArgs(termList[0])[0])
-
