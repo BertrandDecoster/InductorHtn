@@ -170,8 +170,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         for(const std::string& word : words){
             if (std::find(htnKeywords.begin(), htnKeywords.end(), word) != htnKeywords.end())
             {
-                TraceString("Found HTN keywordZZZ", SystemTraceType::Python, TraceDetail::Normal);   
-                std::cout << "Found HTN keyword " << word << std::endl;
+                TraceString1("Found HTN keyword: {0}", SystemTraceType::Python, TraceDetail::Normal, word);   
                 htnSyntax = true;
                 break;
             } 
@@ -471,9 +470,9 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         }
     }
 
-    __declspec(dllexport) void __stdcall SetTraceFilter(int traceType, int traceDetail)
+    __declspec(dllexport) void __stdcall SetLogLevel(int traceType, int traceDetail)
     {
-        SetTraceFilter((uint64_t)traceType, (TraceDetail)traceDetail);
+        SetTraceFilter((int)traceType, (TraceDetail)traceDetail);
     }
 
     __declspec(dllexport) void __stdcall SetMemoryBudget(HtnPlannerPythonWrapper* ptr, const uint64_t budgetBytes)

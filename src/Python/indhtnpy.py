@@ -28,6 +28,7 @@ class TraceDetail:
     Detailed = 1
     Diagnostic = 2
 
+
 perfLogger = logging.getLogger("indhtnpy.performance")
 
 """ 
@@ -230,7 +231,7 @@ class HtnPlanner(object):
         ]
         self.indhtnLib.PrologSolveGoals.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.SetDebugTracing.argtypes = [ctypes.c_int64]
-        self.indhtnLib.SetTraceFilter.argtypes = [ctypes.c_int, ctypes.c_int]
+        self.indhtnLib.SetLogLevel.argtypes = [ctypes.c_int, ctypes.c_int]
         self.indhtnLib.LogStdErrToFile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
         self.indhtnLib.PrologQueryToJson.argtypes = [
             ctypes.c_void_p,
@@ -249,8 +250,8 @@ class HtnPlanner(object):
     # Sets the trace filter with specific trace types and detail level
     # traceType = SystemTraceType flags (can be ORed together)
     # traceDetail = TraceDetail level (Normal, Detailed, or Diagnostic)
-    def SetTraceFilter(self, traceType, traceDetail):
-        self.indhtnLib.SetTraceFilter(traceType, traceDetail)
+    def SetLogLevel(self, traceType, traceDetail):
+        self.indhtnLib.SetLogLevel(traceType, traceDetail)
 
     # Sets the budget for the planner and prolog compiler to use in bytes
     # i.e. 1K budget should be budgetBytes = 1024
