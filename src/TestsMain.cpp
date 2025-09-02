@@ -5,6 +5,12 @@
 #include "UnitTest++/TestReporterStdout.h"
 using namespace UnitTest;
 
+// Stub for GetTraceCallback since this executable doesn't use Python interface
+typedef void (*TraceCallback)(const char* message);
+extern "C" TraceCallback GetTraceCallback() {
+    return nullptr;  // No callback in test executable
+}
+
 // This class filters out what tests get run if you are isolating failures
 class TestFilter
 {

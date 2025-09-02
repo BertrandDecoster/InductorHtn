@@ -10,6 +10,12 @@
 #include "FXPlatform/Prolog/HtnTermFactory.h"
 #include "FXPlatform/Prolog/PrologQueryCompiler.h"
 
+// Stub for GetTraceCallback since this executable doesn't use Python interface
+typedef void (*TraceCallback)(const char* message);
+extern "C" TraceCallback GetTraceCallback() {
+    return nullptr;  // No callback in standalone executable
+}
+
 // IndProlog uses a factory model for creating terms so it can "intern" them to save memory.  You must never
 // mix terms from different HtnTermFactorys
 shared_ptr<HtnTermFactory> factory;
