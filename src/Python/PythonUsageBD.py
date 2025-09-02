@@ -354,6 +354,7 @@ query = "prepareToApplyTag(companionI, stun, gob)."
 query = "stunAndSlowSkillDebug(gob, player, companionF)."
 query = "stunAndSlowSkill(gob)."
 
+test.StartTraceCapture()
 test.SetLogLevel(SystemTraceType.None_, TraceDetail.Diagnostic)
 
 query = "travel-to(downtown)."
@@ -366,8 +367,10 @@ query = "travel-to(park)."
 print(f"FIND PLAN FOR QUERY {query}")
 output(*test.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
 # sys.exit()
+traces = test.GetCapturedTraces()
+test.StopTraceCapture()
 
-
+print(f"Captured traces: {traces}")
 planNumber = 0
 success = test.ApplySolution(planNumber)
 print(f"Apply plan {planNumber}")

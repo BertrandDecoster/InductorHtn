@@ -8,12 +8,56 @@
 #include "Logger.h"
 #include <memory>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+
+static std::unique_ptr<std::ofstream> g_logFile = nullptr;
+
+// Function pointer for trace callback (defined by PythonInterface.cpp)
+typedef void (*TraceCallback)(const char* message);
+
+// Declare the function to get callback from PythonInterface
+extern "C" TraceCallback GetTraceCallback();
 
 void DebugLogMessage(int traceType, const TraceDetail levelOfDetail, const char *message)
 {
-	std::cout << message;
+	// Debug: print that DebugLogMessage is being called
+	std::cout << "[DEBUG] DebugLogMessage called with: " << message << std::endl;
+	
+	// Get callback dynamically from PythonInterface
+	TraceCallback callback = GetTraceCallback();
+	
+	std::cout << "[DEBUG] GetTraceCallback returned: " << (callback ? "NOT NULL" : "NULL") << std::endl;
+	
+	// Use callback if set, otherwise default to stdout
+	if(callback) {
+		std::cout << "[DEBUG] Calling callback..." << std::endl;
+		callback(message);
+	} else {
+		std::cout << "[DEBUG] No callback, using stdout" << std::endl;
+		std::cout << message;
+	}
+	
+	// Also output to file if enabled
+	if(g_logFile && g_logFile->is_open()) {
+		(*g_logFile) << message;
+		g_logFile->flush();
+	}
 }
 
 void DebugLogMessagesToFile(const std::string &filename)
 {
+	// Close existing file if open
+	if(g_logFile) {
+		g_logFile.reset();
+	}
+	
+	// If filename is provided, open new file
+	if(filename.size() > 0) {
+		g_logFile = std::make_unique<std::ofstream>(filename, std::ios::out | std::ios::trunc);
+		if(g_logFile->is_open()) {
+			(*g_logFile) << "Begin Logging\n";
+			g_logFile->flush();
+		}
+	}
 }

@@ -232,6 +232,12 @@ class HtnPlanner(object):
         self.indhtnLib.PrologSolveGoals.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.SetDebugTracing.argtypes = [ctypes.c_int64]
         self.indhtnLib.SetLogLevel.argtypes = [ctypes.c_int, ctypes.c_int]
+        self.indhtnLib.StartTraceCapture.argtypes = []
+        self.indhtnLib.StartTraceCaptureEx.argtypes = [ctypes.c_bool]
+        self.indhtnLib.StopTraceCapture.argtypes = []
+        self.indhtnLib.GetCapturedTraces.argtypes = []
+        self.indhtnLib.GetCapturedTraces.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.ClearTraceBuffer.argtypes = []
         self.indhtnLib.LogStdErrToFile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
         self.indhtnLib.PrologQueryToJson.argtypes = [
             ctypes.c_void_p,
@@ -252,6 +258,31 @@ class HtnPlanner(object):
     # traceDetail = TraceDetail level (Normal, Detailed, or Diagnostic)
     def SetLogLevel(self, traceType, traceDetail):
         self.indhtnLib.SetLogLevel(traceType, traceDetail)
+
+    # Start capturing trace output to internal buffer (silent by default)
+    def StartTraceCapture(self, alsoOutputToStdout=False):
+        if alsoOutputToStdout:
+            self.indhtnLib.StartTraceCaptureEx(True)
+        else:
+            self.indhtnLib.StartTraceCapture()
+
+    # Stop capturing trace output
+    def StopTraceCapture(self):
+        self.indhtnLib.StopTraceCapture()
+        
+    # Get all captured traces as a string
+    def GetCapturedTraces(self):
+        resultPtr = self.indhtnLib.GetCapturedTraces()
+        if resultPtr:
+            resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+            if resultBytes is not None:
+                self.indhtnLib.FreeString(resultPtr)
+                return resultBytes.decode()
+        return ""
+        
+    # Clear the trace buffer
+    def ClearTraceBuffer(self):
+        self.indhtnLib.ClearTraceBuffer()
 
     # Sets the budget for the planner and prolog compiler to use in bytes
     # i.e. 1K budget should be budgetBytes = 1024

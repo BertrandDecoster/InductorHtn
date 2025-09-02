@@ -26,6 +26,12 @@ void DebugLogMessagesToFile(const std::string &filename)
     }
 }
 
+// Function pointer for trace callback (defined by PythonInterface.cpp)
+typedef void (*TraceCallback)(const char* message);
+
+// Declare the function to get callback from PythonInterface
+extern "C" TraceCallback GetTraceCallback();
+
 void DebugLogMessage(int traceType, const TraceDetail levelOfDetail, const char *message)
 {
     if(fileStream != nullptr)
@@ -34,5 +40,13 @@ void DebugLogMessage(int traceType, const TraceDetail levelOfDetail, const char 
         fileStream->Write(stringMessage);
     }
     
-    NSLog(@"%@", [NSString stringWithUTF8String:message]);
+    // Get callback dynamically from PythonInterface
+    TraceCallback callback = GetTraceCallback();
+    
+    // Use callback if set, otherwise default to NSLog
+    if(callback) {
+        callback(message);
+    } else {
+        NSLog(@"%@", [NSString stringWithUTF8String:message]);
+    }
 }

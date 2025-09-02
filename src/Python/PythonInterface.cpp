@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 #include "FXPlatform/Logger.h"
 #include "FXPlatform/Htn/HtnCompiler.h"
 #include "FXPlatform/Htn/HtnPlanner.h"
@@ -14,6 +15,34 @@
 // http://svn.python.org/projects/ctypes/trunk/ctypes/docs/manual/tutorial.html#pointers
 
 const int defaultMemoryBudget = 1000000;
+
+// Trace capture implementation using callback
+static std::stringstream g_traceBuffer;
+static bool g_captureActive = false;
+static bool g_alsoOutputToStdout = false;
+
+// Function pointer type and global variable for Logger callback
+typedef void (*TraceCallback)(const char* message);
+TraceCallback g_traceCallback = nullptr;
+
+// Callback function that Logger will call
+void CaptureTraceMessage(const char* message)
+{
+    if(g_captureActive) {
+        g_traceBuffer << message;
+    }
+    
+    // Output to stdout unless in silent capture mode
+    if(!g_captureActive || g_alsoOutputToStdout) {
+        std::cout << message;
+    }
+}
+
+// Exported function for Logger to get the current callback
+extern "C" TraceCallback GetTraceCallback()
+{
+    return g_traceCallback;
+}
 class HtnPlannerPythonWrapper
 {
 public:
@@ -473,6 +502,42 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
     __declspec(dllexport) void __stdcall SetLogLevel(int traceType, int traceDetail)
     {
         SetTraceFilter((int)traceType, (TraceDetail)traceDetail);
+    }
+
+    __declspec(dllexport) void __stdcall StartTraceCapture()
+    {
+        g_traceBuffer.str("");
+        g_traceBuffer.clear();
+        g_captureActive = true;
+        g_alsoOutputToStdout = false;  // Silent capture by default
+        g_traceCallback = CaptureTraceMessage;  // Set the callback
+    }
+    
+    __declspec(dllexport) void __stdcall StartTraceCaptureEx(bool alsoOutputToStdout)
+    {
+        g_traceBuffer.str("");
+        g_traceBuffer.clear();
+        g_captureActive = true;
+        g_alsoOutputToStdout = alsoOutputToStdout;
+        g_traceCallback = CaptureTraceMessage;  // Set the callback
+    }
+
+    __declspec(dllexport) void __stdcall StopTraceCapture()
+    {
+        g_captureActive = false;
+        g_alsoOutputToStdout = false;
+        g_traceCallback = nullptr;  // Remove the callback
+    }
+
+    __declspec(dllexport) char* __stdcall GetCapturedTraces()
+    {
+        return GetCharPtrFromString(g_traceBuffer.str());
+    }
+
+    __declspec(dllexport) void __stdcall ClearTraceBuffer()
+    {
+        g_traceBuffer.str("");
+        g_traceBuffer.clear();
     }
 
     __declspec(dllexport) void __stdcall SetMemoryBudget(HtnPlannerPythonWrapper* ptr, const uint64_t budgetBytes)
