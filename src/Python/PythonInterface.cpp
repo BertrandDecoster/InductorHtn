@@ -487,6 +487,18 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         }
     }
 
+/**
+ * Getting the Trace in python
+ * The implementation uses the same stdout redirection technique found in the C++ tests:
+ * 1. Save the original stdout buffer
+ * 2. Redirect stdout to a stringstream
+ * 3. All trace output goes to the stringstream
+ * 4. Retrieve the accumulated output
+ * 5. Restore original stdout
+ * This captures ALL output that goes through `std::cout`
+ * 
+ */
+
     __declspec(dllexport) void __stdcall SetDebugTracing(bool debug)
     {
         if (debug)
