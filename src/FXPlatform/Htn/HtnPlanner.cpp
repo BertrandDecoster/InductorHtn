@@ -127,6 +127,7 @@ public:
         }
         
         planState->stack->push_back(newNode);
+        Trace2("PUSH       ", "nodeID:{0} parentID:{1}", planState->stack->size(), newNode->nodeID(), nodeID());
         continuePoint = returnPoint;
     }
 
@@ -150,6 +151,7 @@ public:
             newNode->continuePoint = PlanNodeContinuePoint::OutOfMemory;
         }
         planState->stack->push_back(newNode);
+        Trace2("PUSH       ", "nodeID:{0} parentID:{1}", planState->stack->size(), newNode->nodeID(), nodeID());
         continuePoint = returnPoint;
     }
     
@@ -408,7 +410,7 @@ bool HtnPlanner::CheckForOperator(PlanState *planState)
             }
             
             // Continue recursion: No additional tasks since this is an operator, don't make a copy of the state since we don't need to try alternatives when backtracking
-            Trace2("OPERATOR   ", "Operator '{0}' unifies with '{1}'", stack->size(), op->head()->ToString(), node->task->ToString());
+            Trace3("OPERATOR   ", "nodeID:{0} Operator '{1}' unifies with '{2}'", stack->size(), node->nodeID(), op->head()->ToString(), node->task->ToString());
             Trace3("           ", "isHidden: {0}, deletes:'{1}', adds:'{2}'", stack->size(), op->isHidden(), HtnTerm::ToString(*finalRemovals), HtnTerm::ToString(*finalAdditions));
             node->SearchNextNode(planState, {}, PlanNodeContinuePoint::ReturnFromCheckForOperator);
             return true;
@@ -417,7 +419,7 @@ bool HtnPlanner::CheckForOperator(PlanState *planState)
         {
             // task was an operator but didn't properly unify, this should never happen in a well-written program since there is only ever one operator of a given name
             // and their whole point is to modify state
-            Trace2("FAIL       ", "Operator '{0}' did not unify with '{1}'", stack->size(), op->head()->ToString(), node->task->ToString());
+            Trace3("FAIL       ", "nodeID:{0} Operator '{1}' did not unify with '{2}'", stack->size(), node->nodeID(), op->head()->ToString(), node->task->ToString());
             
             // Fail this node and backtrack(by returning false)
             Return(planState, false);
@@ -739,7 +741,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 if(node->task == nullptr)
                 {
                     // There are no more tasks, we have found a leaf and a solution
-                    Trace3("SUCCESS    ", "no tasks remain. Memory: Current:{0}, Highest:{1}, Budget:{2}", stack->size(), planState->dynamicSize(), planState->highestMemoryUsed, planState->memoryBudget);
+                    Trace4("SUCCESS    ", "nodeID:{0} no tasks remain. Memory: Current:{1}, Highest:{2}, Budget:{3}", stack->size(), node->nodeID(), planState->dynamicSize(), planState->highestMemoryUsed, planState->memoryBudget);
                     
                     // Start undoing the recursion so we can find the next solution next time
                     Return(planState, true);
@@ -751,7 +753,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     // Resolve any arithmetic parts of it
                     node->task = node->task->ResolveArithmeticTerms(factory);
 
-                    Trace2("SOLVE      ", "goal:'{0}' remaining:{1}", stack->size(), node->task->ToString(), HtnTerm::ToString(*node->tasks));
+                    Trace3("SOLVE      ", "nodeID:{0} goal:'{1}' remaining:{2}", stack->size(), node->nodeID(), node->task->ToString(), HtnTerm::ToString(*node->tasks));
 
                     // Is it an operator?
                     if(CheckForOperator(planState))
@@ -768,7 +770,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                         node->unifiedMethods = FindAllMethodsThatUnify(factory, node->state.get(), node->task);
                         if(node->unifiedMethods->size() == 0)
                         {
-                            Trace1("FAIL       ", "No methods unify with '{0}'", stack->size(), node->task->ToString());
+                            Trace2("FAIL       ", "nodeID:{0} No methods unify with '{1}'", stack->size(), node->nodeID(), node->task->ToString());
                             Return(planState, false);
                             continue;
                         }
@@ -817,7 +819,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 }
                 else
                 {
-                    Trace2("METHOD     ", "resolve next{0} method '{1}'", stack->size(), (node->method.first->isDefault() ? " ELSE" : ""), node->method.first->ToString());
+                    Trace3("METHOD     ", "nodeID:{0} resolve next{1} method '{2}'", stack->size(), node->nodeID(), (node->method.first->isDefault() ? " ELSE" : ""), node->method.first->ToString());
                     
                     // See if the constraints are met for this method by applying the unifier above to the constraint and then seeing if it is satisfied by the current
                     // state (meaning reducing it returns only ground state)
@@ -852,7 +854,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     if(node->conditionResolutions == nullptr)
                     {
                         // Constraints are not met for this method, try the next one
-                        Trace1("FAIL       ", "0 condition alternatives for method '{0}'", stack->size(), node->method.first->ToString());
+                        Trace2("FAIL       ", "nodeID:{0} 0 condition alternatives for method '{1}'", stack->size(), node->nodeID(), node->method.first->ToString());
                         Trace1("           ", "substituted condition '{0}'", stack->size(), HtnTerm::ToString(*substitutedCondition));
                         node->continuePoint = PlanNodeContinuePoint::NextMethodThatApplies;
                         
@@ -1091,6 +1093,8 @@ void HtnPlanner::HandleAnyOf(PlanState *planState)
 
 void HtnPlanner::Return(PlanState *planState, bool returnValue)
 {
+    shared_ptr<PlanNode> node = planState->stack->back();
+    Trace2("POP        ", "nodeID:{0} returnValue:{1}", planState->stack->size(), node->nodeID(), returnValue);
     planState->stack->pop_back();
     planState->returnValue = returnValue;
 }
