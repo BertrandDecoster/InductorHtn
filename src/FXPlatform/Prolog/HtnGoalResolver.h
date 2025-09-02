@@ -100,6 +100,7 @@ private:
     static void RuleUnify(ResolveState *state);
     static void RuleWrite(ResolveState *state);
     static void SubstituteAllVariables(HtnTermFactory *factory, std::shared_ptr<HtnTerm> newTerm, std::shared_ptr<HtnTerm> existingVariable, std::vector<std::pair<std::shared_ptr<HtnTerm>, std::shared_ptr<HtnTerm>>> &stack, UnifierType &solution);
+	static void RuleCustom(ResolveState *state);
 
     typedef std::map<std::string, CustomRuleType> CustomRulesType;
     CustomRulesType m_customRules;

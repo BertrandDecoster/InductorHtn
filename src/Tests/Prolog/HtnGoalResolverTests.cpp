@@ -2312,6 +2312,7 @@ SUITE(HtnGoalResolverTests)
         finalUnifier = HtnGoalResolver::ToString(unifier.get());
         CHECK_EQUAL(finalUnifier, "((?X = A))");
     }
+
     
     TEST(HtnGoalResolverFatalErrors)
     {
@@ -2504,5 +2505,75 @@ SUITE(HtnGoalResolverTests)
         }));
 
         // add_3_and_double(X,Y) :- Y is (X+3)*2.
+    }
+
+
+    TEST(HtnGoalResolverCustomPredicate)
+    {
+        HtnGoalResolver resolver;
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<PrologCompiler> compiler = shared_ptr<PrologCompiler>(new PrologCompiler(factory.get(), state.get()));
+        string testState;
+        string goals;
+        string finalUnifier;
+        shared_ptr<vector<UnifierType>> unifier;
+        
+//        SetTraceFilter((int) SystemTraceType::Planner | (int)SystemTraceType::Solver | (int) SystemTraceType::Unifier,  TraceDetail::Diagnostic);
+//        SetTraceFilter( (int)SystemTraceType::Solver,  TraceDetail::Diagnostic);
+        
+
+        // compiler->Clear();
+        // testState = string() +
+        //     "goals(atomic(mia)).\r\n";
+        // CHECK(compiler->Compile(testState));
+        // unifier = compiler->SolveGoals();
+        // finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        // CHECK_EQUAL(finalUnifier, "(())");
+
+        // ***** print goal with previous and next terms
+        compiler->Clear();
+        testState = string() +
+        "letter(c). letter(b). letter(A).\r\n" +
+        "capital(A).\r\n" +
+        "trace(?x) :- .\r\n"
+        "goals(custom(1,2)).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "(())");
+
+        compiler->Clear();
+        testState = string() +
+        "letter(c). letter(b). letter(A).\r\n" +
+        "capital(A).\r\n" +
+        "trace(?x) :- .\r\n"
+        "goals(custom(1,1)).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "(())");
+
+        compiler->Clear();
+        testState = string() +
+        "letter(c). letter(b). letter(A).\r\n" +
+        "capital(A).\r\n" +
+        "trace(?x) :- .\r\n"
+        "goals(custom(2,1)).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "(())");
+
+        compiler->Clear();
+        testState = string() +
+        "letter(c). letter(b). letter(A).\r\n" +
+        "capital(A).\r\n" +
+        "trace(?x) :- .\r\n"
+        "goals(custom(3,1)).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "null");
     }
 }

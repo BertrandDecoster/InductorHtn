@@ -512,6 +512,7 @@ HtnGoalResolver::HtnGoalResolver()
     AddCustomRule("==", CustomRuleType({ CustomRuleArgType::Term, CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleTermCompare, std::placeholders::_1)));
     AddCustomRule("\\==", CustomRuleType({ CustomRuleArgType::Term, CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleTermCompare, std::placeholders::_1)));
     AddCustomRule("=", CustomRuleType({ CustomRuleArgType::Term, CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleUnify, std::placeholders::_1)));
+    AddCustomRule("custom", CustomRuleType({ CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleCustom, std::placeholders::_1)));
 }
 
 // The trick here is that certain special rules like not, First and SortBy do more than just lookup a rule in a ruleset
@@ -2359,6 +2360,55 @@ void HtnGoalResolver::RulePrint(ResolveState *state)
         }
         break;
             
+        default:
+            StaticFailFastAssert(false);
+            break;
+    }
+}
+
+void HtnGoalResolver::RuleCustom(ResolveState *state)
+{
+    shared_ptr<ResolveNode> currentNode = state->resolveStack->back();
+    shared_ptr<HtnTerm> goal = currentNode->currentGoal();
+    shared_ptr<vector<shared_ptr<ResolveNode>>> &resolveStack = state->resolveStack;
+    HtnTermFactory *termFactory = state->termFactory;
+    
+    switch(currentNode->continuePoint)
+    {
+        case ResolveContinuePoint::CustomStart:
+        {
+            if(goal->arguments().size() != 2)
+            {
+                // Invalid program
+                Trace1("ERROR      ", "{0} must have two terms", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                StaticFailFastAssertDesc(false, ("Must have two terms: " + goal->ToString()).c_str());
+                currentNode->continuePoint = ResolveContinuePoint::ProgramError;
+            }
+            else
+            {
+                // No resolution happens beyond what has already happened
+                int intA = (currentNode->currentGoal()->arguments()[0]->GetInt());
+                int intB = (currentNode->currentGoal()->arguments()[1]->GetInt());
+                bool isClose =  abs(intA - intB) <= 1;
+                if(isClose)
+                {
+                    Trace1("           ", "{0} succeeded", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                    
+                    // Rule resolves to true so no new terms, no unifiers got added so no changes there
+                    // Nothing to process on children so no special return handling
+                    resolveStack->push_back(currentNode->CreateChildNode(termFactory, *state->initialGoals, {}, {}, &(state->uniquifier)));
+                    currentNode->continuePoint = ResolveContinuePoint::Return;
+                }
+                else
+                {
+                    Trace1("FAIL       ", "{0} failed", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                    state->RecordFailure(goal, currentNode);
+                    resolveStack->pop_back();
+                }
+            }
+        }
+        break;
+
         default:
             StaticFailFastAssert(false);
             break;
