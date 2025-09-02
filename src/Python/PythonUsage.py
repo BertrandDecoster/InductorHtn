@@ -27,7 +27,7 @@ travel-to(Q) :-
         del(at(Here)), add(at(There)).
     walking-distance(U,V) :- weather-is(good), 
                                distance(U,V,W), =<(W, 3).
-    walking-distance(U,V) :- distance(U,V,W), =<(W, 0.5).
+    walking-distance(U,V) :- failureContext(1, foo), distance(U,V,W), =<(W, 0.5).
     distance(downtown, park, 2).
     distance(downtown, uptown, 8).
     at(downtown).
@@ -89,6 +89,15 @@ pp = pprint.PrettyPrinter(indent=4)
 pp.pprint(answer)
 
 success, result = test.PrologQuery("at(Where).")
+if success is not None:
+    print("PrologQuery error: " + success)
+    sys.exit()
+answer = json.loads(result)
+print("PrologQuery result:")
+pp = pprint.PrettyPrinter(indent=4)
+pp.pprint(answer)
+
+success, result = test.PrologQuery("walking-distance(downtown, uptown).")
 if success is not None:
     print("PrologQuery error: " + success)
     sys.exit()

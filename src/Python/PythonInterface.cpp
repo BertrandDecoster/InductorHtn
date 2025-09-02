@@ -66,8 +66,6 @@ public:
         m_htnCompiler = shared_ptr<HtnStandardCompiler>(new HtnStandardCompiler(m_factory.get(), m_state.get(), m_planner.get()));
         // The HtnCompiler will uses the custom HTN syntax
         m_htnCompilerCustomVariables = shared_ptr<HtnCompiler>(new HtnCompiler(m_factory.get(), m_state.get(), m_planner.get()));
-        
-
     }
 
 public:
@@ -147,7 +145,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
     }
 
     bool hasHtnKeywords(const std::string& program){
-        auto splitString = [](const std::string& text, const std::string& delims)
+        auto splitToLowercase = [](const std::string& text, const std::string& delims)
         {
             std::vector<std::string> tokens;
             std::size_t start = text.find_first_not_of(delims), end = 0;
@@ -164,11 +162,12 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         };
 
         std::vector<std::string> htnKeywords {"add", "del", "if", "do", "else", "try", "allOf", "anyOf"};
-        std::vector<std::string> words = splitString(program, "(), :\n\t");
+        std::vector<std::string> words = splitToLowercase(program, "(), :\n\t"); // Each of the symbols act as delimiters for words
         bool htnSyntax = false;
         for(const std::string& word : words){
             if (std::find(htnKeywords.begin(), htnKeywords.end(), word) != htnKeywords.end())
             {
+                TraceString1("Message with {0}", type, detail, value);   
                 std::cout << "Found HTN keyword " << word << std::endl;
                 htnSyntax = true;
                 break;
