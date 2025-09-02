@@ -7,6 +7,7 @@
 #include "FXPlatform/Htn/HtnCompiler.h"
 #include "FXPlatform/Htn/HtnPlanner.h"
 #include "FXPlatform/Prolog/PrologQueryCompiler.h"
+#include <FXPlatform/NanoTrace.h>
 // using namespace std;
 // https://solarianprogrammer.com/2019/07/18/python-using-c-cpp-libraries-ctypes/
 // https://dbader.org/blog/python-ctypes-tutorial
@@ -145,6 +146,8 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
     }
 
     bool hasHtnKeywords(const std::string& program){
+        SetTraceFilter(SystemTraceType::All, TraceDetail::Normal);
+
         auto splitToLowercase = [](const std::string& text, const std::string& delims)
         {
             std::vector<std::string> tokens;
@@ -167,7 +170,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         for(const std::string& word : words){
             if (std::find(htnKeywords.begin(), htnKeywords.end(), word) != htnKeywords.end())
             {
-                TraceString1("Message with {0}", type, detail, value);   
+                TraceString("Found HTN keywordZZZ", SystemTraceType::Python, TraceDetail::Normal);   
                 std::cout << "Found HTN keyword " << word << std::endl;
                 htnSyntax = true;
                 break;
@@ -466,6 +469,11 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         {
             SetTraceFilter(SystemTraceType::None, TraceDetail::Normal);
         }
+    }
+
+    __declspec(dllexport) void __stdcall SetTraceFilter(int traceType, int traceDetail)
+    {
+        SetTraceFilter((uint64_t)traceType, (TraceDetail)traceDetail);
     }
 
     __declspec(dllexport) void __stdcall SetMemoryBudget(HtnPlannerPythonWrapper* ptr, const uint64_t budgetBytes)

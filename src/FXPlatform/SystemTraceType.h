@@ -12,5 +12,6 @@
     item(SystemTraceType, Solver, (uint64_t)SystemTraceType::Custom * 4096) \
     item(SystemTraceType, Unifier, (uint64_t)SystemTraceType::Custom * 8192) \
     item(SystemTraceType, Planner, (uint64_t)SystemTraceType::Custom * 16384) \
+    item(SystemTraceType, Python, (uint64_t)SystemTraceType::Custom * 32768) \
     item(SystemTraceType, All, 0x0FFFFFFF)
 DECLARE_ENUM(SystemTraceType,SYSTEM_TRACE_TYPE)

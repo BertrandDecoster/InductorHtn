@@ -7,6 +7,27 @@ import sys
 from sys import platform
 from time import perf_counter_ns
 
+
+# Mirror of C++ SystemTraceType enum - designed as bitfield flags
+class SystemTraceType:
+    None_ = 0  # Using None_ since None is a Python keyword
+    System = 1
+    Parsing = 32
+    Custom = 0x00000800
+    HTML = Custom * 8
+    Solver = Custom * 4096
+    Unifier = Custom * 8192
+    Planner = Custom * 16384
+    Python = Custom * 32768
+    All = 0x0FFFFFFF
+
+
+# Mirror of C++ TraceDetail enum
+class TraceDetail:
+    Normal = 0
+    Detailed = 1
+    Diagnostic = 2
+
 perfLogger = logging.getLogger("indhtnpy.performance")
 
 """ 
@@ -209,6 +230,7 @@ class HtnPlanner(object):
         ]
         self.indhtnLib.PrologSolveGoals.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.SetDebugTracing.argtypes = [ctypes.c_int64]
+        self.indhtnLib.SetTraceFilter.argtypes = [ctypes.c_int, ctypes.c_int]
         self.indhtnLib.LogStdErrToFile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
         self.indhtnLib.PrologQueryToJson.argtypes = [
             ctypes.c_void_p,
@@ -223,6 +245,12 @@ class HtnPlanner(object):
     # debug = True to enable debug tracing, False to turn off
     def SetDebugTracing(self, debug):
         self.indhtnLib.SetDebugTracing(debug)
+
+    # Sets the trace filter with specific trace types and detail level
+    # traceType = SystemTraceType flags (can be ORed together)
+    # traceDetail = TraceDetail level (Normal, Detailed, or Diagnostic)
+    def SetTraceFilter(self, traceType, traceDetail):
+        self.indhtnLib.SetTraceFilter(traceType, traceDetail)
 
     # Sets the budget for the planner and prolog compiler to use in bytes
     # i.e. 1K budget should be budgetBytes = 1024
