@@ -4,6 +4,7 @@ import json
 import logging
 import platform
 import sys
+from contextlib import contextmanager
 from sys import platform
 from time import perf_counter_ns
 
@@ -269,7 +270,7 @@ class HtnPlanner(object):
     # Stop capturing trace output
     def StopTraceCapture(self):
         self.indhtnLib.StopTraceCapture()
-        
+
     # Get all captured traces as a string
     def GetCapturedTraces(self):
         resultPtr = self.indhtnLib.GetCapturedTraces()
@@ -279,7 +280,7 @@ class HtnPlanner(object):
                 self.indhtnLib.FreeString(resultPtr)
                 return resultBytes.decode()
         return ""
-        
+
     # Clear the trace buffer
     def ClearTraceBuffer(self):
         self.indhtnLib.ClearTraceBuffer()
@@ -501,3 +502,13 @@ class HtnPlanner(object):
 
     def __del__(self):
         self.indhtnLib.DeleteHtnPlanner(self.obj)
+
+
+@contextmanager
+def capture_traces(planner: HtnPlanner):
+    """Context manager for capturing HTN planner traces."""
+    planner.StartTraceCapture()
+    try:
+        yield planner
+    finally:
+        planner.StopTraceCapture()

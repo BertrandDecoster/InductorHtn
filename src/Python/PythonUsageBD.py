@@ -354,23 +354,13 @@ query = "prepareToApplyTag(companionI, stun, gob)."
 query = "stunAndSlowSkillDebug(gob, player, companionF)."
 query = "stunAndSlowSkill(gob)."
 
-planner.StartTraceCapture()
-
-planner.SetLogLevel(SystemTraceType.All, TraceDetail.Normal)
-query = "travel-to(park)."
-print(f"FIND PLAN FOR QUERY {query}")
-output(*planner.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
-
-
-# query = "travel-to(park)."
-
-# planner.SetLogLevel(SystemTraceType.All, TraceDetail.Normal)
-# query = "travel-to(park)."
-# print(f"FIND PLAN FOR QUERY {query}")
-# output(*planner.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
+with capture_traces(planner) as p:
+    p.SetLogLevel(SystemTraceType.All, TraceDetail.Normal)
+    query = "travel-to(park)."
+    print(f"FIND PLAN FOR QUERY {query}")
+    output(*p.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
 
 traces = planner.GetCapturedTraces()
-planner.StopTraceCapture()
 print(traces)
 
 # Import and use tree reconstructor
@@ -395,42 +385,19 @@ print(f"Reconstructed tree with {len(nodes)} nodes:")
 reconstructor.print_tree()
 
 
-# Show successful execution path
-success_path = reconstructor.get_successful_path()
-if success_path:
-    print(f"\nSuccessful execution path ({len(success_path)} steps):")
-    for i, node in enumerate(success_path):
-        step_type = node.node_type.value
-        print(f"  {i}: [{step_type}] {node}")
-else:
-    print(f"\nNo successful path found")
-
-# Show variable bindings
-nodes_with_bindings = [
-    n for n in nodes.values() if n.if_unifier or n.substitution_unifier
-]
-if nodes_with_bindings:
-    print(f"\nVariable bindings found:")
-    for node in nodes_with_bindings:
-        if node.if_unifier:
-            print(f"  Node {node.node_id} conditions: {node.if_unifier}")
-        if node.substitution_unifier:
-            print(
-                f"  Node {node.node_id} goal unifications: {node.substitution_unifier}"
-            )
-
 # Launch interactive visualization
-print(f"\nLaunching interactive HTN tree visualization...")
-print(f"Close the browser tab and press Ctrl+C to continue with plan application.")
-reconstructor.visualize(auto_open=False)
-reconstructor.visualize_observable(auto_open=True)
-print(f"Visualization files created: htn_tree_viewer.html, htn_tree.json")
-print(f"Open htn_tree_viewer.html in your browser to view the interactive tree.")
-print(f"=" * 60)
+# print(f"\nLaunching interactive HTN tree visualization...")
+# print(f"Close the browser tab and press Ctrl+C to continue with plan application.")
+# reconstructor.visualize(auto_open=False)
+# reconstructor.visualize_observable(auto_open=True)
+# print(f"Visualization files created: htn_tree_viewer.html, htn_tree.json")
+# print(f"Open htn_tree_viewer.html in your browser to view the interactive tree.")
+# print(f"=" * 60)
+
 
 planNumber = 0
-success = planner.ApplySolution(planNumber)
 print(f"Apply plan {planNumber}")
+success = planner.ApplySolution(planNumber)
 
 if not debugPlan:
     for fact in facts:
