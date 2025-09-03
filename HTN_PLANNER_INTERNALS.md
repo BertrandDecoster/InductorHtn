@@ -26,6 +26,7 @@ Represents a single node in the HTN search tree.
 - `task`: Current task being solved  
 - `operators`: Accumulated operators (the plan so far)
 - `continuePoint`: Where to resume execution when returning to this node
+- `unifiedMethods`: All the methods that unify with the current task
 - `method`: Current method being applied
 - `conditionResolutions`: Different ways the method's conditions can be satisfied
 - `unifiedMethods`: Methods that unify with the current task
@@ -81,7 +82,7 @@ while(stack->size() > 0) {
 2. Handles `else` clause logic (skips if previous method succeeded)
 3. If no more methods → returns to parent with success/failure status
 4. If method exists:
-   - Resolves method's conditions against current state
+   - Resolves method's conditions (if) against current state
    - Gets list of condition resolutions (different variable bindings)
 5. **Transition**: If conditions resolve and method is Normal type, sets `continuePoint = NextNormalMethodCondition`
 6. **Alternative**: For `anyOf`/`allOf`, calls special handlers instead

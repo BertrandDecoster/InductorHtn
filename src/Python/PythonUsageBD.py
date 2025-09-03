@@ -278,7 +278,7 @@ def preprocessRuleset(ruleset):
     return answer
 
 
-f = open("Examples/GameHack8AgentAtTop.htn", "r")
+# f = open("../../Examples/Taxi.htn", "r")
 f = open("Examples/Taxi.htn", "r")
 prog = f.read()
 # prog = prog2
@@ -356,19 +356,22 @@ query = "stunAndSlowSkill(gob)."
 
 planner.StartTraceCapture()
 
-# test.SetLogLevel(SystemTraceType.None_, TraceDetail.Diagnostic)
-# query = "travel-to(downtown)."
-# print(f"FIND PLAN FOR QUERY {query}")
-# output(*test.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
-# query = "travel-to(park)."
-
 planner.SetLogLevel(SystemTraceType.All, TraceDetail.Normal)
 query = "travel-to(park)."
 print(f"FIND PLAN FOR QUERY {query}")
 output(*planner.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
 
+
+# query = "travel-to(park)."
+
+# planner.SetLogLevel(SystemTraceType.All, TraceDetail.Normal)
+# query = "travel-to(park)."
+# print(f"FIND PLAN FOR QUERY {query}")
+# output(*planner.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
+
 traces = planner.GetCapturedTraces()
 planner.StopTraceCapture()
+print(traces)
 
 # Import and use tree reconstructor
 from HtnTreeReconstructor import HtnTreeReconstructor
@@ -376,45 +379,54 @@ from HtnTreeReconstructor import HtnTreeReconstructor
 print(f"Captured traces: {len(traces)} characters")
 
 # Split traces into lines and reconstruct tree
-trace_lines = traces.strip().split('\n') if traces.strip() else []
+trace_lines = traces.strip().split("\n") if traces.strip() else []
 print(f"Processing {len(trace_lines)} trace lines")
+for l in trace_lines:
+    print(l)
 
 reconstructor = HtnTreeReconstructor()
 nodes = reconstructor.parse_traces(trace_lines)
 
-print(f"\n" + "="*60)
+print(f"\n" + "=" * 60)
 print(f"TREE RECONSTRUCTION ANALYSIS")
-print(f"="*60)
+print(f"=" * 60)
 
 print(f"Reconstructed tree with {len(nodes)} nodes:")
 reconstructor.print_tree()
 
-print(f"\nTree Analysis:")
-print(f"- Total nodes explored: {len(nodes)}")
-print(f"- Root node: {reconstructor.get_root_node()}")
-print(f"- Successful nodes: {sum(1 for n in nodes.values() if n.success)}")
-print(f"- Failed nodes: {sum(1 for n in nodes.values() if n.success is False)}")
-print(f"- Nodes with methods: {sum(1 for n in nodes.values() if n.method_signature)}")
-print(f"- Nodes with operators: {sum(1 for n in nodes.values() if n.operator_signature)}")
 
 # Show successful execution path
 success_path = reconstructor.get_successful_path()
 if success_path:
     print(f"\nSuccessful execution path ({len(success_path)} steps):")
     for i, node in enumerate(success_path):
-        step_type = "METHOD" if node.method_signature else "OPERATOR" if node.operator_signature else "GOAL"
+        step_type = node.node_type.value
         print(f"  {i}: [{step_type}] {node}")
 else:
     print(f"\nNo successful path found")
 
 # Show variable bindings
-nodes_with_bindings = [n for n in nodes.values() if n.variable_bindings]
+nodes_with_bindings = [
+    n for n in nodes.values() if n.if_unifier or n.substitution_unifier
+]
 if nodes_with_bindings:
     print(f"\nVariable bindings found:")
     for node in nodes_with_bindings:
-        print(f"  Node {node.node_id}: {node.variable_bindings}")
+        if node.if_unifier:
+            print(f"  Node {node.node_id} conditions: {node.if_unifier}")
+        if node.substitution_unifier:
+            print(
+                f"  Node {node.node_id} goal unifications: {node.substitution_unifier}"
+            )
 
-print(f"="*60)
+# Launch interactive visualization
+print(f"\nLaunching interactive HTN tree visualization...")
+print(f"Close the browser tab and press Ctrl+C to continue with plan application.")
+reconstructor.visualize(auto_open=False)
+reconstructor.visualize_observable(auto_open=True)
+print(f"Visualization files created: htn_tree_viewer.html, htn_tree.json")
+print(f"Open htn_tree_viewer.html in your browser to view the interactive tree.")
+print(f"=" * 60)
 
 planNumber = 0
 success = planner.ApplySolution(planNumber)

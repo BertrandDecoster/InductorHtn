@@ -16,6 +16,31 @@
 #include "HtnTermFactory.h"
 #include "FXPlatform/NanoTrace.h"
 
+/** 
+HtnPlanner works by having each node being focused on a single task. You can find this information in SOLVE
+Node0 is the goal you asked the HTN
+
+There is a lot of changing part inside a Node to prepare the child Nodes.
+When you PUSH, you give the information of who is the child/parent
+
+A task is either a method or an operator.
+
+
+If it's a method, the node unifies the task with all the appropriate methods.
+You get in each of one with METHOD. But not directly, first you get two unifiers, one for the head (substituted condition:) 
+and one for the if/condition (condition:(?x = downtown, ?t = taxi1, ?d = 2) )
+Only then do you PUSH / SOLVE
+It's probably in PUSH that you need to get the two unifiers from your parent
+
+If it's an operator, your task has to be grounded. Add the grounded operator, the added and removed facts to the node.
+Note that some operators are dummy operators, they only exist to put information in the final plan. 
+They start with m1_, m2_, m3_, ... The number is the arity
+
+A node with no tasks is a SUCCESS
+
+*/
+
+
 uint8_t HtnPlanner::m_abort = 0;
 
 const int indentSpaces = 11;
@@ -286,7 +311,7 @@ PlanState::PlanState(HtnTermFactory *factoryArg, shared_ptr<HtnRuleSet> initialS
     returnValue(false),
     stack(shared_ptr<vector<shared_ptr<PlanNode>>>(new vector<shared_ptr<PlanNode>>()))
 {
-    // First node is the initial goals with no solution
+    // First node is the initial tasks with no solution
     shared_ptr<PlanNode> initialNode = shared_ptr<PlanNode>(new PlanNode(nextNodeID++, initialStateArg, initialGoals, nullptr));
     stack->push_back(initialNode);
 }
@@ -350,7 +375,7 @@ HtnPlanner::HtnPlanner() :
 
 HtnPlanner::~HtnPlanner()
 {
-    // No need to delete goals since they are managed by TermFactory
+    // No need to delete tasks since they are managed by TermFactory
     ClearAll();
 }
 
@@ -582,7 +607,7 @@ shared_ptr<PlanNode> HtnPlanner::FindNodeWithID(vector<shared_ptr<PlanNode>> &st
  - Domain: The collection of Methods and Operators used for the planning problem
  - Tasks: The collection of Tasks which need to be accomplished for the planning problem. Sometimes called goals
  - Planning Problem: A triple of State, Domain and Tasks which defines the entire planning problem
- - Plan: The final output of the algorithm is a Plan, which is a list of Operators which, once executed, solve the goals. Specifically, it is a list of the Heads of the Operators (since that uniquely defines them)
+ - Plan: The final output of the algorithm is a Plan, which is a list of Operators which, once executed, solve the tasks. Specifically, it is a list of the Heads of the Operators (since that uniquely defines them)
 
  Assumptions:
  - Operators and Methods cannot share names.  Operators name will always shadow a Method name
@@ -753,7 +778,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     // Resolve any arithmetic parts of it
                     node->task = node->task->ResolveArithmeticTerms(factory);
 
-                    Trace3("SOLVE      ", "nodeID:{0} goal:'{1}' remaining:{2}", stack->size(), node->nodeID(), node->task->ToString(), HtnTerm::ToString(*node->tasks));
+                    Trace3("SOLVE      ", "nodeID:{0} task:'{1}' remaining:'{2}'", stack->size(), node->nodeID(), node->task->ToString(), HtnTerm::ToString(*node->tasks));
 
                     // Is it an operator?
                     if(CheckForOperator(planState))
@@ -776,8 +801,8 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                         }
                         else
                         {
-                            Trace2("           ", "{0} methods unify with '{1}'", stack->size(), node->unifiedMethods->size(), node->task->ToString());
-                            
+                            Trace3("           ", "nodeID:{0} {1} methods unify with '{2}'", stack->size(), node->nodeID(), node->unifiedMethods->size(), node->task->ToString());
+
                             // Each method that unifies represents a branch of the tree that could be an alternative solution
                             // So we iterate through them
                             node->continuePoint = PlanNodeContinuePoint::NextMethodThatApplies;
@@ -836,7 +861,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     {
                         // Find all of the ways the constraints are met
                         substitutedCondition = HtnGoalResolver::SubstituteUnifiers(factory, node->method.second, node->method.first->condition());
-                        Trace1("           ", "substituted condition:'{0}'", stack->size(), HtnTerm::ToString(*substitutedCondition));
+                        Trace3("           ", "nodeID:{0} substituted condition:'{1}' with unifier '{2}'", stack->size(), node->nodeID(), HtnTerm::ToString(*substitutedCondition), HtnGoalResolver::ToString(node->method.second));
 
                         // Subtract off current memory usage from budget to tell Resolve how much it has to work with
                         int64_t currentMemory = planState->dynamicSize();
@@ -908,7 +933,7 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 }
                 else
                 {
-                    Trace1("           ", "condition: {0}", stack->size(), HtnGoalResolver::ToString(*condition));
+                    Trace2("           ", "nodeID:{0} condition:'{1}'", stack->size(), node->nodeID(), HtnGoalResolver::ToString(*condition));
 
                     // First bind the variables from the method head to the subtasks
                     shared_ptr<vector<shared_ptr<HtnTerm>>> headBoundSubtasks = HtnGoalResolver::SubstituteUnifiers(factory, node->method.second, node->method.first->tasks());
