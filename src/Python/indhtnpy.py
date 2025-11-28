@@ -163,12 +163,28 @@ class HtnPlanner(object):
                 libname = "libindhtnpy.dylib"
             elif platform == "win32":
                 # Windows...
-                libname = "./indhtnpy"
+                import os
+                # Try multiple locations for the DLL
+                search_paths = [
+                    os.path.join(os.path.dirname(__file__), "indhtnpy.dll"),  # Same directory as this file
+                    os.path.join(os.getcwd(), "indhtnpy.dll"),  # Current working directory
+                    os.path.join(os.getcwd(), "src", "Python", "indhtnpy.dll"),  # src/Python from root
+                ]
+
+                indhtnPath = None
+                for path in search_paths:
+                    if os.path.exists(path):
+                        indhtnPath = path
+                        break
+
+                # Fallback to find_library if not found in common locations
+                if not indhtnPath:
+                    libname = "./indhtnpy"
+                    indhtnPath = ctypes.util.find_library(libname)
             else:
                 print("Unknown OS: {}".format(platform))
                 sys.exit()
 
-            indhtnPath = ctypes.util.find_library(libname)
             if not indhtnPath:
                 print(
                     "Unable to find the indhtnpy library, please make sure it is on your path."
