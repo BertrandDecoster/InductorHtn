@@ -28,7 +28,16 @@
       "Bash(powershell -ExecutionPolicy Bypass -Command \"$output = & cmd /c ''C:\\Users\\bertr\\Projects\\InductorHtn\\simple_compile.bat 2>&1''; Write-Output $output\")",
       "Bash(\"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC\\14.29.30133\\bin\\Hostx64\\x64\\cl.exe\":*)",
       "Bash(./runtests.exe:*)",
-      "Bash(build/Release/runtests.exe)"
+      "Bash(build/Release/runtests.exe)",
+      "Bash(python -c:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(python test_backend.py:*)",
+      "Bash(python:*)",
+      "Bash(./indhtn.exe:*)",
+      "Bash(set PATH=%cd%)",
+      "Bash(%PATH%)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
