@@ -144,15 +144,30 @@ public:
         vector<shared_ptr<HtnTerm>> mergedTasks = *tasks;
         mergedTasks.insert(mergedTasks.begin(), additionalTasks.begin(), additionalTasks.end());
         shared_ptr<PlanNode> newNode = shared_ptr<PlanNode>(new PlanNode(planState->nextNodeID++, state, mergedTasks, operators));
-        
+
         // Trying not to be too intrusive by checking for out of memory only when we create new nodes
         if(OutOfMemoryAtNodePush(planState, newNode))
         {
             newNode->continuePoint = PlanNodeContinuePoint::OutOfMemory;
         }
-        
+
         planState->stack->push_back(newNode);
         Trace2("PUSH       ", "nodeID:{0} parentID:{1}", planState->stack->size(), newNode->nodeID(), nodeID());
+
+        // Record tree node for decomposition tree
+        DecompTreeNode treeNode;
+        treeNode.nodeID = newNode->nodeID();
+        treeNode.parentNodeID = nodeID();
+        treeNode.taskName = (additionalTasks.size() > 0 && additionalTasks[0]) ? additionalTasks[0]->ToString() : "";
+        size_t index = planState->decompositionTree.size();
+        planState->nodeIDToTreeIndex[newNode->nodeID()] = index;
+        planState->decompositionTree.push_back(treeNode);
+        // Update parent's children list
+        auto parentIt = planState->nodeIDToTreeIndex.find(nodeID());
+        if(parentIt != planState->nodeIDToTreeIndex.end()) {
+            planState->decompositionTree[parentIt->second].childNodeIDs.push_back(newNode->nodeID());
+        }
+
         continuePoint = returnPoint;
     }
 
@@ -167,9 +182,9 @@ public:
         {
             operatorsCopy = shared_ptr<vector<shared_ptr<HtnTerm>>>(new vector<shared_ptr<HtnTerm>>(*operators));
         }
-        
+
         shared_ptr<PlanNode> newNode = shared_ptr<PlanNode>(new PlanNode(planState->nextNodeID++, stateCopy, mergedTasks, operatorsCopy));
-        
+
         // Trying not to be too intrusive by checking for out of memory only when we create new nodes
         if(OutOfMemoryAtNodePush(planState, newNode))
         {
@@ -177,6 +192,21 @@ public:
         }
         planState->stack->push_back(newNode);
         Trace2("PUSH       ", "nodeID:{0} parentID:{1}", planState->stack->size(), newNode->nodeID(), nodeID());
+
+        // Record tree node for decomposition tree
+        DecompTreeNode treeNode;
+        treeNode.nodeID = newNode->nodeID();
+        treeNode.parentNodeID = nodeID();
+        treeNode.taskName = (additionalTasks.size() > 0 && additionalTasks[0]) ? additionalTasks[0]->ToString() : "";
+        size_t index = planState->decompositionTree.size();
+        planState->nodeIDToTreeIndex[newNode->nodeID()] = index;
+        planState->decompositionTree.push_back(treeNode);
+        // Update parent's children list
+        auto parentIt = planState->nodeIDToTreeIndex.find(nodeID());
+        if(parentIt != planState->nodeIDToTreeIndex.end()) {
+            planState->decompositionTree[parentIt->second].childNodeIDs.push_back(newNode->nodeID());
+        }
+
         continuePoint = returnPoint;
     }
     
@@ -309,11 +339,20 @@ PlanState::PlanState(HtnTermFactory *factoryArg, shared_ptr<HtnRuleSet> initialS
     memoryBudget(memoryBudgetArg),
     nextNodeID(0),
     returnValue(false),
-    stack(shared_ptr<vector<shared_ptr<PlanNode>>>(new vector<shared_ptr<PlanNode>>()))
+    stack(shared_ptr<vector<shared_ptr<PlanNode>>>(new vector<shared_ptr<PlanNode>>())),
+    currentSolutionID(0)
 {
     // First node is the initial tasks with no solution
     shared_ptr<PlanNode> initialNode = shared_ptr<PlanNode>(new PlanNode(nextNodeID++, initialStateArg, initialGoals, nullptr));
     stack->push_back(initialNode);
+
+    // Record root node in decomposition tree
+    DecompTreeNode rootTreeNode;
+    rootTreeNode.nodeID = initialNode->nodeID();
+    rootTreeNode.parentNodeID = -1;  // Root has no parent
+    rootTreeNode.taskName = (initialGoals.size() > 0 && initialGoals[0]) ? initialGoals[0]->ToString() : "";
+    nodeIDToTreeIndex[rootTreeNode.nodeID] = 0;
+    decompositionTree.push_back(rootTreeNode);
 }
 
 void PlanState::CheckHighestMemory(int64_t currentMemory, string extra1Name, int64_t extra1Size)
@@ -437,6 +476,10 @@ bool HtnPlanner::CheckForOperator(PlanState *planState)
             // Continue recursion: No additional tasks since this is an operator, don't make a copy of the state since we don't need to try alternatives when backtracking
             Trace3("OPERATOR   ", "nodeID:{0} Operator '{1}' unifies with '{2}'", stack->size(), node->nodeID(), op->head()->ToString(), node->task->ToString());
             Trace3("           ", "isHidden: {0}, deletes:'{1}', adds:'{2}'", stack->size(), op->isHidden(), HtnTerm::ToString(*finalRemovals), HtnTerm::ToString(*finalAdditions));
+
+            // Record operator in decomposition tree
+            RecordOperator(planState, node->nodeID(), op, *mgu);
+
             node->SearchNextNode(planState, {}, PlanNodeContinuePoint::ReturnFromCheckForOperator);
             return true;
         }
@@ -445,7 +488,11 @@ bool HtnPlanner::CheckForOperator(PlanState *planState)
             // task was an operator but didn't properly unify, this should never happen in a well-written program since there is only ever one operator of a given name
             // and their whole point is to modify state
             Trace3("FAIL       ", "nodeID:{0} Operator '{1}' did not unify with '{2}'", stack->size(), node->nodeID(), op->head()->ToString(), node->task->ToString());
-            
+
+            // Record failure in decomposition tree
+            string failReason = "Operator did not unify: " + op->head()->ToString() + " with " + node->task->ToString();
+            MarkNodeFailed(planState, node->nodeID(), failReason);
+
             // Fail this node and backtrack(by returning false)
             Return(planState, false);
             return true;
@@ -767,10 +814,13 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 {
                     // There are no more tasks, we have found a leaf and a solution
                     Trace4("SUCCESS    ", "nodeID:{0} no tasks remain. Memory: Current:{1}, Highest:{2}, Budget:{3}", stack->size(), node->nodeID(), planState->dynamicSize(), planState->highestMemoryUsed, planState->memoryBudget);
-                    
+
+                    // Mark success path in decomposition tree (must be done before Return() unwinds stack)
+                    MarkPathSuccess(planState, node->nodeID());
+
                     // Start undoing the recursion so we can find the next solution next time
                     Return(planState, true);
-                    
+
                     return SolutionFromCurrentNode(planState, node);
                 }
                 else
@@ -845,7 +895,10 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 else
                 {
                     Trace3("METHOD     ", "nodeID:{0} resolve next{1} method '{2}'", stack->size(), node->nodeID(), (node->method.first->isDefault() ? " ELSE" : ""), node->method.first->ToString());
-                    
+
+                    // Record method choice in decomposition tree
+                    RecordMethodChoice(planState, node->nodeID(), node->method.first, node->method.second);
+
                     // See if the constraints are met for this method by applying the unifier above to the constraint and then seeing if it is satisfied by the current
                     // state (meaning reducing it returns only ground state)
                     shared_ptr<vector<shared_ptr<HtnTerm>>> substitutedCondition;
@@ -882,7 +935,11 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                         Trace2("FAIL       ", "nodeID:{0} 0 condition alternatives for method '{1}'", stack->size(), node->nodeID(), node->method.first->ToString());
                         Trace1("           ", "substituted condition '{0}'", stack->size(), HtnTerm::ToString(*substitutedCondition));
                         node->continuePoint = PlanNodeContinuePoint::NextMethodThatApplies;
-                        
+
+                        // Record failure in decomposition tree
+                        string failReason = "Condition failed: " + HtnTerm::ToString(*substitutedCondition);
+                        MarkNodeFailed(planState, node->nodeID(), failReason);
+
                         // Remember the failure context if this is deepest
                         planState->RecordFailure(furthestCriteriaFailureIndex, farthestCriteriaFailureContext);
                         continue;
@@ -935,12 +992,15 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 {
                     Trace2("           ", "nodeID:{0} condition:'{1}'", stack->size(), node->nodeID(), HtnGoalResolver::ToString(*condition));
 
+                    // Record condition bindings in decomposition tree
+                    RecordConditionBindings(planState, node->nodeID(), *condition);
+
                     // First bind the variables from the method head to the subtasks
                     shared_ptr<vector<shared_ptr<HtnTerm>>> headBoundSubtasks = HtnGoalResolver::SubstituteUnifiers(factory, node->method.second, node->method.first->tasks());
-                    
+
                     // Then bind the variables from the condition to the subtasks
                     shared_ptr<vector<shared_ptr<HtnTerm>>> boundSubtasks = HtnGoalResolver::SubstituteUnifiers(factory, *condition, *headBoundSubtasks);
-                    
+
                     // Create a node by adding the subtasks from this method/condition combination and recurse
                     // Make it backtrackable so we can try alternatives without the state being changed by other solutions
                     shared_ptr<HtnRuleSet> stateCopy = node->state->CreateCopy();
@@ -1131,9 +1191,20 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::SolutionFromCurrentNode(PlanSta
     {
         solution->first = *node->operators;
     }
-    
+
     solution->second = node->state;
-    
+
+    // Copy only the nodes that belong to this solution (solutionID was set in MarkPathSuccess)
+    // currentSolutionID was incremented after marking, so use currentSolutionID - 1
+    int thisSolutionID = planState->currentSolutionID - 1;
+    for(const auto& treeNode : planState->decompositionTree)
+    {
+        if(treeNode.solutionID == thisSolutionID)
+        {
+            solution->decompositionTree.push_back(treeNode);
+        }
+    }
+
     // Now roll up all the stats
     solution->highestMemoryUsed = planState->highestMemoryUsed;
     solution->elapsedSeconds = HighPerformanceGetTimeInSeconds() - planState->startTimeSeconds;
@@ -1208,7 +1279,116 @@ string HtnPlanner::ToStringSolutions(shared_ptr<SolutionsType> solutions, bool j
             hasSolution = true;
         }
         result << "]";
-        
+
         return result.str();
     }
+}
+
+// Decomposition tree recording methods
+
+void HtnPlanner::RecordTreeNode(PlanState* planState, int nodeID, int parentID, shared_ptr<HtnTerm> task)
+{
+    DecompTreeNode node;
+    node.nodeID = nodeID;
+    node.parentNodeID = parentID;
+    node.taskName = task ? task->ToString() : "";
+    node.isOperator = false;
+    node.isSuccess = false;
+    node.isFailed = false;
+
+    size_t index = planState->decompositionTree.size();
+    planState->nodeIDToTreeIndex[nodeID] = index;
+    planState->decompositionTree.push_back(node);
+
+    // Update parent's children list
+    if(parentID >= 0) {
+        auto parentIt = planState->nodeIDToTreeIndex.find(parentID);
+        if(parentIt != planState->nodeIDToTreeIndex.end()) {
+            planState->decompositionTree[parentIt->second].childNodeIDs.push_back(nodeID);
+        }
+    }
+}
+
+void HtnPlanner::RecordMethodChoice(PlanState* planState, int nodeID, HtnMethod* method, const UnifierType& unifiers)
+{
+    auto it = planState->nodeIDToTreeIndex.find(nodeID);
+    if(it != planState->nodeIDToTreeIndex.end()) {
+        auto& node = planState->decompositionTree[it->second];
+        node.methodSignature = method->ToString();
+        node.isOperator = false;
+        node.unifiers.clear();  // Clear old bindings from previous method attempts
+        node.conditionBindings.clear();  // Clear old condition bindings
+        for(const auto& u : unifiers) {
+            node.unifiers.push_back({u.first->ToString(), u.second->ToString()});
+        }
+    }
+}
+
+void HtnPlanner::RecordConditionBindings(PlanState* planState, int nodeID, const UnifierType& condition)
+{
+    auto it = planState->nodeIDToTreeIndex.find(nodeID);
+    if(it != planState->nodeIDToTreeIndex.end()) {
+        auto& node = planState->decompositionTree[it->second];
+        for(const auto& u : condition) {
+            node.conditionBindings.push_back({u.first->ToString(), u.second->ToString()});
+        }
+    }
+}
+
+void HtnPlanner::RecordOperator(PlanState* planState, int nodeID, HtnOperator* op, const UnifierType& unifiers)
+{
+    auto it = planState->nodeIDToTreeIndex.find(nodeID);
+    if(it != planState->nodeIDToTreeIndex.end()) {
+        auto& node = planState->decompositionTree[it->second];
+        node.operatorSignature = op->head()->ToString();
+        node.isOperator = true;
+        for(const auto& u : unifiers) {
+            node.unifiers.push_back({u.first->ToString(), u.second->ToString()});
+        }
+    }
+}
+
+void HtnPlanner::MarkPathSuccess(PlanState* planState, int leafNodeID)
+{
+    // Walk up from leaf to root, marking all nodes as successful and assigning solutionID
+    int currentID = leafNodeID;
+    while(currentID >= 0) {
+        auto it = planState->nodeIDToTreeIndex.find(currentID);
+        if(it == planState->nodeIDToTreeIndex.end()) break;
+        auto& node = planState->decompositionTree[it->second];
+        node.isSuccess = true;
+        node.solutionID = planState->currentSolutionID;  // Mark which solution this node belongs to
+        currentID = node.parentNodeID;
+    }
+    planState->currentSolutionID++;  // Increment for next solution
+}
+
+void HtnPlanner::MarkNodeFailed(PlanState* planState, int nodeID, const string& reason)
+{
+    auto it = planState->nodeIDToTreeIndex.find(nodeID);
+    if(it != planState->nodeIDToTreeIndex.end()) {
+        planState->decompositionTree[it->second].isFailed = true;
+        planState->decompositionTree[it->second].failureReason = reason;
+    }
+}
+
+string HtnPlanner::ToStringTree(shared_ptr<SolutionType> solution)
+{
+    if(solution == nullptr || solution->decompositionTree.empty())
+    {
+        return "[]";
+    }
+
+    stringstream result;
+    result << "[";
+    bool first = true;
+    for(const auto& node : solution->decompositionTree)
+    {
+        if(!first) result << ",";
+        result << node.ToJson();
+        first = false;
+    }
+    result << "]";
+
+    return result.str();
 }

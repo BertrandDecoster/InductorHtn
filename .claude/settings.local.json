@@ -41,7 +41,8 @@
       "Bash(powershell -Command \"$env:Path = ''C:\\Users\\bertr\\Projects\\InductorHtn\\src\\Python;'' + $env:Path; cd src\\Python; & ''..\\..\\..venv\\Scripts\\python.exe'' PythonUsageBD.py\")",
       "Bash(cp:*)",
       "Bash(.venv/Scripts/python.exe:*)",
-      "Bash(powershell -Command \"echo $env:Path | Select-String ''Python''\")"
+      "Bash(powershell -Command \"echo $env:Path | Select-String ''Python''\")",
+      "Bash(./build/Release/runtests.exe:*)"
     ],
     "deny": [],
     "ask": []

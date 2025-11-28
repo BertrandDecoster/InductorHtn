@@ -441,6 +441,30 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         }
     }
 
+    // Returns the decomposition tree for a specific solution as JSON
+    // Returns nullptr on success (result contains tree JSON), error string on failure
+    __declspec(dllexport) char* __stdcall HtnGetDecompositionTree(HtnPlannerPythonWrapper* ptr, const uint64_t solutionIndex, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+            if(ptr->m_lastSolutions == nullptr || solutionIndex >= ptr->m_lastSolutions->size())
+            {
+                *result = nullptr;
+                return GetCharPtrFromString("Invalid solution index or no solutions available");
+            }
+
+            auto solution = (*ptr->m_lastSolutions)[solutionIndex];
+            *result = GetCharPtrFromString(HtnPlanner::ToStringTree(solution));
+            return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
     // Compile *adds* whatever is passed into the current state of the database
     __declspec(dllexport) char* __stdcall PrologCompile(HtnPlannerPythonWrapper* ptr, const char* data)
     {

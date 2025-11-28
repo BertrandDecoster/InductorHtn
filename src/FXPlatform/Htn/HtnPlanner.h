@@ -13,6 +13,78 @@
 #include "FXPlatform/Prolog/HtnGoalResolver.h"
 #include <memory>
 #include <vector>
+#include <map>
+#include <sstream>
+
+// Decomposition tree node for exposing HTN structure to callers
+// Captures both successful and failed branches for plan explanation
+struct DecompTreeNode
+{
+    int nodeID;
+    int parentNodeID;  // -1 for root
+    std::vector<int> childNodeIDs;
+    std::string taskName;
+    std::string methodSignature;  // Empty for operators
+    std::string operatorSignature;  // Empty for methods
+    std::vector<std::pair<std::string, std::string>> unifiers;  // head bindings
+    std::vector<std::pair<std::string, std::string>> conditionBindings;  // if() clause bindings
+    bool isOperator;
+    bool isSuccess;  // Did this branch lead to a solution?
+    bool isFailed;   // Did this branch fail?
+    std::string failureReason;  // Why it failed (if applicable)
+    int solutionID;  // Which solution this node contributed to (-1 = not yet assigned)
+
+    DecompTreeNode() : nodeID(-1), parentNodeID(-1), isOperator(false), isSuccess(false), isFailed(false), solutionID(-1) {}
+
+    std::string ToJson() const
+    {
+        std::stringstream ss;
+        ss << "{";
+        ss << "\"nodeID\":" << nodeID << ",";
+        ss << "\"parentNodeID\":" << parentNodeID << ",";
+        ss << "\"childNodeIDs\":[";
+        for(size_t i = 0; i < childNodeIDs.size(); i++) {
+            ss << (i > 0 ? "," : "") << childNodeIDs[i];
+        }
+        ss << "],";
+        // Escape special characters in strings
+        auto escape = [](const std::string& s) {
+            std::string result;
+            for(char c : s) {
+                if(c == '"') result += "\\\"";
+                else if(c == '\\') result += "\\\\";
+                else if(c == '\n') result += "\\n";
+                else if(c == '\r') result += "\\r";
+                else if(c == '\t') result += "\\t";
+                else result += c;
+            }
+            return result;
+        };
+        ss << "\"taskName\":\"" << escape(taskName) << "\",";
+        ss << "\"methodSignature\":\"" << escape(methodSignature) << "\",";
+        ss << "\"operatorSignature\":\"" << escape(operatorSignature) << "\",";
+        ss << "\"unifiers\":[";
+        for(size_t i = 0; i < unifiers.size(); i++) {
+            ss << (i > 0 ? "," : "") << "{\"" << escape(unifiers[i].first)
+               << "\":\"" << escape(unifiers[i].second) << "\"}";
+        }
+        ss << "],";
+        ss << "\"conditionBindings\":[";
+        for(size_t i = 0; i < conditionBindings.size(); i++) {
+            ss << (i > 0 ? "," : "") << "{\"" << escape(conditionBindings[i].first)
+               << "\":\"" << escape(conditionBindings[i].second) << "\"}";
+        }
+        ss << "],";
+        ss << "\"isOperator\":" << (isOperator ? "true" : "false") << ",";
+        ss << "\"isSuccess\":" << (isSuccess ? "true" : "false") << ",";
+        ss << "\"isFailed\":" << (isFailed ? "true" : "false") << ",";
+        ss << "\"failureReason\":\"" << escape(failureReason) << "\",";
+        ss << "\"solutionID\":" << solutionID;
+        ss << "}";
+        return ss.str();
+    }
+};
+
 class HtnMethod;
 enum class HtnMethodType;
 class HtnOperator;
@@ -51,6 +123,12 @@ private:
     int nextNodeID;
     bool returnValue;
     std::shared_ptr<std::vector<std::shared_ptr<PlanNode>>> stack;
+
+    // Decomposition tree - built incrementally during planning
+    // Survives stack unwinding and captures both successful and failed branches
+    std::vector<DecompTreeNode> decompositionTree;
+    std::map<int, size_t> nodeIDToTreeIndex;  // Fast lookup: nodeID -> index in decompositionTree
+    int currentSolutionID;  // Incremented each time a solution is found
 };
 
 
@@ -79,6 +157,9 @@ public:
         std::shared_ptr<HtnRuleSet> second;
         double elapsedSeconds;
         int64_t highestMemoryUsed;
+
+        // Decomposition tree - full tree including failed branches
+        std::vector<DecompTreeNode> decompositionTree;
     };
     typedef std::vector<std::shared_ptr<SolutionType>> SolutionsType;
     
@@ -104,6 +185,7 @@ public:
     static std::string ToStringSolutions(std::shared_ptr<SolutionsType> solutions, bool json = false);
     static std::string ToStringFacts(std::shared_ptr<SolutionType> solution);
     static std::string ToStringFacts(std::shared_ptr<SolutionsType> solutions);
+    static std::string ToStringTree(std::shared_ptr<SolutionType> solution);
 
     HtnGoalResolver *goalResolver() { return m_resolver.get(); }
     virtual void AllMethods(std::function<bool(HtnMethod *)> handler)
@@ -137,6 +219,14 @@ private:
     void HandleAnyOf(PlanState *planState);
     void Return(PlanState *planState, bool returnValue);
     std::shared_ptr<HtnPlanner::SolutionType> SolutionFromCurrentNode(PlanState *planState, std::shared_ptr<PlanNode> node);
+
+    // Decomposition tree recording methods
+    void RecordTreeNode(PlanState* planState, int nodeID, int parentID, std::shared_ptr<HtnTerm> task);
+    void RecordMethodChoice(PlanState* planState, int nodeID, HtnMethod* method, const UnifierType& unifiers);
+    void RecordConditionBindings(PlanState* planState, int nodeID, const UnifierType& condition);
+    void RecordOperator(PlanState* planState, int nodeID, HtnOperator* op, const UnifierType& unifiers);
+    void MarkPathSuccess(PlanState* planState, int leafNodeID);
+    void MarkNodeFailed(PlanState* planState, int nodeID, const std::string& reason);
 
     // *** Remember to update dynamicSize() if you change any member variables!
     // Awful hack making this static. necessary because it was too late in schedule to properly plumb through an Abort

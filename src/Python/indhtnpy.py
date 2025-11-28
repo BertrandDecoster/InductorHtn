@@ -262,6 +262,12 @@ class HtnPlanner(object):
             ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
         ]
         self.indhtnLib.PrologQueryToJson.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetDecompositionTree.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetDecompositionTree.restype = ctypes.POINTER(ctypes.c_char)
 
         # Now create an instance of the object
         self.obj = self.indhtnLib.CreateHtnPlanner(debug)
@@ -505,6 +511,45 @@ class HtnPlanner(object):
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info(
             "PrologQueryToJson %s ms: %s", str(elapsedTimeNS / 1000000), value
+        )
+
+        resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if resultBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            return resultBytes.decode(), None
+        else:
+            resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
+            self.indhtnLib.FreeString(mem)
+            return None, resultQuery
+
+    # Returns error, treeJson
+    # error = None if successful, or a string error message
+    # treeJson = JSON string containing the decomposition tree for the specified solution
+    #   The tree is a JSON array of nodes, each with:
+    #   - nodeID: unique identifier for this node
+    #   - parentNodeID: -1 for root, otherwise parent's nodeID
+    #   - childNodeIDs: array of child node IDs
+    #   - taskName: the task being decomposed
+    #   - methodSignature: method used (empty for operators)
+    #   - operatorSignature: operator used (empty for methods)
+    #   - unifiers: array of {variable: value} bindings
+    #   - isOperator: true if this is a primitive operator
+    #   - isSuccess: true if this branch led to a solution
+    #   - isFailed: true if this branch failed
+    #   - failureReason: why it failed (if applicable)
+    # Must call FindAllPlans or FindAllPlansCustomVariables first
+    def GetDecompositionTree(self, solutionIndex=0):
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnGetDecompositionTree(
+            self.obj, solutionIndex, ctypes.byref(mem)
+        )
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info(
+            "GetDecompositionTree %s ms: solution %d",
+            str(elapsedTimeNS / 1000000),
+            solutionIndex,
         )
 
         resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
