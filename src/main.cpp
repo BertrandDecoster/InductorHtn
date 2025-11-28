@@ -287,6 +287,16 @@ int ProcessUserInput()
 
 int main (int argc, char *argv[])
 {
+    // DEBUG: Verify debugger is working
+    fprintf(stdout, "=== INDHTN DEBUG BUILD ===\n");
+    fprintf(stdout, "Debugger test: Application starting...\n");
+    fprintf(stdout, "Arguments: %d\n", argc);
+    for(int i = 0; i < argc; i++) {
+        fprintf(stdout, "  argv[%d] = %s\n", i, argv[i]);
+    }
+    fprintf(stdout, "==========================\n\n");
+    fflush(stdout);
+
     // Turn off all tracing
     SetTraceFilter(SystemTraceType::None, TraceDetail::Normal);
 
