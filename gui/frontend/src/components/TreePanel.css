@@ -1,0 +1,79 @@
+.tree-content {
+  height: calc(100% - 41px);
+  overflow: auto;
+  padding: 10px;
+}
+
+.tree-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #858585;
+}
+
+.tree-empty p {
+  margin: 5px 0;
+}
+
+.tree-hint {
+  font-size: 12px;
+  font-style: italic;
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  flex-wrap: wrap;
+}
+
+.tree-node:hover {
+  background-color: #2a2d2e;
+}
+
+.tree-node-arrow {
+  width: 16px;
+  font-size: 10px;
+  color: #858585;
+}
+
+.tree-node-name {
+  font-size: 13px;
+  color: #cccccc;
+  font-family: 'Courier New', monospace;
+}
+
+.tree-node-success {
+  border-left: 3px solid #4ec9b0;
+}
+
+.tree-node-failure {
+  border-left: 3px solid #f48771;
+}
+
+.tree-node-default {
+  border-left: 3px solid #3e3e42;
+}
+
+.tree-node-bindings {
+  width: 100%;
+  margin-top: 5px;
+  margin-left: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.binding {
+  background-color: #1e3a5f;
+  color: #9cdcfe;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+}
