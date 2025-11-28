@@ -271,24 +271,24 @@ def preprocessRuleset(ruleset):
 
 
 
-# f = open("Examples/Taxi.htn", "r")
-# prog_orig = f.read()
+f = open("Examples/Taxi.htn", "r")
+prog_orig = f.read()
 
-prog_orig = """
-travel-to(Q) :- 
-        if(at(P), walking-distance(P, Q)), 
-        do(walk(P, Q)).
-    walk(Here, There) :- 
-        del(at(Here)), add(at(There)).
-    walking-distance(U,V) :- weather-is(good), 
-                               distance(U,V,W), =<(W, 3).
-    walking-distance(U,V) :- failureContext(1, foo), distance(U,V,W), =<(W, 0.5).
-    distance(downtown, park, 2).
-    distance(downtown, uptown, 8).
-    at(downtown).
-    weather-is(good).
+# prog_orig = """
+# travel-to(Q) :- 
+#         if(at(P), walking-distance(P, Q)), 
+#         do(walk(P, Q)).
+#     walk(Here, There) :- 
+#         del(at(Here)), add(at(There)).
+#     walking-distance(U,V) :- weather-is(good), 
+#                                distance(U,V,W), =<(W, 3).
+#     walking-distance(U,V) :- failureContext(1, foo), distance(U,V,W), =<(W, 0.5).
+#     distance(downtown, park, 2).
+#     distance(downtown, uptown, 8).
+#     at(downtown).
+#     weather-is(good).
     
-    """
+#     """
 prog = preprocessRuleset(prog_orig)
 
 result = planner.Compile(prog)
@@ -316,7 +316,7 @@ with capture_traces(planner) as p:
     output(*p.FindAllPlansCustomVariables(query), query, "FindAllPlans", verbosity=4)
 
 traces = planner.GetCapturedTraces()
-print(traces)
+#print(traces)
 
 # Import and use tree reconstructor
 from HtnTreeReconstructor import HtnTreeReconstructor
