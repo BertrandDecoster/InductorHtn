@@ -228,18 +228,38 @@ class HtnService:
         """
         Get the current state facts from the planner
 
+        Uses a Prolog query to find all facts in the database.
+        We query for facts with 0-3 arguments.
+
         Returns:
             list: List of fact strings
         """
         try:
-            # TODO: Implement this by calling a method on self.planner
-            # For now, return a placeholder
-            return [
-                "at(downtown)",
-                "have-cash(12)",
-                "tile(0, 0)",
-                "tile(1, 0)",
-                "tile(2, 0)"
+            facts = []
+
+            # Query for facts with different arities (0 to 3 arguments)
+            # This will catch most common facts
+            queries = [
+                "?fact().",           # 0-arity facts
+                "?fact(?a).",         # 1-arity facts
+                "?fact(?a, ?b).",     # 2-arity facts
+                "?fact(?a, ?b, ?c)." # 3-arity facts
             ]
+
+            for query in queries:
+                error, result_json = self.planner.PrologQuery(query)
+                if error is None and result_json:
+                    results = json.loads(result_json)
+                    for result in results:
+                        # Extract fact from result
+                        if '?fact' in result:
+                            fact_data = result['?fact']
+                            if isinstance(fact_data, list) and len(fact_data) > 0:
+                                fact_str = self._extract_value(fact_data[0])
+                                if fact_str and fact_str != "true":
+                                    facts.append(fact_str)
+
+            return facts
         except Exception as e:
+            print(f"Error getting state facts: {e}")
             return []

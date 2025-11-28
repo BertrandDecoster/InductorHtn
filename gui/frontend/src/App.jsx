@@ -17,12 +17,31 @@ function App() {
   const [queryResults, setQueryResults] = useState(null)
   const [stateFacts, setStateFacts] = useState([])
 
-  // Initialize session on mount
+  // Initialize session on mount and load Game.htn by default
   useEffect(() => {
     const initSession = async () => {
       try {
         const response = await axios.post(`${API_BASE}/api/session/create`)
-        setSessionId(response.data.session_id)
+        const newSessionId = response.data.session_id
+        setSessionId(newSessionId)
+
+        // Auto-load Game.htn
+        try {
+          await axios.post(`${API_BASE}/api/file/load`, {
+            session_id: newSessionId,
+            file_path: 'Examples/Game.htn'
+          })
+          setCurrentFile('Examples/Game.htn')
+
+          // Get initial state facts
+          const stateResponse = await axios.post(`${API_BASE}/api/state/get`, {
+            session_id: newSessionId
+          })
+          setStateFacts(stateResponse.data.facts || [])
+        } catch (loadErr) {
+          console.error('Failed to auto-load Game.htn:', loadErr)
+        }
+
         setLoading(false)
       } catch (err) {
         setError('Failed to initialize session: ' + err.message)
