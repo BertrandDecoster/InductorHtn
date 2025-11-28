@@ -3,3 +3,4 @@ build/
 __pycache__/
 .vscode/launch.json
 .DS_Store
+/.vscode
