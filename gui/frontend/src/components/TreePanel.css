@@ -24,7 +24,7 @@
 
 .tree-node {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 8px;
   border-radius: 3px;
   cursor: pointer;
@@ -40,6 +40,8 @@
   width: 16px;
   font-size: 10px;
   color: #858585;
+  flex-shrink: 0;
+  padding-top: 2px;
 }
 
 .tree-node-name {
@@ -62,11 +64,12 @@
 
 .tree-node-bindings {
   width: 100%;
-  margin-top: 5px;
-  margin-left: 20px;
+  margin-top: 3px;
+  margin-left: 24px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
 }
 
 .binding {
@@ -76,4 +79,113 @@
   border-radius: 3px;
   font-size: 11px;
   font-family: 'Courier New', monospace;
+}
+
+/* Panel header with controls */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background-color: #252526;
+  border-bottom: 1px solid #3e3e42;
+  font-weight: 600;
+  color: #cccccc;
+}
+
+.panel-header-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.panel-header-controls button {
+  background: #3c3c3c;
+  border: 1px solid #555;
+  color: #ccc;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 14px;
+}
+
+.panel-header-controls button:hover {
+  background: #4c4c4c;
+}
+
+/* Solution selector tabs */
+.solution-selector {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  background: #252526;
+  border-bottom: 1px solid #3e3e42;
+  flex-wrap: wrap;
+}
+
+.solution-selector button {
+  background: #3c3c3c;
+  border: 1px solid #555;
+  color: #ccc;
+  padding: 4px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.solution-selector button:hover {
+  background: #4c4c4c;
+}
+
+.solution-selector button.active {
+  background: #094771;
+  border-color: #1177bb;
+}
+
+/* Node bracket styling */
+.tree-node-bracket {
+  color: #569cd6;
+  margin-right: 8px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+/* Full signature line */
+.tree-node-signature {
+  width: 100%;
+  margin-left: 24px;
+  color: #9cdcfe;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+/* Binding labels */
+.binding-label {
+  color: #c586c0;
+  margin-right: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Failure badge */
+.tree-node-failure-badge {
+  background: #f48771;
+  color: #1e1e1e;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+/* Failure reason */
+.tree-node-failure-reason {
+  width: 100%;
+  margin-left: 24px;
+  color: #f48771;
+  font-size: 11px;
+  margin-top: 2px;
+  word-break: break-all;
 }

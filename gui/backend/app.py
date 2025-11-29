@@ -142,6 +142,24 @@ def execute_query():
 
     return jsonify(result)
 
+@app.route('/api/htn/execute', methods=['POST'])
+def execute_htn():
+    """Execute an HTN planning query and return plans + decomposition trees"""
+    data = request.json
+    session_id = data.get('session_id')
+    query = data.get('query')  # e.g., "travel-to(park)."
+
+    if session_id not in sessions:
+        return jsonify({'error': 'Invalid session'}), 400
+
+    service = sessions[session_id]
+    result = service.execute_htn_query(query)
+
+    if 'error' in result:
+        return jsonify(result), 400
+
+    return jsonify(result)
+
 @app.route('/api/state/get', methods=['POST'])
 def get_state():
     """Get the current state (facts) from the planner"""

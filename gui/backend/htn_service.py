@@ -224,6 +224,127 @@ class HtnService:
             ]
         }
 
+    def execute_htn_query(self, query):
+        """
+        Execute an HTN planning query and return plans + decomposition trees
+
+        Args:
+            query: HTN goal query (e.g., "travel-to(park).")
+
+        Returns:
+            dict: {
+                'solutions': list of solution operators,
+                'trees': list of tree structures (one per solution),
+                'total_count': int
+            }
+        """
+        try:
+            # Execute HTN planning
+            error, solutions_json = self.planner.FindAllPlansCustomVariables(query)
+
+            if error is not None:
+                return {'error': error}
+
+            solutions = json.loads(solutions_json)
+
+            # Get decomposition tree for each solution
+            trees = []
+            for i in range(len(solutions)):
+                error, tree_json = self.planner.GetDecompositionTree(i)
+                if error is None:
+                    tree_nodes = json.loads(tree_json)
+                    # Transform to react-arborist format
+                    tree = self._transform_decomp_tree(tree_nodes, i)
+                    trees.append(tree)
+
+            return {
+                'solutions': solutions,
+                'trees': trees,
+                'total_count': len(solutions)
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def _transform_decomp_tree(self, nodes, solution_index):
+        """
+        Transform C++ decomposition tree JSON to react-arborist format
+
+        C++ format (flat array):
+        [
+            {"nodeID": 0, "parentNodeID": -1, "childNodeIDs": [1,6], ...},
+            {"nodeID": 1, "parentNodeID": 0, ...},
+            ...
+        ]
+
+        react-arborist format (nested):
+        {
+            "id": "node-0",
+            "name": "travel-to",
+            "children": [...]
+        }
+        """
+        if not nodes:
+            return None
+
+        # Build lookup map
+        node_map = {n['nodeID']: n for n in nodes}
+
+        # Find root (parentNodeID == -1)
+        roots = [n for n in nodes if n['parentNodeID'] == -1]
+        if not roots:
+            return None
+
+        def build_tree(node):
+            node_id = node['nodeID']
+            is_operator = node.get('isOperator', False)
+
+            # Determine display name
+            signature = node.get('operatorSignature') or node.get('methodSignature') or ''
+            if signature:
+                name = signature.split('(')[0]
+            elif node.get('taskName'):
+                name = node['taskName'].split('(')[0]
+            else:
+                name = '(leaf)'
+
+            # Build bindings dict
+            bindings = {}
+            for u in node.get('unifiers', []):
+                bindings.update(u)
+
+            condition_bindings = {}
+            for cb in node.get('conditionBindings', []):
+                condition_bindings.update(cb)
+
+            # Determine status
+            status = 'default'
+            if node.get('isFailed') and not node.get('isSuccess'):
+                status = 'failure'
+            elif node.get('isSuccess'):
+                status = 'success'
+
+            # Build children recursively
+            children = []
+            for child_id in node.get('childNodeIDs', []):
+                if child_id in node_map:
+                    children.append(build_tree(node_map[child_id]))
+
+            return {
+                'id': f'sol{solution_index}-node{node_id}',
+                'name': name,
+                'fullSignature': signature,
+                'taskName': node.get('taskName', ''),
+                'isOperator': is_operator,
+                'status': status,
+                'bindings': bindings,
+                'conditionBindings': condition_bindings,
+                'failureReason': node.get('failureReason', ''),
+                'conditionTerms': node.get('conditionTerms', []),
+                'children': children
+            }
+
+        return build_tree(roots[0])
+
     def get_state_facts(self):
         """
         Get the current state facts from the planner

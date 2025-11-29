@@ -16,6 +16,7 @@ function App() {
   const [treeData, setTreeData] = useState(null)
   const [queryResults, setQueryResults] = useState(null)
   const [stateFacts, setStateFacts] = useState([])
+  const [solutions, setSolutions] = useState([])
 
   // Initialize session on mount and load Game.htn by default
   useEffect(() => {
@@ -85,13 +86,40 @@ function App() {
       })
 
       setQueryResults(response.data)
-      setTreeData(response.data.tree)
+      setTreeData(response.data.tree)  // Single tree for Prolog
+      setSolutions([])  // Clear HTN solutions
       setLoading(false)
 
       // Refresh state facts
       await refreshState()
     } catch (err) {
       setError('Query failed: ' + (err.response?.data?.error || err.message))
+      setLoading(false)
+    }
+  }
+
+  const handleHtnExecute = async (query) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await axios.post(`${API_BASE}/api/htn/execute`, {
+        session_id: sessionId,
+        query: query
+      })
+
+      setSolutions(response.data.solutions)
+      setTreeData(response.data.trees)  // Array of trees for HTN
+      setQueryResults({
+        solutions: response.data.solutions,
+        total_count: response.data.total_count
+      })
+      setLoading(false)
+
+      // Refresh state facts
+      await refreshState()
+    } catch (err) {
+      setError('HTN planning failed: ' + (err.response?.data?.error || err.message))
       setLoading(false)
     }
   }
@@ -140,6 +168,7 @@ function App() {
         <Panel defaultSize={34} minSize={20}>
           <TreePanel
             treeData={treeData}
+            solutions={solutions}
           />
         </Panel>
 
@@ -149,6 +178,7 @@ function App() {
         <Panel defaultSize={33} minSize={20}>
           <QueryPanel
             onQueryExecute={handleQueryExecute}
+            onHtnExecute={handleHtnExecute}
             queryResults={queryResults}
             stateFacts={stateFacts}
             loading={loading}

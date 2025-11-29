@@ -4,6 +4,34 @@
   padding: 15px;
 }
 
+/* Mode toggle buttons */
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.mode-toggle button {
+  background: #3c3c3c;
+  border: 1px solid #555;
+  color: #ccc;
+  padding: 6px 16px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.mode-toggle button:hover {
+  background: #4c4c4c;
+}
+
+.mode-toggle button.active {
+  background: #094771;
+  border-color: #1177bb;
+  color: white;
+}
+
 .query-section,
 .results-section,
 .history-section,
