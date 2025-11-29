@@ -2,11 +2,10 @@ import { useRef, useEffect, useState } from 'react'
 import { Tree } from 'react-arborist'
 import './TreePanel.css'
 
-function TreePanel({ treeData, solutions }) {
+function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) {
   const containerRef = useRef(null)
   const treeRef = useRef(null)
   const [containerHeight, setContainerHeight] = useState(600)
-  const [selectedSolution, setSelectedSolution] = useState(0)
 
   // Measure container height when mounted or resized
   useEffect(() => {
@@ -20,11 +19,6 @@ function TreePanel({ treeData, solutions }) {
     window.addEventListener('resize', updateHeight)
     return () => window.removeEventListener('resize', updateHeight)
   }, [])
-
-  // Reset selected solution when new data comes in
-  useEffect(() => {
-    setSelectedSolution(0)
-  }, [treeData])
 
   // Expand/collapse all
   const expandAll = () => {
@@ -142,7 +136,7 @@ function TreePanel({ treeData, solutions }) {
             <button
               key={i}
               className={selectedSolution === i ? 'active' : ''}
-              onClick={() => setSelectedSolution(i)}
+              onClick={() => onSolutionSelect(i)}
             >
               Solution {i + 1}
             </button>

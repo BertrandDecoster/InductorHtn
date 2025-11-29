@@ -145,7 +145,22 @@ def main():
     print("=" * 60)
     print("\nPress Ctrl+C to stop all servers\n")
 
-    # Keep running and forward output
+    # Keep running and forward output from backend
+    import select
+    import threading
+
+    def read_backend_output():
+        """Thread to read and display backend output"""
+        try:
+            for line in backend_proc.stdout:
+                print(f"[BACKEND] {line}", end='')
+        except:
+            pass
+
+    # Start thread to read backend output
+    backend_thread = threading.Thread(target=read_backend_output, daemon=True)
+    backend_thread.start()
+
     try:
         while True:
             # Check if processes are still running

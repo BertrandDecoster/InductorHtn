@@ -174,6 +174,21 @@ def get_state():
 
     return jsonify({'facts': facts})
 
+@app.route('/api/state/diff', methods=['POST'])
+def get_state_diff():
+    """Get the diff between initial state and a solution's final state"""
+    data = request.json
+    session_id = data.get('session_id')
+    solution_index = data.get('solution_index', 0)
+
+    if session_id not in sessions:
+        return jsonify({'error': 'Invalid session'}), 400
+
+    service = sessions[session_id]
+    diff = service.get_facts_diff(solution_index)
+
+    return jsonify(diff)
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""

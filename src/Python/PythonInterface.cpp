@@ -465,6 +465,80 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         }
     }
 
+    // Helper function to convert HtnRuleSet to JSON array of fact strings
+    std::string RuleSetFactsToJsonArray(std::shared_ptr<HtnRuleSet> ruleSet)
+    {
+        std::stringstream ss;
+        ss << "[";
+
+        bool first = true;
+        ruleSet->AllRules([&](const HtnRule& rule) {
+            if(rule.IsFact())
+            {
+                if(!first) ss << ",";
+                first = false;
+
+                // Get the head term as string (without " => " suffix)
+                std::string factStr = rule.head()->ToString();
+
+                // Escape quotes in fact strings
+                std::string escaped;
+                for(char c : factStr)
+                {
+                    if(c == '"') escaped += "\\\"";
+                    else if(c == '\\') escaped += "\\\\";
+                    else escaped += c;
+                }
+                ss << "\"" << escaped << "\"";
+            }
+            return true; // continue iterating
+        });
+
+        ss << "]";
+        return ss.str();
+    }
+
+    // Returns the current state facts as JSON array
+    // Returns nullptr on success (result contains facts JSON), error string on failure
+    __declspec(dllexport) char* __stdcall HtnGetStateFacts(HtnPlannerPythonWrapper* ptr, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+            *result = GetCharPtrFromString(RuleSetFactsToJsonArray(ptr->m_state));
+            return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+    // Returns the facts for a specific solution's final state as JSON array
+    // Returns nullptr on success (result contains facts JSON), error string on failure
+    __declspec(dllexport) char* __stdcall HtnGetSolutionFacts(HtnPlannerPythonWrapper* ptr, const uint64_t solutionIndex, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+            if(ptr->m_lastSolutions == nullptr || solutionIndex >= ptr->m_lastSolutions->size())
+            {
+                *result = nullptr;
+                return GetCharPtrFromString("Invalid solution index or no solutions available");
+            }
+
+            auto solution = (*ptr->m_lastSolutions)[solutionIndex];
+            *result = GetCharPtrFromString(RuleSetFactsToJsonArray(solution->finalState()));
+            return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
     // Compile *adds* whatever is passed into the current state of the database
     __declspec(dllexport) char* __stdcall PrologCompile(HtnPlannerPythonWrapper* ptr, const char* data)
     {

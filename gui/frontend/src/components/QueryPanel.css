@@ -1,7 +1,9 @@
 .query-panel-content {
   height: calc(100% - 41px);
-  overflow-y: auto;
+  overflow: hidden;
   padding: 15px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Mode toggle buttons */
@@ -34,9 +36,17 @@
 
 .query-section,
 .results-section,
-.history-section,
-.state-section {
+.history-section {
   margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.state-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0;
 }
 
 .section-label {
@@ -91,13 +101,21 @@
 }
 
 .results-list,
-.history-list,
-.state-list {
+.history-list {
   background-color: #1e1e1e;
   border: 1px solid #3e3e42;
   border-radius: 3px;
   max-height: 200px;
   overflow-y: auto;
+}
+
+.state-list {
+  background-color: #1e1e1e;
+  border: 1px solid #3e3e42;
+  border-radius: 3px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .result-item {
@@ -175,4 +193,102 @@
   color: #858585;
   font-size: 13px;
   font-style: italic;
+}
+
+/* Facts diff styling */
+.fact-added {
+  background-color: rgba(76, 175, 80, 0.25);
+  border-left: 3px solid #4CAF50;
+}
+
+.fact-removed {
+  background-color: rgba(244, 67, 54, 0.25);
+  border-left: 3px solid #F44336;
+}
+
+.facts-section-header {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 8px 12px;
+  color: #ccc;
+  background-color: #2d2d30;
+  border-bottom: 1px solid #3e3e42;
+}
+
+.facts-added-header {
+  color: #81C784;
+}
+
+.facts-removed-header {
+  color: #E57373;
+}
+
+/* Fact grouping */
+.fact-group {
+  border-bottom: 1px solid #2d2d30;
+}
+
+.fact-group:last-child {
+  border-bottom: none;
+}
+
+.fact-group-header {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: #cccccc;
+  transition: background-color 0.15s;
+}
+
+.fact-group-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.fact-group-arrow {
+  font-size: 10px;
+  width: 12px;
+  color: #858585;
+}
+
+.fact-group-name {
+  font-weight: 600;
+  color: #9cdcfe;
+}
+
+.fact-group-count {
+  color: #858585;
+  font-size: 12px;
+}
+
+.fact-group-items {
+  padding-left: 24px;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.fact-group-items .state-item {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Ensure added/removed styling works on groups */
+.fact-group.fact-added .fact-group-header {
+  background-color: rgba(76, 175, 80, 0.15);
+  border-left: 3px solid #4CAF50;
+}
+
+.fact-group.fact-removed .fact-group-header {
+  background-color: rgba(244, 67, 54, 0.15);
+  border-left: 3px solid #F44336;
+}
+
+.fact-group.fact-added .fact-group-items {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.fact-group.fact-removed .fact-group-items {
+  background-color: rgba(244, 67, 54, 0.1);
 }

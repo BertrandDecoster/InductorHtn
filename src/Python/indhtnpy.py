@@ -268,6 +268,17 @@ class HtnPlanner(object):
             ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
         ]
         self.indhtnLib.HtnGetDecompositionTree.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetStateFacts.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetStateFacts.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetSolutionFacts.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetSolutionFacts.restype = ctypes.POINTER(ctypes.c_char)
 
         # Now create an instance of the object
         self.obj = self.indhtnLib.CreateHtnPlanner(debug)
@@ -548,6 +559,57 @@ class HtnPlanner(object):
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info(
             "GetDecompositionTree %s ms: solution %d",
+            str(elapsedTimeNS / 1000000),
+            solutionIndex,
+        )
+
+        resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if resultBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            return resultBytes.decode(), None
+        else:
+            resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
+            self.indhtnLib.FreeString(mem)
+            return None, resultQuery
+
+    # Returns error, factsJson
+    # error = None if successful, or a string error message
+    # factsJson = JSON array of fact strings representing the current state
+    #   e.g., ["tile(0,0)", "tile(1,0)", "at(player, home)"]
+    def GetStateFacts(self):
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnGetStateFacts(
+            self.obj, ctypes.byref(mem)
+        )
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info("GetStateFacts %s ms", str(elapsedTimeNS / 1000000))
+
+        resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if resultBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            return resultBytes.decode(), None
+        else:
+            resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
+            self.indhtnLib.FreeString(mem)
+            return None, resultQuery
+
+    # Returns error, factsJson
+    # error = None if successful, or a string error message
+    # factsJson = JSON array of fact strings representing the final state after applying solution
+    #   e.g., ["tile(0,0)", "tile(1,0)", "at(player, park)"]
+    # Must call FindAllPlans or FindAllPlansCustomVariables first
+    def GetSolutionFacts(self, solutionIndex=0):
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnGetSolutionFacts(
+            self.obj, solutionIndex, ctypes.byref(mem)
+        )
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info(
+            "GetSolutionFacts %s ms: solution %d",
             str(elapsedTimeNS / 1000000),
             solutionIndex,
         )

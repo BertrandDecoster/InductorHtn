@@ -7,6 +7,8 @@ import json
 import os
 import sys
 
+from utils import pretty_solution
+
 # Add paths for indhtnpy module and DLL
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 python_dir = os.path.join(project_root, 'src', 'Python')
@@ -74,15 +76,21 @@ class HtnService:
             with open(absolute_path, 'r', encoding='utf-8') as f:
                 file_content = f.read()
 
-            print(f"DEBUG: Loading file: {absolute_path}")
-            print(f"DEBUG: Content length: {len(file_content)} chars")
+            # Hard reset: Explicitly delete old planner before creating new one
+            # This ensures the C++ destructor runs before we create a new instance
+            # (prevents race condition with garbage collector)
+            if hasattr(self, 'planner') and self.planner is not None:
+                del self.planner
+                self.planner = None
+                import gc
+                gc.collect()
+
+            self.planner = HtnPlanner(False)
 
             # Compile the HTN file content
             # Use HtnCompileCustomVariables for files with ? syntax (like Taxi.htn)
             # Returns None on success, or an error string on failure
             error_result = self.planner.HtnCompileCustomVariables(file_content)
-
-            print(f"DEBUG: Compile result: {error_result}")
 
             if error_result is None:  # None means success
                 self.current_file = file_path
@@ -257,8 +265,12 @@ class HtnService:
                     tree = self._transform_decomp_tree(tree_nodes, i)
                     trees.append(tree)
 
+            # Format solutions nicely
+            pretty_solutions = [pretty_solution(sol) for sol in solutions]
+
             return {
                 'solutions': solutions,
+                'pretty_solutions': pretty_solutions,
                 'trees': trees,
                 'total_count': len(solutions)
             }
@@ -349,38 +361,87 @@ class HtnService:
         """
         Get the current state facts from the planner
 
-        Uses a Prolog query to find all facts in the database.
-        We query for facts with 0-3 arguments.
+        Uses the C++ API to get all facts directly from the ruleset.
 
         Returns:
             list: List of fact strings
         """
+        print("DEBUG get_state_facts: START")
         try:
-            facts = []
+            print("DEBUG get_state_facts: Calling planner.GetStateFacts()...")
+            error, result_json = self.planner.GetStateFacts()
+            print(f"DEBUG get_state_facts: Got response, error={error}")
+            if error is not None:
+                print(f"Error getting state facts: {error}")
+                return []
 
-            # Query for facts with different arities (0 to 3 arguments)
-            # This will catch most common facts
-            queries = [
-                "?fact().",           # 0-arity facts
-                "?fact(?a).",         # 1-arity facts
-                "?fact(?a, ?b).",     # 2-arity facts
-                "?fact(?a, ?b, ?c)." # 3-arity facts
-            ]
-
-            for query in queries:
-                error, result_json = self.planner.PrologQuery(query)
-                if error is None and result_json:
-                    results = json.loads(result_json)
-                    for result in results:
-                        # Extract fact from result
-                        if '?fact' in result:
-                            fact_data = result['?fact']
-                            if isinstance(fact_data, list) and len(fact_data) > 0:
-                                fact_str = self._extract_value(fact_data[0])
-                                if fact_str and fact_str != "true":
-                                    facts.append(fact_str)
-
+            facts = json.loads(result_json)
+            print(f"DEBUG get_state_facts: Parsed {len(facts)} facts")
             return facts
         except Exception as e:
             print(f"Error getting state facts: {e}")
+            import traceback
+            traceback.print_exc()
             return []
+
+    def get_solution_facts(self, solution_index):
+        """
+        Get the facts for a specific solution's final state
+
+        Args:
+            solution_index: Index of the solution (0-based)
+
+        Returns:
+            list: List of fact strings, or empty list on error
+        """
+        try:
+            error, result_json = self.planner.GetSolutionFacts(solution_index)
+            if error is not None:
+                print(f"Error getting solution facts: {error}")
+                return []
+
+            facts = json.loads(result_json)
+            return facts
+        except Exception as e:
+            print(f"Error getting solution facts: {e}")
+            return []
+
+    def get_facts_diff(self, solution_index):
+        """
+        Get the diff between initial state and solution's final state
+
+        Args:
+            solution_index: Index of the solution (0-based)
+
+        Returns:
+            dict: {
+                'added': [...],      # Facts in solution but not in initial state
+                'removed': [...],    # Facts in initial but not in solution
+                'unchanged': [...]   # Facts in both
+            }
+        """
+        try:
+            initial_facts = set(self.get_state_facts())
+            solution_facts = set(self.get_solution_facts(solution_index))
+
+            added = list(solution_facts - initial_facts)
+            removed = list(initial_facts - solution_facts)
+            unchanged = list(initial_facts & solution_facts)
+
+            # Sort for consistent display
+            added.sort()
+            removed.sort()
+            unchanged.sort()
+
+            return {
+                'added': added,
+                'removed': removed,
+                'unchanged': unchanged
+            }
+        except Exception as e:
+            print(f"Error getting facts diff: {e}")
+            return {
+                'added': [],
+                'removed': [],
+                'unchanged': []
+            }

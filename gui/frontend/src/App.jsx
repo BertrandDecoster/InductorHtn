@@ -17,6 +17,8 @@ function App() {
   const [queryResults, setQueryResults] = useState(null)
   const [stateFacts, setStateFacts] = useState([])
   const [solutions, setSolutions] = useState([])
+  const [selectedSolution, setSelectedSolution] = useState(0)
+  const [factsDiff, setFactsDiff] = useState(null)
 
   // Initialize session on mount and load Game.htn by default
   useEffect(() => {
@@ -54,22 +56,43 @@ function App() {
   }, [])
 
   const handleFileLoad = async (filePath) => {
+    console.log('[handleFileLoad] START - filePath:', filePath, 'loading:', loading)
+
+    // Prevent multiple concurrent loads
+    if (loading) {
+      console.log('[handleFileLoad] BLOCKED - already loading')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
+      // Clear all query-related state before loading new file
+      console.log('[handleFileLoad] Clearing state...')
+      setQueryResults(null)
+      setTreeData(null)
+      setSolutions([])
+      setSelectedSolution(0)
+      setFactsDiff(null)
+
       // Load file into planner
+      console.log('[handleFileLoad] Calling backend /api/file/load...')
       await axios.post(`${API_BASE}/api/file/load`, {
         session_id: sessionId,
         file_path: filePath
       })
+      console.log('[handleFileLoad] Backend returned OK')
 
       setCurrentFile(filePath)
       setLoading(false)
 
       // Refresh state facts
+      console.log('[handleFileLoad] Refreshing state...')
       await refreshState()
+      console.log('[handleFileLoad] DONE')
     } catch (err) {
+      console.error('[handleFileLoad] ERROR:', err)
       setError('Failed to load file: ' + err.message)
       setLoading(false)
     }
@@ -114,24 +137,53 @@ function App() {
         solutions: response.data.solutions,
         total_count: response.data.total_count
       })
+      setSelectedSolution(0)  // Reset to first solution
+      setFactsDiff(null)  // Clear facts diff until solution selected
       setLoading(false)
 
       // Refresh state facts
       await refreshState()
+
+      // Fetch facts diff for first solution if there are solutions
+      if (response.data.solutions && response.data.solutions.length > 0) {
+        await fetchFactsDiff(0)
+      }
     } catch (err) {
       setError('HTN planning failed: ' + (err.response?.data?.error || err.message))
       setLoading(false)
     }
   }
 
-  const refreshState = async () => {
+  const fetchFactsDiff = async (solutionIndex) => {
     try {
+      const response = await axios.post(`${API_BASE}/api/state/diff`, {
+        session_id: sessionId,
+        solution_index: solutionIndex
+      })
+      setFactsDiff(response.data)
+    } catch (err) {
+      console.error('Failed to fetch facts diff:', err)
+      setFactsDiff(null)
+    }
+  }
+
+  const handleSolutionSelect = async (index) => {
+    setSelectedSolution(index)
+    await fetchFactsDiff(index)
+  }
+
+  const refreshState = async () => {
+    console.log('[refreshState] START - sessionId:', sessionId)
+    try {
+      console.log('[refreshState] Calling /api/state/get...')
       const response = await axios.post(`${API_BASE}/api/state/get`, {
         session_id: sessionId
       })
+      console.log('[refreshState] Got response, facts count:', response.data.facts?.length)
       setStateFacts(response.data.facts)
+      console.log('[refreshState] DONE')
     } catch (err) {
-      console.error('Failed to refresh state:', err)
+      console.error('[refreshState] ERROR:', err)
     }
   }
 
@@ -169,6 +221,8 @@ function App() {
           <TreePanel
             treeData={treeData}
             solutions={solutions}
+            selectedSolution={selectedSolution}
+            onSolutionSelect={handleSolutionSelect}
           />
         </Panel>
 
@@ -181,6 +235,8 @@ function App() {
             onHtnExecute={handleHtnExecute}
             queryResults={queryResults}
             stateFacts={stateFacts}
+            factsDiff={factsDiff}
+            selectedSolution={selectedSolution}
             loading={loading}
           />
         </Panel>

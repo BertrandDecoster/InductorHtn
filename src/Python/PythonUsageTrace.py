@@ -9,6 +9,26 @@ import sys
 from indhtnpy import HtnPlanner
 
 
+def prettySolution(solution):
+    """Convert a solution JSON to human-readable operator sequence.
+
+    Input: [{"walk":[{"downtown":[]},{"park":[]}]}]
+    Output: "walk(downtown, park)"
+    """
+    if isinstance(solution, str):
+        solution = json.loads(solution)
+
+    operators = []
+    for op in solution:
+        # Each op is a dict with one key (operator name) and value (list of args)
+        for op_name, args in op.items():
+            # Each arg is a dict with one key (the arg value) and empty list
+            arg_values = [list(arg.keys())[0] for arg in args]
+            operators.append(f"{op_name}({', '.join(arg_values)})")
+
+    return ", ".join(operators)
+
+
 def print_tree_node(node, indent=0):
     """Pretty print a single tree node with improved formatting"""
     prefix = "  " * indent
