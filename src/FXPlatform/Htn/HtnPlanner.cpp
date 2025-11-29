@@ -936,9 +936,14 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                         Trace1("           ", "substituted condition '{0}'", stack->size(), HtnTerm::ToString(*substitutedCondition));
                         node->continuePoint = PlanNodeContinuePoint::NextMethodThatApplies;
 
-                        // Record failure in decomposition tree
+                        // Record failure in decomposition tree with structured term info
                         string failReason = "Condition failed: " + HtnTerm::ToString(*substitutedCondition);
-                        MarkNodeFailed(planState, node->nodeID(), failReason);
+                        shared_ptr<HtnTerm> failedTerm = nullptr;
+                        if(furthestCriteriaFailureIndex >= 0 &&
+                           furthestCriteriaFailureIndex < (int)substitutedCondition->size()) {
+                            failedTerm = (*substitutedCondition)[furthestCriteriaFailureIndex];
+                        }
+                        MarkNodeFailed(planState, node->nodeID(), failReason, furthestCriteriaFailureIndex, failedTerm);
 
                         // Remember the failure context if this is deepest
                         planState->RecordFailure(furthestCriteriaFailureIndex, farthestCriteriaFailureContext);
@@ -1316,6 +1321,18 @@ void HtnPlanner::RecordMethodChoice(PlanState* planState, int nodeID, HtnMethod*
         auto& node = planState->decompositionTree[it->second];
         node.methodSignature = method->ToString();
         node.isOperator = false;
+        node.methodIndex = method->documentOrder();
+
+        // Store condition terms as structured JSON
+        node.conditionTermsJson.clear();
+        for(const auto& term : method->condition()) {
+            node.conditionTermsJson.push_back(term->ToJson());
+        }
+
+        // Clear/reset failure info for new method attempt
+        node.failedConditionIndex = -1;
+        node.failedConditionTermJson = "";
+
         node.unifiers.clear();  // Clear old bindings from previous method attempts
         node.conditionBindings.clear();  // Clear old condition bindings
         for(const auto& u : unifiers) {
@@ -1363,12 +1380,15 @@ void HtnPlanner::MarkPathSuccess(PlanState* planState, int leafNodeID)
     planState->currentSolutionID++;  // Increment for next solution
 }
 
-void HtnPlanner::MarkNodeFailed(PlanState* planState, int nodeID, const string& reason)
+void HtnPlanner::MarkNodeFailed(PlanState* planState, int nodeID, const string& reason, int failedIndex, shared_ptr<HtnTerm> failedTerm)
 {
     auto it = planState->nodeIDToTreeIndex.find(nodeID);
     if(it != planState->nodeIDToTreeIndex.end()) {
-        planState->decompositionTree[it->second].isFailed = true;
-        planState->decompositionTree[it->second].failureReason = reason;
+        auto& node = planState->decompositionTree[it->second];
+        node.isFailed = true;
+        node.failureReason = reason;
+        node.failedConditionIndex = failedIndex;
+        node.failedConditionTermJson = failedTerm ? failedTerm->ToJson() : "";
     }
 }
 

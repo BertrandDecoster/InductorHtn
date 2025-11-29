@@ -843,6 +843,36 @@ int HtnTerm::TermCompare(const HtnTerm &other)
     }
 }
 
+std::string HtnTerm::ToJson() const
+{
+    std::stringstream ss;
+
+    // Escape special characters in strings
+    auto escape = [](const std::string& s) {
+        std::string result;
+        for(char c : s) {
+            if(c == '"') result += "\\\"";
+            else if(c == '\\') result += "\\\\";
+            else if(c == '\n') result += "\\n";
+            else if(c == '\r') result += "\\r";
+            else if(c == '\t') result += "\\t";
+            else result += c;
+        }
+        return result;
+    };
+
+    ss << "{";
+    ss << "\"functor\":\"" << escape(name()) << "\",";
+    ss << "\"isVariable\":" << (isVariable() ? "true" : "false") << ",";
+    ss << "\"args\":[";
+    for(size_t i = 0; i < m_arguments.size(); i++) {
+        if(i > 0) ss << ",";
+        ss << m_arguments[i]->ToJson();
+    }
+    ss << "]}";
+    return ss.str();
+}
+
 std::string HtnTerm::ToString(bool isSecondTermInList, bool json)
 {
     std::stringstream stream;

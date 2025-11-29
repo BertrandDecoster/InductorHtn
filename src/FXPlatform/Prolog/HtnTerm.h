@@ -83,6 +83,7 @@ public:
     std::shared_ptr<HtnTerm> SubstituteTermForVariable(HtnTermFactory *factory, std::shared_ptr<HtnTerm> newTerm, std::shared_ptr<HtnTerm> existingVariable);
     // Compares using prolog comparison rules
     int TermCompare(const HtnTerm &other);
+    std::string ToJson() const;
     std::string ToString(bool isSecondTermInList = false, bool json = false);
     static std::string ToString(const std::vector<std::shared_ptr<HtnTerm>> &goals, bool surroundWithParenthesis = true, bool json = false);
     

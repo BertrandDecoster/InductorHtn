@@ -34,7 +34,13 @@ struct DecompTreeNode
     std::string failureReason;  // Why it failed (if applicable)
     int solutionID;  // Which solution this node contributed to (-1 = not yet assigned)
 
-    DecompTreeNode() : nodeID(-1), parentNodeID(-1), isOperator(false), isSuccess(false), isFailed(false), solutionID(-1) {}
+    // Structured data for programmatic access
+    int methodIndex;                              // Document order (-1 for operators)
+    std::vector<std::string> conditionTermsJson;  // Each condition term as structured JSON
+    int failedConditionIndex;                     // Which condition term failed (-1 if none)
+    std::string failedConditionTermJson;          // Structured JSON of the failing term
+
+    DecompTreeNode() : nodeID(-1), parentNodeID(-1), isOperator(false), isSuccess(false), isFailed(false), solutionID(-1), methodIndex(-1), failedConditionIndex(-1) {}
 
     std::string ToJson() const
     {
@@ -79,7 +85,16 @@ struct DecompTreeNode
         ss << "\"isSuccess\":" << (isSuccess ? "true" : "false") << ",";
         ss << "\"isFailed\":" << (isFailed ? "true" : "false") << ",";
         ss << "\"failureReason\":\"" << escape(failureReason) << "\",";
-        ss << "\"solutionID\":" << solutionID;
+        ss << "\"solutionID\":" << solutionID << ",";
+        // Structured data
+        ss << "\"methodIndex\":" << methodIndex << ",";
+        ss << "\"conditionTerms\":[";
+        for(size_t i = 0; i < conditionTermsJson.size(); i++) {
+            ss << (i > 0 ? "," : "") << conditionTermsJson[i];  // Already JSON, no quotes
+        }
+        ss << "],";
+        ss << "\"failedConditionIndex\":" << failedConditionIndex << ",";
+        ss << "\"failedConditionTerm\":" << (failedConditionTermJson.empty() ? "null" : failedConditionTermJson);
         ss << "}";
         return ss.str();
     }
@@ -226,7 +241,7 @@ private:
     void RecordConditionBindings(PlanState* planState, int nodeID, const UnifierType& condition);
     void RecordOperator(PlanState* planState, int nodeID, HtnOperator* op, const UnifierType& unifiers);
     void MarkPathSuccess(PlanState* planState, int leafNodeID);
-    void MarkNodeFailed(PlanState* planState, int nodeID, const std::string& reason);
+    void MarkNodeFailed(PlanState* planState, int nodeID, const std::string& reason, int failedIndex = -1, std::shared_ptr<HtnTerm> failedTerm = nullptr);
 
     // *** Remember to update dynamicSize() if you change any member variables!
     // Awful hack making this static. necessary because it was too late in schedule to properly plumb through an Abort

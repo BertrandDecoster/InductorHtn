@@ -237,7 +237,7 @@ def main():
         print(f"Compile Error: {result3}")
         sys.exit(1)
 
-    query3 = "travel-to(park)."
+    query3 = "travel-to(uptown)."
     print(f"Query: {query3}")
     print()
 
@@ -262,7 +262,7 @@ def main():
         nodes = json.loads(tree_json)
         print(f"Tree has {len(nodes)} nodes:")
         print()
-        
+
         # Raw JSON for inspection
         print("Raw JSON:")
         pp = pprint.PrettyPrinter(indent=2, width=100)
