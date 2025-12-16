@@ -22,18 +22,28 @@
   font-style: italic;
 }
 
+.tree-node-container {
+  margin-bottom: 2px;
+}
+
 .tree-node {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   padding: 8px;
   border-radius: 3px;
   cursor: pointer;
   transition: background-color 0.15s;
-  flex-wrap: wrap;
 }
 
 .tree-node:hover {
   background-color: #2a2d2e;
+}
+
+.tree-node-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .tree-node-arrow {
@@ -180,7 +190,37 @@
   font-weight: bold;
 }
 
-/* Failure reason */
+/* Category-specific failure badges */
+.failure-no_matching_method {
+  background: #e06c75;
+}
+
+.failure-precondition_failed {
+  background: #d19a66;
+}
+
+.failure-unification_failed {
+  background: #c678dd;
+}
+
+.failure-subtask_failed {
+  background: #61afef;
+}
+
+.failure-operator_failed {
+  background: #98c379;
+  color: #1e1e1e;
+}
+
+.failure-backtracked {
+  background: #5c6370;
+}
+
+.failure-unknown {
+  background: #f48771;
+}
+
+/* Legacy failure reason */
 .tree-node-failure-reason {
   width: 100%;
   margin-left: 24px;
@@ -188,4 +228,149 @@
   font-size: 11px;
   margin-top: 2px;
   word-break: break-all;
+}
+
+/* Expand button for failure details */
+.tree-node-expand-btn {
+  background: #3c3c3c;
+  border: 1px solid #555;
+  color: #f48771;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-left: 8px;
+}
+
+.tree-node-expand-btn:hover {
+  background: #4c4c4c;
+  border-color: #f48771;
+}
+
+/* Enhanced failure details panel */
+.tree-node-failure-details {
+  width: 100%;
+  margin-top: 8px;
+  margin-left: 24px;
+  padding: 10px;
+  background: #2d2020;
+  border: 1px solid #5a3030;
+  border-radius: 4px;
+}
+
+.failure-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #f48771;
+  font-size: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #5a3030;
+}
+
+.failure-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.failure-section {
+  margin-bottom: 10px;
+}
+
+.failure-section:last-child {
+  margin-bottom: 0;
+}
+
+.failure-section-title {
+  color: #9cdcfe;
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.failure-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.failure-item {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+}
+
+.missing-fact {
+  background: #4a2020;
+  color: #f48771;
+  border: 1px solid #f48771;
+}
+
+.failed-condition {
+  background: #4a3020;
+  color: #d19a66;
+  border: 1px solid #d19a66;
+}
+
+/* Alternatives list */
+.alternatives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alternative {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.alt-success {
+  background: #1e3a1e;
+  border: 1px solid #4ec9b0;
+}
+
+.alt-failed {
+  background: #3a1e1e;
+  border: 1px solid #f48771;
+}
+
+.alt-status {
+  font-weight: bold;
+}
+
+.alt-success .alt-status {
+  color: #4ec9b0;
+}
+
+.alt-failed .alt-status {
+  color: #f48771;
+}
+
+.alt-name {
+  font-family: 'Courier New', monospace;
+  color: #cccccc;
+}
+
+.alt-reason {
+  color: #858585;
+  font-style: italic;
+  margin-left: auto;
+}
+
+/* Suggestions list */
+.suggestions-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #98c379;
+  font-size: 11px;
+}
+
+.suggestions-list li {
+  margin: 4px 0;
 }

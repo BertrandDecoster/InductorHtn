@@ -1,0 +1,6 @@
+% ERROR: Variable ?dest used in do() but never bound in if()
+% Expected: Warning about unbound variable in do() clause
+
+travel() :- if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

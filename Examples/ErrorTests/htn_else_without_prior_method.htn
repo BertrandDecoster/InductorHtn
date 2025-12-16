@@ -1,0 +1,6 @@
+% ERROR: else used on first method alternative (no prior method to fall back from)
+% Expected: Warning about else without prior method
+
+travel(?dest) :- else, if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

@@ -1,0 +1,9 @@
+% ERROR: Indirect cycle - A calls B, B calls A
+% Expected: Warning about potential infinite loop in call chain
+
+go(?dest) :- if(at(?here)), do(travel(?dest)).
+travel(?dest) :- if(far(?dest)), do(go(?dest)).
+travel(?dest) :- else, if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).
+far(moon).

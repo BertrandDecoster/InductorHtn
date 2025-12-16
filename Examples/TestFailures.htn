@@ -1,0 +1,22 @@
+% Test file for failure debugger
+% Designed to produce specific failures for testing
+
+% Initial state - missing some facts
+at(home).
+hasTicket(bus).
+
+% Methods
+travel(?dest) :- if(at(?start), hasTicket(?dest)), do(go(?start, ?dest)).
+travel(?dest) :- if(at(?start), hasCar), do(drive(?start, ?dest)).
+travel(?dest) :- if(at(?start)), do(walk(?start, ?dest)).
+
+% Operators
+go(?from, ?to) :- del(at(?from)), add(at(?to)).
+drive(?from, ?to) :- del(at(?from), fuel(full)), add(at(?to), fuel(empty)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to), tired).
+
+% This goal will try different methods
+% travel(park) will fail on:
+% - first method: hasTicket(park) is false (only hasTicket(bus))
+% - second method: hasCar is false
+% - third method: walk should succeed

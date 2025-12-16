@@ -1,0 +1,6 @@
+% ERROR: allOf modifier used on operator (only valid on methods)
+% Expected: Warning about allOf on operator
+
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- allOf, del(at(?from)), add(at(?to)).
+at(home).

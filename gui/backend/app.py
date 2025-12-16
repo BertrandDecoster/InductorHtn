@@ -13,6 +13,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src/Python'))
 
 from htn_service import HtnService
+from htn_linter import lint_htn, lint_file
+from htn_analyzer import analyze_htn, analyze_file
+from invariants import get_registry, get_enabled_invariants
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend requests
@@ -193,6 +196,248 @@ def get_state_diff():
 def health():
     """Health check endpoint"""
     return jsonify({'status': 'healthy', 'sessions': len(sessions)})
+
+
+@app.route('/api/lint', methods=['POST'])
+def lint_content():
+    """
+    Lint HTN content and return diagnostics
+
+    Body: { "content": "..." } or { "file_path": "..." }
+    Response: {
+        "diagnostics": [
+            {"line": 5, "col": 12, "severity": "error", "message": "...", "length": 1, "code": "SYN001"}
+        ]
+    }
+    """
+    data = request.json
+
+    try:
+        if 'content' in data:
+            diagnostics = lint_htn(data['content'])
+        elif 'file_path' in data:
+            # Resolve relative to project root
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+            full_path = os.path.join(project_root, data['file_path'])
+            diagnostics = lint_file(full_path)
+        else:
+            return jsonify({'error': 'Must provide either "content" or "file_path"'}), 400
+
+        return jsonify({'diagnostics': diagnostics})
+
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lint/batch', methods=['POST'])
+def lint_batch():
+    """
+    Lint multiple HTN files and return aggregated diagnostics
+
+    Body: { "file_paths": ["Examples/Taxi.htn", "Examples/Game.htn"] }
+    Response: {
+        "results": {
+            "Examples/Taxi.htn": { "diagnostics": [...] },
+            "Examples/Game.htn": { "diagnostics": [...] }
+        }
+    }
+    """
+    data = request.json
+    file_paths = data.get('file_paths', [])
+
+    if not file_paths:
+        return jsonify({'error': 'Must provide "file_paths" array'}), 400
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    results = {}
+
+    for file_path in file_paths:
+        try:
+            full_path = os.path.join(project_root, file_path)
+            diagnostics = lint_file(full_path)
+            results[file_path] = {'diagnostics': diagnostics}
+        except FileNotFoundError:
+            results[file_path] = {'error': 'File not found'}
+        except Exception as e:
+            results[file_path] = {'error': str(e)}
+
+    return jsonify({'results': results})
+
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_content():
+    """
+    Perform semantic analysis on HTN content
+
+    Body: { "content": "..." } or { "file_path": "..." }
+    Response: {
+        "nodes": {...},
+        "edges": [...],
+        "goals": [...],
+        "reachable": [...],
+        "unreachable": [...],
+        "cycles": [...],
+        "diagnostics": [...],
+        "initial_facts": [...],
+        "state_changes": {...},
+        "invariant_violations": [...],
+        "stats": {...}
+    }
+    """
+    data = request.json
+
+    try:
+        # Get enabled invariants
+        invariants = get_enabled_invariants()
+
+        if 'content' in data:
+            result = analyze_htn(data['content'], invariants)
+        elif 'file_path' in data:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+            full_path = os.path.join(project_root, data['file_path'])
+            result = analyze_file(full_path, invariants)
+        else:
+            return jsonify({'error': 'Must provide either "content" or "file_path"'}), 400
+
+        return jsonify(result)
+
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analyze/batch', methods=['POST'])
+def analyze_batch():
+    """
+    Analyze multiple HTN files
+
+    Body: { "file_paths": ["Examples/Taxi.htn", "Examples/Game.htn"] }
+    Response: {
+        "results": {
+            "Examples/Taxi.htn": { ... },
+            "Examples/Game.htn": { ... }
+        }
+    }
+    """
+    data = request.json
+    file_paths = data.get('file_paths', [])
+
+    if not file_paths:
+        return jsonify({'error': 'Must provide "file_paths" array'}), 400
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    invariants = get_enabled_invariants()
+    results = {}
+
+    for file_path in file_paths:
+        try:
+            full_path = os.path.join(project_root, file_path)
+            result = analyze_file(full_path, invariants)
+            results[file_path] = result
+        except FileNotFoundError:
+            results[file_path] = {'error': 'File not found'}
+        except Exception as e:
+            results[file_path] = {'error': str(e)}
+
+    return jsonify({'results': results})
+
+
+@app.route('/api/invariants', methods=['GET'])
+def get_invariants():
+    """
+    Get all available invariants and their configuration
+
+    Response: {
+        "invariants": [...],
+        "categories": [...]
+    }
+    """
+    registry = get_registry()
+    return jsonify(registry.to_dict())
+
+
+@app.route('/api/invariants/<invariant_id>/enable', methods=['POST'])
+def enable_invariant(invariant_id):
+    """
+    Enable or disable an invariant
+
+    Body: { "enabled": true/false }
+    """
+    data = request.json
+    enabled = data.get('enabled', True)
+
+    registry = get_registry()
+    invariant = registry.get(invariant_id)
+
+    if not invariant:
+        return jsonify({'error': f'Invariant {invariant_id} not found'}), 404
+
+    registry.enable(invariant_id, enabled)
+    return jsonify({'status': 'updated', 'invariant_id': invariant_id, 'enabled': enabled})
+
+
+@app.route('/api/invariants/<invariant_id>/configure', methods=['POST'])
+def configure_invariant(invariant_id):
+    """
+    Update configuration for an invariant
+
+    Body: { "config": { ... } }
+    """
+    data = request.json
+    config = data.get('config', {})
+
+    registry = get_registry()
+    invariant = registry.get(invariant_id)
+
+    if not invariant:
+        return jsonify({'error': f'Invariant {invariant_id} not found'}), 404
+
+    registry.configure(invariant_id, config)
+    return jsonify({'status': 'configured', 'invariant_id': invariant_id})
+
+
+@app.route('/api/callgraph', methods=['POST'])
+def get_callgraph():
+    """
+    Get just the call graph for visualization
+
+    Body: { "content": "..." } or { "file_path": "..." }
+    Response: {
+        "nodes": [...],
+        "edges": [...],
+        "stats": {...}
+    }
+    """
+    data = request.json
+
+    try:
+        if 'content' in data:
+            result = analyze_htn(data['content'])
+        elif 'file_path' in data:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+            full_path = os.path.join(project_root, data['file_path'])
+            result = analyze_file(full_path)
+        else:
+            return jsonify({'error': 'Must provide either "content" or "file_path"'}), 400
+
+        # Return just call graph data
+        return jsonify({
+            'nodes': result['nodes'],
+            'edges': result['edges'],
+            'goals': result['goals'],
+            'reachable': result['reachable'],
+            'unreachable': result['unreachable'],
+            'stats': result['stats']
+        })
+
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     print("Starting InductorHTN IDE Backend Server...")

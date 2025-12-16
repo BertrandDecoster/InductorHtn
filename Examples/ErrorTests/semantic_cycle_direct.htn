@@ -1,0 +1,6 @@
+% ERROR: Direct cycle - method A calls method A
+% Expected: Warning about potential infinite loop
+
+travel(?dest) :- if(at(?here)), do(travel(?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

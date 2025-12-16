@@ -1,0 +1,6 @@
+% ERROR: try() wraps something that always fails - pointless
+% Expected: Warning about try() around always-failing task
+
+doSomething() :- if(), do(try(impossible())).
+impossible() :- if(never-true), do(magic()).
+magic() :- del(), add(done).

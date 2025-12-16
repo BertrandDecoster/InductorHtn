@@ -1,0 +1,7 @@
+% ERROR: Operator adds fact that already exists (redundant)
+% Expected: Warning about adding potentially duplicate fact
+
+init() :- if(), do(setup()).
+setup() :- del(), add(ready, ready, ready).
+
+% Adding same fact multiple times

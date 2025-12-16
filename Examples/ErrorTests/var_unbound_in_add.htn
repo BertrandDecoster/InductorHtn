@@ -1,0 +1,5 @@
+% ERROR: Variable ?newloc used in add() but never bound in del()
+% Expected: Warning about unbound variable in operator
+
+walk(?from) :- del(at(?from)), add(at(?newloc)).
+at(home).

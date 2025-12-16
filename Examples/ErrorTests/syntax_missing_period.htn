@@ -1,0 +1,6 @@
+% ERROR: Missing period at end of rule
+% Expected: Syntax error about missing terminator
+
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest))
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

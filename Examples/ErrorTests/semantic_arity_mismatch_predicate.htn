@@ -1,0 +1,6 @@
+% ERROR: at() used with 1 arg in some places, 2 args in others
+% Expected: Warning about inconsistent predicate arity
+
+travel(?dest) :- if(at(?here, ground)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

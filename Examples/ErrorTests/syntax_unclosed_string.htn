@@ -1,0 +1,5 @@
+% ERROR: Unclosed string literal
+% Expected: Syntax error about unclosed string
+
+message("hello world).
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest)).

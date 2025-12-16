@@ -1,0 +1,7 @@
+% ERROR: Method syntax should use if/do, not del/add
+% Expected: Warning that this looks like operator syntax for a method
+
+travel(?dest) :- del(planning), add(traveling(?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).
+planning.

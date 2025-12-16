@@ -1,0 +1,6 @@
+% ERROR: Variable ?unused in head is never used in body
+% Expected: Warning about unused variable
+
+travel(?dest, ?unused) :- if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

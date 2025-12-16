@@ -1,0 +1,6 @@
+% ERROR: Method calls teleport() which doesn't exist as method or operator
+% Expected: Error about undefined method/operator reference
+
+travel(?dest) :- if(at(?here)), do(teleport(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

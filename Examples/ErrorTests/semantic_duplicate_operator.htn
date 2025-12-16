@@ -1,0 +1,7 @@
+% ERROR: Operator walk() defined twice with same signature
+% Expected: Warning about duplicate definition
+
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to), tired).
+at(home).

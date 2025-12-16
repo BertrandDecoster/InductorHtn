@@ -1,0 +1,8 @@
+% ERROR: Condition uses predicate can-fly() which is never defined
+% Expected: Warning about undefined predicate in condition
+
+travel(?dest) :- if(at(?here), can-fly(?here, ?dest)), do(fly(?here, ?dest)).
+travel(?dest) :- else, if(at(?here)), do(walk(?here, ?dest)).
+fly(?from, ?to) :- del(at(?from)), add(at(?to)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

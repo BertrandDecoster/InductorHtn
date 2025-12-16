@@ -1,0 +1,7 @@
+% ERROR: Singleton variable ?temp appears only once
+% Expected: Warning about singleton variable
+
+travel(?dest) :- if(at(?here), weather(?temp)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).
+weather(good).

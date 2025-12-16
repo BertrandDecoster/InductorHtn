@@ -1,0 +1,6 @@
+% ERROR: Condition requires at(?x) AND not(at(?x)) - always false
+% Expected: Warning about unsatisfiable/contradictory condition
+
+travel(?dest) :- if(at(?here), not(at(?here))), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

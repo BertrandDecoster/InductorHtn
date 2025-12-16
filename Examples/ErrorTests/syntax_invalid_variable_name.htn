@@ -1,0 +1,6 @@
+% ERROR: Variable name starts with number (invalid)
+% Expected: Syntax error about invalid variable name
+
+travel(?1dest) :- if(at(?here)), do(walk(?here, ?1dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

@@ -1,0 +1,6 @@
+% ERROR: walk() called with 3 args but defined with 2
+% Expected: Error about arity mismatch
+
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest, fast)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

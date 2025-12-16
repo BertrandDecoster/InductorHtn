@@ -1,54 +1,80 @@
 import { useRef, useEffect, useState } from 'react'
-import { Tree } from 'react-arborist'
 import './TreePanel.css'
 
 function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) {
   const containerRef = useRef(null)
-  const treeRef = useRef(null)
-  const [containerHeight, setContainerHeight] = useState(600)
+  const [expandedNodes, setExpandedNodes] = useState(new Set())
+  const [expandedFailures, setExpandedFailures] = useState(new Set())
 
-  // Measure container height when mounted or resized
+  // Initialize all nodes as expanded
   useEffect(() => {
-    const updateHeight = () => {
-      if (containerRef.current) {
-        setContainerHeight(containerRef.current.offsetHeight)
+    if (treeData) {
+      const allIds = new Set()
+      const collectIds = (node) => {
+        if (node && node.id) {
+          allIds.add(node.id)
+          if (node.children) {
+            node.children.forEach(collectIds)
+          }
+        }
       }
+      if (Array.isArray(treeData)) {
+        treeData.forEach(collectIds)
+      } else {
+        collectIds(treeData)
+      }
+      setExpandedNodes(allIds)
     }
+  }, [treeData])
 
-    updateHeight()
-    window.addEventListener('resize', updateHeight)
-    return () => window.removeEventListener('resize', updateHeight)
-  }, [])
+  // Toggle node expansion
+  const toggleNode = (nodeId) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) {
+        next.delete(nodeId)
+      } else {
+        next.add(nodeId)
+      }
+      return next
+    })
+  }
+
+  // Toggle failure details expansion
+  const toggleFailureDetails = (nodeId, e) => {
+    e.stopPropagation()
+    setExpandedFailures(prev => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) {
+        next.delete(nodeId)
+      } else {
+        next.add(nodeId)
+      }
+      return next
+    })
+  }
 
   // Expand/collapse all
   const expandAll = () => {
-    if (treeRef.current) {
-      treeRef.current.openAll()
+    const allIds = new Set()
+    const collectIds = (node) => {
+      if (node && node.id) {
+        allIds.add(node.id)
+        if (node.children) {
+          node.children.forEach(collectIds)
+        }
+      }
     }
+    if (Array.isArray(treeData)) {
+      treeData.forEach(collectIds)
+    } else if (treeData) {
+      collectIds(treeData)
+    }
+    setExpandedNodes(allIds)
   }
 
   const collapseAll = () => {
-    if (treeRef.current) {
-      treeRef.current.closeAll()
-    }
-  }
-
-  // Transform tree data for react-arborist
-  const transformTreeData = (node) => {
-    if (!node) return []
-
-    return [{
-      id: node.id,
-      name: node.name,
-      fullSignature: node.fullSignature,
-      taskName: node.taskName,
-      isOperator: node.isOperator,
-      status: node.status,
-      bindings: node.bindings,
-      conditionBindings: node.conditionBindings,
-      failureReason: node.failureReason,
-      children: node.children ? node.children.map(transformTreeData).flat() : []
-    }]
+    setExpandedNodes(new Set())
   }
 
   // Handle both array of trees (HTN) and single tree (Prolog)
@@ -56,64 +82,176 @@ function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) 
   const currentTree = isHtnMode
     ? (treeData && treeData[selectedSolution])
     : treeData
-  const data = currentTree ? transformTreeData(currentTree) : []
 
-  // Custom node renderer matching console output format
-  const Node = ({ node, style, dragHandle }) => {
-    const hasBindings = node.data.bindings && Object.keys(node.data.bindings).length > 0
-    const hasConditionBindings = node.data.conditionBindings && Object.keys(node.data.conditionBindings).length > 0
-    const hasFailed = node.data.status === 'failure' && node.data.failureReason
+  // Format failure category for display
+  const formatCategory = (category) => {
+    const categoryMap = {
+      'NO_MATCHING_METHOD': 'No Method',
+      'PRECONDITION_FAILED': 'Precondition',
+      'UNIFICATION_FAILED': 'Unification',
+      'SUBTASK_FAILED': 'Subtask',
+      'OPERATOR_FAILED': 'Operator',
+      'BACKTRACKED': 'Backtracked',
+      'UNKNOWN': 'Unknown'
+    }
+    return categoryMap[category] || category
+  }
+
+  // Recursive tree node renderer
+  const TreeNode = ({ node, depth = 0 }) => {
+    if (!node) return null
+
+    const hasChildren = node.children && node.children.length > 0
+    const isOpen = expandedNodes.has(node.id)
+    const hasBindings = node.bindings && Object.keys(node.bindings).length > 0
+    const hasConditionBindings = node.conditionBindings && Object.keys(node.conditionBindings).length > 0
+    const hasFailed = node.status === 'failure'
+    const hasFailureDetail = node.failureDetail
+    const isFailureExpanded = expandedFailures.has(node.id)
 
     // Use different brackets for operators vs methods
-    const nodeIdMatch = node.data.id ? node.data.id.match(/node(\d+)$/) : null
+    const nodeIdMatch = node.id ? node.id.match(/node(\d+)$/) : null
     const nodeIdNum = nodeIdMatch ? nodeIdMatch[1] : '?'
-    const bracket = node.data.isOperator ? `[${nodeIdNum}]` : `{${nodeIdNum}}`
+    const bracket = node.isOperator ? `[${nodeIdNum}]` : `{${nodeIdNum}}`
 
     return (
-      <div
-        style={style}
-        ref={dragHandle}
-        className={`tree-node tree-node-${node.data.status || 'default'}`}
-        onClick={() => node.toggle()}
-      >
-        <span className="tree-node-arrow">
-          {node.children && node.children.length > 0 ? (node.isOpen ? '▼' : '▶') : ' '}
-        </span>
-        <span className="tree-node-bracket">{bracket}</span>
-        <span className="tree-node-name">{node.data.name}</span>
+      <div className="tree-node-container" style={{ marginLeft: depth * 24 }}>
+        <div
+          className={`tree-node tree-node-${node.status || 'default'}`}
+          onClick={() => hasChildren && toggleNode(node.id)}
+        >
+          {/* Main node line */}
+          <div className="tree-node-main">
+            <span className="tree-node-arrow">
+              {hasChildren ? (isOpen ? '▼' : '▶') : ' '}
+            </span>
+            <span className="tree-node-bracket">{bracket}</span>
+            <span className="tree-node-name">{node.name}</span>
 
-        {hasFailed && (
-          <span className="tree-node-failure-badge">FAILED</span>
-        )}
+            {hasFailed && hasFailureDetail && (
+              <span className={`tree-node-failure-badge failure-${node.failureDetail.category?.toLowerCase()}`}>
+                {formatCategory(node.failureDetail.category)}
+              </span>
+            )}
 
-        {/* Full signature on next line */}
-        {node.data.fullSignature && (
-          <div className="tree-node-signature">{node.data.fullSignature}</div>
-        )}
+            {hasFailed && !hasFailureDetail && (
+              <span className="tree-node-failure-badge">FAILED</span>
+            )}
 
-        {/* Head bindings */}
-        {hasBindings && (
-          <div className="tree-node-bindings">
-            <span className="binding-label">Head:</span>
-            {Object.entries(node.data.bindings).map(([key, value]) => (
-              <span key={key} className="binding">{key}={value}</span>
+            {hasFailed && hasFailureDetail && (
+              <button
+                className="tree-node-expand-btn"
+                onClick={(e) => toggleFailureDetails(node.id, e)}
+                title={isFailureExpanded ? "Hide details" : "Show why it failed"}
+              >
+                {isFailureExpanded ? '▲' : '▼'} Why?
+              </button>
+            )}
+          </div>
+
+          {/* Full signature */}
+          {node.fullSignature && (
+            <div className="tree-node-signature">{node.fullSignature}</div>
+          )}
+
+          {/* Head bindings */}
+          {hasBindings && (
+            <div className="tree-node-bindings">
+              <span className="binding-label">Head:</span>
+              {Object.entries(node.bindings).map(([key, value]) => (
+                <span key={key} className="binding">{key}={value}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Condition bindings */}
+          {hasConditionBindings && (
+            <div className="tree-node-bindings">
+              <span className="binding-label">Condition:</span>
+              {Object.entries(node.conditionBindings).map(([key, value]) => (
+                <span key={key} className="binding">{key}={value}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Enhanced failure details (collapsible) */}
+          {hasFailed && hasFailureDetail && isFailureExpanded && (
+            <div className="tree-node-failure-details">
+              {/* Failure message */}
+              <div className="failure-message">
+                <span className="failure-icon">⚠</span>
+                {node.failureDetail.message}
+              </div>
+
+              {/* Missing facts */}
+              {node.missingFacts && node.missingFacts.length > 0 && (
+                <div className="failure-section">
+                  <div className="failure-section-title">Missing Facts:</div>
+                  <div className="failure-items">
+                    {node.missingFacts.map((fact, i) => (
+                      <span key={i} className="failure-item missing-fact">{fact}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Failed conditions */}
+              {node.failedConditions && node.failedConditions.length > 0 && (
+                <div className="failure-section">
+                  <div className="failure-section-title">Failed Conditions:</div>
+                  <div className="failure-items">
+                    {node.failedConditions.map((cond, i) => (
+                      <span key={i} className="failure-item failed-condition">{cond}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Alternatives tried */}
+              {node.alternativesTried && node.alternativesTried.length > 0 && (
+                <div className="failure-section">
+                  <div className="failure-section-title">Alternatives Tried:</div>
+                  <div className="alternatives-list">
+                    {node.alternativesTried.map((alt, i) => (
+                      <div key={i} className={`alternative ${alt.success ? 'alt-success' : 'alt-failed'}`}>
+                        <span className="alt-status">{alt.success ? '✓' : '✗'}</span>
+                        <span className="alt-name">{alt.signature || alt.method_name}</span>
+                        {alt.failure_reason && (
+                          <span className="alt-reason">{alt.failure_reason}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Suggestions */}
+              {node.failureDetail.suggestions && node.failureDetail.suggestions.length > 0 && (
+                <div className="failure-section">
+                  <div className="failure-section-title">💡 Suggestions:</div>
+                  <ul className="suggestions-list">
+                    {node.failureDetail.suggestions.map((suggestion, i) => (
+                      <li key={i}>{suggestion}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Legacy failure reason (if no enhanced details) */}
+          {hasFailed && !hasFailureDetail && node.failureReason && (
+            <div className="tree-node-failure-reason">{node.failureReason}</div>
+          )}
+        </div>
+
+        {/* Children */}
+        {hasChildren && isOpen && (
+          <div className="tree-node-children">
+            {node.children.map((child, idx) => (
+              <TreeNode key={child.id || idx} node={child} depth={depth + 1} />
             ))}
           </div>
-        )}
-
-        {/* Condition bindings */}
-        {hasConditionBindings && (
-          <div className="tree-node-bindings">
-            <span className="binding-label">Condition:</span>
-            {Object.entries(node.data.conditionBindings).map(([key, value]) => (
-              <span key={key} className="binding">{key}={value}</span>
-            ))}
-          </div>
-        )}
-
-        {/* Failure reason */}
-        {hasFailed && (
-          <div className="tree-node-failure-reason">{node.data.failureReason}</div>
         )}
       </div>
     )
@@ -145,18 +283,8 @@ function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) 
       )}
 
       <div className="tree-content" ref={containerRef}>
-        {data.length > 0 ? (
-          <Tree
-            ref={treeRef}
-            data={data}
-            openByDefault={true}
-            width={containerRef.current?.offsetWidth || 300}
-            height={containerHeight - (isHtnMode && solutions && solutions.length > 1 ? 50 : 0)}
-            indent={24}
-            rowHeight={80}
-          >
-            {Node}
-          </Tree>
+        {currentTree ? (
+          <TreeNode node={currentTree} depth={0} />
         ) : (
           <div className="tree-empty">
             <p>No plan tree to display</p>

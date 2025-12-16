@@ -33,7 +33,7 @@ Key differences:
 
 HTN planning is often more efficient because methods encode expert knowledge about how to solve problems, pruning the search space dramatically.
 
-### The SHOP Model
+  ### The SHOP Model
 
 InductorHTN implements the SHOP (Simple Hierarchical Ordered Planner) model. SHOP processes tasks in the order they will be executed, which means:
 - The planner always knows the complete current world state
@@ -662,6 +662,7 @@ src/FXPlatform/
 ---
 
 ## 10. Built-in Predicates Reference
+They are all added in HtnGoalResolver::HtnGoalResolver() with AddCustomRule()
 
 ### Arithmetic
 

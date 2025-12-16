@@ -1,0 +1,8 @@
+% ERROR: else method is unreachable because prior method always succeeds
+% Expected: Warning about unreachable else branch
+
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest)).
+travel(?dest) :- else, if(at(?here)), do(run(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+run(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

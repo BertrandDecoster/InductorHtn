@@ -1,0 +1,9 @@
+% ERROR: Operator removes position without checking if unit exists
+% Expected: Warning about potential orphaned unit (unit with no position)
+
+vanish(?unit) :- if(at(?unit, ?tile)), do(removePos(?unit, ?tile)).
+removePos(?unit, ?tile) :- del(at(?unit, ?tile)), add().
+
+% After vanish, unit still exists but has no position
+unit(pawn1). at(pawn1, tile(0,0)).
+tile(0,0).

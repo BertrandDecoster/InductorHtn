@@ -1,0 +1,10 @@
+% ERROR: Operator can place two units on same tile (violates game invariant)
+% Expected: Warning about potential state invariant violation
+
+move(?unit, ?to) :- if(at(?unit, ?from)), do(doMove(?unit, ?from, ?to)).
+doMove(?unit, ?from, ?to) :- del(at(?unit, ?from)), add(at(?unit, ?to)).
+
+% Initial state has two units - move could put both on same tile
+unit(pawn1). at(pawn1, tile(0,0)).
+unit(pawn2). at(pawn2, tile(1,0)).
+tile(0,0). tile(1,0). tile(2,0).

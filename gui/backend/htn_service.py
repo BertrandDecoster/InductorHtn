@@ -8,6 +8,7 @@ import os
 import sys
 
 from utils import pretty_solution
+from failure_analyzer import FailureAnalyzer, analyze_planning_trace
 
 # Add paths for indhtnpy module and DLL
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
@@ -232,12 +233,13 @@ class HtnService:
             ]
         }
 
-    def execute_htn_query(self, query):
+    def execute_htn_query(self, query, enhanced_trace=True):
         """
         Execute an HTN planning query and return plans + decomposition trees
 
         Args:
             query: HTN goal query (e.g., "travel-to(park).")
+            enhanced_trace: If True, use enhanced failure analysis
 
         Returns:
             dict: {
@@ -247,6 +249,9 @@ class HtnService:
             }
         """
         try:
+            # Get initial facts for failure analysis
+            initial_facts = self.get_state_facts() if enhanced_trace else []
+
             # Execute HTN planning
             error, solutions_json = self.planner.FindAllPlansCustomVariables(query)
 
@@ -255,15 +260,32 @@ class HtnService:
 
             solutions = json.loads(solutions_json)
 
+            # Check for "no solutions" format from C++
+            # When planning fails, C++ returns: [{"false": []}, {"failureIndex": [...]}]
+            # We need to detect this and return empty results
+            if self._is_failure_result(solutions):
+                return {
+                    'solutions': [],
+                    'pretty_solutions': [],
+                    'trees': [],
+                    'total_count': 0
+                }
+
             # Get decomposition tree for each solution
             trees = []
             for i in range(len(solutions)):
                 error, tree_json = self.planner.GetDecompositionTree(i)
-                if error is None:
+                if error is None and tree_json:
                     tree_nodes = json.loads(tree_json)
-                    # Transform to react-arborist format
-                    tree = self._transform_decomp_tree(tree_nodes, i)
-                    trees.append(tree)
+
+                    # Use enhanced failure analysis or basic transform
+                    if enhanced_trace:
+                        tree = analyze_planning_trace(tree_nodes, i, initial_facts)
+                    else:
+                        tree = self._transform_decomp_tree(tree_nodes, i)
+
+                    if tree:
+                        trees.append(tree)
 
             # Format solutions nicely
             pretty_solutions = [pretty_solution(sol) for sol in solutions]
@@ -276,6 +298,32 @@ class HtnService:
             }
         except Exception as e:
             return {'error': str(e)}
+
+    def _is_failure_result(self, solutions):
+        """
+        Check if the solutions list indicates a planning failure.
+
+        C++ returns special format when no solutions found:
+        [{"false": []}, {"failureIndex": [{"-1": []}]}]
+
+        Returns:
+            bool: True if this is a failure/no-solution result
+        """
+        if not solutions or not isinstance(solutions, list):
+            return False
+
+        # Check for the "false" marker in first element
+        if len(solutions) >= 1:
+            first = solutions[0]
+            if isinstance(first, dict) and 'false' in first:
+                return True
+
+        # Check for failureIndex marker
+        for sol in solutions:
+            if isinstance(sol, dict) and 'failureIndex' in sol:
+                return True
+
+        return False
 
     def _transform_decomp_tree(self, nodes, solution_index):
         """
@@ -319,14 +367,16 @@ class HtnService:
             else:
                 name = '(leaf)'
 
-            # Build bindings dict
+            # Build bindings dict (with defensive checks for non-dict values)
             bindings = {}
             for u in node.get('unifiers', []):
-                bindings.update(u)
+                if isinstance(u, dict):
+                    bindings.update(u)
 
             condition_bindings = {}
             for cb in node.get('conditionBindings', []):
-                condition_bindings.update(cb)
+                if isinstance(cb, dict):
+                    condition_bindings.update(cb)
 
             # Determine status
             status = 'default'

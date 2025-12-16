@@ -1,0 +1,6 @@
+% ERROR: Missing :- between head and body
+% Expected: Syntax error about missing rule arrow
+
+travel(?dest) if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

@@ -1,0 +1,6 @@
+% ERROR: Method has empty do() clause - does nothing
+% Expected: Warning about method with no actions
+
+travel(?dest) :- if(at(?here)), do().
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

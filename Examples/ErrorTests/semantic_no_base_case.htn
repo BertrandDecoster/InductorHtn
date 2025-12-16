@@ -1,0 +1,6 @@
+% ERROR: Recursive method with no base case
+% Expected: Warning about potential infinite recursion
+
+count(?n) :- if(>(?n, 0)), do(decrement(?n), count(-(?n, 1))).
+decrement(?n) :- del(counter(?n)), add(counter(-(?n, 1))).
+counter(5).

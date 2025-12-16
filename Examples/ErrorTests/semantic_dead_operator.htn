@@ -1,0 +1,7 @@
+% ERROR: Operator fly() is defined but never called from any method
+% Expected: Warning about dead/unreachable operator
+
+travel(?dest) :- if(at(?here)), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+fly(?from, ?to) :- del(at(?from)), add(at(?to), flying).
+at(home).

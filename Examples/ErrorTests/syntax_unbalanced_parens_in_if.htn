@@ -1,0 +1,6 @@
+% ERROR: Unbalanced parentheses in if() clause - missing closing paren
+% Expected: Syntax error about unbalanced parentheses
+
+travel(?dest) :- if(at(?here), do(walk(?here, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

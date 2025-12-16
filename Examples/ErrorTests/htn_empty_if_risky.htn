@@ -1,0 +1,8 @@
+% ERROR: Multiple methods with empty if() - second will never execute
+% Expected: Warning about unreachable method due to always-true first method
+
+travel(?dest) :- if(), do(walk(home, ?dest)).
+travel(?dest) :- if(), do(run(home, ?dest)).
+walk(?from, ?to) :- del(at(?from)), add(at(?to)).
+run(?from, ?to) :- del(at(?from)), add(at(?to), tired).
+at(home).

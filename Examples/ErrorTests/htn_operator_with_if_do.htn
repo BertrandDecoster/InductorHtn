@@ -1,0 +1,6 @@
+% ERROR: Operator syntax should use del/add, not if/do
+% Expected: Warning that this looks like method syntax for an operator
+
+walk(?from, ?to) :- if(at(?from)), do(move(?from, ?to)).
+move(?from, ?to) :- del(at(?from)), add(at(?to)).
+at(home).

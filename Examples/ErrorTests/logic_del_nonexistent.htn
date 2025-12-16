@@ -1,0 +1,8 @@
+% ERROR: Operator tries to delete fact that may not exist
+% Expected: Warning about deleting potentially non-existent fact
+
+consume(?item) :- if(want(?item)), do(use(?item)).
+use(?item) :- del(have(?item)), add(used(?item)).
+
+% No have() facts defined - del will fail silently
+want(potion).
