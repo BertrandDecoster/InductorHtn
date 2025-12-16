@@ -22,6 +22,15 @@ except ImportError as e:
     _LINTER_IMPORT_ERROR = str(e)
     lint_htn = None
 
+# Try to import htn_parser, provide clear error if unavailable
+try:
+    from htn_parser import parse_htn
+    _PARSER_AVAILABLE = True
+except ImportError as e:
+    _PARSER_AVAILABLE = False
+    _PARSER_IMPORT_ERROR = str(e)
+    parse_htn = None
+
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
 from mcp.types import (
@@ -192,6 +201,20 @@ class IndHTNMCPServer:
                         },
                         "required": ["source"]
                     }
+                ),
+                Tool(
+                    name="indhtn_introspect",
+                    description="Parse HTN source and return all methods, operators, facts, and predicates with their signatures and locations",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "source": {
+                                "type": "string",
+                                "description": "HTN/Prolog source code to analyze"
+                            }
+                        },
+                        "required": ["source"]
+                    }
                 )
             ]
         
@@ -215,6 +238,8 @@ class IndHTNMCPServer:
                     return await self._end_session(arguments)
                 elif name == "indhtn_lint":
                     return await self._lint(arguments)
+                elif name == "indhtn_introspect":
+                    return await self._introspect(arguments)
                 else:
                     raise ValueError(f"Unknown tool: {name}")
             except Exception as e:
@@ -442,6 +467,65 @@ class IndHTNMCPServer:
                 "diagnostics": diagnostics,
                 "error_count": len([d for d in diagnostics if d.get("severity") == "error"]),
                 "warning_count": len([d for d in diagnostics if d.get("severity") == "warning"])
+            }, indent=2)
+        )]
+
+    async def _introspect(self, args: dict) -> List[TextContent]:
+        """Parse HTN source and return structure information."""
+        if not _PARSER_AVAILABLE:
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": False,
+                    "error": f"Parser not available: {_PARSER_IMPORT_ERROR}",
+                    "methods": [],
+                    "operators": [],
+                    "facts": [],
+                    "method_count": 0,
+                    "operator_count": 0,
+                    "fact_count": 0
+                }, indent=2)
+            )]
+
+        source = args.get("source", "")
+        rules, diagnostics = parse_htn(source)
+
+        methods = []
+        operators = []
+        facts = []
+
+        for rule in rules:
+            item = {
+                "name": rule.head.name,
+                "arity": len(rule.head.args),
+                "signature": f"{rule.head.name}({', '.join(a.name for a in rule.head.args)})",
+                "line": rule.line
+            }
+            if rule.is_method:
+                item["has_else"] = rule.has_else
+                item["has_allof"] = rule.has_allof
+                item["has_anyof"] = rule.has_anyof
+                methods.append(item)
+            elif rule.is_operator:
+                item["has_hidden"] = rule.has_hidden
+                operators.append(item)
+            elif rule.is_fact:
+                facts.append(item)
+
+        # Convert diagnostics to dicts for JSON
+        parse_errors = [d.to_dict() if hasattr(d, 'to_dict') else d for d in diagnostics]
+
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "success": True,
+                "methods": methods,
+                "operators": operators,
+                "facts": facts,
+                "method_count": len(methods),
+                "operator_count": len(operators),
+                "fact_count": len(facts),
+                "parse_errors": parse_errors
             }, indent=2)
         )]
 
