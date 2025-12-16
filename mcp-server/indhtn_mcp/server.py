@@ -215,6 +215,24 @@ class IndHTNMCPServer:
                         },
                         "required": ["source"]
                     }
+                ),
+                Tool(
+                    name="indhtn_state_diff",
+                    description="Preview what plan would be generated for a goal without applying it",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "sessionId": {
+                                "type": "string",
+                                "description": "Session ID from indhtn_start_session"
+                            },
+                            "goal": {
+                                "type": "string",
+                                "description": "HTN goal to plan for (e.g., 'travel-to(park)')"
+                            }
+                        },
+                        "required": ["sessionId", "goal"]
+                    }
                 )
             ]
         
@@ -240,6 +258,8 @@ class IndHTNMCPServer:
                     return await self._lint(arguments)
                 elif name == "indhtn_introspect":
                     return await self._introspect(arguments)
+                elif name == "indhtn_state_diff":
+                    return await self._state_diff(arguments)
                 else:
                     raise ValueError(f"Unknown tool: {name}")
             except Exception as e:
@@ -527,6 +547,24 @@ class IndHTNMCPServer:
                 "fact_count": len(facts),
                 "parse_errors": parse_errors
             }, indent=2)
+        )]
+
+    async def _state_diff(self, args: dict) -> List[TextContent]:
+        """Get state diff for a goal without applying it."""
+        session_id = args.get("sessionId")
+        goal = args.get("goal", "")
+
+        if not session_id:
+            raise ValueError("sessionId is required")
+
+        if not goal:
+            raise ValueError("goal is required")
+
+        result = await self.session_manager.get_state_diff(session_id, goal)
+
+        return [TextContent(
+            type="text",
+            text=json.dumps(result, indent=2)
         )]
 
     async def run(self):

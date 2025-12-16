@@ -216,7 +216,34 @@ class SessionManager:
                 "error_type": "runtime",
                 "message": str(e)
             }
-    
+
+    async def get_state_diff(self, session_id: str, goal: str, timeout: float = 30.0) -> Dict:
+        """
+        Preview what plan would be generated for a goal without applying it.
+        Does NOT apply the changes - just shows the plan that would be executed.
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        # Find plans without applying
+        goal_query = f"goals({goal})." if not goal.startswith("goals(") else goal
+        plan_result = await self.execute_query(session_id, goal_query, timeout)
+
+        if not plan_result.get("success"):
+            return {
+                "success": False,
+                "error": plan_result.get("output", "Planning failed"),
+                "error_type": plan_result.get("error_type", "unknown")
+            }
+
+        return {
+            "success": True,
+            "goal": goal,
+            "plan": plan_result.get("output", ""),
+            "note": "Use indhtn_apply_plan to actually apply changes and see final state"
+        }
+
     def _classify_error(self, error_text: str) -> str:
         """Classify error types for better handling"""
         if "Expected query" in error_text:
