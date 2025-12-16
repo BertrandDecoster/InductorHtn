@@ -8,6 +8,20 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Any
 
+# Add gui/backend to path for htn_linter import (only once at module load)
+_gui_backend_path = str(Path(__file__).parent.parent.parent / "gui" / "backend")
+if _gui_backend_path not in sys.path:
+    sys.path.insert(0, _gui_backend_path)
+
+# Try to import htn_linter, provide clear error if unavailable
+try:
+    from htn_linter import lint_htn
+    _LINTER_AVAILABLE = True
+except ImportError as e:
+    _LINTER_AVAILABLE = False
+    _LINTER_IMPORT_ERROR = str(e)
+    lint_htn = None
+
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
 from mcp.types import (
@@ -164,6 +178,20 @@ class IndHTNMCPServer:
                         },
                         "required": ["sessionId"]
                     }
+                ),
+                Tool(
+                    name="indhtn_lint",
+                    description="Lint HTN/Prolog source code and return structured diagnostics with line numbers, error codes, and severity levels",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "source": {
+                                "type": "string",
+                                "description": "HTN/Prolog source code to lint"
+                            }
+                        },
+                        "required": ["source"]
+                    }
                 )
             ]
         
@@ -185,6 +213,8 @@ class IndHTNMCPServer:
                     return await self._toggle_trace(arguments)
                 elif name == "indhtn_end_session":
                     return await self._end_session(arguments)
+                elif name == "indhtn_lint":
+                    return await self._lint(arguments)
                 else:
                     raise ValueError(f"Unknown tool: {name}")
             except Exception as e:
@@ -372,7 +402,7 @@ class IndHTNMCPServer:
         # This is a simplified parser - enhance based on actual output
         actions = []
         state_lines = []
-        
+
         lines = output.split('\n')
         for line in lines:
             line = line.strip()
@@ -385,9 +415,36 @@ class IndHTNMCPServer:
             elif line and not line.startswith('?-'):
                 # Likely state information
                 state_lines.append(line)
-        
+
         return actions, '\n'.join(state_lines)
-    
+
+    async def _lint(self, args: dict) -> List[TextContent]:
+        """Lint HTN source and return structured diagnostics."""
+        if not _LINTER_AVAILABLE:
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": False,
+                    "error": f"Linter not available: {_LINTER_IMPORT_ERROR}",
+                    "diagnostics": [],
+                    "error_count": 0,
+                    "warning_count": 0
+                }, indent=2)
+            )]
+
+        source = args.get("source", "")
+        diagnostics = lint_htn(source)
+
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "success": True,
+                "diagnostics": diagnostics,
+                "error_count": len([d for d in diagnostics if d.get("severity") == "error"]),
+                "warning_count": len([d for d in diagnostics if d.get("severity") == "warning"])
+            }, indent=2)
+        )]
+
     async def run(self):
         """Run the MCP server"""
         # Setup logging
