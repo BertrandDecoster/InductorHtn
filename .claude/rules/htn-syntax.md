@@ -41,7 +41,7 @@ drive(?vehicle, ?from, ?to) :-
 
 ## Method Modifiers
 
-Parsed in `HtnCompiler.h:99-111`.
+Parsed in `HtnCompiler.h:99-114`.
 
 ### else - Fallback Methods
 Methods marked `else` only execute if all previous non-else methods fail.
@@ -90,7 +90,7 @@ collectRewards() :- if(), do(getMainReward, try(getBonusItem)).
 If `getBonusItem` fails, method still succeeds with just `getMainReward`.
 
 ### first() - First Solution Only
-Implemented in `HtnGoalResolver.cpp:497` (`RuleFirst`). Returns only the first solution from a Prolog query. Prevents backtracking.
+Implemented in `HtnGoalResolver.cpp:1843` (`RuleFirst`). Returns only the first solution from a Prolog query. Prevents backtracking.
 
 ```prolog
 getTaxi() :- if(first(available(?taxi))), do(hire(?taxi)).

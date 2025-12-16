@@ -11,9 +11,14 @@ Python interface to InductorHTN via ctypes.
 
 ```
 src/Python/
-├── indhtnpy.py      # Python wrapper class
-├── PythonUsage.py   # Usage examples
-└── PythonUsageBD.py # Additional examples
+├── indhtnpy.py           # Python wrapper class
+├── PythonUsage.py        # Basic usage examples
+├── PythonUsageBD.py      # Block Dude game example
+├── PythonUsageTree.py    # Decomposition tree example
+├── PythonUsageTrace.py   # Tracing example
+├── HtnTreeReconstructor.py  # Tree reconstruction utilities
+├── htn_test_framework.py # Test framework
+└── htn_test_suite.py     # Test suite
 ```
 
 C++ side:
@@ -85,12 +90,30 @@ result = planner.NewFunction("param")
 planner = HtnPlanner(debug=False)
 ```
 
-Methods:
+Core Methods:
 - `HtnCompile(program)` - Compile HTN program
 - `PrologCompile(program)` - Compile Prolog program
 - `FindAllPlans(goal)` - Find all HTN plans
 - `PrologQuery(query)` - Execute Prolog query
-- `HtnQuery(query)` - Execute query with HTN syntax
+- `PrologQueryToJson(query)` - Execute query, return JSON
+
+State & Results:
+- `GetDecompositionTree(solutionIndex)` - Get HTN decomposition tree
+- `GetStateFacts()` - Get current world state facts
+- `GetSolutionFacts(solutionIndex)` - Get facts after applying solution
+- `ApplySolution(index)` - Apply solution to modify state
+
+Tracing & Debugging:
+- `SetDebugTracing(debug)` - Enable/disable debug output
+- `SetLogLevel(traceType, traceDetail)` - Configure log verbosity
+- `StartTraceCapture(alsoOutputToStdout)` - Begin capturing traces
+- `StopTraceCapture()` - Stop capturing traces
+- `GetCapturedTraces()` - Retrieve captured trace output
+- `ClearTraceBuffer()` - Clear trace buffer
+- `LogToFile(fileNameAndPath)` - Log to file
+
+Memory:
+- `SetMemoryBudget(budgetBytes)` - Set memory limit for planning
 
 ### Return Format
 

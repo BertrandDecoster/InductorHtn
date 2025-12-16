@@ -31,10 +31,10 @@ gui/frontend/
 - Dirty state indicator (unsaved changes)
 
 ### TreePanel.jsx
-- Tree visualization via `react-arborist`
-- Collapsible nodes
+- Custom tree visualization (collapsible nodes)
 - Color-coded status (success=green, failure=red)
 - Variable bindings display
+- Supports HTN decomposition trees and Prolog result trees
 
 ### QueryPanel.jsx
 - Query input field
@@ -48,9 +48,10 @@ gui/frontend/
 - **React 18** - Component framework
 - **Vite** - Build tool and dev server
 - **@monaco-editor/react** - VS Code editor component
-- **react-arborist** - Tree visualization
 - **react-resizable-panels** - 3-panel layout
 - **axios** - HTTP client
+- **@mui/material** - Material UI components
+- **@emotion/react** - CSS-in-JS styling
 
 ## Adding New Components
 

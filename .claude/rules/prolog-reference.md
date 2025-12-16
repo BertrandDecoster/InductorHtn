@@ -38,7 +38,7 @@ All added in `HtnGoalResolver::HtnGoalResolver()` via `AddCustomRule()`.
 =(?X, ?Y)                 % Unifies two terms
 ```
 
-### Arithmetic (`HtnGoalResolver.cpp:~480`)
+### Arithmetic (`HtnTerm.cpp:86-206`)
 ```prolog
 is(?Result, Expression)   % Evaluate: is(?x, +(3, 4)) -> ?x = 7
 <(?X, ?Y)                 % Less than
@@ -52,7 +52,7 @@ is(?Result, Expression)   % Evaluate: is(?x, +(3, 4)) -> ?x = 7
 ```prolog
 !                         % Cut - commits to current choices
 not(Goal)                 % Negation as failure
-first(Goal)               % Returns first solution only (HtnGoalResolver.cpp:497)
+first(Goal)               % Returns first solution only (HtnGoalResolver.cpp:1843)
 forall(Generator, Test)   % Universal quantification
 ```
 
