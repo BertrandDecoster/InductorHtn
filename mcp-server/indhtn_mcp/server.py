@@ -233,6 +233,24 @@ class IndHTNMCPServer:
                         },
                         "required": ["sessionId", "goal"]
                     }
+                ),
+                Tool(
+                    name="indhtn_step",
+                    description="Execute a single operator and return the new state. Use for step-by-step plan execution to see intermediate states.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "sessionId": {
+                                "type": "string",
+                                "description": "Session ID from indhtn_start_session"
+                            },
+                            "operator": {
+                                "type": "string",
+                                "description": "Single operator to execute (e.g., 'walk(downtown, park)')"
+                            }
+                        },
+                        "required": ["sessionId", "operator"]
+                    }
                 )
             ]
         
@@ -260,6 +278,8 @@ class IndHTNMCPServer:
                     return await self._introspect(arguments)
                 elif name == "indhtn_state_diff":
                     return await self._state_diff(arguments)
+                elif name == "indhtn_step":
+                    return await self._step(arguments)
                 else:
                     raise ValueError(f"Unknown tool: {name}")
             except Exception as e:
@@ -561,6 +581,23 @@ class IndHTNMCPServer:
             raise ValueError("goal is required")
 
         result = await self.session_manager.get_state_diff(session_id, goal)
+
+        return [TextContent(
+            type="text",
+            text=json.dumps(result, indent=2)
+        )]
+
+    async def _step(self, args: dict) -> List[TextContent]:
+        """Execute a single operator step."""
+        session_id = args.get("sessionId")
+        operator = args.get("operator", "")
+
+        if not session_id:
+            raise ValueError("sessionId is required")
+        if not operator:
+            raise ValueError("operator is required")
+
+        result = await self.session_manager.step_operator(session_id, operator)
 
         return [TextContent(
             type="text",

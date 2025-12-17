@@ -244,6 +244,33 @@ class SessionManager:
             "note": "Use indhtn_apply_plan to actually apply changes and see final state"
         }
 
+    async def step_operator(self, session_id: str, operator: str, timeout: float = 10.0) -> Dict:
+        """
+        Execute a single operator using apply() and return new state.
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        # Use apply() to execute the single operator
+        apply_query = f"apply({operator})."
+        result = await self.execute_query(session_id, apply_query, timeout)
+
+        if not result.get("success"):
+            return {
+                "success": False,
+                "operator": operator,
+                "error": result.get("output", "Operator execution failed"),
+                "error_type": result.get("error_type", "unknown")
+            }
+
+        return {
+            "success": True,
+            "operator": operator,
+            "result": result.get("output", ""),
+            "message": "Operator applied. Query facts to see new state."
+        }
+
     def _classify_error(self, error_text: str) -> str:
         """Classify error types for better handling"""
         if "Expected query" in error_text:
