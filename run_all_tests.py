@@ -131,47 +131,6 @@ def run_python_htn_tests() -> tuple[bool, int, int]:
     return success, passed, total
 
 
-def run_mcp_tests() -> tuple[bool, int, int]:
-    """Run MCP server tests (session management - no mcp module required)."""
-    print_header("MCP Server Tests (Legacy)")
-
-    test_script = Path("mcp-server/test_session_only.py")
-    if not test_script.exists():
-        print(f"{YELLOW}Skipping: MCP test script not found{RESET}")
-        return True, 0, 0
-
-    start = time.time()
-    env = os.environ.copy()
-    env['PYTHONIOENCODING'] = 'utf-8'
-
-    result = subprocess.run(
-        [sys.executable, "test_session_only.py"],
-        capture_output=True,
-        text=True,
-        cwd="mcp-server",
-        env=env
-    )
-    elapsed = time.time() - start
-
-    print(result.stdout)
-    if result.stderr:
-        print(result.stderr)
-
-    # Count [PASS] and [FAIL] in output
-    passed = result.stdout.count("[PASS]")
-    failed = result.stdout.count("[FAIL]")
-    total = passed + failed if (passed + failed) > 0 else 1
-
-    success = result.returncode == 0 and failed == 0
-    if total == 0:
-        # Fallback if no [PASS]/[FAIL] markers found
-        passed = 1 if success else 0
-        total = 1
-
-    print(f"\nTime: {elapsed:.2f}s")
-    return success, passed, total
-
-
 def run_pytest_tests(test_dir: str, name: str) -> tuple[bool, int, int]:
     """Run pytest tests in a directory."""
     print_header(f"{name} (pytest)")
@@ -268,22 +227,13 @@ def main():
         total_tests += total
         all_success = all_success and success
 
-    # MCP Tests (legacy)
-    if not args.skip_mcp:
-        success, passed, total = run_mcp_tests()
-        if total > 0:  # Only count if tests actually ran
-            results.append(("MCP Server Tests (Legacy)", success, passed, total))
-            total_passed += passed
-            total_tests += total
-            all_success = all_success and success
-
-    # MCP pytest Tests
+    # MCP Tests
     if not args.skip_mcp:
         mcp_test_dir = Path("mcp-server/tests")
         if mcp_test_dir.exists():
             success, passed, total = run_pytest_tests("mcp-server/tests", "MCP Server Tests")
             if total > 0:
-                results.append(("MCP Server Tests (pytest)", success, passed, total))
+                results.append(("MCP Server Tests", success, passed, total))
                 total_passed += passed
                 total_tests += total
                 all_success = all_success and success
