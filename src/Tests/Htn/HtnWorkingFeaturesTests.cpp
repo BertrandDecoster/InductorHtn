@@ -414,24 +414,10 @@ SUITE(HtnWorkingFeaturesTests)
         CHECK(finalPlan.find("finish(task)") != string::npos);
     }
 
-    // ========== Known Limitations Documentation Tests ==========
-    TEST(DISABLED_HTNMethods_DocumentedAsNotWorking)
-    {
-        /* This test documents that HTN methods cause crashes
-         * 
-         * BUG REPORT: HTN Method Execution Failure
-         * Severity: Critical
-         * Description: Any use of if/do method syntax causes execution crashes
-         * Status: Core HTN functionality appears broken
-         * 
-         * Example that would crash:
-         * "method() :- if(condition), do(action)."
-         * "action :- del(), add(done)."
-         * "condition."
-         * "goals(method())."
-         */
-    }
-    
+    // ========== Feature Status Documentation ==========
+    // NOTE: HTN methods with if/do syntax ARE working. See HtnAdvancedFeaturesTests.cpp
+    // and HtnPlannerTests.cpp for comprehensive tests of method decomposition.
+
     TEST(Documentation_WhatActuallyWorks)
     {
         shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
@@ -468,29 +454,24 @@ SUITE(HtnWorkingFeaturesTests)
         CHECK(finalPlan.find("secondOp") != string::npos);
     }
     
-    /* 
+    /*
      * SUMMARY OF WORKING FEATURES:
-     * 
-     * ✅ WORKING:
+     *
+     * All core HTN features are implemented and working:
      * - Direct HTN operators (name :- del(), add())
-     * - Variable unification in operators
+     * - HTN methods (if/do syntax) - see HtnAdvancedFeaturesTests.cpp
+     * - Method decomposition - see HtnPlannerTests.cpp
+     * - Variable unification in operators and methods
      * - Multiple operators in sequence
      * - Basic Prolog facts and rules
      * - HTN syntax compilation (parsing)
-     * - Empty goals execution
+     * - anyOf, allOf, first(), try(), else - see HtnAdvancedFeaturesTests.cpp
      * - Error handling for missing operators
      * - Memory management and term creation
-     * 
-     * ❌ NOT WORKING:
-     * - HTN methods (if/do syntax)
-     * - Method decomposition
-     * - All advanced HTN features (anyOf, allOf, first, try, else)
-     * - Hierarchical task planning
-     * - Complex goal structures
-     * 
-     * 📝 RECOMMENDATION:
-     * Focus testing on direct operator patterns and Prolog functionality.
-     * Treat this as primarily a Prolog engine with HTN syntax parsing,
-     * rather than a full HTN planner implementation.
+     *
+     * See the following test files for comprehensive coverage:
+     * - HtnPlannerTests.cpp: Core planner functionality
+     * - HtnAdvancedFeaturesTests.cpp: anyOf, allOf, first, try, else, hidden
+     * - HtnGoalResolverTests.cpp: Prolog resolution
      */
 }

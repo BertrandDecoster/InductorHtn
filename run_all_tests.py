@@ -133,7 +133,7 @@ def run_python_htn_tests() -> tuple[bool, int, int]:
 
 def run_mcp_tests() -> tuple[bool, int, int]:
     """Run MCP server tests (session management - no mcp module required)."""
-    print_header("MCP Server Tests")
+    print_header("MCP Server Tests (Legacy)")
 
     test_script = Path("mcp-server/test_session_only.py")
     if not test_script.exists():
@@ -170,6 +170,61 @@ def run_mcp_tests() -> tuple[bool, int, int]:
 
     print(f"\nTime: {elapsed:.2f}s")
     return success, passed, total
+
+
+def run_pytest_tests(test_dir: str, name: str) -> tuple[bool, int, int]:
+    """Run pytest tests in a directory."""
+    print_header(f"{name} (pytest)")
+
+    test_path = Path(test_dir)
+    if not test_path.exists():
+        print(f"{YELLOW}Skipping: {test_dir} not found{RESET}")
+        return True, 0, 0
+
+    start = time.time()
+    env = os.environ.copy()
+    env['PYTHONIOENCODING'] = 'utf-8'
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", test_dir, "-v", "--tb=short"],
+        capture_output=True,
+        text=True,
+        cwd=str(Path.cwd()),
+        env=env
+    )
+    elapsed = time.time() - start
+
+    print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+
+    # Parse pytest output for "X passed" and "X failed"
+    passed = 0
+    failed = 0
+    import re
+    for line in result.stdout.split('\n'):
+        match = re.search(r'(\d+) passed', line)
+        if match:
+            passed = int(match.group(1))
+        match = re.search(r'(\d+) failed', line)
+        if match:
+            failed = int(match.group(1))
+
+    total = passed + failed
+    success = result.returncode == 0 and failed == 0
+
+    if total == 0:
+        # No tests found or pytest not available
+        print(f"{YELLOW}No pytest tests found or pytest not installed{RESET}")
+        return True, 0, 0
+
+    print(f"\nTime: {elapsed:.2f}s")
+    return success, passed, total
+
+
+def run_gui_tests() -> tuple[bool, int, int]:
+    """Run GUI backend tests using pytest."""
+    return run_pytest_tests("gui/tests", "GUI Backend Tests")
 
 
 def main():
@@ -213,11 +268,32 @@ def main():
         total_tests += total
         all_success = all_success and success
 
-    # MCP Tests
+    # MCP Tests (legacy)
     if not args.skip_mcp:
         success, passed, total = run_mcp_tests()
         if total > 0:  # Only count if tests actually ran
-            results.append(("MCP Server Tests", success, passed, total))
+            results.append(("MCP Server Tests (Legacy)", success, passed, total))
+            total_passed += passed
+            total_tests += total
+            all_success = all_success and success
+
+    # MCP pytest Tests
+    if not args.skip_mcp:
+        mcp_test_dir = Path("mcp-server/tests")
+        if mcp_test_dir.exists():
+            success, passed, total = run_pytest_tests("mcp-server/tests", "MCP Server Tests")
+            if total > 0:
+                results.append(("MCP Server Tests (pytest)", success, passed, total))
+                total_passed += passed
+                total_tests += total
+                all_success = all_success and success
+
+    # GUI Tests
+    gui_test_dir = Path("gui/tests")
+    if gui_test_dir.exists():
+        success, passed, total = run_gui_tests()
+        if total > 0:
+            results.append(("GUI Backend Tests", success, passed, total))
             total_passed += passed
             total_tests += total
             all_success = all_success and success

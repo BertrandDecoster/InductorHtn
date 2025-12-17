@@ -474,54 +474,7 @@ SUITE(HtnBasicFeaturesTests)
         CHECK_EQUAL("null", result);
     }
 
-    // ========== Document Features Working as Expected ==========
-    
-    /* BUG REPORT #8-15: Advanced HTN Features Not Implemented
-     * Tests: anyOf, allOf, first(), try(), else keyword
-     * Date Found: 2024-12-19
-     * Severity: High
-     * 
-     * Description:
-     *   Advanced HTN features cause "Crash!" exceptions when used
-     *   These features may not be fully implemented yet
-     * 
-     * Features affected:
-     *   - anyOf methods (OR semantics)
-     *   - allOf methods (AND semantics) 
-     *   - first() operator (return first solution only)
-     *   - try() blocks (error recovery)
-     *   - else keyword (method priorities)
-     * 
-     * Status: Features not implemented or incomplete
-     * 
-     * Workaround: Use basic HTN method patterns with standard if/do syntax
-     */
-    
-    // These tests are disabled until advanced features are implemented:
-    /*
-    TEST(DISABLED_AnyOf_FeatureNotImplemented)
-    {
-        // This would crash with current implementation
-    }
-    
-    TEST(DISABLED_AllOf_FeatureNotImplemented) 
-    {
-        // This would crash with current implementation
-    }
-    
-    TEST(DISABLED_First_FeatureNotImplemented)
-    {
-        // This would crash with current implementation  
-    }
-    
-    TEST(DISABLED_Try_FeatureNotImplemented)
-    {
-        // This would crash with current implementation
-    }
-    
-    TEST(DISABLED_Else_FeatureNotImplemented)
-    {
-        // This would crash with current implementation
-    }
-    */
+    // ========== Advanced Features ==========
+    // NOTE: Advanced HTN features (anyOf, allOf, first(), try(), else) ARE implemented
+    // and working. See HtnAdvancedFeaturesTests.cpp for comprehensive tests of these features.
 }
