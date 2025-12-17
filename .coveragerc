@@ -1,0 +1,29 @@
+# Coverage.py configuration for InductorHTN
+# Run with: pytest --cov
+# Generate HTML report: pytest --cov --cov-report=html
+
+[run]
+source =
+    src/Python
+    gui/backend
+    mcp-server/indhtn_mcp
+omit =
+    */tests/*
+    */__pycache__/*
+    */conftest.py
+    */.venv/*
+
+[report]
+# Minimum coverage threshold (uncomment to enforce)
+# fail_under = 70
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+show_missing = true
+precision = 2
+
+[html]
+directory = coverage_html

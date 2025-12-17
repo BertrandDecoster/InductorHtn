@@ -49,7 +49,18 @@
       "Bash(git commit:*)",
       "WebFetch(domain:www.metalevel.at)",
       "Bash(objdump:*)",
-      "Bash(source .venv/Scripts/activate)"
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(pytest.ini )",
+      "Bash(run_all_tests.py )",
+      "Bash(gui/backend/requirements.txt )",
+      "Bash(gui/tests/ )",
+      "Bash(mcp-server/requirements.txt )",
+      "Bash(mcp-server/tests/ )",
+      "Bash(src/Python/tests/conftest.py )",
+      "Bash(src/Tests/Htn/HtnBasicFeaturesTests.cpp )",
+      "Bash(src/Tests/Htn/HtnWorkingFeaturesTests.cpp)"
     ],
     "deny": [],
     "ask": []
