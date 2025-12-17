@@ -11,16 +11,32 @@ Usage:
 """
 
 import argparse
+import io
 import json
 import os
 import sys
+import unittest
 import importlib.util
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))
 
 from htn_test_framework import HtnTestSuite
+
+
+class TestResult:
+    """Unified test result for all frameworks."""
+
+    def __init__(self, name: str, passed: int, failed: int, output: str = ""):
+        self.name = name
+        self.passed = passed
+        self.failed = failed
+        self.output = output
+
+    @property
+    def total(self) -> int:
+        return self.passed + self.failed
 
 
 def discover_test_files(tests_dir: str) -> List[str]:
@@ -46,33 +62,118 @@ def load_test_module(tests_dir: str, module_name: str):
     return module
 
 
-def run_test_module(module, verbose: bool = False) -> HtnTestSuite:
-    """Run tests from a module, looking for run_tests() or test_* functions."""
-    # First, look for a run_tests() function
+def run_unittest_module(module, verbose: bool = False) -> Optional[TestResult]:
+    """Run unittest.TestCase classes in a module."""
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromModule(module)
+
+    if suite.countTestCases() == 0:
+        return None
+
+    stream = io.StringIO()
+    verbosity = 2 if verbose else 1
+    runner = unittest.TextTestRunner(stream=stream, verbosity=verbosity)
+    result = runner.run(suite)
+
+    passed = result.testsRun - len(result.failures) - len(result.errors)
+    failed = len(result.failures) + len(result.errors)
+
+    # Format output
+    output = f"Test Suite: {module.__name__}\n"
+    output += "=" * 50 + "\n"
+    if verbose:
+        output += stream.getvalue()
+    for test, _ in result.failures:
+        output += f"[FAIL] {test}\n"
+    for test, _ in result.errors:
+        output += f"[ERROR] {test}\n"
+    if passed > 0 and not verbose:
+        output += f"[PASS] {passed} tests passed\n"
+    output += "=" * 50 + "\n"
+    output += f"Total: {passed}/{result.testsRun} passed\n"
+
+    return TestResult(
+        name=module.__name__,
+        passed=passed,
+        failed=failed,
+        output=output
+    )
+
+
+def run_custom_suite_module(module, verbose: bool = False) -> Optional[TestResult]:
+    """Run modules with custom test suite classes (LinterTestSuite, AnalyzerTestSuite)."""
+    # Check for known custom suite classes
+    suite_classes = ['LinterTestSuite', 'AnalyzerTestSuite']
+
+    for class_name in suite_classes:
+        if hasattr(module, class_name):
+            suite_class = getattr(module, class_name)
+            suite = suite_class(verbose=verbose)
+
+            # Run the test functions that populate the suite
+            # Look for run_*_tests functions
+            for name in dir(module):
+                if name.startswith('run_') and name.endswith('_tests') and callable(getattr(module, name)):
+                    func = getattr(module, name)
+                    try:
+                        func(suite)
+                    except TypeError:
+                        pass
+
+            # Also try run_good_file_tests pattern
+            if hasattr(module, 'run_good_file_tests'):
+                try:
+                    module.run_good_file_tests(suite)
+                except TypeError:
+                    pass
+
+            output = suite.summary() if hasattr(suite, 'summary') else ""
+
+            return TestResult(
+                name=module.__name__,
+                passed=suite.passed,
+                failed=suite.failed,
+                output=output
+            )
+
+    return None
+
+
+def run_test_module(module, verbose: bool = False) -> Optional[TestResult]:
+    """Run tests from a module, trying multiple test frameworks."""
+    # 1. Try HtnTestSuite (run_tests() or get_suite())
     if hasattr(module, 'run_tests'):
-        return module.run_tests(verbose=verbose)
+        result = module.run_tests(verbose=verbose)
+        if isinstance(result, HtnTestSuite):
+            return TestResult(
+                name=module.__name__,
+                passed=result.tests_passed,
+                failed=result.tests_run - result.tests_passed,
+                output=result.summary()
+            )
 
-    # Otherwise, look for get_suite() function
     if hasattr(module, 'get_suite'):
-        return module.get_suite(verbose=verbose)
+        result = module.get_suite(verbose=verbose)
+        if isinstance(result, HtnTestSuite):
+            return TestResult(
+                name=module.__name__,
+                passed=result.tests_passed,
+                failed=result.tests_run - result.tests_passed,
+                output=result.summary()
+            )
 
-    # Fallback: look for any test_* functions
-    suite = HtnTestSuite(verbose=verbose)
-    for name in dir(module):
-        if name.startswith('test_') and callable(getattr(module, name)):
-            func = getattr(module, name)
-            try:
-                result = func(verbose=verbose)
-                if isinstance(result, HtnTestSuite):
-                    # Merge results
-                    suite.results.extend(result.results)
-            except TypeError:
-                # Try without verbose argument
-                result = func()
-                if isinstance(result, HtnTestSuite):
-                    suite.results.extend(result.results)
+    # 2. Try unittest.TestCase classes
+    unittest_result = run_unittest_module(module, verbose)
+    if unittest_result:
+        return unittest_result
 
-    return suite
+    # 3. Try custom suite classes (LinterTestSuite, AnalyzerTestSuite)
+    custom_result = run_custom_suite_module(module, verbose)
+    if custom_result:
+        return custom_result
+
+    # 4. No compatible tests found
+    return None
 
 
 def main():
@@ -149,17 +250,24 @@ def main():
     for test_module_name in test_files:
         try:
             module = load_test_module(tests_dir, test_module_name)
-            suite = run_test_module(module, verbose=args.verbose)
+            result = run_test_module(module, verbose=args.verbose)
 
-            total_passed += suite.tests_passed
-            total_run += suite.tests_run
+            # Skip modules with no compatible tests
+            if result is None:
+                continue
+
+            total_passed += result.passed
+            total_run += result.total
 
             if args.json:
-                result = suite.to_json()
-                result["test_module"] = test_module_name
-                all_results.append(result)
+                all_results.append({
+                    "test_module": test_module_name,
+                    "tests_run": result.total,
+                    "tests_passed": result.passed,
+                    "tests_failed": result.failed
+                })
             else:
-                print(suite.summary())
+                print(result.output)
                 print()
 
         except Exception as e:

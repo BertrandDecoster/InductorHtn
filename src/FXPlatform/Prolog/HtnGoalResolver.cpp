@@ -331,6 +331,9 @@ ResolveState::ResolveState(HtnTermFactory *termFactoryArg, HtnRuleSet *progArg, 
     termFactory(termFactoryArg),
     termMemoryUsed(0),
     uniquifier(0)
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+    , resolutionStepCount(0)
+#endif
 {
     // Replace the variable names used in the initial goals with guaranteed unique ones since we do a unification with rules *before*
     // renaming them and this avoids improper matching
@@ -721,7 +724,7 @@ bool HtnGoalResolver::IsGround(UnifierType *unifier)
 // returns null if no solution
 // returns a single empty UnifierType for "true" solution
 // otherwise returns an array of UnifierTypes for all the solutions
-shared_ptr<vector<UnifierType>> HtnGoalResolver::ResolveAll(HtnTermFactory *termFactory, HtnRuleSet *prog, const vector<shared_ptr<HtnTerm>> &initialGoals, int initialIndent, int memoryBudget, int64_t *highestMemoryUsedReturn, int *furthestFailureIndex, std::vector<std::shared_ptr<HtnTerm>> *farthestFailureContext)
+shared_ptr<vector<UnifierType>> HtnGoalResolver::ResolveAll(HtnTermFactory *termFactory, HtnRuleSet *prog, const vector<shared_ptr<HtnTerm>> &initialGoals, int initialIndent, int memoryBudget, int64_t *highestMemoryUsedReturn, int *furthestFailureIndex, std::vector<std::shared_ptr<HtnTerm>> *farthestFailureContext, int64_t *resolutionStepCountReturn)
 {
     Trace3("ALL BEGIN  ", "goals:{0}, termStringsMemorySize:{1}, termOtherMemorySize:{2}", initialIndent, false, HtnTerm::ToString(initialGoals), termFactory->stringSize(), termFactory->otherAllocationSize());
 
@@ -754,6 +757,13 @@ shared_ptr<vector<UnifierType>> HtnGoalResolver::ResolveAll(HtnTermFactory *term
     {
         *highestMemoryUsedReturn = state->highestMemoryUsed;
     }
+
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+    if(resolutionStepCountReturn != nullptr)
+    {
+        *resolutionStepCountReturn = state->resolutionStepCount;
+    }
+#endif
 
     if(solutions->size() == 0)
     {
@@ -823,6 +833,9 @@ shared_ptr<UnifierType> HtnGoalResolver::ResolveNext(ResolveState *state)
     
     while(resolveStack->size() > 0)
     {
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+        state->resolutionStepCount++;
+#endif
         // Always make progress on the deepest branch first, which is at the top of the stack
         int indentLevel = (int) (initialIndent + resolveStack->size());
         shared_ptr<ResolveNode> currentNode = resolveStack->back();

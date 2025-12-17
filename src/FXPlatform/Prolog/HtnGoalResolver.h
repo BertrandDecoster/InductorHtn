@@ -65,7 +65,7 @@ public:
     static bool IsGround(UnifierType *unifier);
     bool GetCustomRule(const std::string &name, int arity, HtnGoalResolver::CustomRuleType &metadata);
     // Always check factory->outOfMemory() after calling to see if we ran out of memory during processing and the resolutions might not be complete
-    std::shared_ptr<std::vector<UnifierType>> ResolveAll(HtnTermFactory *termFactory, HtnRuleSet *prog, const std::vector<std::shared_ptr<HtnTerm>> &initialGoals, int initialIndent = 0, int memoryBudget = 1000000, int64_t *highestMemoryUsedReturn = nullptr, int *furthestFailureIndex = nullptr, std::vector<std::shared_ptr<HtnTerm>> *farthestFailureContext = nullptr);
+    std::shared_ptr<std::vector<UnifierType>> ResolveAll(HtnTermFactory *termFactory, HtnRuleSet *prog, const std::vector<std::shared_ptr<HtnTerm>> &initialGoals, int initialIndent = 0, int memoryBudget = 1000000, int64_t *highestMemoryUsedReturn = nullptr, int *furthestFailureIndex = nullptr, std::vector<std::shared_ptr<HtnTerm>> *farthestFailureContext = nullptr, int64_t *resolutionStepCountReturn = nullptr);
     // Always check factory->outOfMemory() after calling to see if we ran out of memory during processing and the resolutions might not be complete
     std::shared_ptr<UnifierType> ResolveNext(ResolveState *state);
     static std::shared_ptr<HtnTerm> SubstituteUnifiers(HtnTermFactory *factory, const UnifierType &source, std::shared_ptr<HtnTerm> target);
@@ -314,7 +314,10 @@ public:
     HtnTermFactory *termFactory;
     int64_t termMemoryUsed;
     int uniquifier;
-    
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+    int64_t resolutionStepCount;
+#endif
+
 
 };
 #endif /* HtnGoalResolver_hpp */

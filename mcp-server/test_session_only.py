@@ -24,13 +24,18 @@ async def test_session():
     """Test basic session functionality"""
     print("Testing InductorHTN Session Management...")
     
-    # Find indhtn executable
-    indhtn_path = "../build/Release/indhtn"
+    # Find indhtn executable (platform-aware)
+    import platform
+    exe_suffix = ".exe" if platform.system() == "Windows" else ""
+
+    indhtn_path = f"../build/Release/indhtn{exe_suffix}"
     if not Path(indhtn_path).exists():
-        indhtn_path = "../build/Debug/indhtn"
-    
+        indhtn_path = f"../build/Debug/indhtn{exe_suffix}"
+
     if not Path(indhtn_path).exists():
         print(f"Error: Could not find indhtn executable")
+        print(f"  Tried: ../build/Release/indhtn{exe_suffix}")
+        print(f"  Tried: ../build/Debug/indhtn{exe_suffix}")
         return False
     
     print(f"Using indhtn at: {indhtn_path}")
@@ -43,10 +48,10 @@ async def test_session():
         session_id, output = await session_manager.create_session(
             ["../Examples/Taxi.htn"]
         )
-        print(f"✓ Session created: {session_id}")
+        print(f"[PASS] Session created: {session_id}")
         print(f"  Compilation output: {output[:200]}...")
     except Exception as e:
-        print(f"✗ Failed to create session: {e}")
+        print(f"[FAIL] Failed to create session: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -55,11 +60,11 @@ async def test_session():
     print("\n2. Testing query execution...")
     try:
         result = await session_manager.execute_query(session_id, "at(?where).")
-        print(f"✓ Query executed successfully")
+        print(f"[PASS] Query executed successfully")
         print(f"  Success: {result['success']}")
         print(f"  Output: {result['output']}")
     except Exception as e:
-        print(f"✗ Failed to execute query: {e}")
+        print(f"[FAIL] Failed to execute query: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -68,11 +73,11 @@ async def test_session():
     print("\n3. Testing HTN planning...")
     try:
         result = await session_manager.execute_query(session_id, "goals(travel-to(suburb)).")
-        print(f"✓ Planning query executed")
+        print(f"[PASS] Planning query executed")
         print(f"  Success: {result['success']}")
         print(f"  Output: {result['output'][:500]}...")
     except Exception as e:
-        print(f"✗ Failed to find plans: {e}")
+        print(f"[FAIL] Failed to find plans: {e}")
         return False
     
     # Test 4: Multiple queries
@@ -86,37 +91,37 @@ async def test_session():
     for query in queries:
         try:
             result = await session_manager.execute_query(session_id, query)
-            print(f"✓ Query '{query}' - Success: {result['success']}")
+            print(f"[PASS] Query '{query}' - Success: {result['success']}")
             if result['success']:
                 print(f"    Output: {result['output'][:100]}...")
         except Exception as e:
-            print(f"✗ Query '{query}' failed: {e}")
+            print(f"[FAIL] Query '{query}' failed: {e}")
     
     # Test 5: REPL commands
     print("\n5. Testing REPL commands...")
     try:
         # Test help
         result = await session_manager.execute_query(session_id, "/?")
-        print(f"✓ Help command executed")
+        print(f"[PASS] Help command executed")
         print(f"  Output preview: {result['output'][:200]}...")
         
         # Test trace toggle
         result = await session_manager.execute_query(session_id, "/t")
-        print(f"✓ Trace toggle executed")
+        print(f"[PASS] Trace toggle executed")
     except Exception as e:
-        print(f"✗ Failed to execute REPL command: {e}")
+        print(f"[FAIL] Failed to execute REPL command: {e}")
         return False
     
     # Test 6: Clean up
     print("\n6. Testing session cleanup...")
     try:
         await session_manager.end_session(session_id)
-        print(f"✓ Session ended successfully")
+        print(f"[PASS] Session ended successfully")
     except Exception as e:
-        print(f"✗ Failed to end session: {e}")
+        print(f"[FAIL] Failed to end session: {e}")
         return False
     
-    print("\n✅ All tests passed!")
+    print("\n[SUCCESS] All tests passed!")
     return True
 
 

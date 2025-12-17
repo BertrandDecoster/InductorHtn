@@ -42,7 +42,14 @@
       "Bash(cp:*)",
       "Bash(.venv/Scripts/python.exe:*)",
       "Bash(powershell -Command \"echo $env:Path | Select-String ''Python''\")",
-      "Bash(./build/Release/runtests.exe:*)"
+      "Bash(./build/Release/runtests.exe:*)",
+      "Bash(git mv:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:www.metalevel.at)",
+      "Bash(objdump:*)",
+      "Bash(source .venv/Scripts/activate)"
     ],
     "deny": [],
     "ask": []

@@ -71,9 +71,12 @@ class IndHTNSession:
     
     async def _wait_for_prompt(self, timeout: float = 3.0):
         """Wait for the REPL to be ready for input"""
+        # Check if prompt is already in buffer (common on startup)
+        if '?-' in self.output_buffer:
+            return self._extract_output()
+
         self.ready_event.clear()
-        # Don't clear the buffer here - it might already contain output
-        
+
         try:
             await asyncio.wait_for(self.ready_event.wait(), timeout)
         except asyncio.TimeoutError:

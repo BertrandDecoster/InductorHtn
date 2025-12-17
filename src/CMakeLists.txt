@@ -4,6 +4,13 @@ project(IndHtn CXX)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Option to enable resolution step counting for performance analysis
+option(INDHTN_TRACK_RESOLUTION_STEPS "Enable resolution step counting for performance analysis" ON)
+if(INDHTN_TRACK_RESOLUTION_STEPS)
+    add_compile_definitions(INDHTN_TRACK_RESOLUTION_STEPS)
+    message(STATUS "Resolution step tracking enabled")
+endif()
+
 add_executable(runtests TestsMain.cpp)
 # this allows us to use our executable as a link library
 # therefore we can inherit all compiler options and library dependencies

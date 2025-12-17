@@ -279,6 +279,9 @@ class HtnPlanner(object):
             ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
         ]
         self.indhtnLib.HtnGetSolutionFacts.restype = ctypes.POINTER(ctypes.c_char)
+        # Resolution step counter (enabled by default, disable with -DINDHTN_TRACK_RESOLUTION_STEPS=OFF)
+        self.indhtnLib.GetLastResolutionStepCount.argtypes = [ctypes.c_void_p]
+        self.indhtnLib.GetLastResolutionStepCount.restype = ctypes.c_int64
 
         # Now create an instance of the object
         self.obj = self.indhtnLib.CreateHtnPlanner(debug)
@@ -571,6 +574,12 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
+
+    # Returns the number of resolution steps from the last Prolog query
+    # Returns -1 if resolution step tracking was disabled at compile time
+    # (enabled by default, disable with -DINDHTN_TRACK_RESOLUTION_STEPS=OFF)
+    def GetLastResolutionStepCount(self):
+        return self.indhtnLib.GetLastResolutionStepCount(self.obj)
 
     # Returns error, factsJson
     # error = None if successful, or a string error message

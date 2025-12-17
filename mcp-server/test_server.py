@@ -16,13 +16,18 @@ async def test_session():
     """Test basic session functionality"""
     print("Testing InductorHTN MCP Server components...")
     
-    # Find indhtn executable
-    indhtn_path = "../build/Release/indhtn"
+    # Find indhtn executable (platform-aware)
+    import platform
+    exe_suffix = ".exe" if platform.system() == "Windows" else ""
+
+    indhtn_path = f"../build/Release/indhtn{exe_suffix}"
     if not Path(indhtn_path).exists():
-        indhtn_path = "../build/Debug/indhtn"
-    
+        indhtn_path = f"../build/Debug/indhtn{exe_suffix}"
+
     if not Path(indhtn_path).exists():
         print(f"Error: Could not find indhtn executable")
+        print(f"  Tried: ../build/Release/indhtn{exe_suffix}")
+        print(f"  Tried: ../build/Debug/indhtn{exe_suffix}")
         return False
     
     print(f"Using indhtn at: {indhtn_path}")
@@ -92,10 +97,12 @@ async def test_error_handling():
     """Test error handling scenarios"""
     print("\n\nTesting error handling...")
     
-    indhtn_path = "../build/Release/indhtn"
+    import platform
+    exe_suffix = ".exe" if platform.system() == "Windows" else ""
+    indhtn_path = f"../build/Release/indhtn{exe_suffix}"
     if not Path(indhtn_path).exists():
-        indhtn_path = "../build/Debug/indhtn"
-    
+        indhtn_path = f"../build/Debug/indhtn{exe_suffix}"
+
     session_manager = SessionManager(indhtn_path)
     
     # Test invalid session ID

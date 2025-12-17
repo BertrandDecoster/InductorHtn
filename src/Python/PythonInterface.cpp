@@ -58,6 +58,9 @@ public:
         }
         
         m_budgetBytes = defaultMemoryBudget;
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+        m_lastResolutionStepCount = 0;
+#endif
 
         // InductorHtn uses the same factory model (and classes) as InductorProlog
         // for creating terms so it can "intern" them to save memory.  
@@ -110,6 +113,9 @@ public:
     shared_ptr<HtnStandardCompiler> m_htnCompiler;
     shared_ptr<HtnCompiler> m_htnCompilerCustomVariables;
     shared_ptr<HtnPlanner> m_planner;
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+    int64_t m_lastResolutionStepCount;
+#endif
 };
 
 #if defined(_MSC_VER)
@@ -756,6 +762,19 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
             int64_t highestMemoryUsedReturn;
             int furthestFailureIndex;
             std::vector<std::shared_ptr<HtnTerm>> farthestFailureContext;
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+            int64_t resolutionStepCount = 0;
+            shared_ptr<vector<UnifierType>> queryResult = ptr->m_resolver->ResolveAll(ptr->m_factory.get(),
+                                                                                        ptr->m_state.get(),
+                                                                                        compileQueryResult,
+                                                                                        0,
+                                                                                        (int) ptr->m_budgetBytes,
+                                                                                        &highestMemoryUsedReturn,
+                                                                                        &furthestFailureIndex,
+                                                                                        &farthestFailureContext,
+                                                                                        &resolutionStepCount);
+            ptr->m_lastResolutionStepCount = resolutionStepCount;
+#else
             shared_ptr<vector<UnifierType>> queryResult = ptr->m_resolver->ResolveAll(ptr->m_factory.get(),
                                                                                         ptr->m_state.get(),
                                                                                         compileQueryResult,
@@ -764,6 +783,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                                                                                         &highestMemoryUsedReturn,
                                                                                         &furthestFailureIndex,
                                                                                         &farthestFailureContext);
+#endif
             if(ptr->m_factory->outOfMemory())
             {
                 string outOfMemoryString =  "out of memory: Budget:" + lexical_cast<string>(ptr->m_budgetBytes) +
@@ -810,11 +830,22 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
             int64_t highestMemoryUsedReturn;
             int furthestFailureIndex;
             std::vector<std::shared_ptr<HtnTerm>> farthestFailureContext;
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+            int64_t resolutionStepCount = 0;
+            shared_ptr<vector<UnifierType>> queryResult = ptr->m_prologCompiler->SolveGoals(ptr->m_resolver.get(),
+                                                                                        (int) ptr->m_budgetBytes,
+                                                                                        &highestMemoryUsedReturn,
+                                                                                        &furthestFailureIndex,
+                                                                                        &farthestFailureContext,
+                                                                                        &resolutionStepCount);
+            ptr->m_lastResolutionStepCount = resolutionStepCount;
+#else
             shared_ptr<vector<UnifierType>> queryResult = ptr->m_prologCompiler->SolveGoals(ptr->m_resolver.get(),
                                                                                         (int) ptr->m_budgetBytes,
                                                                                         &highestMemoryUsedReturn,
                                                                                         &furthestFailureIndex,
                                                                                         &farthestFailureContext);
+#endif
 
             if(ptr->m_factory->outOfMemory())
             {
@@ -848,4 +879,18 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
             return GetCharPtrFromString(error.what());
         }
     }
+
+#ifdef INDHTN_TRACK_RESOLUTION_STEPS
+    // Returns the resolution step count from the last Prolog query
+    // Returns -1 if resolution tracking is not enabled at compile time
+    __declspec(dllexport) int64_t __stdcall GetLastResolutionStepCount(HtnPlannerPythonWrapper* ptr)
+    {
+        return ptr->m_lastResolutionStepCount;
+    }
+#else
+    __declspec(dllexport) int64_t __stdcall GetLastResolutionStepCount(HtnPlannerPythonWrapper* ptr)
+    {
+        return -1;  // Resolution tracking not enabled
+    }
+#endif
 } //End C linkage scope.
