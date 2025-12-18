@@ -129,6 +129,16 @@ class HtnService:
             # Parse the JSON result
             results = json.loads(result_json)
 
+            # Check for failure format (same as HTN queries)
+            if self._is_failure_result(results):
+                return {
+                    'solutions': [],
+                    'variables': [],
+                    'total_count': 0,
+                    'tree': self._create_placeholder_tree(query, []),
+                    'query': query
+                }
+
             # Format into table structure
             formatted = self._format_prolog_results(results)
 
