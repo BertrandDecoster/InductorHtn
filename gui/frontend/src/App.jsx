@@ -5,6 +5,7 @@ import EditorPanel from './components/EditorPanel'
 import TreePanel from './components/TreePanel'
 import QueryPanel from './components/QueryPanel'
 import './App.css'
+import { getLastFile, setLastFile } from './utils/storage'
 
 const API_BASE = 'http://localhost:5000'
 
@@ -28,13 +29,14 @@ function App() {
         const newSessionId = response.data.session_id
         setSessionId(newSessionId)
 
-        // Auto-load Game.htn
+        // Auto-load last file or default to Game.htn
+        const fileToLoad = getLastFile() || 'Examples/Game.htn'
         try {
           await axios.post(`${API_BASE}/api/file/load`, {
             session_id: newSessionId,
-            file_path: 'Examples/Game.htn'
+            file_path: fileToLoad
           })
-          setCurrentFile('Examples/Game.htn')
+          setCurrentFile(fileToLoad)
 
           // Get initial state facts
           const stateResponse = await axios.post(`${API_BASE}/api/state/get`, {
@@ -85,6 +87,7 @@ function App() {
       console.log('[handleFileLoad] Backend returned OK')
 
       setCurrentFile(filePath)
+      setLastFile(filePath)  // Save to localStorage for auto-load on next visit
       setLoading(false)
 
       // Refresh state facts
@@ -135,6 +138,7 @@ function App() {
       setTreeData(response.data.trees)  // Array of trees for HTN
       setQueryResults({
         solutions: response.data.solutions,
+        pretty_solutions: response.data.pretty_solutions,
         total_count: response.data.total_count
       })
       setSelectedSolution(0)  // Reset to first solution

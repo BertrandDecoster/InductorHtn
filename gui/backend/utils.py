@@ -1,23 +1,19 @@
 """Utility functions for InductorHTN GUI backend"""
 
-import json
+import sys
+import os
+
+# Add Python directory to path for indhtnpy import
+python_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/Python'))
+if python_dir not in sys.path:
+    sys.path.insert(0, python_dir)
+
+from indhtnpy import termListToString
 
 
 def pretty_solution(solution):
     """Convert a solution JSON to human-readable operator sequence.
 
-    Input: [{"walk":[{"downtown":[]},{"park":[]}]}]
-    Output: "walk(downtown, park)"
+    Uses termListToString from indhtnpy for proper Prolog formatting.
     """
-    if isinstance(solution, str):
-        solution = json.loads(solution)
-
-    operators = []
-    for op in solution:
-        # Each op is a dict with one key (operator name) and value (list of args)
-        for op_name, args in op.items():
-            # Each arg is a dict with one key (the arg value) and empty list
-            arg_values = [list(arg.keys())[0] for arg in args]
-            operators.append(f"{op_name}({', '.join(arg_values)})")
-
-    return ", ".join(operators)
+    return termListToString(solution)

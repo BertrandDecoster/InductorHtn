@@ -191,6 +191,58 @@ def run_gui_tests() -> tuple[bool, int, int]:
     return run_pytest_tests("gui/tests", "GUI Backend Tests")
 
 
+def run_gui_frontend_tests() -> tuple[bool, int, int]:
+    """Run GUI frontend tests using vitest."""
+    print_header("GUI Frontend Tests (vitest)")
+
+    frontend_dir = Path("gui/frontend")
+    if not frontend_dir.exists():
+        print(f"{YELLOW}Skipping: gui/frontend not found{RESET}")
+        return True, 0, 0
+
+    # Check if node_modules exists
+    if not (frontend_dir / "node_modules").exists():
+        print(f"{YELLOW}Skipping: node_modules not found. Run 'npm install' in gui/frontend{RESET}")
+        return True, 0, 0
+
+    start = time.time()
+    result = subprocess.run(
+        ["npm", "run", "test:run"],
+        capture_output=True,
+        text=True,
+        cwd=str(frontend_dir),
+        shell=True  # Required for npm on Windows
+    )
+    elapsed = time.time() - start
+
+    print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+
+    # Parse vitest output for "X passed"
+    passed = 0
+    failed = 0
+    import re
+    for line in result.stdout.split('\n'):
+        # Match "11 passed" or similar
+        match = re.search(r'(\d+) passed', line)
+        if match:
+            passed = int(match.group(1))
+        match = re.search(r'(\d+) failed', line)
+        if match:
+            failed = int(match.group(1))
+
+    total = passed + failed
+    success = result.returncode == 0 and failed == 0
+
+    if total == 0:
+        print(f"{YELLOW}No vitest tests found or vitest not installed{RESET}")
+        return True, 0, 0
+
+    print(f"\nTime: {elapsed:.2f}s")
+    return success, passed, total
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run all InductorHTN tests")
     parser.add_argument("--release", action="store_true", default=True,
@@ -245,12 +297,22 @@ def main():
                 total_tests += total
                 all_success = all_success and success
 
-    # GUI Tests
+    # GUI Backend Tests
     gui_test_dir = Path("gui/tests")
     if gui_test_dir.exists():
         success, passed, total = run_gui_tests()
         if total > 0:
             results.append(("GUI Backend Tests", success, passed, total))
+            total_passed += passed
+            total_tests += total
+            all_success = all_success and success
+
+    # GUI Frontend Tests
+    gui_frontend_dir = Path("gui/frontend")
+    if gui_frontend_dir.exists():
+        success, passed, total = run_gui_frontend_tests()
+        if total > 0:
+            results.append(("GUI Frontend Tests", success, passed, total))
             total_passed += passed
             total_tests += total
             all_success = all_success and success

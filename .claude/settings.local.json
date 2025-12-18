@@ -62,7 +62,9 @@
       "WebSearch",
       "Bash(./build/Release/indhtn.exe Examples/PathTest.htn)",
       "Bash(printf:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(npm run test:run:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

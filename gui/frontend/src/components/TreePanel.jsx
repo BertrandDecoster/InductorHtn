@@ -115,7 +115,7 @@ function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) 
     const bracket = node.isOperator ? `[${nodeIdNum}]` : `{${nodeIdNum}}`
 
     return (
-      <div className="tree-node-container" style={{ marginLeft: depth * 24 }}>
+      <div className="tree-node-container">
         <div
           className={`tree-node tree-node-${node.status || 'default'}`}
           onClick={() => hasChildren && toggleNode(node.id)}
@@ -126,7 +126,9 @@ function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) 
               {hasChildren ? (isOpen ? '▼' : '▶') : ' '}
             </span>
             <span className="tree-node-bracket">{bracket}</span>
-            <span className="tree-node-name">{node.name}</span>
+            <span className={`tree-node-name ${node.isOperator ? 'tree-node-operator' : 'tree-node-method'}`}>
+              {node.name}
+            </span>
 
             {hasFailed && hasFailureDetail && (
               <span className={`tree-node-failure-badge failure-${node.failureDetail.category?.toLowerCase()}`}>

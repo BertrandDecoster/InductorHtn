@@ -26,6 +26,10 @@
   margin-bottom: 2px;
 }
 
+.tree-node-children {
+  padding-left: 16px;
+}
+
 .tree-node {
   display: flex;
   flex-direction: column;
@@ -56,8 +60,16 @@
 
 .tree-node-name {
   font-size: 13px;
-  color: #cccccc;
   font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+.tree-node-method {
+  color: #ffffff;
+}
+
+.tree-node-operator {
+  color: #ce9178;
 }
 
 .tree-node-success {

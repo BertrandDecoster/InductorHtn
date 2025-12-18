@@ -32,7 +32,7 @@ if sys.platform == 'win32':
 
 # Import the Python bindings
 try:
-    from indhtnpy import HtnPlanner
+    from indhtnpy import HtnPlanner, termToString
 except ImportError as e:
     print("ERROR: Could not import indhtnpy module")
     print(f"Import error: {e}")
@@ -142,6 +142,14 @@ class HtnService:
             # Format into table structure
             formatted = self._format_prolog_results(results)
 
+            # Generate instantiated queries for each solution
+            instantiated_queries = []
+            for solution in formatted['solutions']:
+                instantiated_queries.append(self._instantiate_query(query, solution))
+
+            # Detect if this is a ground query (no variables)
+            has_variables = len(formatted['variables']) > 0
+
             # For now, create a simple placeholder tree
             # TODO: Implement actual computation tree capture
             tree = self._create_placeholder_tree(query, formatted['solutions'])
@@ -149,6 +157,8 @@ class HtnService:
             return {
                 'solutions': formatted['solutions'],
                 'variables': formatted['variables'],
+                'instantiated_queries': instantiated_queries,
+                'has_variables': has_variables,
                 'total_count': len(formatted['solutions']),
                 'tree': tree,
                 'query': query
@@ -185,12 +195,8 @@ class HtnService:
             solution = {}
             for var_name, value in result.items():
                 variables.add(var_name)
-                # Extract the actual value from the nested structure
-                if isinstance(value, list) and len(value) > 0:
-                    # Handle structure like {"?x": [{"value": []}]}
-                    solution[var_name] = self._extract_value(value[0])
-                else:
-                    solution[var_name] = str(value)
+                # Use termToString from indhtnpy to format values properly
+                solution[var_name] = termToString(value)
 
             solutions.append(solution)
 
@@ -199,22 +205,21 @@ class HtnService:
             'variables': sorted(list(variables))
         }
 
-    def _extract_value(self, value_obj):
-        """Extract the actual value from the nested JSON structure"""
-        if isinstance(value_obj, dict):
-            # Get the first key as the value name
-            if len(value_obj) == 0:
-                return "true"
-            key = list(value_obj.keys())[0]
-            nested = value_obj[key]
-            if isinstance(nested, list) and len(nested) == 0:
-                # Atom with no arguments
-                return key
-            elif isinstance(nested, list):
-                # Compound term
-                args = [self._extract_value(arg) for arg in nested]
-                return f"{key}({', '.join(args)})"
-        return str(value_obj)
+    def _instantiate_query(self, query, bindings):
+        """
+        Substitute variable bindings into a query string.
+
+        Args:
+            query: Original query like "at(?where)."
+            bindings: Dict like {"?where": "downtown"}
+
+        Returns:
+            Instantiated query like "at(downtown)."
+        """
+        result = query
+        for var_name, value in bindings.items():
+            result = result.replace(var_name, str(value))
+        return result
 
     def _create_placeholder_tree(self, query, solutions):
         """

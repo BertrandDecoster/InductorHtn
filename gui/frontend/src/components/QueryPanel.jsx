@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { getQueryHistory, addQueryToHistory } from '../utils/storage'
 import './QueryPanel.css'
 
 // Group facts by functor name for display
@@ -61,11 +62,55 @@ function FactItem({ item, className, expandedGroups, onToggleGroup }) {
   )
 }
 
+// Highlight parts of instantiated query that were substituted
+function highlightSubstitutions(instantiatedQuery, originalQuery, bindings) {
+  if (!instantiatedQuery || !bindings) {
+    return [{ text: instantiatedQuery || '', isVar: false }]
+  }
+
+  const parts = []
+  let lastIndex = 0
+
+  // Find each substituted value in the instantiated query
+  Object.values(bindings).forEach(value => {
+    const valueStr = String(value)
+    const index = instantiatedQuery.indexOf(valueStr, lastIndex)
+    if (index !== -1) {
+      if (index > lastIndex) {
+        parts.push({ text: instantiatedQuery.slice(lastIndex, index), isVar: false })
+      }
+      parts.push({ text: valueStr, isVar: true })
+      lastIndex = index + valueStr.length
+    }
+  })
+
+  if (lastIndex < instantiatedQuery.length) {
+    parts.push({ text: instantiatedQuery.slice(lastIndex), isVar: false })
+  }
+
+  return parts.length > 0 ? parts : [{ text: instantiatedQuery, isVar: false }]
+}
+
 function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, factsDiff, selectedSolution, loading }) {
   const [query, setQuery] = useState('')
-  const [queryHistory, setQueryHistory] = useState([])
+  const [htnHistory, setHtnHistory] = useState([])
+  const [prologHistory, setPrologHistory] = useState([])
   const [mode, setMode] = useState('htn')  // 'prolog' or 'htn'
   const [expandedGroups, setExpandedGroups] = useState({})
+  const [expandedUnifiers, setExpandedUnifiers] = useState({})
+
+  // Load query history from localStorage on mount
+  useEffect(() => {
+    setHtnHistory(getQueryHistory('htn'))
+    setPrologHistory(getQueryHistory('prolog'))
+  }, [])
+
+  const toggleUnifier = (idx) => {
+    setExpandedUnifiers(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }))
+  }
 
   const handleExecute = () => {
     let trimmedQuery = query.trim()
@@ -78,10 +123,11 @@ function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, fa
 
     if (mode === 'htn') {
       onHtnExecute(trimmedQuery)
+      setHtnHistory(addQueryToHistory('htn', trimmedQuery))
     } else {
       onQueryExecute(trimmedQuery)
+      setPrologHistory(addQueryToHistory('prolog', trimmedQuery))
     }
-    setQueryHistory([trimmedQuery, ...queryHistory].slice(0, 10)) // Keep last 10
   }
 
   const handleHistoryClick = (historicalQuery) => {
@@ -152,68 +198,131 @@ function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, fa
         {/* Query Results Section */}
         {queryResults && (
           <section className="results-section">
-            <label className="section-label">
-              Results: {queryResults.total_count} solution{queryResults.total_count !== 1 ? 's' : ''}
-            </label>
-            <div className="results-list">
-              {queryResults.pretty_solutions && queryResults.pretty_solutions.length > 0 ? (
-                // HTN plan results with pretty formatting
-                queryResults.pretty_solutions.map((solution, idx) => (
-                  <div key={idx} className="result-item">
-                    <span className="result-number">{idx + 1}.</span>
-                    <div className="result-bindings">
-                      <span className="var-value">{solution}</span>
-                    </div>
-                  </div>
-                ))
-              ) : queryResults.solutions && queryResults.solutions.length > 0 ? (
-                // Prolog query results or fallback
-                queryResults.solutions.map((solution, idx) => (
-                  <div key={idx} className="result-item">
-                    <span className="result-number">{idx + 1}.</span>
-                    <div className="result-bindings">
-                      {typeof solution === 'object' && !Array.isArray(solution) ? (
-                        // Prolog query results (variable bindings)
-                        Object.entries(solution).map(([varName, value]) => (
-                          <div key={varName} className="result-binding">
-                            <span className="var-name">{varName}</span>
-                            <span className="equals">=</span>
-                            <span className="var-value">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
-                          </div>
-                        ))
-                      ) : (
-                        // HTN plan results (array of operators) - fallback
-                        <div className="result-binding">
-                          <span className="var-value">{JSON.stringify(solution)}</span>
+            {/* HTN plan results */}
+            {queryResults.pretty_solutions && queryResults.pretty_solutions.length > 0 ? (
+              <>
+                <label className="section-label">
+                  Results: {queryResults.total_count} plan{queryResults.total_count !== 1 ? 's' : ''}
+                </label>
+                <div className="results-list">
+                  {queryResults.pretty_solutions.map((solution, planIdx) => {
+                    // Split comma-separated operators into individual lines
+                    const operators = solution.split(', ')
+                    return (
+                      <div key={planIdx} className="result-item htn-plan">
+                        <span className="result-number">{planIdx + 1}.</span>
+                        <div className="result-operators">
+                          {operators.map((op, opIdx) => (
+                            <div key={opIdx} className="operator-line">
+                              <span className="operator-index">{opIdx}.</span>
+                              <span className="operator-text">{op}</span>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="no-results">No solutions found</div>
-              )}
-            </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            ) : queryResults.has_variables === false ? (
+              /* Ground query: show [TRUE] or [FALSE] */
+              <>
+                <label className="section-label">Result</label>
+                <div className="ground-query-result">
+                  {queryResults.total_count > 0 ? (
+                    <span className="result-status-true">[TRUE]</span>
+                  ) : (
+                    <span className="result-status-false">[FALSE]</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Variable query: show instantiated queries with unifiers */
+              <>
+                <label className="section-label">
+                  Results: {queryResults.total_count} solution{queryResults.total_count !== 1 ? 's' : ''}
+                </label>
+                <div className="results-list">
+                  {queryResults.solutions && queryResults.solutions.length > 0 ? (
+                    queryResults.solutions.map((solution, idx) => {
+                      const instantiated = queryResults.instantiated_queries?.[idx] || ''
+                      const parts = highlightSubstitutions(instantiated, queryResults.query, solution)
+                      const isExpanded = expandedUnifiers[idx]
+
+                      return (
+                        <div key={idx} className="result-item">
+                          <span className="result-number">{idx + 1}.</span>
+                          <div className="result-body">
+                            {/* Instantiated query with highlighted variables */}
+                            <div className="instantiated-query">
+                              {parts.map((part, i) => (
+                                part.isVar ? (
+                                  <span key={i} className="substituted-var">{part.text}</span>
+                                ) : (
+                                  <span key={i}>{part.text}</span>
+                                )
+                              ))}
+                            </div>
+
+                            {/* Collapsible unifier */}
+                            {Object.keys(solution).length > 0 && (
+                              <div className="unifier-section">
+                                <button
+                                  className="unifier-toggle"
+                                  onClick={() => toggleUnifier(idx)}
+                                >
+                                  {isExpanded ? '▼' : '▶'} Unifier
+                                </button>
+                                {isExpanded && (
+                                  <div className="unifier-bindings">
+                                    {Object.entries(solution).map(([varName, value]) => (
+                                      <div key={varName} className="result-binding">
+                                        <span className="var-name">{varName}</span>
+                                        <span className="equals">=</span>
+                                        <span className="var-value">
+                                          {typeof value === 'string' ? value : JSON.stringify(value)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="no-results">No solutions found</div>
+                  )}
+                </div>
+              </>
+            )}
           </section>
         )}
 
         {/* Query History Section */}
-        {queryHistory.length > 0 && (
-          <section className="history-section">
-            <label className="section-label">Query History</label>
-            <div className="history-list">
-              {queryHistory.map((hq, idx) => (
-                <div
-                  key={idx}
-                  className="history-item"
-                  onClick={() => handleHistoryClick(hq)}
-                >
-                  {hq}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {(() => {
+          const currentHistory = mode === 'htn' ? htnHistory : prologHistory
+          return currentHistory.length > 0 && (
+            <section className="history-section">
+              <label className="section-label">
+                {mode === 'htn' ? 'HTN' : 'Prolog'} Query History
+              </label>
+              <div className="history-list">
+                {currentHistory.map((hq, idx) => (
+                  <div
+                    key={idx}
+                    className="history-item"
+                    onClick={() => handleHistoryClick(hq)}
+                  >
+                    {hq}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })()}
 
         {/* Current State Section */}
         <section className="state-section">

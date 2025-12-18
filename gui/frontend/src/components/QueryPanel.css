@@ -292,3 +292,102 @@
 .fact-group.fact-removed .fact-group-items {
   background-color: rgba(244, 67, 54, 0.1);
 }
+
+/* Ground query TRUE/FALSE display */
+.ground-query-result {
+  padding: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  font-family: 'Courier New', monospace;
+  background-color: #1e1e1e;
+  border: 1px solid #3e3e42;
+  border-radius: 3px;
+}
+
+.result-status-true {
+  color: #4CAF50;
+}
+
+.result-status-false {
+  color: #F44336;
+}
+
+/* Instantiated query display */
+.result-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.instantiated-query {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #cccccc;
+}
+
+.substituted-var {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+/* Collapsible unifier section */
+.unifier-section {
+  margin-top: 4px;
+}
+
+.unifier-toggle {
+  background: none;
+  border: none;
+  color: #9cdcfe;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.unifier-toggle:hover {
+  color: #007acc;
+}
+
+.unifier-bindings {
+  margin-top: 4px;
+  margin-left: 16px;
+  padding: 6px 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-left: 2px solid #9cdcfe;
+  border-radius: 0 4px 4px 0;
+}
+
+/* HTN Plan operator list */
+.result-item.htn-plan {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.result-operators {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 8px;
+  width: 100%;
+}
+
+.operator-line {
+  display: flex;
+  gap: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.operator-index {
+  color: #858585;
+  min-width: 24px;
+  text-align: right;
+}
+
+.operator-text {
+  color: #ce9178;
+}
