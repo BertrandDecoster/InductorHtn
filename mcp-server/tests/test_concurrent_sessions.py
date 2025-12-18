@@ -26,6 +26,7 @@ def _get_session_manager_class():
     return session_module.SessionManager
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 class TestMultipleSessions:
     """Tests for managing multiple sessions."""
@@ -63,7 +64,7 @@ class TestMultipleSessions:
             session2_id, _ = await manager.create_session([taxi_path])
 
             # Give sessions time to initialize
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.05)
 
             # Query session2 first (before any modifications)
             result2_before = await manager.execute_query(session2_id, "at(?x).")
@@ -106,6 +107,7 @@ class TestMultipleSessions:
             await manager.end_all_sessions()
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 class TestMaxSessionsLimit:
     """Tests for session limit enforcement."""
@@ -134,9 +136,9 @@ class TestMaxSessionsLimit:
         try:
             # Create sessions up to max
             session1_id, _ = await manager.create_session([taxi_path])
-            await asyncio.sleep(0.1)  # Ensure different timestamps
+            await asyncio.sleep(0.02)  # Ensure different timestamps
             session2_id, _ = await manager.create_session([taxi_path])
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.02)
 
             # Access session1 to make it more recent
             await manager.execute_query(session1_id, "at(?x).")
@@ -153,6 +155,7 @@ class TestMaxSessionsLimit:
             await manager.end_all_sessions()
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 class TestParallelQueries:
     """Tests for parallel query execution."""
@@ -170,7 +173,7 @@ class TestParallelQueries:
             session2_id, _ = await manager.create_session([taxi_path])
 
             # Give sessions time to initialize
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.05)
 
             # Execute queries in parallel
             results = await asyncio.gather(
@@ -195,6 +198,7 @@ class TestParallelQueries:
         assert result3["success"]
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 class TestSessionCleanup:
     """Tests for session cleanup functionality."""
@@ -239,6 +243,7 @@ class TestSessionCleanup:
         assert session.last_accessed > initial_access
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 class TestSessionIsolation:
     """Tests for session isolation and state independence."""
@@ -280,7 +285,7 @@ class TestSessionIsolation:
             session2_id, _ = await manager.create_session([taxi_path])
 
             # Give sessions time to initialize
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.05)
 
             # Modify state in session1
             await manager.execute_query(session1_id, "apply(travel-to(park)).")

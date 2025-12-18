@@ -131,7 +131,7 @@ def run_python_htn_tests() -> tuple[bool, int, int]:
     return success, passed, total
 
 
-def run_pytest_tests(test_dir: str, name: str) -> tuple[bool, int, int]:
+def run_pytest_tests(test_dir: str, name: str, fast: bool = False) -> tuple[bool, int, int]:
     """Run pytest tests in a directory."""
     print_header(f"{name} (pytest)")
 
@@ -144,8 +144,13 @@ def run_pytest_tests(test_dir: str, name: str) -> tuple[bool, int, int]:
     env = os.environ.copy()
     env['PYTHONIOENCODING'] = 'utf-8'
 
+    # Build pytest command
+    pytest_args = [sys.executable, "-m", "pytest", test_dir, "-v", "--tb=short"]
+    if fast:
+        pytest_args.extend(["-m", "not slow"])
+
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", test_dir, "-v", "--tb=short"],
+        pytest_args,
         capture_output=True,
         text=True,
         cwd=str(Path.cwd()),
@@ -198,6 +203,8 @@ def main():
                         help="Skip Python HTN tests")
     parser.add_argument("--skip-cpp", action="store_true",
                         help="Skip C++ tests")
+    parser.add_argument("--fast", action="store_true",
+                        help="Skip slow tests (MCP concurrent session tests)")
     args = parser.parse_args()
 
     build_config = "Debug" if args.debug else "Release"
@@ -231,7 +238,7 @@ def main():
     if not args.skip_mcp:
         mcp_test_dir = Path("mcp-server/tests")
         if mcp_test_dir.exists():
-            success, passed, total = run_pytest_tests("mcp-server/tests", "MCP Server Tests")
+            success, passed, total = run_pytest_tests("mcp-server/tests", "MCP Server Tests", fast=args.fast)
             if total > 0:
                 results.append(("MCP Server Tests", success, passed, total))
                 total_passed += passed

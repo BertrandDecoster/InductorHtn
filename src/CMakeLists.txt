@@ -32,6 +32,12 @@ add_library(lib "")
 # https://stackoverflow.com/questions/6499364/generating-dll-using-cmake
 add_library(indhtnpy SHARED "")
 
+# Auto-copy DLL to src/Python for Python bindings after each build
+add_custom_command(TARGET indhtnpy POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE:indhtnpy>
+        "${PROJECT_SOURCE_DIR}/Python/$<TARGET_FILE_NAME:indhtnpy>")
+
 target_include_directories(indhtn PRIVATE ./)
 target_include_directories(lib PRIVATE ./)
 target_include_directories(testLib PRIVATE ./)
