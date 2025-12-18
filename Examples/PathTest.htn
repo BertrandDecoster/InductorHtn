@@ -1,0 +1,41 @@
+% Test file for pathNext builtin
+%
+%   roomNW ---corridorN--- roomNE
+%     |                      |
+%  corridorW              corridorE
+%     |                      |
+%   roomSW ---corridorS--- roomSE
+%
+
+% === TOPOLOGY ===
+linked(roomNW, corridorN).
+linked(corridorN, roomNW).
+linked(corridorN, roomNE).
+linked(roomNE, corridorN).
+linked(roomNE, corridorE).
+linked(corridorE, roomNE).
+linked(corridorE, roomSE).
+linked(roomSE, corridorE).
+linked(roomSE, corridorS).
+linked(corridorS, roomSE).
+linked(corridorS, roomSW).
+linked(roomSW, corridorS).
+linked(roomSW, corridorW).
+linked(corridorW, roomSW).
+linked(corridorW, roomNW).
+linked(roomNW, corridorW).
+
+% === SIZES (movement cost) ===
+size(roomNW, 3).
+size(roomNE, 3).
+size(roomSW, 3).
+size(roomSE, 3).
+size(corridorN, 2).
+size(corridorS, 2).
+size(corridorE, 2).
+size(corridorW, 2).
+
+% === TEST QUERIES ===
+% pathNext(roomNW, roomNE, ?next).      % Should be corridorN
+% pathNext(roomNW, roomSE, ?next).      % Should find shortest path
+% pathNext(roomNW, roomNW, ?next).      % Should fail (same location)

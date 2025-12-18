@@ -91,6 +91,7 @@ private:
     static void RuleIsAtom(ResolveState* state);
     static void RuleNewline(ResolveState *state);
     static void RuleNot(ResolveState *state);
+    static void RulePathNext(ResolveState *state);
     static void RulePrint(ResolveState *state);
 	static void RuleRetract(ResolveState* state);
     static void RuleRetractAll(ResolveState* state);

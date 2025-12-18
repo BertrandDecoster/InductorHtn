@@ -1,0 +1,273 @@
+% =============================================================================
+% Combat Level 1: The Grease Trap (Tutorial)
+% =============================================================================
+%
+% Setting: A small map with 8 weak "Swarmer" enemies. The floor has oil patches.
+%
+% HTN Plan A: "The Burn" (Area Denial)
+%   - Warden uses Magnetize to pull enemy to oil
+%   - Player casts Ignite on the oil -> explosion kills enemies
+%
+% HTN Plan B: "The Slipstream" (Crowd Control)
+%   - Arcanist casts Freeze on oil -> frozen sludge (snares)
+%   - Warden uses Magnetize to pull enemy into the trap
+%
+% =============================================================================
+
+% === AGENTS ===
+agent(player).
+agent(warden).
+agent(arcanist).
+
+ally(player).
+ally(warden).
+ally(arcanist).
+
+enemy(swarmer1).
+enemy(swarmer2).
+enemy(swarmer3).
+
+% === HEALTH ===
+health(swarmer1, healthy).
+health(swarmer2, healthy).
+health(swarmer3, healthy).
+
+% === MAP TOPOLOGY ===
+%   roomNW ---corridorN--- roomNE
+%     |                      |
+%  corridorW              corridorE
+%     |                      |
+%   roomSW ---corridorS--- roomSE
+
+room(roomNW). room(roomNE). room(roomSW). room(roomSE).
+corridor(corridorN). corridor(corridorS). corridor(corridorE). corridor(corridorW).
+
+location(?x) :- room(?x).
+location(?x) :- corridor(?x).
+
+% Connections (bidirectional)
+linked(roomNW, corridorN). linked(corridorN, roomNW).
+linked(corridorN, roomNE). linked(roomNE, corridorN).
+linked(roomNE, corridorE). linked(corridorE, roomNE).
+linked(corridorE, roomSE). linked(roomSE, corridorE).
+linked(roomSE, corridorS). linked(corridorS, roomSE).
+linked(corridorS, roomSW). linked(roomSW, corridorS).
+linked(roomSW, corridorW). linked(corridorW, roomSW).
+linked(corridorW, roomNW). linked(roomNW, corridorW).
+
+% === LOCATION SIZES (for pathfinding) ===
+size(roomNW, 3).
+size(roomNE, 3).
+size(roomSW, 3).
+size(roomSE, 3).
+size(corridorN, 2).
+size(corridorS, 2).
+size(corridorE, 2).
+size(corridorW, 2).
+
+% === STARTING POSITIONS ===
+at(player, roomNW).
+at(warden, roomNW).
+at(arcanist, roomNW).
+at(swarmer1, roomNE).
+at(swarmer2, roomSE).
+at(swarmer3, corridorS).
+
+% === TERRAIN ===
+terrain(roomSW, oil).  % Oil patch in empty room (no one starts here)
+
+% === SKILLS ===
+hasSkill(warden, magnetize).
+hasSkill(warden, shield).
+hasSkill(arcanist, freeze).
+hasSkill(arcanist, lightning).
+hasSkill(player, ignite).
+hasSkill(player, gust).
+
+% === SKILL -> TAG MAPPING ===
+skillAppliesTag(magnetize, magnetized).
+skillAppliesTag(freeze, frozen).
+skillAppliesTag(gust, pushed).
+skillAppliesTag(ignite, burning).
+
+% === CAPABILITY CHECK ===
+canApplyTag(?agent, ?tag) :-
+    ally(?agent), hasSkill(?agent, ?skill), skillAppliesTag(?skill, ?tag).
+
+
+% =============================================================================
+% OPERATORS (primitive state changes)
+% =============================================================================
+
+% === MOVEMENT ===
+opMoveTo(?agent, ?from, ?to) :-
+    del(at(?agent, ?from)),
+    add(at(?agent, ?to)).
+
+% === CONDITIONS ===
+opApplyCondition(?target, ?tag) :-
+    del(), add(condition(?target, ?tag)).
+
+opRemoveCondition(?target, ?tag) :-
+    del(condition(?target, ?tag)), add().
+
+% === TERRAIN ===
+opRemoveTerrain(?loc, ?type) :-
+    del(terrain(?loc, ?type)), add().
+
+opFreezeOilIntoSludge(?loc) :-
+    del(terrain(?loc, oil)), add(terrain(?loc, frozenSludge)).
+
+% === HEALTH ===
+opWound(?enemy) :-
+    del(health(?enemy, healthy)), add(health(?enemy, bloodied)).
+
+opKill(?enemy) :-
+    del(health(?enemy, bloodied)), add(health(?enemy, dead)).
+
+opInstakill(?enemy) :-
+    del(health(?enemy, healthy)), add(health(?enemy, dead)).
+
+% === AGGRO ===
+opGetAggro(?ally, ?enemy) :-
+    del(), add(hasAggro(?ally, ?enemy)).
+
+opReleaseAggro(?ally, ?enemy) :-
+    del(hasAggro(?ally, ?enemy)), add().
+
+opAggroFollow(?enemy, ?from, ?to) :-
+    del(at(?enemy, ?from)), add(at(?enemy, ?to)).
+
+
+% =============================================================================
+% METHODS - Tag System (reusable actions)
+% =============================================================================
+
+% === TAG APPLICATION (reusable action - checks location) ===
+applyTag(?caster, ?tag, ?location) :-
+    if(
+        canApplyTag(?caster, ?tag),
+        at(?caster, ?location)
+    ),
+    do(applyTagEffect(?tag, ?location)).
+
+% === BURNING EFFECT ===
+applyTagEffect(burning, ?loc) :-
+    if(),
+    do(
+        opApplyCondition(?loc, burning),
+        try(triggerBurnOil(?loc)),
+        try(triggerBurnEnemies(?loc))
+    ).
+
+triggerBurnOil(?loc) :-
+    if(terrain(?loc, oil)),
+    do(opRemoveTerrain(?loc, oil)).
+
+triggerBurnEnemies(?loc) :-
+    allOf, if(at(?enemy, ?loc), enemy(?enemy), health(?enemy, healthy)),
+    do(opInstakill(?enemy)).
+
+% === FROZEN EFFECT ===
+applyTagEffect(frozen, ?loc) :-
+    if(),
+    do(
+        opApplyCondition(?loc, frozen),
+        try(triggerFreezeOil(?loc)),
+        try(triggerSnareEnemies(?loc))
+    ).
+
+triggerFreezeOil(?loc) :-
+    if(terrain(?loc, oil)),
+    do(opFreezeOilIntoSludge(?loc)).
+
+triggerSnareEnemies(?loc) :-
+    allOf, if(at(?enemy, ?loc), enemy(?enemy)),
+    do(opApplyCondition(?enemy, snared)).
+
+
+% =============================================================================
+% METHODS - Navigation
+% =============================================================================
+
+% === NAVIGATION (uses built-in pathNext) ===
+navigateTo(?agent, ?dest) :-
+    if(at(?agent, ?dest)), do().
+
+navigateTo(?agent, ?dest) :-
+    else, if(at(?agent, ?current), pathNext(?current, ?dest, ?next)),
+    do(opMoveTo(?agent, ?current, ?next), navigateTo(?agent, ?dest)).
+
+
+% =============================================================================
+% METHODS - Movement & Positioning
+% =============================================================================
+
+% === BRING ENEMY TO LOCATION (explicit lurer) ===
+bringEnemyTo(?lurer, ?enemy, ?destination) :-
+    if(ally(?lurer), at(?enemy, ?enemyLoc)),
+    do(
+        navigateTo(?lurer, ?enemyLoc),
+        opGetAggro(?lurer, ?enemy),
+        navigateTo(?lurer, ?destination),
+        opAggroFollow(?enemy, ?enemyLoc, ?destination)
+    ).
+
+
+% =============================================================================
+% METHODS - Combat Strategies (top-level goals)
+% =============================================================================
+
+% === TOP-LEVEL GOAL ===
+defeatEnemy(?enemy) :-
+    if(health(?enemy, healthy)),
+    do(theBurn(?enemy)).
+
+defeatEnemy(?enemy) :-
+    else, if(health(?enemy, healthy)),
+    do(theSlipstream(?enemy)).
+
+% === PLAN A: "THE BURN" ===
+% Two companions: lurer brings enemy to oil, igniter burns
+theBurn(?enemy) :-
+    if(
+        canApplyTag(?lurer, magnetized),
+        canApplyTag(?igniter, burning),
+        \==(?lurer, ?igniter),
+        terrain(?oilRoom, oil),
+        at(?enemy, ?enemyLoc)
+    ),
+    do(
+        navigateTo(?igniter, ?oilRoom),
+        bringEnemyTo(?lurer, ?enemy, ?oilRoom),
+        applyTag(?igniter, burning, ?oilRoom)
+    ).
+
+% === PLAN B: "THE SLIPSTREAM" ===
+% Two companions: freezer creates trap, lurer brings enemy in
+theSlipstream(?enemy) :-
+    if(
+        canApplyTag(?freezer, frozen),
+        canApplyTag(?lurer, magnetized),
+        \==(?freezer, ?lurer),
+        terrain(?oilRoom, oil),
+        at(?enemy, ?enemyLoc)
+    ),
+    do(
+        navigateTo(?freezer, ?oilRoom),
+        applyTag(?freezer, frozen, ?oilRoom),
+        bringEnemyTo(?lurer, ?enemy, ?oilRoom)
+    ).
+
+
+% =============================================================================
+% TEST GOALS
+% =============================================================================
+
+% Test individual enemy defeat
+goals(defeatEnemy(swarmer1)).
+
+% Alternative tests:
+% goals(defeatEnemy(swarmer2)).
+% goals(navigateTo(warden, roomSE)).
+% goals(applyTag(arcanist, frozen, roomSW)).

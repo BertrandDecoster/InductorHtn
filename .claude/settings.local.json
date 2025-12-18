@@ -60,7 +60,11 @@
       "Bash(mcp-server/tests/ )",
       "Bash(src/Python/tests/conftest.py )",
       "Bash(src/Tests/Htn/HtnBasicFeaturesTests.cpp )",
-      "Bash(src/Tests/Htn/HtnWorkingFeaturesTests.cpp)"
+      "Bash(src/Tests/Htn/HtnWorkingFeaturesTests.cpp)",
+      "WebSearch",
+      "Bash(./build/Release/indhtn.exe Examples/PathTest.htn)",
+      "Bash(printf:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

@@ -401,3 +401,20 @@ Patterns marked `[VALIDATED]` were tested by measuring Prolog resolution steps. 
 3. Check that methods / operators are working properly by going bottom/up. Start with methods close to the leaves and go your way up
 4. Monitor the amount of steps a method needs, if it explodes (thousand of steps) look at how to compute it more efficiently
 5. Now that high level methods that solve the level are functional, generate a full plan, apply the operators and check that all the states match the design of the ruleset
+
+---
+
+## Naming Convention
+
+| Layer | Prefix | Examples | Description |
+|-------|--------|----------|-------------|
+| User goals | (none) | `defeatEnemy`, `clearRoom` | Top-level, full validation |
+| Strategies | (none) | `theBurn`, `theSlipstream` | Named tactical plans |
+| Actions | (none) | `applyTag`, `bringEnemyTo`, `navigateTo` | Reusable building blocks, key checks |
+| Triggers | `trigger` | `triggerBurnOil`, `triggerSnareEnemies` | Internal reactions, minimal checks |
+| Operators | `op` | `opMoveTo`, `opApplyCondition` | Primitive state changes (del/add) |
+
+**Precondition Layering:**
+- **User-facing goals**: Full validation - checks everything needed
+- **Reusable actions**: Check key requirements (location, capability)
+- **Internal triggers**: Minimal checks - trust caller already validated

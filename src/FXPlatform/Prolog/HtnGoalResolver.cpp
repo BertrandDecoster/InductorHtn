@@ -16,6 +16,9 @@
 #include <cctype>
 #include <cwctype>
 #include <stack>
+#include <queue>
+#include <unordered_map>
+#include <limits>
 #include <locale> 
 const int indentSpaces = 11;
 const string initialVariablePrefix = "orig*";
@@ -504,6 +507,7 @@ HtnGoalResolver::HtnGoalResolver()
     AddCustomRule("min", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::Variable, CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleAggregate, std::placeholders::_1)));
     AddCustomRule("nl", CustomRuleType({ }, std::bind(&HtnGoalResolver::RuleNewline, std::placeholders::_1)));
     AddCustomRule("not", CustomRuleType({ CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleNot, std::placeholders::_1)));
+    AddCustomRule("pathNext", CustomRuleType({ CustomRuleArgType::Term, CustomRuleArgType::Term, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RulePathNext, std::placeholders::_1)));
     AddCustomRule("print", CustomRuleType({ CustomRuleArgType::SetOfTerms }, std::bind(&HtnGoalResolver::RulePrint, std::placeholders::_1)));
     AddCustomRule("sortBy", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::TermOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleSortBy, std::placeholders::_1)));
     AddCustomRule("sum", CustomRuleType({ CustomRuleArgType::Variable, CustomRuleArgType::Variable, CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleAggregate, std::placeholders::_1)));
@@ -2345,6 +2349,223 @@ void HtnGoalResolver::RuleRetractAll(ResolveState* state)
         }
         break;
             
+        default:
+            StaticFailFastAssert(false);
+            break;
+    }
+}
+
+// pathNext(?From, ?To, ?NextStep)
+// Returns the next step on the shortest path from ?From to ?To
+// Uses Dijkstra's algorithm with edge weights from size/2 facts
+// Graph edges come from linked/2 facts
+void HtnGoalResolver::RulePathNext(ResolveState *state)
+{
+    shared_ptr<ResolveNode> currentNode = state->resolveStack->back();
+    shared_ptr<HtnTerm> goal = currentNode->currentGoal();
+    shared_ptr<vector<shared_ptr<ResolveNode>>> &resolveStack = state->resolveStack;
+    HtnTermFactory *termFactory = state->termFactory;
+    HtnRuleSet *prog = state->prog;
+
+    switch(currentNode->continuePoint)
+    {
+        case ResolveContinuePoint::CustomStart:
+        {
+            // pathNext requires exactly 3 arguments: ?from, ?to, ?nextStep
+            if(goal->arguments().size() != 3)
+            {
+                Trace1("ERROR      ", "pathNext() must have exactly three terms (from, to, nextStep): {0}", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                StaticFailFastAssertDesc(false, ("pathNext() must have exactly three terms: " + goal->ToString()).c_str());
+                currentNode->continuePoint = ResolveContinuePoint::ProgramError;
+            }
+            else
+            {
+                shared_ptr<HtnTerm> fromTerm = goal->arguments()[0];
+                shared_ptr<HtnTerm> toTerm = goal->arguments()[1];
+                shared_ptr<HtnTerm> nextStepTerm = goal->arguments()[2];
+
+                // from and to must be ground, nextStep must be a variable
+                if(fromTerm->isVariable() || toTerm->isVariable())
+                {
+                    Trace1("FAIL       ", "pathNext() first two arguments must be ground: {0}", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                    state->RecordFailure(goal, currentNode);
+                    resolveStack->pop_back();
+                    break;
+                }
+
+                if(!nextStepTerm->isVariable())
+                {
+                    Trace1("FAIL       ", "pathNext() third argument must be a variable: {0}", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                    state->RecordFailure(goal, currentNode);
+                    resolveStack->pop_back();
+                    break;
+                }
+
+                string fromName = fromTerm->name();
+                string toName = toTerm->name();
+
+                // If from == to, we're already there (no next step needed - fail)
+                if(fromName == toName)
+                {
+                    Trace1("FAIL       ", "pathNext() from equals to, no path needed: {0}", state->initialIndent + resolveStack->size(), state->fullTrace, goal->ToString());
+                    state->RecordFailure(goal, currentNode);
+                    resolveStack->pop_back();
+                    break;
+                }
+
+                // Build adjacency list from linked/2 facts
+                // Map: node name -> list of (neighbor name, weight)
+                std::unordered_map<string, std::vector<std::pair<string, int>>> graph;
+                std::unordered_map<string, int> sizeMap;
+
+                // First, collect all size/2 facts
+                shared_ptr<HtnTerm> sizeQuery = termFactory->CreateFunctor("size", {
+                    termFactory->CreateVariable("?_loc"),
+                    termFactory->CreateVariable("?_size")
+                });
+
+                prog->AllRulesThatCouldUnify(sizeQuery.get(), [&](const HtnRule &item)
+                {
+                    if(item.IsFact() && item.head()->name() == "size" && item.head()->arguments().size() == 2)
+                    {
+                        shared_ptr<HtnTerm> locArg = item.head()->arguments()[0];
+                        shared_ptr<HtnTerm> sizeArg = item.head()->arguments()[1];
+
+                        if(!locArg->isVariable() && !sizeArg->isVariable() && sizeArg->GetTermType() == HtnTermType::IntType)
+                        {
+                            sizeMap[locArg->name()] = (int)sizeArg->GetInt();
+                        }
+                    }
+                    return true; // continue
+                });
+
+                // Now collect all linked/2 facts and build adjacency list
+                shared_ptr<HtnTerm> linkedQuery = termFactory->CreateFunctor("linked", {
+                    termFactory->CreateVariable("?_from"),
+                    termFactory->CreateVariable("?_to")
+                });
+
+                prog->AllRulesThatCouldUnify(linkedQuery.get(), [&](const HtnRule &item)
+                {
+                    if(item.IsFact() && item.head()->name() == "linked" && item.head()->arguments().size() == 2)
+                    {
+                        shared_ptr<HtnTerm> fromArg = item.head()->arguments()[0];
+                        shared_ptr<HtnTerm> toArg = item.head()->arguments()[1];
+
+                        if(!fromArg->isVariable() && !toArg->isVariable())
+                        {
+                            string f = fromArg->name();
+                            string t = toArg->name();
+
+                            // Weight = size of destination (default to 1 if not specified)
+                            int weight = 1;
+                            auto sizeIt = sizeMap.find(t);
+                            if(sizeIt != sizeMap.end())
+                            {
+                                weight = sizeIt->second;
+                            }
+
+                            graph[f].push_back(std::make_pair(t, weight));
+
+                            // Ensure both nodes exist in graph
+                            if(graph.find(t) == graph.end())
+                            {
+                                graph[t] = {};
+                            }
+                        }
+                    }
+                    return true; // continue
+                });
+
+                // Check if from and to exist in graph
+                if(graph.find(fromName) == graph.end())
+                {
+                    Trace1("FAIL       ", "pathNext() source node not in graph: {0}", state->initialIndent + resolveStack->size(), state->fullTrace, fromName.c_str());
+                    state->RecordFailure(goal, currentNode);
+                    resolveStack->pop_back();
+                    break;
+                }
+
+                // Dijkstra's algorithm
+                std::unordered_map<string, int> dist;
+                std::unordered_map<string, string> prev;
+
+                // Initialize distances to infinity
+                for(auto &kv : graph)
+                {
+                    dist[kv.first] = std::numeric_limits<int>::max();
+                }
+                dist[fromName] = 0;
+
+                // Priority queue: (distance, node)
+                std::priority_queue<std::pair<int, string>, std::vector<std::pair<int, string>>, std::greater<std::pair<int, string>>> pq;
+                pq.push(std::make_pair(0, fromName));
+
+                while(!pq.empty())
+                {
+                    std::pair<int, string> top = pq.top();
+                    pq.pop();
+                    int d = top.first;
+                    string u = top.second;
+
+                    // Skip if we've found a better path
+                    if(d > dist[u]) continue;
+
+                    // Early exit if we reached the destination
+                    if(u == toName) break;
+
+                    // Relax edges
+                    for(size_t i = 0; i < graph[u].size(); ++i)
+                    {
+                        string neighbor = graph[u][i].first;
+                        int weight = graph[u][i].second;
+                        int newDist = dist[u] + weight;
+                        if(newDist < dist[neighbor])
+                        {
+                            dist[neighbor] = newDist;
+                            prev[neighbor] = u;
+                            pq.push(std::make_pair(newDist, neighbor));
+                        }
+                    }
+                }
+
+                // Check if path exists
+                if(dist.find(toName) == dist.end() || dist[toName] == std::numeric_limits<int>::max())
+                {
+                    Trace2("FAIL       ", "pathNext() no path from {0} to {1}", state->initialIndent + resolveStack->size(), state->fullTrace, fromName.c_str(), toName.c_str());
+                    state->RecordFailure(goal, currentNode);
+                    resolveStack->pop_back();
+                    break;
+                }
+
+                // Reconstruct path backwards to find first step
+                string current = toName;
+                string nextStep = toName;
+                while(prev.find(current) != prev.end() && prev[current] != fromName)
+                {
+                    nextStep = current;
+                    current = prev[current];
+                }
+
+                // If prev[current] == fromName, then current is the first step
+                // Otherwise, nextStep is already the first step
+                if(prev.find(current) != prev.end() && prev[current] == fromName)
+                {
+                    nextStep = current;
+                }
+
+                // Create the unifier binding nextStepTerm to the result
+                shared_ptr<HtnTerm> resultTerm = termFactory->CreateConstant(nextStep);
+                UnifierType pathUnifier({ UnifierItemType(nextStepTerm, resultTerm) });
+
+                Trace3("           ", "pathNext() succeeded: {0} -> {1}, next step: {2}", state->initialIndent + resolveStack->size(), state->fullTrace, fromName.c_str(), toName.c_str(), nextStep.c_str());
+
+                resolveStack->push_back(currentNode->CreateChildNode(termFactory, *state->initialGoals, {}, pathUnifier, &(state->uniquifier)));
+                currentNode->continuePoint = ResolveContinuePoint::Return;
+            }
+        }
+        break;
+
         default:
             StaticFailFastAssert(false);
             break;
