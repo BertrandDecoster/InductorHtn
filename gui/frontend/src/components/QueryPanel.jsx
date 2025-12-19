@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getQueryHistory, addQueryToHistory } from '../utils/storage'
+import { splitOperators } from '../utils/operatorParser'
 import './QueryPanel.css'
 
 // Group facts by functor name for display
@@ -206,8 +207,8 @@ function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, fa
                 </label>
                 <div className="results-list">
                   {queryResults.pretty_solutions.map((solution, planIdx) => {
-                    // Split comma-separated operators into individual lines
-                    const operators = solution.split(', ')
+                    // Split operators, respecting commas inside parentheses
+                    const operators = splitOperators(solution)
                     return (
                       <div key={planIdx} className="result-item htn-plan">
                         <span className="result-number">{planIdx + 1}.</span>

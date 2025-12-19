@@ -143,6 +143,7 @@ private:
     // Survives stack unwinding and captures both successful and failed branches
     std::vector<DecompTreeNode> decompositionTree;
     std::map<int, size_t> nodeIDToTreeIndex;  // Fast lookup: nodeID -> index in decompositionTree
+    std::map<int, int> bookkeepingParents;  // Track parent relationships for bookkeeping tasks (tryEnd, etc.)
     int currentSolutionID;  // Incremented each time a solution is found
 };
 

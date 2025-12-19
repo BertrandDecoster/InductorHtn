@@ -566,14 +566,19 @@ class HtnPlanner(object):
             solutionIndex,
         )
 
+        # C++ returns: error string (or nullptr on success), *result = tree JSON (or nullptr on error)
+        # So resultPtr contains error message if not null, mem contains tree JSON on success
+        # Return format: (error, tree_json) to match other API functions
         resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
         if resultBytes is not None:
+            # Error case: resultPtr is error string
             self.indhtnLib.FreeString(resultPtr)
-            return resultBytes.decode(), None
+            return resultBytes.decode(), None  # Return (error_message, None)
         else:
+            # Success case: mem contains tree JSON
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
-            return None, resultQuery
+            return None, resultQuery  # Return (None, tree_json)
 
     # Returns the number of resolution steps from the last Prolog query
     # Returns -1 if resolution step tracking was disabled at compile time

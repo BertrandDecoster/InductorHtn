@@ -11,6 +11,13 @@ if(INDHTN_TRACK_RESOLUTION_STEPS)
     message(STATUS "Resolution step tracking enabled")
 endif()
 
+# Option to flatten sibling tasks in decomposition tree (for GUI display)
+option(INDHTN_FLATTEN_SIBLING_TASKS "Flatten sibling tasks in decomposition tree" ON)
+if(INDHTN_FLATTEN_SIBLING_TASKS)
+    add_compile_definitions(INDHTN_FLATTEN_SIBLING_TASKS)
+    message(STATUS "Sibling task flattening enabled")
+endif()
+
 add_executable(runtests TestsMain.cpp)
 # this allows us to use our executable as a link library
 # therefore we can inherit all compiler options and library dependencies

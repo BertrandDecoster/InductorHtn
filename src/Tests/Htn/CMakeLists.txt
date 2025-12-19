@@ -10,5 +10,6 @@ target_sources(runtests
         ${CMAKE_CURRENT_SOURCE_DIR}/HtnWorkingFeaturesTests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/HtnBasicFeaturesTests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/HtnAdvancedFeaturesTests.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/HtnDecompositionTreeTests.cpp
 )
 target_include_directories(testLib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)

@@ -6,6 +6,7 @@
 //  Copyright © 2019 Eric Zinda. All rights reserved.
 //
 #include <algorithm>
+#include <functional>
 #include "Logger.h"
 #include "HtnGoalResolver.h"
 #include "HtnMethod.h"
@@ -111,6 +112,11 @@ public:
         tasks = shared_ptr<vector<shared_ptr<HtnTerm>>>(new vector<shared_ptr<HtnTerm>>(tasksArg));
         totalMemoryAtNodePush = 0;
         tryAnyOfSuccessCount = 0;
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+        // Stack-based sibling tracking for nested decompositions
+        // Each entry is (siblingParentID, siblingRemainingCount)
+        siblingStack = {};
+#endif
     }
     
     void AddToOperators(shared_ptr<HtnTerm> operatorSubstituted)
@@ -157,15 +163,65 @@ public:
         // Record tree node for decomposition tree
         DecompTreeNode treeNode;
         treeNode.nodeID = newNode->nodeID();
-        treeNode.parentNodeID = nodeID();
-        treeNode.taskName = (additionalTasks.size() > 0 && additionalTasks[0]) ? additionalTasks[0]->ToString() : "";
-        size_t index = planState->decompositionTree.size();
-        planState->nodeIDToTreeIndex[newNode->nodeID()] = index;
-        planState->decompositionTree.push_back(treeNode);
-        // Update parent's children list
-        auto parentIt = planState->nodeIDToTreeIndex.find(nodeID());
-        if(parentIt != planState->nodeIDToTreeIndex.end()) {
-            planState->decompositionTree[parentIt->second].childNodeIDs.push_back(newNode->nodeID());
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+        // Copy sibling stack and pop any exhausted scopes first
+        newNode->siblingStack = siblingStack;
+        while(!newNode->siblingStack.empty() && newNode->siblingStack.back().second == 0) {
+            // This scope is exhausted, pop to outer scope
+            newNode->siblingStack.pop_back();
+        }
+
+        // Use sibling stack to determine tree parent
+        int treeParentID;
+        if(!newNode->siblingStack.empty()) {
+            // Use top of sibling stack as tree parent
+            treeParentID = newNode->siblingStack.back().first;
+            // Decrement sibling count - we're advancing to the next sibling in this scope.
+            // This happens after an operator completes and we move to process the next task.
+            if(newNode->siblingStack.back().second > 0) {
+                newNode->siblingStack.back().second--;
+            }
+        } else {
+            treeParentID = nodeID();
+        }
+
+        // If the current node (our designated parent) is not in the tree (e.g., it's a pass-through),
+        // we need to find its actual tree parent from bookkeepingParents
+        while(planState->nodeIDToTreeIndex.find(treeParentID) == planState->nodeIDToTreeIndex.end()) {
+            auto bookkeepIt = planState->bookkeepingParents.find(treeParentID);
+            if(bookkeepIt != planState->bookkeepingParents.end()) {
+                treeParentID = bookkeepIt->second;
+            } else {
+                break;  // Can't find parent, stop
+            }
+        }
+#else
+        int treeParentID = nodeID();
+#endif
+        treeNode.parentNodeID = treeParentID;
+        // Use mergedTasks[0] for taskName (first task this node will process)
+        treeNode.taskName = (mergedTasks.size() > 0 && mergedTasks[0]) ? mergedTasks[0]->ToString() : "";
+
+        // Skip tree node creation for internal bookkeeping tasks (tryEnd, countAnyOf, failIfNoneOf)
+        // These are internal markers and shouldn't appear in the decomposition tree
+        bool isBookkeepingTask = false;
+        if(mergedTasks.size() > 0 && mergedTasks[0]) {
+            string taskName = mergedTasks[0]->name();
+            isBookkeepingTask = (taskName == "tryEnd" || taskName == "countAnyOf" || taskName == "failIfNoneOf");
+        }
+
+        if(!isBookkeepingTask) {
+            size_t index = planState->decompositionTree.size();
+            planState->nodeIDToTreeIndex[newNode->nodeID()] = index;
+            planState->decompositionTree.push_back(treeNode);
+            // Update parent's children list
+            auto parentIt = planState->nodeIDToTreeIndex.find(treeParentID);
+            if(parentIt != planState->nodeIDToTreeIndex.end()) {
+                planState->decompositionTree[parentIt->second].childNodeIDs.push_back(newNode->nodeID());
+            }
+        } else {
+            // For bookkeeping tasks, track parent relationship so MarkPathSuccess can walk up the tree
+            planState->bookkeepingParents[newNode->nodeID()] = treeParentID;
         }
 
         continuePoint = returnPoint;
@@ -185,6 +241,56 @@ public:
 
         shared_ptr<PlanNode> newNode = shared_ptr<PlanNode>(new PlanNode(planState->nextNodeID++, stateCopy, mergedTasks, operatorsCopy));
 
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+        // Copy current sibling stack to new node (for nested decompositions)
+        newNode->siblingStack = siblingStack;
+        // If we're adding multiple tasks, push a new sibling scope
+        if(additionalTasks.size() > 1) {
+            newNode->siblingStack.push_back({nodeID(), (int)additionalTasks.size() - 1});
+        }
+
+        // Determine tree parent:
+        // - If additionalTasks is empty (empty do() clause), this node is a "pass-through"
+        //   that will only process remaining sibling tasks. Use siblingStack for tree parent
+        //   so siblings retain their correct parent relationship.
+        // - Otherwise, this node is decomposing a task, so use nodeID() as tree parent.
+        int treeParentID;
+        if(additionalTasks.size() == 0 && !newNode->siblingStack.empty()) {
+            // Empty do() case: pop exhausted scopes and use sibling stack for tree parent
+            while(!newNode->siblingStack.empty() && newNode->siblingStack.back().second == 0) {
+                newNode->siblingStack.pop_back();
+            }
+            if(!newNode->siblingStack.empty()) {
+                treeParentID = newNode->siblingStack.back().first;
+                // Decrement the sibling count - the first merged task consumes a slot
+                if(mergedTasks.size() > 0 && newNode->siblingStack.back().second > 0) {
+                    newNode->siblingStack.back().second--;
+                }
+                // DON'T push a new scope for remaining merged tasks - they already have
+                // their sibling scopes from when they were originally added to the task list.
+                // Pushing a new scope would incorrectly assign all remaining tasks to the
+                // current scope's parent, ignoring the existing outer scopes.
+            } else {
+                treeParentID = nodeID();
+            }
+        } else {
+            treeParentID = nodeID();
+        }
+
+        // If the current node (our designated parent) is not in the tree (e.g., bookkeeping task),
+        // we need to find its actual tree parent from bookkeepingParents
+        while(planState->nodeIDToTreeIndex.find(treeParentID) == planState->nodeIDToTreeIndex.end()) {
+            auto bookkeepIt = planState->bookkeepingParents.find(treeParentID);
+            if(bookkeepIt != planState->bookkeepingParents.end()) {
+                treeParentID = bookkeepIt->second;
+            } else {
+                break;  // Can't find parent, stop
+            }
+        }
+#else
+        int treeParentID = nodeID();
+#endif
+
         // Trying not to be too intrusive by checking for out of memory only when we create new nodes
         if(OutOfMemoryAtNodePush(planState, newNode))
         {
@@ -196,20 +302,36 @@ public:
         // Record tree node for decomposition tree
         DecompTreeNode treeNode;
         treeNode.nodeID = newNode->nodeID();
-        treeNode.parentNodeID = nodeID();
-        treeNode.taskName = (additionalTasks.size() > 0 && additionalTasks[0]) ? additionalTasks[0]->ToString() : "";
-        size_t index = planState->decompositionTree.size();
-        planState->nodeIDToTreeIndex[newNode->nodeID()] = index;
-        planState->decompositionTree.push_back(treeNode);
-        // Update parent's children list
-        auto parentIt = planState->nodeIDToTreeIndex.find(nodeID());
-        if(parentIt != planState->nodeIDToTreeIndex.end()) {
-            planState->decompositionTree[parentIt->second].childNodeIDs.push_back(newNode->nodeID());
+        treeNode.parentNodeID = treeParentID;
+        // Use mergedTasks[0] for taskName - this is the first task this node will process
+        // For pass-through nodes (empty do() clause), mergedTasks contains remaining siblings
+        treeNode.taskName = (mergedTasks.size() > 0 && mergedTasks[0]) ? mergedTasks[0]->ToString() : "";
+
+        // Skip tree node creation for internal bookkeeping tasks (tryEnd, countAnyOf, failIfNoneOf)
+        // These are internal markers and shouldn't appear in the decomposition tree
+        bool isBookkeepingTask = false;
+        if(mergedTasks.size() > 0 && mergedTasks[0]) {
+            string taskName = mergedTasks[0]->name();
+            isBookkeepingTask = (taskName == "tryEnd" || taskName == "countAnyOf" || taskName == "failIfNoneOf");
+        }
+
+        if(!isBookkeepingTask) {
+            size_t index = planState->decompositionTree.size();
+            planState->nodeIDToTreeIndex[newNode->nodeID()] = index;
+            planState->decompositionTree.push_back(treeNode);
+            // Update parent's children list
+            auto parentIt = planState->nodeIDToTreeIndex.find(treeParentID);
+            if(parentIt != planState->nodeIDToTreeIndex.end()) {
+                planState->decompositionTree[parentIt->second].childNodeIDs.push_back(newNode->nodeID());
+            }
+        } else {
+            // For bookkeeping tasks, track parent relationship so MarkPathSuccess can walk up
+            planState->bookkeepingParents[newNode->nodeID()] = treeParentID;
         }
 
         continuePoint = returnPoint;
     }
-    
+
     void SetNextMethodThatUnifies()
     {
         // Reset the state that any method handling code uses
@@ -261,7 +383,14 @@ public:
     {
         return m_nodeID;
     }
-    
+
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+    const std::vector<std::pair<int, int>>& getSiblingStack() const
+    {
+        return siblingStack;
+    }
+#endif
+
     // Relatively expensive to calculate!
     int64_t dynamicSize()
     {
@@ -312,6 +441,11 @@ public:
     
 private:
     int m_nodeID;
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+    // Stack-based sibling tracking: each entry is (siblingParentID, siblingRemainingCount)
+    // Top of stack is the current sibling scope; when all siblings processed, pop to outer scope
+    std::vector<std::pair<int, int>> siblingStack;
+#endif
 };
 
 // The value returned indicates whether the element passed as first argument is considered to go before the second in the specific strict weak ordering it defines.
@@ -520,14 +654,38 @@ bool HtnPlanner::CheckForSpecialTask(PlanState *planState)
         // We need to distinguish between failure in the try() tasks and failure in tasks after it
         //    - tryEnd() does this by setting a bit in the try() node that says "At least one made it through"
         //    - So, we give each try() an id, and we add a tryEnd(id) at the end to accomplish this
+
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+        // Record try() in decomposition tree BEFORE expanding to subtasks
+        // This ensures the tree shows "try" as the task name, not the first argument
+        DecompTreeNode tryTreeNode;
+        tryTreeNode.nodeID = node->nodeID();
+        // Use siblingStack to determine tree parent
+        const auto& sibStack = node->getSiblingStack();
+        if(!sibStack.empty()) {
+            tryTreeNode.parentNodeID = sibStack.back().first;
+        } else {
+            // Fallback to parent node on stack
+            tryTreeNode.parentNodeID = (stack->size() > 1) ? (*stack)[stack->size() - 2]->nodeID() : -1;
+        }
+        tryTreeNode.taskName = node->task->ToString();  // "try(task1, task2, ...)"
+        planState->nodeIDToTreeIndex[node->nodeID()] = planState->decompositionTree.size();
+        planState->decompositionTree.push_back(tryTreeNode);
+        // Update parent's children list
+        auto parentIt = planState->nodeIDToTreeIndex.find(tryTreeNode.parentNodeID);
+        if(parentIt != planState->nodeIDToTreeIndex.end()) {
+            planState->decompositionTree[parentIt->second].childNodeIDs.push_back(node->nodeID());
+        }
+#endif
+
         shared_ptr<vector<shared_ptr<HtnTerm>>> tasks = shared_ptr<vector<shared_ptr<HtnTerm>>>(new vector<shared_ptr<HtnTerm>>());
         tasks->insert(tasks->begin(), node->task->arguments().begin(), node->task->arguments().end());
         tasks->push_back(factory->CreateFunctor("tryEnd", { factory->CreateConstant(lexical_cast<string>(node->nodeID()))}));
         Trace0("TRY        ", "", stack->size());
-        
+
         // try() pushes a node because it needs a chance to backtrack if the branch fails
         node->SearchNextNodeBacktrackable(planState, *tasks, PlanNodeContinuePoint::ReturnFromHandleTryTerm);
-        
+
         // Set the retryIfNoSolutions bit on this node.  tryEnd() will set to false if we get there
         node->retry = true;
         return true;
@@ -1371,10 +1529,37 @@ void HtnPlanner::MarkPathSuccess(PlanState* planState, int leafNodeID)
     int currentID = leafNodeID;
     while(currentID >= 0) {
         auto it = planState->nodeIDToTreeIndex.find(currentID);
-        if(it == planState->nodeIDToTreeIndex.end()) break;
+        if(it == planState->nodeIDToTreeIndex.end()) {
+            // Node not in tree - might be a bookkeeping task (tryEnd, countAnyOf, failIfNoneOf)
+            // Look up its parent in bookkeepingParents and continue from there
+            auto bookkeepIt = planState->bookkeepingParents.find(currentID);
+            if(bookkeepIt != planState->bookkeepingParents.end()) {
+                currentID = bookkeepIt->second;
+                continue;  // Try again with the parent
+            }
+            break;  // Not found anywhere, stop
+        }
         auto& node = planState->decompositionTree[it->second];
         node.isSuccess = true;
         node.solutionID = planState->currentSolutionID;  // Mark which solution this node belongs to
+
+#ifdef INDHTN_FLATTEN_SIBLING_TASKS
+        // Recursively mark all descendants (siblings and their children in flattened tree)
+        std::function<void(int)> markDescendants = [&](int nodeID) {
+            auto nodeIt = planState->nodeIDToTreeIndex.find(nodeID);
+            if(nodeIt == planState->nodeIDToTreeIndex.end()) return;
+            auto& descendant = planState->decompositionTree[nodeIt->second];
+            descendant.isSuccess = true;
+            descendant.solutionID = planState->currentSolutionID;
+            for(int childID : descendant.childNodeIDs) {
+                markDescendants(childID);
+            }
+        };
+        for(int childID : node.childNodeIDs) {
+            markDescendants(childID);
+        }
+#endif
+
         currentID = node.parentNodeID;
     }
     planState->currentSolutionID++;  // Increment for next solution
