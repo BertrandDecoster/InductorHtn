@@ -279,6 +279,12 @@ class HtnPlanner(object):
             ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
         ]
         self.indhtnLib.HtnGetSolutionFacts.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetParallelizedPlan.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetParallelizedPlan.restype = ctypes.POINTER(ctypes.c_char)
         # Resolution step counter (enabled by default, disable with -DINDHTN_TRACK_RESOLUTION_STEPS=OFF)
         self.indhtnLib.GetLastResolutionStepCount.argtypes = [ctypes.c_void_p]
         self.indhtnLib.GetLastResolutionStepCount.restype = ctypes.c_int64
@@ -624,6 +630,46 @@ class HtnPlanner(object):
         elapsedTimeNS = perf_counter_ns() - startTime
         perfLogger.info(
             "GetSolutionFacts %s ms: solution %d",
+            str(elapsedTimeNS / 1000000),
+            solutionIndex,
+        )
+
+        resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if resultBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            return resultBytes.decode(), None
+        else:
+            resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
+            self.indhtnLib.FreeString(mem)
+            return None, resultQuery
+
+    # Returns error, parallelizedPlanJson
+    # error = None if successful, or a string error message
+    # parallelizedPlanJson = JSON object with parallelized plan information:
+    #   {
+    #     "operators": [
+    #       {
+    #         "operator": "move(player, a, b)",  // The operator string
+    #         "timestep": 0,                      // Execution timestep (same = can run in parallel)
+    #         "scopeId": -1,                      // Parallel scope ID, -1 if sequential
+    #         "dependsOn": []                     // Indices of operators this depends on
+    #       },
+    #       ...
+    #     ]
+    #   }
+    # Within parallel scopes (parallel(task1, task2, ...)), operators with no dependencies
+    # get the same timestep and can be executed concurrently.
+    # Must call FindAllPlans or FindAllPlansCustomVariables first
+    def GetParallelizedPlan(self, solutionIndex=0):
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnGetParallelizedPlan(
+            self.obj, solutionIndex, ctypes.byref(mem)
+        )
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info(
+            "GetParallelizedPlan %s ms: solution %d",
             str(elapsedTimeNS / 1000000),
             solutionIndex,
         )

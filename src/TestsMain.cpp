@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "FXPlatform/FailFast.h"
 #include "FXPlatform/SystemTraceType.h"
 #include "FXPlatform/NanoTrace.h"
@@ -42,5 +43,7 @@ int main (int argc, char *argv[])
 
     TestReporterStdout reporter;
     TestRunner runner(reporter);
-    return runner.RunTestsIf(Test::GetTestList(), NULL, TestFilter(), 0);
+    auto testList = Test::GetTestList();
+    int result = runner.RunTestsIf(testList, NULL, TestFilter(), 0);
+    return result;
 }

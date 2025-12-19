@@ -7,6 +7,7 @@
 #include "FXPlatform/Logger.h"
 #include "FXPlatform/Htn/HtnCompiler.h"
 #include "FXPlatform/Htn/HtnPlanner.h"
+#include "FXPlatform/Htn/PlanParallelizer.h"
 #include "FXPlatform/Prolog/PrologQueryCompiler.h"
 #include <FXPlatform/NanoTrace.h>
 // using namespace std;
@@ -536,6 +537,41 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
 
             auto solution = (*ptr->m_lastSolutions)[solutionIndex];
             *result = GetCharPtrFromString(RuleSetFactsToJsonArray(solution->finalState()));
+            return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+    // Returns the parallelized plan for a specific solution as JSON
+    // Analyzes parallel scopes (marked by beginParallel/endParallel) and assigns timesteps
+    // for parallel execution. Tasks within parallel scopes get the same timestep (can run concurrently).
+    // Returns nullptr on success (result contains parallelized plan JSON), error string on failure
+    __declspec(dllexport) char* __stdcall HtnGetParallelizedPlan(HtnPlannerPythonWrapper* ptr, const uint64_t solutionIndex, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+            if(ptr->m_lastSolutions == nullptr || solutionIndex >= ptr->m_lastSolutions->size())
+            {
+                *result = nullptr;
+                return GetCharPtrFromString("Invalid solution index or no solutions available");
+            }
+
+            auto solution = (*ptr->m_lastSolutions)[solutionIndex];
+
+            // Get the plan operators
+            std::vector<std::shared_ptr<HtnTerm>> planOps = solution->operators();
+
+            // Empty operator definitions map - dependency analysis assigns same timestep
+            // to all operators within parallel scopes (domain author ensures independence)
+            std::map<std::string, std::shared_ptr<HtnOperator>> operatorDefs;
+
+            auto parallelizedPlan = PlanParallelizer::Parallelize(planOps, operatorDefs);
+            *result = GetCharPtrFromString(PlanParallelizer::ToJson(parallelizedPlan));
             return nullptr;
         }
         catch(runtime_error &error)

@@ -11,11 +11,11 @@ if(INDHTN_TRACK_RESOLUTION_STEPS)
     message(STATUS "Resolution step tracking enabled")
 endif()
 
-# Option to flatten sibling tasks in decomposition tree (for GUI display)
-option(INDHTN_FLATTEN_SIBLING_TASKS "Flatten sibling tasks in decomposition tree" ON)
-if(INDHTN_FLATTEN_SIBLING_TASKS)
-    add_compile_definitions(INDHTN_FLATTEN_SIBLING_TASKS)
-    message(STATUS "Sibling task flattening enabled")
+# Option to track sibling relationships for correct decomposition tree structure
+option(INDHTN_TREE_SIBLING_TRACKING "Track sibling relationships for correct tree parent assignments" ON)
+if(INDHTN_TREE_SIBLING_TRACKING)
+    add_compile_definitions(INDHTN_TREE_SIBLING_TRACKING)
+    message(STATUS "Tree sibling tracking enabled")
 endif()
 
 add_executable(runtests TestsMain.cpp)

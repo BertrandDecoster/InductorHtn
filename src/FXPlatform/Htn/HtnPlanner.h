@@ -244,6 +244,10 @@ private:
     void MarkPathSuccess(PlanState* planState, int leafNodeID);
     void MarkNodeFailed(PlanState* planState, int nodeID, const std::string& reason, int failedIndex = -1, std::shared_ptr<HtnTerm> failedTerm = nullptr);
 
+    // Deferred tree node creation (creates tree nodes at task resolution time)
+    int DetermineTreeParent(PlanState* planState, PlanNode* node);
+    void CreateTreeNodeForTask(PlanState* planState, PlanNode* node);
+
     // *** Remember to update dynamicSize() if you change any member variables!
     // Awful hack making this static. necessary because it was too late in schedule to properly plumb through an Abort
     static uint8_t m_abort;
