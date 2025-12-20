@@ -45,6 +45,39 @@ travel(?from, ?to) :- if(at(?from)), do(walk(?from, ?to)).
 - **Methods**: `task() :- if(conditions), do(subtasks).`
 - **Operators**: `action() :- del(remove), add(insert).`
 - **Modifiers**: `else`, `anyOf`, `allOf`, `hidden`
+- **Parallel**: `parallel(taskA, taskB, ...)` - marks tasks for parallel execution
+
+### Parallel Execution Feature
+
+The `parallel()` keyword enables multi-agent parallel execution through post-processing:
+
+```prolog
+% Tasks within parallel() can execute concurrently
+workflow() :- if(), do(setup, parallel(movePlayer, moveWarden), cleanup).
+movePlayer :- del(playerAt(a)), add(playerAt(b)).
+moveWarden :- del(wardenAt(x)), add(wardenAt(y)).
+```
+
+**How it works:**
+- During planning: Tasks are planned sequentially (no search explosion)
+- Plan output: Contains `beginParallel`/`endParallel` markers
+- Post-processing: `PlanParallelizer` assigns timesteps for parallel execution
+
+**Key files:**
+- `src/FXPlatform/Htn/HtnPlanner.cpp` - `parallel()` handling in `CheckForSpecialTask()`
+- `src/FXPlatform/Htn/PlanParallelizer.h/cpp` - Post-processor for timestep assignment
+- `src/Tests/Htn/HtnParallelTests.cpp` - Test suite
+
+**Python API:**
+```python
+error, parallelized = planner.GetParallelizedPlan(solutionIndex)
+# Returns JSON: {"operators": [{"operator": "taskA", "timestep": 0, "scopeId": 1, "dependsOn": []}, ...]}
+```
+
+**Design notes:**
+- Domain author is responsible for ensuring tasks within `parallel()` are truly independent
+- Tasks in same parallel scope get same timestep (can run concurrently)
+- Avoids exponential complexity of partial-order planning
 
 ### Factory Pattern
 All terms must come from the same `HtnTermFactory` for unification to work.
