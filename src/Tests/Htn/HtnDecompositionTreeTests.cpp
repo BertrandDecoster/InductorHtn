@@ -6,6 +6,8 @@
 //  Copyright 2025 Bertrand Decoster. All rights reserved.
 //
 
+#include <map>
+#include <set>
 #include "FXPlatform/FailFast.h"
 #include "FXPlatform/Parser/ParserDebug.h"
 #include "FXPlatform/Prolog/HtnGoalResolver.h"
@@ -197,5 +199,194 @@ SUITE(HtnDecompositionTreeTests)
         // This was a bug when navigateTo's base case had empty do() - the empty node incorrectly
         // became the parent instead of theBurn
         CHECK_EQUAL(theBurnNodeID, opBringEnemyParent->parentNodeID);
+    }
+
+    // Test: try() failure must not corrupt sibling stack
+    // Mimics CombatLevel1_GreaseTrap.htn scenario where try(triggerSnareEnemies) fails
+    // and causes bringEnemyTo to incorrectly become child of applyTag instead of sibling
+    TEST(TryFailureSiblingTracking)
+    {
+        TreeTestHelper helper;
+
+        // Domain:
+        // - mainGoal has 3 sibling tasks: childA, childB, childC
+        // - childB decomposes to tasks including try() that fails
+        // - After try() failure, childC should still be sibling of childB, not child
+        string program = R"(
+            hasItem.
+
+            mainGoal() :- if(), do(childA, childB, childC).
+
+            childA() :- if(), do(opA).
+            opA() :- del(), add(aDone).
+
+            % childB has try() where first succeeds, second fails
+            childB() :- if(), do(opB1, try(trySucceeds), try(tryFails)).
+            trySucceeds() :- if(hasItem), do(opB2).
+            tryFails() :- if(noSuchFact), do(opB3).
+            opB1() :- del(), add().
+            opB2() :- del(), add().
+
+            childC() :- if(), do(opC).
+            opC() :- del(), add(cDone).
+
+            goals(mainGoal()).
+        )";
+
+        auto solution = helper.FindFirstSolution(program);
+        CHECK(solution != nullptr);
+        if(!solution) return;
+
+        const auto& tree = solution->decompositionTree;
+
+        // Find mainGoal (root), childA, childB, childC nodes
+        const DecompTreeNode* mainGoal = helper.FindNodeByTaskPrefix(tree, "mainGoal");
+        const DecompTreeNode* childA = helper.FindNodeByTaskPrefix(tree, "childA");
+        const DecompTreeNode* childB = helper.FindNodeByTaskPrefix(tree, "childB");
+        const DecompTreeNode* childC = helper.FindNodeByTaskPrefix(tree, "childC");
+
+        CHECK(mainGoal != nullptr);
+        CHECK(childA != nullptr);
+        CHECK(childB != nullptr);
+        CHECK(childC != nullptr);
+        if(!mainGoal || !childA || !childB || !childC) return;
+
+        int mainGoalNodeID = mainGoal->nodeID;
+
+        // All three children should be direct children of mainGoal
+        CHECK_EQUAL(mainGoalNodeID, childA->parentNodeID);
+        CHECK_EQUAL(mainGoalNodeID, childB->parentNodeID);
+
+        // THE BUG: Before fix, try() failure left stale sibling scope on stack,
+        // causing childC to incorrectly become child of childB instead of sibling.
+        // After fix, childC should be direct child of mainGoal like childA and childB.
+        CHECK_EQUAL(mainGoalNodeID, childC->parentNodeID);
+    }
+
+    // Test: Matches CombatLevel1_GreaseTrap structure exactly
+    // theSlipstream -> [navigateTo, applyTag, bringEnemyTo]
+    // applyTag -> applyTagEffect -> [opApply, try(triggerFreeze), try(triggerSnare)]
+    // triggerSnare fails, then bringEnemyTo should be sibling of applyTag (not child)
+    TEST(SlipstreamScenario)
+    {
+        TreeTestHelper helper;
+
+        string program = R"(
+            terrain(oilRoom, oil).
+
+            theSlipstream() :- if(), do(navigateTo, applyTag, bringEnemyTo).
+
+            navigateTo() :- if(), do(opNavigate).
+            opNavigate() :- del(), add().
+
+            applyTag() :- if(), do(applyTagEffect).
+            applyTagEffect() :- if(), do(opApply, try(triggerFreeze), try(triggerSnare)).
+
+            triggerFreeze() :- if(terrain(oilRoom, oil)), do(opFreeze).
+            triggerSnare() :- if(noEnemyHere), do(opSnare).
+
+            opApply() :- del(), add().
+            opFreeze() :- del(), add().
+
+            bringEnemyTo() :- if(), do(opBring).
+            opBring() :- del(), add().
+
+            goals(theSlipstream()).
+        )";
+
+        auto solution = helper.FindFirstSolution(program);
+        CHECK(solution != nullptr);
+        if(!solution) return;
+
+        const auto& tree = solution->decompositionTree;
+
+        // Find theSlipstream and bringEnemyTo
+        const DecompTreeNode* theSlipstream = helper.FindNodeByTaskPrefix(tree, "theSlipstream");
+        const DecompTreeNode* bringEnemyTo = helper.FindNodeByTaskPrefix(tree, "bringEnemyTo");
+        const DecompTreeNode* applyTag = helper.FindNodeByTaskPrefix(tree, "applyTag");
+
+        CHECK(theSlipstream != nullptr);
+        CHECK(bringEnemyTo != nullptr);
+        CHECK(applyTag != nullptr);
+        if(!theSlipstream || !bringEnemyTo || !applyTag) return;
+
+        // bringEnemyTo should be a sibling of applyTag (both children of theSlipstream)
+        // parentNodeID now refers to parent's treeNodeID, not nodeID
+        CHECK_EQUAL(theSlipstream->treeNodeID, bringEnemyTo->parentNodeID);
+        CHECK_EQUAL(theSlipstream->treeNodeID, applyTag->parentNodeID);
+
+        // All treeNodeIDs should be unique
+        std::set<int> treeNodeIDs;
+        for(const auto& node : tree) {
+            CHECK(treeNodeIDs.find(node.treeNodeID) == treeNodeIDs.end());
+            treeNodeIDs.insert(node.treeNodeID);
+        }
+
+        // Check for duplicates
+        std::map<std::pair<int, std::string>, int> entryCount;
+        for(const auto& node : tree) {
+            auto key = std::make_pair(node.nodeID, node.taskName);
+            entryCount[key]++;
+        }
+
+        for(const auto& entry : entryCount) {
+            if(entry.second > 1) {
+                printf("DUPLICATE: nodeID=%d, taskName='%s', count=%d\n",
+                       entry.first.first, entry.first.second.c_str(), entry.second);
+            }
+            CHECK_EQUAL(1, entry.second);
+        }
+    }
+
+    // Test: No duplicate tree entries for the same task on the same node
+    // When try() fails, the next task gets processed on the same node. We must not
+    // create duplicate tree entries for the failed try() task.
+    TEST(NoDuplicateTreeEntries)
+    {
+        TreeTestHelper helper;
+
+        // Same domain as TryFailureSiblingTracking
+        string program = R"(
+            hasItem.
+
+            mainGoal() :- if(), do(childA, childB, childC).
+
+            childA() :- if(), do(opA).
+            opA() :- del(), add(aDone).
+
+            childB() :- if(), do(opB1, try(trySucceeds), try(tryFails)).
+            trySucceeds() :- if(hasItem), do(opB2).
+            tryFails() :- if(noSuchFact), do(opB3).
+            opB1() :- del(), add().
+            opB2() :- del(), add().
+
+            childC() :- if(), do(opC).
+            opC() :- del(), add(cDone).
+
+            goals(mainGoal()).
+        )";
+
+        auto solution = helper.FindFirstSolution(program);
+        CHECK(solution != nullptr);
+        if(!solution) return;
+
+        const auto& tree = solution->decompositionTree;
+
+        // Check for duplicates: count occurrences of each (nodeID, taskName) pair
+        std::map<std::pair<int, std::string>, int> entryCount;
+        for(const auto& node : tree) {
+            auto key = std::make_pair(node.nodeID, node.taskName);
+            entryCount[key]++;
+        }
+
+        // Verify no duplicates
+        for(const auto& entry : entryCount) {
+            if(entry.second > 1) {
+                // Print diagnostic info on failure
+                printf("DUPLICATE: nodeID=%d, taskName='%s', count=%d\n",
+                       entry.first.first, entry.first.second.c_str(), entry.second);
+            }
+            CHECK_EQUAL(1, entry.second);
+        }
     }
 }

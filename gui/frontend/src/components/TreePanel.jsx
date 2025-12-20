@@ -83,6 +83,27 @@ function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) 
     ? (treeData && treeData[selectedSolution])
     : treeData
 
+  // Format method signature with styled keywords
+  const formatSignature = (signature) => {
+    if (!signature) return null
+
+    // Replace "default" with "else" for display
+    let text = signature.replace(/\bdefault,/, 'else,')
+
+    // Split on keywords to apply styling
+    const parts = text.split(/(\bif\(|\bdo\(|\belse,|\ballOf,|\banyOf,)/)
+
+    return parts.map((part, i) => {
+      if (part === 'if(' || part === 'do(') {
+        return <span key={i}><strong>{part.slice(0, -1)}</strong>(</span>
+      }
+      if (part === 'else,' || part === 'allOf,' || part === 'anyOf,') {
+        return <em key={i}>{part}</em>
+      }
+      return part
+    })
+  }
+
   // Format failure category for display
   const formatCategory = (category) => {
     const categoryMap = {
@@ -153,7 +174,7 @@ function TreePanel({ treeData, solutions, selectedSolution, onSolutionSelect }) 
 
           {/* Full signature */}
           {node.fullSignature && (
-            <div className="tree-node-signature">{node.fullSignature}</div>
+            <div className="tree-node-signature">{formatSignature(node.fullSignature)}</div>
           )}
 
           {/* Head bindings */}

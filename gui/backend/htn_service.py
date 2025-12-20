@@ -361,8 +361,12 @@ class HtnService:
         if not nodes:
             return None
 
-        # Build lookup map
-        node_map = {n['nodeID']: n for n in nodes}
+        # Build lookup map using treeNodeID (unique for each tree entry)
+        # Falls back to nodeID if treeNodeID not present (backward compatibility)
+        node_map = {}
+        for n in nodes:
+            key = n.get('treeNodeID', n['nodeID'])
+            node_map[key] = n
 
         # Find root (parentNodeID == -1)
         roots = [n for n in nodes if n['parentNodeID'] == -1]
@@ -370,7 +374,9 @@ class HtnService:
             return None
 
         def build_tree(node):
-            node_id = node['nodeID']
+            # Use treeNodeID for unique identification, fall back to nodeID
+            tree_node_id = node.get('treeNodeID', node['nodeID'])
+            node_id = node['nodeID']  # Keep for reference
             is_operator = node.get('isOperator', False)
 
             # Determine display name
@@ -407,7 +413,7 @@ class HtnService:
                     children.append(build_tree(node_map[child_id]))
 
             return {
-                'id': f'sol{solution_index}-node{node_id}',
+                'id': f'sol{solution_index}-node{tree_node_id}',
                 'name': name,
                 'fullSignature': signature,
                 'taskName': node.get('taskName', ''),

@@ -20,9 +20,10 @@
 // Captures both successful and failed branches for plan explanation
 struct DecompTreeNode
 {
-    int nodeID;
-    int parentNodeID;  // -1 for root
-    std::vector<int> childNodeIDs;
+    int treeNodeID;    // Unique ID for this tree entry (for parent-child relationships)
+    int nodeID;        // PlanNode ID (may be shared when try() fails and next task runs on same node)
+    int parentNodeID;  // Parent's treeNodeID, -1 for root
+    std::vector<int> childNodeIDs;  // Children's treeNodeIDs
     std::string taskName;
     std::string methodSignature;  // Empty for operators
     std::string operatorSignature;  // Empty for methods
@@ -40,12 +41,13 @@ struct DecompTreeNode
     int failedConditionIndex;                     // Which condition term failed (-1 if none)
     std::string failedConditionTermJson;          // Structured JSON of the failing term
 
-    DecompTreeNode() : nodeID(-1), parentNodeID(-1), isOperator(false), isSuccess(false), isFailed(false), solutionID(-1), methodIndex(-1), failedConditionIndex(-1) {}
+    DecompTreeNode() : treeNodeID(-1), nodeID(-1), parentNodeID(-1), isOperator(false), isSuccess(false), isFailed(false), solutionID(-1), methodIndex(-1), failedConditionIndex(-1) {}
 
     std::string ToJson() const
     {
         std::stringstream ss;
         ss << "{";
+        ss << "\"treeNodeID\":" << treeNodeID << ",";
         ss << "\"nodeID\":" << nodeID << ",";
         ss << "\"parentNodeID\":" << parentNodeID << ",";
         ss << "\"childNodeIDs\":[";
@@ -136,13 +138,15 @@ private:
     double startTimeSeconds;
     int64_t memoryBudget;
     int nextNodeID;
+    int nextTreeNodeID;  // Separate counter for unique tree node IDs
     bool returnValue;
     std::shared_ptr<std::vector<std::shared_ptr<PlanNode>>> stack;
 
     // Decomposition tree - built incrementally during planning
     // Survives stack unwinding and captures both successful and failed branches
     std::vector<DecompTreeNode> decompositionTree;
-    std::map<int, size_t> nodeIDToTreeIndex;  // Fast lookup: nodeID -> index in decompositionTree
+    std::map<int, size_t> treeNodeIDToTreeIndex;  // Fast lookup: treeNodeID -> index in decompositionTree
+    std::map<int, int> nodeIDToLastTreeNodeID;    // PlanNode nodeID -> last treeNodeID created for it
     std::map<int, int> bookkeepingParents;  // Track parent relationships for bookkeeping tasks (tryEnd, etc.)
     int currentSolutionID;  // Incremented each time a solution is found
 };
@@ -246,6 +250,7 @@ private:
 
     // Deferred tree node creation (creates tree nodes at task resolution time)
     int DetermineTreeParent(PlanState* planState, PlanNode* node);
+    static int NodeIDToTreeNodeID(PlanState* planState, int nodeID);
     void CreateTreeNodeForTask(PlanState* planState, PlanNode* node);
 
     // *** Remember to update dynamicSize() if you change any member variables!

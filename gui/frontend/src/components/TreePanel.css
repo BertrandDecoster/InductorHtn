@@ -183,6 +183,15 @@
   word-break: break-all;
 }
 
+.tree-node-signature strong {
+  color: #c586c0;  /* Purple for if/do - matches Prolog keywords */
+}
+
+.tree-node-signature em {
+  color: #dcdcaa;  /* Yellow for modifiers like else, allOf, anyOf */
+  font-style: normal;
+}
+
 /* Binding labels */
 .binding-label {
   color: #c586c0;

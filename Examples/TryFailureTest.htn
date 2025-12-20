@@ -1,0 +1,18 @@
+hasItem.
+
+mainGoal() :- if(), do(childA, childB, childC).
+
+childA() :- if(), do(opA).
+opA() :- del(), add(aDone).
+
+% childB has try() where first succeeds, second fails
+childB() :- if(), do(opB1, try(trySucceeds), try(tryFails)).
+trySucceeds() :- if(hasItem), do(opB2).
+tryFails() :- if(noSuchFact), do(opB3).
+opB1() :- del(), add().
+opB2() :- del(), add().
+
+childC() :- if(), do(opC).
+opC() :- del(), add(cDone).
+
+goals(mainGoal()).

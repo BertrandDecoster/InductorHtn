@@ -161,6 +161,114 @@ Node1: ReturnFromNextNormalMethodCondition
   → Tries next condition/method...
 ```
 
+## Decomposition Tree Tracking
+
+The planner builds a decomposition tree showing how tasks decompose into subtasks. Enabled with `INDHTN_TREE_SIBLING_TRACKING` cmake flag.
+
+### Tree Node IDs: treeNodeID vs nodeID
+
+The decomposition tree uses two distinct ID systems:
+
+| Field | Description |
+|-------|-------------|
+| `treeNodeID` | Unique ID for each tree entry. Used for parent-child relationships. |
+| `nodeID` | Reference to the PlanNode. May be shared when try() fails and next task runs on same node. |
+| `parentNodeID` | Parent's `treeNodeID` (-1 for root) |
+| `childNodeIDs` | Vector of children's `treeNodeID`s |
+
+**Why two IDs?** When `try()` fails, the planner continues with remaining tasks on the **same PlanNode** (same `nodeID`). Each task still needs its own tree entry with a unique `treeNodeID` to maintain correct parent-child relationships.
+
+Example: `do(opApply, try(triggerFreeze), try(triggerSnare), nextTask)`
+- If `try(triggerSnare)` fails, `nextTask` runs on the same PlanNode
+- Both `try(triggerSnare)` and `nextTask` get separate tree entries with different `treeNodeID`s but same `nodeID`
+
+### PlanState Tree Tracking Maps
+
+```cpp
+std::vector<DecompTreeNode> decompositionTree;           // The tree itself
+std::map<int, size_t> treeNodeIDToTreeIndex;             // treeNodeID -> index in decompositionTree
+std::map<int, int> nodeIDToLastTreeNodeID;               // PlanNode nodeID -> last treeNodeID created for it
+```
+
+- `treeNodeIDToTreeIndex`: Fast lookup from treeNodeID to tree vector index
+- `nodeIDToLastTreeNodeID`: Converts PlanNode nodeID to treeNodeID for parent lookups
+
+### Sibling Stack
+
+Each `PlanNode` maintains a `siblingStack: vector<pair<int, int>>` where each entry is `{parentNodeID, remainingSiblingCount}`.
+
+- **Push**: When a method decomposes, push `{nodeID, subtaskCount - 1}` onto child's stack
+- **Pop**: When scope is exhausted (count reaches 0) or explicit markers reached
+
+### Scope Markers (Bookkeeping Tasks)
+
+| Marker | Purpose |
+|--------|---------|
+| `methodScopeEnd(nodeID)` | Inserted between method's subtasks and remaining parent tasks; pops method's scope |
+| `tryEnd(nodeID)` | Marks end of try() subtasks; pops try's scope |
+| `countAnyOf(nodeID)` | Increments success count for anyOf processing |
+| `failIfNoneOf(nodeID)` | Fails if no anyOf alternatives succeeded |
+| `beginParallel` | Marks start of parallel execution block |
+| `endParallel` | Marks end of parallel execution block |
+
+### Task Merging with Scope Markers
+
+When `SearchNextNodeBacktrackable` merges tasks:
+```
+Method decomposes to [A, B, C], remaining parent tasks [D, E]
+Merged tasks: [A, B, C, methodScopeEnd(methodNodeID), D, E]
+```
+
+### Tree Parent Determination (`DetermineTreeParent`)
+
+1. If sibling stack non-empty: parent = `sibStack.back().first`
+2. Otherwise: parent = previous node on stack
+
+### Special Construct Scope Handling
+
+**try()**: On failure (`ReturnFromHandleTryTerm` with `retry=true`):
+- Pop try's scope via `popSiblingScopeIfMatches(nodeID)`
+- Continue with remaining tasks on same node
+- `methodScopeEnd` markers ensure proper scope cleanup
+
+**anyOf**: Each alternative wrapped in try(); `countAnyOf` tracks successes; `failIfNoneOf` at end
+
+**allOf**: All alternatives merged into single task list
+
+**parallel()**: Wrapped with `beginParallel`/`endParallel` markers for post-processing by `PlanParallelizer`
+
+### Tree Node Creation (`CreateTreeNodeForTask`)
+
+Called in `NextTask` before processing each task:
+
+1. **Skip if task is nullptr**
+2. **Skip bookkeeping tasks** (markers listed above - they consume nodeIDs but don't create tree entries)
+3. **Duplicate check**: Skip if same nodeID AND same taskName already has a tree entry
+4. **Determine parent**: Use `DetermineTreeParent()` to get parent's PlanNode nodeID, then convert to treeNodeID via `NodeIDToTreeNodeID()`
+5. **Create tree entry**:
+   - Allocate new `treeNodeID = nextTreeNodeID++`
+   - Set `nodeID` to PlanNode's ID (reference only)
+   - Set `parentNodeID` to parent's `treeNodeID`
+   - Update `nodeIDToLastTreeNodeID[nodeID] = treeNodeID`
+   - Add to parent's `childNodeIDs` vector
+
+```cpp
+// Simplified logic
+int parentPlanNodeID = DetermineTreeParent(planState, node);
+int parentTreeNodeID = NodeIDToTreeNodeID(planState, parentPlanNodeID);
+
+DecompTreeNode treeNode;
+treeNode.treeNodeID = planState->nextTreeNodeID++;
+treeNode.nodeID = node->nodeID();
+treeNode.parentNodeID = parentTreeNodeID;
+treeNode.taskName = node->task->ToString();
+
+planState->nodeIDToLastTreeNodeID[node->nodeID()] = treeNode.treeNodeID;
+planState->decompositionTree.push_back(treeNode);
+```
+
+**Key insight**: When try() fails, the next task runs on the same PlanNode but gets a NEW treeNodeID. The duplicate check (same nodeID + same taskName) prevents redundant entries while allowing different tasks on the same node.
+
 ## Key Design Principles
 
 1. **Stackless** - Explicit stack avoids recursion limits
@@ -168,3 +276,4 @@ Node1: ReturnFromNextNormalMethodCondition
 3. **Memory Budgets** - Tracked with graceful degradation
 4. **Backtracking** - State copying only when needed
 5. **Method Order** - Preserved from source file
+6. **Sibling Tracking** - Scope markers ensure correct tree parent relationships

@@ -127,8 +127,12 @@ class FailureAnalyzer:
         if initial_facts:
             self.current_facts = set(initial_facts)
 
-        # Build lookup map
-        node_map = {n['nodeID']: n for n in nodes}
+        # Build lookup map using treeNodeID (unique for each tree entry)
+        # Falls back to nodeID if treeNodeID not present (backward compatibility)
+        node_map = {}
+        for n in nodes:
+            key = n.get('treeNodeID', n['nodeID'])
+            node_map[key] = n
 
         # Find all nodes for each task (for alternative tracking)
         self._build_method_index(nodes)
@@ -157,7 +161,9 @@ class FailureAnalyzer:
     def _build_enhanced_tree(self, node: Dict, node_map: Dict[int, Dict],
                             solution_index: int) -> EnhancedNode:
         """Build an enhanced node tree with failure analysis"""
-        node_id = node['nodeID']
+        # Use treeNodeID for unique identification, fall back to nodeID
+        tree_node_id = node.get('treeNodeID', node['nodeID'])
+        node_id = node['nodeID']  # Keep for reference
         is_operator = node.get('isOperator', False)
 
         # Determine display name and signature
@@ -200,7 +206,7 @@ class FailureAnalyzer:
 
         # Create enhanced node
         enhanced = EnhancedNode(
-            id=f'sol{solution_index}-node{node_id}',
+            id=f'sol{solution_index}-node{tree_node_id}',
             name=name,
             full_signature=signature,
             task_name=node.get('taskName', ''),
