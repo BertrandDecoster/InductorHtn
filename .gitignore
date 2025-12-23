@@ -3,7 +3,7 @@ build/
 __pycache__/
 .vscode/launch.json
 .DS_Store
-/.vscode
+
 /gui/frontend/node_modules
 *.dll
 .claude/settings.local.json
