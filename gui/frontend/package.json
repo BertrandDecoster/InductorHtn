@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "NODE_OPTIONS='--no-experimental-webstorage' vitest",
+    "test:run": "NODE_OPTIONS='--no-experimental-webstorage' vitest run"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",

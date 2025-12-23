@@ -62,10 +62,12 @@ def indhtn_path(project_root):
     """Get path to indhtn executable."""
     exe_suffix = ".exe" if platform.system() == "Windows" else ""
 
-    # Try Release first, then Debug
+    # Multi-config generators (Visual Studio) put executables in build/Release/ or build/Debug/
+    # Single-config generators (Unix Makefiles) put executables in build/ directly
     paths = [
-        project_root / "build" / "Release" / f"indhtn{exe_suffix}",
-        project_root / "build" / "Debug" / f"indhtn{exe_suffix}",
+        project_root / "build" / "Release" / f"indhtn{exe_suffix}",  # Windows multi-config
+        project_root / "build" / "Debug" / f"indhtn{exe_suffix}",    # Windows multi-config debug
+        project_root / "build" / f"indhtn{exe_suffix}",              # Unix single-config
     ]
 
     for p in paths:

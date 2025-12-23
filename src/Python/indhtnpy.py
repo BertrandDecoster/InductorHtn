@@ -159,8 +159,21 @@ class HtnPlanner(object):
             self.indhtnLib = ctypes.CDLL(libname)
         else:
             if platform == "darwin":
-                # OS X
+                # macOS
+                import os
                 libname = "libindhtnpy.dylib"
+                search_paths = [
+                    os.path.join(os.path.dirname(__file__), libname),  # Same directory as this file
+                    os.path.join(os.getcwd(), libname),  # Current working directory
+                    os.path.join(os.getcwd(), "src", "Python", libname),  # src/Python from root
+                ]
+                indhtnPath = None
+                for path in search_paths:
+                    if os.path.exists(path):
+                        indhtnPath = path
+                        break
+                if not indhtnPath:
+                    indhtnPath = ctypes.util.find_library("indhtnpy")
             elif platform == "win32":
                 # Windows...
                 import os

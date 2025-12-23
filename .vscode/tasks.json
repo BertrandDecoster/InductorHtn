@@ -6,15 +6,43 @@
             "type": "shell",
             "command": "cmake",
             "args": [
-                "-G",
-                "Visual Studio 17 2022",
-                "-A",
-                "x64",
                 "-S",
                 "src",
                 "-B",
                 "build"
             ],
+            "windows": {
+                "args": [
+                    "-G",
+                    "Visual Studio 17 2022",
+                    "-A",
+                    "x64",
+                    "-S",
+                    "src",
+                    "-B",
+                    "build"
+                ]
+            },
+            "osx": {
+                "args": [
+                    "-G",
+                    "Unix Makefiles",
+                    "-S",
+                    "src",
+                    "-B",
+                    "build"
+                ]
+            },
+            "linux": {
+                "args": [
+                    "-G",
+                    "Unix Makefiles",
+                    "-S",
+                    "src",
+                    "-B",
+                    "build"
+                ]
+            },
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -46,7 +74,10 @@
                 "reveal": "always",
                 "panel": "shared"
             },
-            "problemMatcher": ["$msCompile"]
+            "problemMatcher": [],
+            "windows": {
+                "problemMatcher": ["$msCompile"]
+            }
         },
         {
             "label": "CMake: Build (Release)",
@@ -66,19 +97,25 @@
                 "reveal": "always",
                 "panel": "shared"
             },
-            "problemMatcher": ["$msCompile"]
+            "problemMatcher": [],
+            "windows": {
+                "problemMatcher": ["$msCompile"]
+            }
         },
         {
             "label": "Fast Test (Debug)",
             "dependsOn": ["CMake: Build (Debug)"],
             "dependsOrder": "sequence",
             "type": "shell",
-            "command": "python",
+            "command": ".venv/bin/python3",
             "args": [
                 "run_all_tests.py",
                 "--debug",
                 "--fast"
             ],
+            "windows": {
+                "command": ".venv/Scripts/python.exe"
+            },
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -97,11 +134,14 @@
             "dependsOn": ["CMake: Build (Debug)"],
             "dependsOrder": "sequence",
             "type": "shell",
-            "command": "python",
+            "command": ".venv/bin/python3",
             "args": [
                 "run_all_tests.py",
                 "--debug"
             ],
+            "windows": {
+                "command": ".venv/Scripts/python.exe"
+            },
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -117,11 +157,14 @@
             "dependsOn": ["CMake: Build (Release)"],
             "dependsOrder": "sequence",
             "type": "shell",
-            "command": "python",
+            "command": ".venv/bin/python3",
             "args": [
                 "run_all_tests.py",
                 "--release"
             ],
+            "windows": {
+                "command": ".venv/Scripts/python.exe"
+            },
             "options": {
                 "cwd": "${workspaceFolder}"
             },

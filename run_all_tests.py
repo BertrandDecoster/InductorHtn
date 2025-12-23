@@ -45,13 +45,22 @@ def run_cpp_tests(build_config: str) -> tuple[bool, int, int]:
     """Run C++ unit tests."""
     print_header(f"C++ Unit Tests ({build_config})")
 
-    exe_path = Path(f"build/{build_config}/runtests.exe")
-    if not exe_path.exists():
-        # Try without .exe for Unix
-        exe_path = Path(f"build/{build_config}/runtests")
+    # Multi-config generators (Visual Studio) put executables in build/Release/ or build/Debug/
+    # Single-config generators (Unix Makefiles) put executables in build/ directly
+    exe_candidates = [
+        Path(f"build/{build_config}/runtests.exe"),  # Windows multi-config
+        Path(f"build/{build_config}/runtests"),       # Unix multi-config (rare)
+        Path("build/runtests"),                       # Unix single-config (Makefiles)
+    ]
 
-    if not exe_path.exists():
-        print(f"{RED}Error: Test executable not found at {exe_path}{RESET}")
+    exe_path = None
+    for candidate in exe_candidates:
+        if candidate.exists():
+            exe_path = candidate
+            break
+
+    if not exe_path:
+        print(f"{RED}Error: Test executable not found at {exe_candidates[0]}{RESET}")
         print(f"Run: cmake --build ./build --config {build_config}")
         return False, 0, 0
 
@@ -206,13 +215,23 @@ def run_gui_frontend_tests() -> tuple[bool, int, int]:
         return True, 0, 0
 
     start = time.time()
-    result = subprocess.run(
-        ["npm", "run", "test:run"],
-        capture_output=True,
-        text=True,
-        cwd=str(frontend_dir),
-        shell=True  # Required for npm on Windows
-    )
+    # On Windows, npm requires shell=True with string command
+    # On macOS/Linux, use list without shell
+    if sys.platform == "win32":
+        result = subprocess.run(
+            "npm run test:run",
+            capture_output=True,
+            text=True,
+            cwd=str(frontend_dir),
+            shell=True
+        )
+    else:
+        result = subprocess.run(
+            ["npm", "run", "test:run"],
+            capture_output=True,
+            text=True,
+            cwd=str(frontend_dir)
+        )
     elapsed = time.time() - start
 
     print(result.stdout)
