@@ -1,0 +1,78 @@
+% aggro - Primitive component for enemy threat management
+% Handles aggro (threat) between entities and following behavior
+% Depends on: locomotion (for movement)
+
+% === Operators ===
+
+% Gain aggro on player (enemy now targets player)
+opGetAggro(?enemy) :-
+    del(),
+    add(hasAggro(?enemy, player)).
+
+% Lose aggro (enemy no longer targets anyone)
+opLoseAggro(?enemy) :-
+    del(hasAggro(?enemy, player)),
+    add().
+
+% === Methods ===
+
+% Get aggro if not already have it
+getAggro(?enemy) :-
+    if(not(hasAggro(?enemy, player))),
+    do(opGetAggro(?enemy)).
+
+% Already has aggro - no-op
+getAggro(?enemy) :-
+    else, if(),
+    do().
+
+% Lose aggro if currently has it
+loseAggro(?enemy) :-
+    if(hasAggro(?enemy, player)),
+    do(opLoseAggro(?enemy)).
+
+% Doesn't have aggro - no-op
+loseAggro(?enemy) :-
+    else, if(),
+    do().
+
+% === High-level aggro methods ===
+
+% Enemy follows target to their location
+% Uses locomotion component for movement
+enemyFollows(?enemy, ?target) :-
+    if(hasAggro(?enemy, ?target),
+       at(?target, ?room),
+       at(?enemy, ?enemyRoom),
+       not(=(?room, ?enemyRoom))),
+    do(moveTo(?enemy, ?room)).
+
+% Already in same room - no-op
+enemyFollows(?enemy, ?target) :-
+    else, if(hasAggro(?enemy, ?target),
+             at(?target, ?room),
+             at(?enemy, ?room)),
+    do().
+
+% No aggro - no following
+enemyFollows(?enemy, ?target) :-
+    else, if(),
+    do().
+
+% Lure enemy to a specific room
+% Player moves to room, gains aggro, enemy follows
+lureToRoom(?enemy, ?targetRoom) :-
+    if(at(player, ?currentRoom)),
+    do(moveTo(player, ?targetRoom),
+       getAggro(?enemy),
+       enemyFollows(?enemy, player)).
+
+% === Query Helpers ===
+
+% Check if enemy is aggressive
+isAggressive(?enemy) :-
+    hasAggro(?enemy, ?anyTarget).
+
+% Check if enemy is following player
+isFollowingPlayer(?enemy) :-
+    hasAggro(?enemy, player).

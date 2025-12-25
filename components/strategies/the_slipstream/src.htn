@@ -1,0 +1,79 @@
+% the_slipstream - Strategy: Freeze path, slide enemy into hazard
+% Uses ice physics to push enemy into danger
+% Depends on: locomotion, tags
+
+% === Strategy Methods ===
+
+% The Slipstream: Freeze corridor, push enemy through into hazard
+% Preconditions:
+%   - There's a path from enemy to hazard room
+%   - Path has a corridor that can be frozen
+%   - Entity can apply frozen tag
+theSlipstream(?enemy) :-
+    if(at(?enemy, ?enemyRoom),
+       roomHasHazard(?hazardRoom, ?hazard),
+       pathThrough(?enemyRoom, ?hazardRoom, ?corridor),
+       canApplyTag(arcanist, frozen)),
+    do(freezeCorridor(?corridor),
+       pushIntoRoom(?enemy, ?hazardRoom),
+       applyHazardEffect(?enemy, ?hazard)).
+
+% Simpler version: enemy adjacent to hazard room
+theSlipstream(?enemy) :-
+    else, if(at(?enemy, ?enemyRoom),
+             roomHasHazard(?hazardRoom, ?hazard),
+             connected(?enemyRoom, ?hazardRoom),
+             canApplyTag(arcanist, frozen)),
+    do(freezeRoom(?enemyRoom),
+       pushIntoRoom(?enemy, ?hazardRoom),
+       applyHazardEffect(?enemy, ?hazard)).
+
+% === Supporting Methods ===
+
+% Freeze a corridor (creates slippery ice path)
+freezeCorridor(?corridor) :-
+    if(canApplyTag(arcanist, frozen)),
+    do(applyTagToRoom(?corridor, frozen)).
+
+% Freeze a room
+freezeRoom(?room) :-
+    if(canApplyTag(arcanist, frozen)),
+    do(applyTagToRoom(?room, frozen)).
+
+% Apply frozen tag to a room (all surfaces become icy)
+% Skip if room already has the tag (idempotent)
+applyTagToRoom(?room, ?tag) :-
+    if(roomHasTag(?room, ?tag)),
+    do().
+
+applyTagToRoom(?room, ?tag) :-
+    else, if(),
+    do(opApplyRoomTag(?room, ?tag)).
+
+% Push entity into a room (sliding on ice)
+pushIntoRoom(?entity, ?targetRoom) :-
+    if(at(?entity, ?currentRoom)),
+    do(opMoveTo(?entity, ?currentRoom, ?targetRoom)).
+
+% Apply hazard effect to entity
+applyHazardEffect(?entity, ?hazard) :-
+    if(hazardAppliesTag(?hazard, ?tag)),
+    do(applyTag(?entity, ?tag)).
+
+% Fallback if hazard doesn't apply a tag
+applyHazardEffect(?entity, ?hazard) :-
+    else, if(),
+    do().
+
+% === Operators ===
+
+% Apply a tag to a room (environmental effect)
+opApplyRoomTag(?room, ?tag) :-
+    del(),
+    add(roomHasTag(?room, ?tag)).
+
+% === Hazard-to-tag mappings ===
+hazardAppliesTag(fire, burning).
+hazardAppliesTag(electricity, electrified).
+hazardAppliesTag(spikes, wounded).
+hazardAppliesTag(acid, dissolved).

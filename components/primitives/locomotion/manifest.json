@@ -1,0 +1,15 @@
+{
+  "name": "locomotion",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "High-level room-to-room movement for HTN planning",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2025-12-25T23:24:45.879563"
+  },
+  "parameters": []
+}

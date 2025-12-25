@@ -1,0 +1,23 @@
+{
+  "name": "puzzle1",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Grease Trap - introductory puzzle with theBurn and theSlipstream",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "strategies/the_burn",
+    "strategies/the_slipstream",
+    "goals/defeat_enemy",
+    "goals/clear_room"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2025-12-25T23:52:24.469100"
+  },
+  "parameters": []
+}

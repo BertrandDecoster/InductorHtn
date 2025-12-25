@@ -1,0 +1,65 @@
+% tags - Primitive component for status effects
+% Handles applying, removing, and combining tags on entities
+
+% === Operators ===
+
+% Apply a tag to an entity
+opApplyTag(?entity, ?tag) :-
+    del(),
+    add(hasTag(?entity, ?tag)).
+
+% Remove a tag from an entity
+opRemoveTag(?entity, ?tag) :-
+    del(hasTag(?entity, ?tag)),
+    add().
+
+% === Tag Combination Rules ===
+% Define explicit combinations: tagCombines(tag1, tag2, result)
+% When entity has tag1 and receives tag2, both are replaced with result
+
+tagCombines(burning, wet, steam).
+tagCombines(wet, burning, steam).
+tagCombines(wet, electrified, stunned).
+tagCombines(electrified, wet, stunned).
+tagCombines(frozen, burning, wet).
+tagCombines(burning, frozen, wet).
+
+% === Methods ===
+
+% Apply tag with combination check
+% Case 1: Entity has existing tag that combines with new tag
+applyTag(?entity, ?tag) :-
+    if(hasTag(?entity, ?existing),
+       tagCombines(?tag, ?existing, ?result)),
+    do(opRemoveTag(?entity, ?existing),
+       opApplyTag(?entity, ?result)).
+
+% Case 2: Entity already has this tag (no-op)
+applyTag(?entity, ?tag) :-
+    else, if(hasTag(?entity, ?tag)),
+    do().
+
+% Case 3: Simple apply (no combination)
+applyTag(?entity, ?tag) :-
+    else, if(),
+    do(opApplyTag(?entity, ?tag)).
+
+% Remove a tag
+removeTag(?entity, ?tag) :-
+    if(hasTag(?entity, ?tag)),
+    do(opRemoveTag(?entity, ?tag)).
+
+% Remove tag - no-op if doesn't exist
+removeTag(?entity, ?tag) :-
+    else, if(),
+    do().
+
+% === Query Helpers ===
+
+% Check if entity is vulnerable to a tag type
+isVulnerableTo(?entity, ?tag) :-
+    vulnerability(?entity, ?tag).
+
+% Check if entity has any tag
+hasAnyTag(?entity) :-
+    hasTag(?entity, ?anyTag).

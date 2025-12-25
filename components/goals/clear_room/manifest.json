@@ -1,0 +1,22 @@
+{
+  "name": "clear_room",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Defeat all enemies in a room",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "strategies/the_burn",
+    "strategies/the_slipstream",
+    "goals/defeat_enemy"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2025-12-25T23:11:03.583158"
+  },
+  "parameters": []
+}

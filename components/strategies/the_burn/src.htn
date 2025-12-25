@@ -1,0 +1,47 @@
+% the_burn - Strategy: Lure enemy to oil, ignite
+% Tactical pattern that combines aggro + locomotion + tags
+% Depends on: locomotion, tags, aggro
+
+% === Strategy Methods ===
+
+% The Burn: Lure enemy to oil room, then ignite
+% Preconditions:
+%   - There's a room with oil hazard
+%   - Player can apply burning tag (has ignite ability)
+theBurn(?enemy) :-
+    if(roomHasHazard(?oilRoom, oil),
+       canApplyTag(player, burning),
+       at(?enemy, ?enemyRoom)),
+    do(lureToRoom(?enemy, ?oilRoom),
+       igniteRoom(?oilRoom)).
+
+% === Supporting Methods ===
+
+% Ignite a room with oil - applies burning to all entities there
+igniteRoom(?room) :-
+    if(roomHasHazard(?room, oil),
+       at(?entity, ?room),
+       not(=(?entity, player))),
+    do(applyTag(?entity, burning),
+       consumeHazard(?room, oil)).
+
+% Fallback: ignite room but no valid target
+igniteRoom(?room) :-
+    else, if(roomHasHazard(?room, oil)),
+    do(consumeHazard(?room, oil)).
+
+% === Operators ===
+
+% Consume a hazard (oil burns up after ignition)
+opConsumeHazard(?room, ?hazard) :-
+    del(roomHasHazard(?room, ?hazard)),
+    add(hazardConsumed(?room, ?hazard)).
+
+% Method wrapper for consuming hazard
+consumeHazard(?room, ?hazard) :-
+    if(roomHasHazard(?room, ?hazard)),
+    do(opConsumeHazard(?room, ?hazard)).
+
+consumeHazard(?room, ?hazard) :-
+    else, if(),
+    do().

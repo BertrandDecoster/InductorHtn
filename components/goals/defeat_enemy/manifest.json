@@ -1,0 +1,21 @@
+{
+  "name": "defeat_enemy",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Select and execute strategy to defeat enemy based on vulnerabilities",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "strategies/the_burn",
+    "strategies/the_slipstream"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2025-12-25T23:06:28.946770"
+  },
+  "parameters": []
+}

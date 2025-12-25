@@ -1,0 +1,61 @@
+% Puzzle 1: The Grease Trap
+% An introductory puzzle demonstrating theBurn and theSlipstream strategies
+% Depends on: locomotion, tags, aggro, the_burn, the_slipstream, defeat_enemy, clear_room
+
+% === Level-specific Goal ===
+
+% Complete the puzzle: defeat all enemies and reach exit
+completePuzzle :-
+    if(),
+    do(defeatAllGuards, reachExit).
+
+% Defeat all guards in the level
+defeatAllGuards :-
+    if(),
+    do(clearRoom(storage), clearRoom(corridor)).
+
+% Reach the exit room
+reachExit :-
+    if(),
+    do(moveTo(player, exit)).
+
+% === Initial World State ===
+
+% Room connections (bidirectional)
+connected(main, storage).
+connected(storage, main).
+connected(main, generator).
+connected(generator, main).
+connected(main, corridor).
+connected(corridor, main).
+connected(corridor, exit).
+connected(exit, corridor).
+
+% Direct connections to hazard rooms for slipstream
+connected(corridor, generator).
+connected(generator, corridor).
+
+% Entity positions
+at(player, main).
+at(warden, main).
+at(guard1, storage).
+at(guard2, corridor).
+
+% Enemy markers
+isEnemy(guard1).
+isEnemy(guard2).
+
+% Environmental hazards
+roomHasHazard(storage, oil).
+roomHasHazard(generator, electricity).
+
+% Character abilities
+canApplyTag(player, burning).
+canApplyTag(arcanist, frozen).
+
+% Enemy vulnerabilities
+vulnerableTo(guard1, burning).
+vulnerableTo(guard2, electrified).
+
+% Level goal
+goals(completePuzzle).

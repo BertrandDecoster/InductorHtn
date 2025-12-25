@@ -13,7 +13,7 @@ from typing import List, Dict, Callable, Optional, Any, Tuple
 # Add the current directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
-from indhtnpy import HtnPlanner, findAllPlansResultToPrologStringList, termToString
+from indhtnpy import HtnPlanner, findAllPlansResultToPrologStringList, termToString, termName, termArgs
 
 
 class TestResult:
@@ -120,6 +120,245 @@ class HtnTestSuite:
             self._record(False, "Test setup", "No HTN file loaded. Call load_file() first.")
             return False
         return True
+
+    # =========================================================================
+    # Component Loading (for component-based testing)
+    # =========================================================================
+
+    def reset(self):
+        """
+        Reset the planner to a fresh state.
+
+        Call this before each test to ensure clean state.
+        """
+        self._planner = None
+        self._loaded_components = set()
+
+    def load_component(self, component_path: str, reset_first: bool = True) -> bool:
+        """
+        Load a component and its dependencies.
+
+        Args:
+            component_path: Path like "primitives/locomotion" or just "locomotion"
+            reset_first: If True, resets planner before loading (default True)
+
+        Returns:
+            True if loaded successfully
+        """
+        # Track loaded components to avoid duplicates
+        if not hasattr(self, '_loaded_components'):
+            self._loaded_components = set()
+
+        # Reset planner if requested (for fresh state)
+        if reset_first:
+            self._planner = HtnPlanner(self.verbose)
+            self._loaded_components = set()
+
+        # Skip if already loaded
+        if component_path in self._loaded_components:
+            return True
+
+        components_root = os.path.join(self._project_root, "components")
+
+        # Resolve component path
+        full_path = None
+
+        # Try direct path first
+        direct = os.path.join(components_root, component_path)
+        if os.path.isdir(direct):
+            full_path = direct
+        else:
+            # Search in layer directories
+            for layer in ["primitives", "strategies", "goals"]:
+                layer_path = os.path.join(components_root, layer, component_path)
+                if os.path.isdir(layer_path):
+                    full_path = layer_path
+                    break
+
+        if full_path is None:
+            self._record(False, f"Load component: {component_path}",
+                        f"Component not found in {components_root}")
+            return False
+
+        # Load manifest to get dependencies
+        manifest_path = os.path.join(full_path, "manifest.json")
+        if os.path.exists(manifest_path):
+            with open(manifest_path, 'r') as f:
+                manifest = json.load(f)
+
+            # Load dependencies first (recursively, without resetting)
+            for dep in manifest.get("dependencies", []):
+                if not self.load_component(dep, reset_first=False):
+                    return False
+
+        # Load the component's src.htn
+        src_path = os.path.join(full_path, "src.htn")
+        if not os.path.exists(src_path):
+            self._record(False, f"Load component: {component_path}",
+                        f"No src.htn found in {full_path}")
+            return False
+
+        with open(src_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Initialize planner if needed
+        if self._planner is None:
+            self._planner = HtnPlanner(self.verbose)
+
+        # Compile component (appends to existing ruleset)
+        error = self._planner.HtnCompileCustomVariables(content)
+        if error is not None:
+            self._record(False, f"Load component: {component_path}",
+                        f"Compile error: {error}")
+            return False
+
+        # Mark as loaded
+        self._loaded_components.add(component_path)
+
+        return True
+
+    def set_state(self, facts: List[str]) -> bool:
+        """
+        Set the initial state by compiling facts.
+
+        Note: This ADDS facts to the current state. For a clean state,
+        reload the file or component first.
+
+        Args:
+            facts: List of fact strings, e.g., ["at(player, room1)", "hasTag(enemy, burning)"]
+
+        Returns:
+            True if all facts compiled successfully
+        """
+        if self._planner is None:
+            self._planner = HtnPlanner(self.verbose)
+
+        # Compile each fact
+        for fact in facts:
+            # Ensure fact ends with period
+            fact_str = fact.strip()
+            if not fact_str.endswith('.'):
+                fact_str += '.'
+
+            error = self._planner.HtnCompileCustomVariables(fact_str)
+            if error is not None:
+                self._record(False, f"Set state: {fact}", f"Compile error: {error}")
+                return False
+
+        return True
+
+    def get_state(self) -> List[str]:
+        """
+        Get current state as a list of fact strings.
+
+        Returns:
+            List of fact strings, e.g., ["at(player, room1)", "hasTag(enemy, burning)"]
+        """
+        if not self._ensure_planner():
+            return []
+
+        error, facts_json = self._planner.GetStateFacts()
+        if error is not None:
+            return []
+
+        return json.loads(facts_json)
+
+    def query_all(self, query: str) -> List[Dict[str, str]]:
+        """
+        Execute a query and return all solutions as variable bindings.
+
+        Useful for property-based testing where you need to iterate over
+        all possible bindings.
+
+        Args:
+            query: Prolog query, e.g., "tagCombines(?a, ?b, ?result)"
+
+        Returns:
+            List of dicts mapping variable names to values,
+            e.g., [{"?a": "burning", "?b": "wet", "?result": "steam"}, ...]
+        """
+        if not self._ensure_planner():
+            return []
+
+        # Ensure query ends with period
+        query_str = query.strip()
+        if not query_str.endswith('.'):
+            query_str += '.'
+
+        error, result = self._planner.PrologQuery(query_str)
+        if error is not None:
+            return []
+
+        solutions = json.loads(result)
+
+        # Check for failure
+        if solutions and isinstance(solutions[0], dict) and "false" in solutions[0]:
+            return []
+
+        # Convert solution format to simple string bindings
+        result_list = []
+        for solution in solutions:
+            bindings = {}
+            for var_name, value in solution.items():
+                if isinstance(value, dict):
+                    bindings[var_name] = termToString(value)
+                else:
+                    bindings[var_name] = str(value)
+            result_list.append(bindings)
+
+        return result_list
+
+    def run_goal(self, goal: str, solution_index: int = 0) -> bool:
+        """
+        Execute a goal, find a plan, and apply the solution.
+
+        This modifies the planner's state. Use get_state() after to
+        inspect the result.
+
+        Args:
+            goal: HTN goal, e.g., "defeatEnemy(enemy1)"
+            solution_index: Which solution to apply (default: first)
+
+        Returns:
+            True if goal succeeded and solution was applied
+        """
+        if not self._ensure_planner():
+            return False
+
+        # Ensure goal ends with period
+        goal_str = goal.strip()
+        if not goal_str.endswith('.'):
+            goal_str += '.'
+
+        # Find plans
+        error, result = self._planner.FindAllPlansCustomVariables(goal_str)
+        if error is not None:
+            return False
+
+        solutions = json.loads(result)
+        if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+            return False
+
+        # Apply solution
+        return self._planner.ApplySolution(solution_index)
+
+    def compile_additional(self, content: str) -> bool:
+        """
+        Compile additional HTN/Prolog content into the current ruleset.
+
+        Useful for adding test-specific rules or facts.
+
+        Args:
+            content: HTN/Prolog code to compile
+
+        Returns:
+            True if compiled successfully
+        """
+        if self._planner is None:
+            self._planner = HtnPlanner(self.verbose)
+
+        error = self._planner.HtnCompileCustomVariables(content)
+        return error is None
 
     # =========================================================================
     # Compilation Assertions

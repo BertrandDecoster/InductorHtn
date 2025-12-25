@@ -1,0 +1,17 @@
+% clear_room - Goal: Defeat all enemies in a room
+% Uses allOf to handle multiple enemies
+% Depends on: defeat_enemy
+
+% === Goal Methods ===
+
+% Fallback FIRST: empty room (no enemies to defeat)
+% This must come first so allOf method only triggers when enemies exist
+clearRoom(?room) :-
+    if(not(at(?enemy, ?room), isEnemy(?enemy))),
+    do().
+
+% Clear room with enemies: defeat each one
+% allOf ensures ALL enemies in room are defeated
+clearRoom(?room) :-
+    else, allOf, if(at(?enemy, ?room), isEnemy(?enemy)),
+    do(defeatEnemy(?enemy)).

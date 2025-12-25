@@ -1,0 +1,63 @@
+% locomotion - Primitive component for high-level movement
+% Handles room-to-room movement at the HTN abstraction level
+% Low-level pathfinding is handled by the game engine
+
+% === Operators ===
+
+% Core movement operator: changes entity location
+opMoveTo(?entity, ?from, ?to) :-
+    del(at(?entity, ?from)),
+    add(at(?entity, ?to)).
+
+% === Methods ===
+
+% Already at destination - no-op (check first for efficiency)
+moveTo(?entity, ?destination) :-
+    if(at(?entity, ?destination)),
+    do().
+
+% Move entity to destination (direct connection)
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             connected(?current, ?destination)),
+    do(opMoveTo(?entity, ?current, ?destination)).
+
+% Multi-hop movement: find path through connected rooms (explicit path)
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             pathThrough(?current, ?destination, ?via)),
+    do(opMoveTo(?entity, ?current, ?via),
+       moveTo(?entity, ?destination)).
+
+% Multi-hop movement: 2-hop through intermediate room
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             connected(?current, ?intermediate),
+             connected(?intermediate, ?destination)),
+    do(opMoveTo(?entity, ?current, ?intermediate),
+       opMoveTo(?entity, ?intermediate, ?destination)).
+
+% Multi-hop movement: 3-hop through two intermediate rooms
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             connected(?current, ?via1),
+             connected(?via1, ?via2),
+             connected(?via2, ?destination)),
+    do(opMoveTo(?entity, ?current, ?via1),
+       opMoveTo(?entity, ?via1, ?via2),
+       opMoveTo(?entity, ?via2, ?destination)).
+
+% === Helper predicates ===
+
+% Check if entity can reach destination (used for preconditions)
+canReach(?entity, ?destination) :-
+    at(?entity, ?current),
+    reachable(?current, ?destination).
+
+% Reachable: either direct connection or path exists
+reachable(?from, ?to) :- connected(?from, ?to).
+reachable(?from, ?to) :- pathThrough(?from, ?to, ?via).
+
+% Symmetric connection helper (if connections are bidirectional)
+connectedBoth(?a, ?b) :- connected(?a, ?b).
+connectedBoth(?a, ?b) :- connected(?b, ?a).

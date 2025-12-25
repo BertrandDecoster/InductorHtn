@@ -1,0 +1,28 @@
+% defeat_enemy - Goal: Select and execute strategy to defeat enemy
+% Orchestrates strategies based on enemy vulnerabilities
+% Depends on: locomotion, tags, aggro, the_burn, the_slipstream
+
+% === Goal Methods ===
+
+% Strategy 1: Use theBurn if enemy vulnerable to burning and oil available
+defeatEnemy(?enemy) :-
+    if(vulnerableTo(?enemy, burning),
+       roomHasHazard(?oilRoom, oil),
+       canApplyTag(player, burning)),
+    do(theBurn(?enemy)).
+
+% Strategy 2: Use theSlipstream for enemies vulnerable to hazard effects
+% Match enemy vulnerability to hazard type
+defeatEnemy(?enemy) :-
+    else, if(vulnerableTo(?enemy, ?tag),
+             roomHasHazard(?hazardRoom, ?hazard),
+             hazardAppliesTag(?hazard, ?tag),
+             canApplyTag(arcanist, frozen)),
+    do(theSlipstream(?enemy)).
+
+% Strategy 3: Direct slipstream without vulnerability check
+% Fallback when we just want to push enemy into any hazard
+defeatEnemy(?enemy) :-
+    else, if(roomHasHazard(?hazardRoom, ?hazard),
+             canApplyTag(arcanist, frozen)),
+    do(theSlipstream(?enemy)).

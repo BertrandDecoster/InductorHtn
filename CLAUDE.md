@@ -31,7 +31,27 @@ src/Python/              # Python bindings (indhtnpy)
 gui/                     # Web IDE (Flask backend, React frontend)
 mcp-server/              # MCP server for AI assistants
 Examples/                # .htn example files
+components/              # Reusable HTN component library
+levels/                  # Puzzle level definitions
 ```
+
+## Component System
+
+Reusable building blocks for puzzle game HTN rulesets. See `.claude/rules/component-system.md` for full details.
+
+**Layers:** Primitives → Strategies → Goals → Levels
+
+**CLI:**
+```bash
+PYTHONPATH=src/Python python -m htn_components status   # List components
+PYTHONPATH=src/Python python -m htn_components certify primitives/locomotion
+```
+
+**Current certified components:**
+- Primitives: `locomotion`, `tags`, `aggro`
+- Strategies: `the_burn`, `the_slipstream`
+- Goals: `defeat_enemy`, `clear_room`
+- Levels: `puzzle1`
 
 ## Critical Rules
 
