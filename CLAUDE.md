@@ -43,8 +43,15 @@ Reusable building blocks for puzzle game HTN rulesets. See `.claude/rules/compon
 
 **CLI:**
 ```bash
-PYTHONPATH=src/Python python -m htn_components status   # List components
-PYTHONPATH=src/Python python -m htn_components certify primitives/locomotion
+PYTHONPATH=src/Python python -m htn_components <command>
+
+status                           # List all components with certification
+certify <path> [--dry-run]       # Full certification (linter + tests + design)
+test <path>                      # Run component tests
+test-all [--layer <layer>]       # Batch test all components
+play <level>                     # Step-by-step plan narrative
+trace <level> [--goal GOAL]      # Decomposition tree visualization
+verify <level>                   # Full level verification
 ```
 
 **Current certified components:**

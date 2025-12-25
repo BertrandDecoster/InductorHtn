@@ -86,12 +86,32 @@ Components are certified when they pass all checks:
 ```bash
 PYTHONPATH=src/Python python -m htn_components <command>
 
-# Commands:
-status                    # List all components with certification status
-test <path>               # Run tests for component
-certify <path>            # Full certification (linter + tests + design)
-new <path>                # Create component from template
-coverage <path>           # Check design-to-test coverage
+# Core Commands:
+status                           # List all components with certification status
+test <path>                      # Run tests for component
+certify <path> [--dry-run]       # Full certification (linter + tests + design)
+new <path>                       # Create component from template
+coverage <path>                  # Check design-to-test coverage
+
+# Playback & Debugging:
+play <level>                     # Step-by-step plan narrative execution
+trace <level> [--goal GOAL]      # Decomposition tree visualization
+
+# Batch Operations:
+test-all [--layer <layer>]       # Run all component tests
+verify <level>                   # Full level verification (assemble + certify deps + test)
+```
+
+### Test Naming Convention
+
+For semantic design-to-test coverage matching:
+- `test_example_N_*` - Tests for Example N in design.md
+- `test_property_pN_*` - Tests for Property PN in design.md
+
+Example:
+```python
+def test_example_1_simple_tag_application(self):  # Matches Example 1
+def test_property_p2_no_double_tags(self):        # Matches Property P2
 ```
 
 ## Key Design Decisions
@@ -203,13 +223,29 @@ def test_property_p1_enemy_relocated(self):
 
 ### Test Framework Methods
 ```python
+# Setup
 suite.load_component("primitives/locomotion", reset_first=True)
 suite.set_state(["at(player, roomA)", "connected(roomA, roomB)"])
+
+# Basic assertions
 suite.assert_plan("goal.", contains=["opName"])
 suite.assert_state_after("goal.", has=["fact1"], hasnt=["fact2"])
 suite.assert_no_plan("impossible_goal.")
 suite.run_goal("goal")  # Apply solution
 suite.get_state()  # Current facts
+
+# State checkpointing
+suite.snapshot_state()   # Save current state
+suite.restore_state()    # Restore from snapshot
+
+# Design alternative testing
+suite.assert_plan_matches_any("goal.", [
+    {"contains": ["theBurn"], "not_contains": ["theSlipstream"]},  # Plan A
+    {"contains": ["theSlipstream"]},                                # Plan B
+])
+
+# Plan complexity bounds
+suite.assert_plan_complexity("goal.", min_operators=2, max_operators=10)
 ```
 
 ## Naming Conventions
