@@ -435,29 +435,42 @@ def cmd_certify(args) -> int:
     design_path = os.path.join(component_path, "design.md")
     if os.path.exists(design_path) and os.path.exists(test_path):
         print("\n[3/3] Checking design coverage...")
-        results["design_match"] = check_design_coverage(design_path, test_path)
-        print(f"  Design coverage: {'PASS' if results['design_match'] else 'FAIL'}")
+        passed, report = verify_design_coverage(design_path, test_path, verbose=args.verbose)
+        results["design_match"] = passed
+        if args.verbose:
+            print(report)
+        else:
+            print(f"  Design coverage: {'PASS' if passed else 'FAIL'}")
 
-    # Update manifest
-    manifest.update_certification(
-        linter=results["linter"],
-        tests_pass=results["tests_pass"],
-        design_match=results["design_match"]
-    )
-    manifest.save(os.path.join(component_path, "manifest.json"))
+    # Update manifest (unless dry-run)
+    dry_run = getattr(args, 'dry_run', False)
+
+    if not dry_run:
+        manifest.update_certification(
+            linter=results["linter"],
+            tests_pass=results["tests_pass"],
+            design_match=results["design_match"]
+        )
+        manifest.save(os.path.join(component_path, "manifest.json"))
 
     # Summary
     print("\n" + "=" * 50)
-    if manifest.certified:
+    if dry_run:
+        print("[DRY RUN] Results not saved to manifest")
+
+    # Check if would be certified
+    would_certify = all(results.values())
+    if would_certify:
         print(f"CERTIFIED: {manifest.name} v{manifest.version}")
-        print(f"Timestamp: {manifest.certification.last_checked}")
+        if not dry_run:
+            print(f"Timestamp: {manifest.certification.last_checked}")
     else:
         print("NOT CERTIFIED - some checks failed")
         for check, passed in results.items():
             if not passed:
                 print(f"  - {check}: FAILED")
 
-    return 0 if manifest.certified else 1
+    return 0 if would_certify else 1
 
 
 def cmd_status(args) -> int:
@@ -595,6 +608,580 @@ def cmd_assemble(args) -> int:
     return 0
 
 
+def cmd_play(args) -> int:
+    """Play through a level with step-by-step narrative output."""
+    level_path = args.level
+
+    # Find level directory
+    if os.path.isabs(level_path):
+        full_path = level_path
+    else:
+        full_path = os.path.join(PROJECT_ROOT, "levels", level_path)
+
+    if not os.path.isdir(full_path):
+        print(f"Error: Level not found at {full_path}")
+        return 1
+
+    manifest_path = os.path.join(full_path, "manifest.json")
+    if not os.path.exists(manifest_path):
+        print(f"Error: No manifest.json in level directory")
+        return 1
+
+    with open(manifest_path, 'r') as f:
+        level_manifest = json.load(f)
+
+    level_name = level_manifest.get('name', level_path)
+    print(f"\n{level_name}")
+    print("=" * len(level_name))
+
+    # Import planner
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from indhtnpy import HtnPlanner
+
+    planner = HtnPlanner(False)
+
+    # Load dependencies (with cycle detection)
+    dependencies = level_manifest.get("dependencies", [])
+    loaded_deps = set()
+
+    def load_dep(dep_name: str):
+        if dep_name in loaded_deps:
+            return
+        loaded_deps.add(dep_name)
+
+        try:
+            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
+        except FileNotFoundError:
+            print(f"  Warning: Dependency not found: {dep_name}")
+            return
+
+        dep_manifest = get_component_manifest(dep_path)
+        for sub_dep in dep_manifest.dependencies:
+            load_dep(sub_dep)
+
+        src_path = os.path.join(dep_path, "src.htn")
+        if os.path.exists(src_path):
+            with open(src_path, 'r', encoding='utf-8') as f:
+                planner.HtnCompileCustomVariables(f.read())
+
+    for dep in dependencies:
+        load_dep(dep)
+
+    # Load level
+    level_htn = os.path.join(full_path, "level.htn")
+    if os.path.exists(level_htn):
+        with open(level_htn, 'r', encoding='utf-8') as f:
+            planner.HtnCompileCustomVariables(f.read())
+
+    # Get initial state
+    error, facts_json = planner.GetStateFacts()
+    if error:
+        print(f"Error getting state: {error}")
+        return 1
+
+    facts = json.loads(facts_json)
+
+    # Display initial state (filter for interesting facts)
+    print("\nInitial State:")
+    for fact in facts:
+        if fact.startswith("at(") or fact.startswith("isEnemy(") or \
+           fact.startswith("hasTag(") or fact.startswith("roomHasHazard("):
+            print(f"  - {format_fact_narrative(fact)}")
+
+    # Find the goal (read from level.htn file)
+    goal = None
+    import re
+    with open(level_htn, 'r', encoding='utf-8') as f:
+        level_content = f.read()
+    goal_match = re.search(r'goals\(([^)]+)\)', level_content)
+    if goal_match:
+        goal = goal_match.group(1).strip() + "."
+
+    if not goal:
+        print("\nError: No goals() directive found in level.htn")
+        return 1
+
+    print(f"\nGoal: {goal[:-1]}")
+
+    # Find plan
+    error, result = planner.FindAllPlansCustomVariables(goal)
+    if error:
+        print(f"\nError finding plan: {error}")
+        return 1
+
+    solutions = json.loads(result)
+    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+        print("\nNo solution found!")
+        return 1
+
+    # Get operators from first solution
+    operators = solutions[0] if isinstance(solutions[0], list) else []
+    print(f"\nPlan ({len(operators)} operators):")
+    print("-" * 50)
+
+    # Step through each operator
+    for i, op in enumerate(operators):
+        op_str = format_operator(op) if isinstance(op, dict) else str(op)
+        print(f"\nStep {i+1}/{len(operators)}: {op_str}")
+        print(f"  -> {format_operator_narrative(op_str)}")
+
+    print("-" * 50)
+
+    # Apply solution and show final state
+    planner.ApplySolution(0)
+    error, final_json = planner.GetStateFacts()
+    final_facts = json.loads(final_json) if not error else []
+
+    print("\nFinal State:")
+    for fact in final_facts:
+        if fact.startswith("at(") or fact.startswith("hasTag("):
+            print(f"  - {format_fact_narrative(fact)}")
+
+    print("\nCOMPLETE!")
+    return 0
+
+
+def format_fact_narrative(fact: str) -> str:
+    """Convert a fact to a readable narrative."""
+    if fact.startswith("at("):
+        # at(entity, location) -> entity at location
+        inner = fact[3:-1]
+        parts = inner.split(",")
+        if len(parts) >= 2:
+            entity = parts[0].strip()
+            location = parts[1].strip()
+            return f"{entity} at {location}"
+    elif fact.startswith("isEnemy("):
+        inner = fact[8:-1]
+        return f"{inner} (enemy)"
+    elif fact.startswith("hasTag("):
+        inner = fact[7:-1]
+        parts = inner.split(",")
+        if len(parts) >= 2:
+            entity = parts[0].strip()
+            tag = parts[1].strip()
+            return f"{entity} has {tag}"
+    elif fact.startswith("roomHasHazard("):
+        inner = fact[14:-1]
+        parts = inner.split(",")
+        if len(parts) >= 2:
+            room = parts[0].strip()
+            hazard = parts[1].strip()
+            return f"{room} has {hazard} hazard"
+    return fact
+
+
+def format_operator(op: dict) -> str:
+    """Format an operator dict as a string."""
+    if isinstance(op, dict):
+        for name, args in op.items():
+            if isinstance(args, list):
+                arg_strs = []
+                for arg in args:
+                    if isinstance(arg, dict):
+                        for k, v in arg.items():
+                            arg_strs.append(k)
+                            break
+                    else:
+                        arg_strs.append(str(arg))
+                return f"{name}({', '.join(arg_strs)})"
+            return name
+    return str(op)
+
+
+def format_operator_narrative(op_str: str) -> str:
+    """Convert an operator to a readable narrative."""
+    op_lower = op_str.lower()
+
+    # Extract arguments
+    inner = op_str[op_str.find("(")+1:op_str.rfind(")")]
+    parts = [p.strip() for p in inner.split(",")] if inner else []
+
+    if "opmoveto" in op_lower:
+        if len(parts) >= 3:
+            return f"{parts[0]} moves from {parts[1]} to {parts[2]}"
+    elif "opgetaggro" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[0]} now targets {parts[1]}"
+        elif len(parts) >= 1:
+            return f"{parts[0]} is now aggro'd"
+    elif "oploseaggro" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[0]} loses aggro on {parts[1]}"
+    elif "opapplyroomtag" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[0]} is now {parts[1]}"
+    elif "opapplytag" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[0]} is now {parts[1]}!"
+    elif "opremovetag" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[0]} is no longer {parts[1]}"
+    elif "opconsumehazard" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[1]} hazard in {parts[0]} consumed"
+    elif "opactivatehazard" in op_lower:
+        if len(parts) >= 2:
+            return f"{parts[1]} hazard in {parts[0]} activated"
+
+    return "action completed"
+
+
+def cmd_trace(args) -> int:
+    """Show decomposition tree for a level's plan."""
+    level_path = args.level
+    custom_goal = args.goal
+
+    # Find level directory
+    if os.path.isabs(level_path):
+        full_path = level_path
+    else:
+        full_path = os.path.join(PROJECT_ROOT, "levels", level_path)
+
+    if not os.path.isdir(full_path):
+        print(f"Error: Level not found at {full_path}")
+        return 1
+
+    manifest_path = os.path.join(full_path, "manifest.json")
+    if not os.path.exists(manifest_path):
+        print(f"Error: No manifest.json in level directory")
+        return 1
+
+    with open(manifest_path, 'r') as f:
+        level_manifest = json.load(f)
+
+    # Import planner
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from indhtnpy import HtnPlanner
+
+    planner = HtnPlanner(False)
+
+    # Load dependencies (with cycle detection)
+    dependencies = level_manifest.get("dependencies", [])
+    loaded_deps = set()
+
+    def load_dep(dep_name: str):
+        if dep_name in loaded_deps:
+            return
+        loaded_deps.add(dep_name)
+
+        try:
+            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
+        except FileNotFoundError:
+            print(f"  Warning: Dependency not found: {dep_name}")
+            return
+
+        dep_manifest = get_component_manifest(dep_path)
+        for sub_dep in dep_manifest.dependencies:
+            load_dep(sub_dep)
+
+        src_path = os.path.join(dep_path, "src.htn")
+        if os.path.exists(src_path):
+            with open(src_path, 'r', encoding='utf-8') as f:
+                planner.HtnCompileCustomVariables(f.read())
+
+    for dep in dependencies:
+        load_dep(dep)
+
+    # Load level
+    level_htn = os.path.join(full_path, "level.htn")
+    if os.path.exists(level_htn):
+        with open(level_htn, 'r', encoding='utf-8') as f:
+            planner.HtnCompileCustomVariables(f.read())
+
+    # Find the goal
+    if custom_goal:
+        goal = custom_goal if custom_goal.endswith('.') else custom_goal + "."
+    else:
+        import re
+        with open(level_htn, 'r', encoding='utf-8') as f:
+            level_content = f.read()
+        goal_match = re.search(r'goals\(([^)]+)\)', level_content)
+        if goal_match:
+            goal = goal_match.group(1).strip() + "."
+        else:
+            print("Error: No goals() directive found in level.htn")
+            return 1
+
+    print(f"\nDecomposition Tree: {goal[:-1]}")
+    print("=" * 50)
+
+    # Find plan
+    error, result = planner.FindAllPlansCustomVariables(goal)
+    if error:
+        print(f"\nError finding plan: {error}")
+        return 1
+
+    solutions = json.loads(result)
+    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+        print("\nNo solution found!")
+        return 1
+
+    # Get decomposition tree
+    error, tree_json = planner.GetDecompositionTree(0)
+    if error:
+        print(f"\nError getting decomposition tree: {error}")
+        return 1
+
+    tree_nodes = json.loads(tree_json)
+
+    # Build tree structure
+    nodes_by_id = {node.get('nodeID', node.get('id', i)): node for i, node in enumerate(tree_nodes)}
+
+    # Find root nodes (parentNodeID == -1 or not present)
+    roots = [n for n in tree_nodes if n.get('parentNodeID', -1) == -1]
+
+    # Build children map
+    children_map = {}
+    for node in tree_nodes:
+        parent_id = node.get('parentNodeID', -1)
+        if parent_id not in children_map:
+            children_map[parent_id] = []
+        children_map[parent_id].append(node)
+
+    # Known strategies for annotation
+    known_strategies = {'theBurn', 'theSlipstream', 'theAmbush', 'theSiege'}
+
+    # Print tree recursively
+    def print_tree(node, prefix="", is_last=True):
+        task_name = node.get('taskName', 'unknown')
+        is_operator = node.get('isOperator', False)
+        node_id = node.get('nodeID', node.get('id', '?'))
+
+        # Format the node display
+        connector = "└── " if is_last else "├── "
+
+        # Check if this is a known strategy
+        strategy_annotation = ""
+        task_base = task_name.split('(')[0] if '(' in task_name else task_name
+        if task_base in known_strategies:
+            strategy_annotation = f"  <- Strategy: {task_base}"
+
+        # Display
+        if is_operator:
+            print(f"{prefix}{connector}[OP] {task_name}")
+        else:
+            print(f"{prefix}{connector}{task_name}{strategy_annotation}")
+
+        # Get children
+        children = children_map.get(node_id, [])
+        child_prefix = prefix + ("    " if is_last else "│   ")
+
+        for i, child in enumerate(children):
+            print_tree(child, child_prefix, i == len(children) - 1)
+
+    # Print from roots
+    print()
+    for i, root in enumerate(roots):
+        print_tree(root, "", i == len(roots) - 1)
+
+    # Summary: what strategies were used
+    print("\n" + "-" * 50)
+    strategies_used = set()
+    for node in tree_nodes:
+        task_name = node.get('taskName', '')
+        task_base = task_name.split('(')[0] if '(' in task_name else task_name
+        if task_base in known_strategies:
+            strategies_used.add(task_base)
+
+    if strategies_used:
+        print("\nStrategies Used:")
+        for s in sorted(strategies_used):
+            print(f"  - {s}")
+
+    return 0
+
+
+def cmd_test_all(args) -> int:
+    """Run tests for all components."""
+    layer_filter = args.layer
+
+    components = list_all_components(COMPONENTS_ROOT)
+
+    if not components:
+        print("No components found")
+        return 0
+
+    # Filter by layer if specified
+    if layer_filter:
+        # Map layer argument to directory name
+        layer_map = {
+            "primitives": "primitives",
+            "primitive": "primitives",
+            "strategies": "strategies",
+            "strategy": "strategies",
+            "goals": "goals",
+            "goal": "goals",
+            "levels": "levels",
+            "level": "levels"
+        }
+        target_dir = layer_map.get(layer_filter.lower())
+        if target_dir:
+            components = [c for c in components if c['path'].startswith(target_dir)]
+
+    print(f"Running tests for {len(components)} components...")
+    print("=" * 60)
+
+    results = []
+    for comp in components:
+        comp_path = comp['path']
+        print(f"\n{comp_path}:", end=" ")
+
+        try:
+            full_path = resolve_component_path(comp_path, COMPONENTS_ROOT)
+            test_path = os.path.join(full_path, "test.py")
+
+            if os.path.exists(test_path):
+                passed = run_tests(test_path, verbose=False)
+                status = "PASS" if passed else "FAIL"
+                results.append((comp_path, passed))
+                print(status)
+            else:
+                print("SKIP (no test.py)")
+                results.append((comp_path, None))
+        except Exception as e:
+            print(f"ERROR: {e}")
+            results.append((comp_path, False))
+
+    # Summary
+    print("\n" + "=" * 60)
+    passed = sum(1 for _, r in results if r is True)
+    failed = sum(1 for _, r in results if r is False)
+    skipped = sum(1 for _, r in results if r is None)
+
+    print(f"Results: {passed} passed, {failed} failed, {skipped} skipped")
+
+    if failed > 0:
+        print("\nFailed components:")
+        for path, result in results:
+            if result is False:
+                print(f"  - {path}")
+
+    return 0 if failed == 0 else 1
+
+
+def cmd_verify(args) -> int:
+    """Verify a level: check all dependencies are certified and tests pass."""
+    level_path = args.level
+
+    # Find level directory
+    if os.path.isabs(level_path):
+        full_path = level_path
+    else:
+        full_path = os.path.join(PROJECT_ROOT, "levels", level_path)
+
+    if not os.path.isdir(full_path):
+        print(f"Error: Level not found at {full_path}")
+        return 1
+
+    manifest_path = os.path.join(full_path, "manifest.json")
+    if not os.path.exists(manifest_path):
+        print(f"Error: No manifest.json in level directory")
+        return 1
+
+    with open(manifest_path, 'r') as f:
+        level_manifest = json.load(f)
+
+    level_name = level_manifest.get('name', level_path)
+    print(f"Verifying level: {level_name}")
+    print("=" * 60)
+
+    all_passed = True
+
+    # Step 1: Check all dependencies are certified
+    print("\n[1/3] Checking dependency certifications...")
+    dependencies = level_manifest.get("dependencies", [])
+
+    for dep in dependencies:
+        try:
+            dep_path = resolve_component_path(dep, COMPONENTS_ROOT)
+            dep_manifest = get_component_manifest(dep_path)
+
+            if dep_manifest.certified:
+                print(f"  {dep}: CERTIFIED")
+            else:
+                print(f"  {dep}: NOT CERTIFIED")
+                all_passed = False
+        except FileNotFoundError:
+            print(f"  {dep}: NOT FOUND")
+            all_passed = False
+
+    # Step 2: Run level tests
+    print("\n[2/3] Running level tests...")
+    test_path = os.path.join(full_path, "test.py")
+
+    if os.path.exists(test_path):
+        test_passed = run_tests(test_path, verbose=args.verbose)
+        print(f"  Tests: {'PASS' if test_passed else 'FAIL'}")
+        if not test_passed:
+            all_passed = False
+    else:
+        print("  Tests: SKIP (no test.py)")
+
+    # Step 3: Verify plan can be found
+    print("\n[3/3] Verifying plan generation...")
+
+    # Import and run a quick plan check
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from indhtnpy import HtnPlanner
+
+    planner = HtnPlanner(False)
+    loaded_deps = set()
+
+    def load_dep(dep_name: str):
+        if dep_name in loaded_deps:
+            return
+        loaded_deps.add(dep_name)
+        try:
+            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
+            dep_manifest = get_component_manifest(dep_path)
+            for sub_dep in dep_manifest.dependencies:
+                load_dep(sub_dep)
+            src_path = os.path.join(dep_path, "src.htn")
+            if os.path.exists(src_path):
+                with open(src_path, 'r', encoding='utf-8') as f:
+                    planner.HtnCompileCustomVariables(f.read())
+        except:
+            pass
+
+    for dep in dependencies:
+        load_dep(dep)
+
+    level_htn = os.path.join(full_path, "level.htn")
+    if os.path.exists(level_htn):
+        with open(level_htn, 'r', encoding='utf-8') as f:
+            planner.HtnCompileCustomVariables(f.read())
+
+    # Find goal and try to plan
+    import re
+    with open(level_htn, 'r', encoding='utf-8') as f:
+        level_content = f.read()
+    goal_match = re.search(r'goals\(([^)]+)\)', level_content)
+
+    if goal_match:
+        goal = goal_match.group(1).strip() + "."
+        error, result = planner.FindAllPlansCustomVariables(goal)
+        solutions = json.loads(result) if result else []
+
+        if solutions and not (isinstance(solutions[0], dict) and "false" in solutions[0]):
+            num_ops = len(solutions[0]) if isinstance(solutions[0], list) else 0
+            print(f"  Plan found: {num_ops} operators")
+        else:
+            print("  Plan: FAILED - no solution")
+            all_passed = False
+    else:
+        print("  Plan: SKIP - no goals() found")
+
+    # Summary
+    print("\n" + "=" * 60)
+    if all_passed:
+        print(f"VERIFIED: {level_name} is ready")
+    else:
+        print(f"NOT VERIFIED: {level_name} has issues")
+
+    return 0 if all_passed else 1
+
+
 def cmd_coverage(args) -> int:
     """Check design-to-test coverage for a component."""
     try:
@@ -614,35 +1201,23 @@ def cmd_coverage(args) -> int:
         print(f"Error: No test.py found")
         return 1
 
-    # Parse examples from design.md
-    examples = parse_design_examples(design_path)
-    properties = parse_design_properties(design_path)
-
-    # Parse tests from test.py
-    tests = parse_test_methods(test_path)
-
     print(f"Design Coverage Report: {args.component}")
-    print("=" * 50)
+    print("=" * 70)
 
-    print(f"\nExamples in design.md: {len(examples)}")
-    for ex in examples:
-        print(f"  - {ex}")
+    # Use enhanced semantic coverage check
+    passed, report = verify_design_coverage(design_path, test_path, verbose=True)
+    print(report)
 
-    print(f"\nProperties in design.md: {len(properties)}")
-    for prop in properties:
-        print(f"  - {prop}")
+    print("")
+    if passed:
+        print("RESULT: All design items have corresponding tests")
+    else:
+        print("RESULT: Some design items are missing tests")
+        print("\nNaming convention required:")
+        print("  - Example N → test_example_N_* (e.g., test_example_1_simple_case)")
+        print("  - Property PN → test_property_pN_* (e.g., test_property_p1_invariant)")
 
-    print(f"\nTests in test.py: {len(tests)}")
-    for test in tests:
-        print(f"  - {test}")
-
-    # Simple coverage check: are there enough tests?
-    total_needed = len(examples) + len(properties)
-    coverage = len(tests) / total_needed if total_needed > 0 else 1.0
-
-    print(f"\nCoverage: {len(tests)}/{total_needed} ({coverage:.0%})")
-
-    return 0 if coverage >= 1.0 else 1
+    return 0 if passed else 1
 
 
 # =============================================================================
@@ -783,6 +1358,142 @@ def parse_test_methods(test_path: str) -> List[str]:
 
 
 # =============================================================================
+# Enhanced Design Coverage (Semantic Matching)
+# =============================================================================
+
+def parse_design_items(design_path: str) -> Tuple[List[Tuple[int, str]], List[Tuple[str, str]]]:
+    """Parse design.md for numbered examples and properties.
+
+    Returns:
+        Tuple of (examples, properties) where:
+        - examples: List of (number, title) tuples
+        - properties: List of (id, description) tuples
+    """
+    import re
+
+    with open(design_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # Parse examples: ### Example N: Title
+    examples = []
+    for match in re.finditer(r'###\s+Example\s+(\d+):\s*(.+)', content):
+        num = int(match.group(1))
+        title = match.group(2).strip()
+        examples.append((num, title))
+
+    # Parse properties from table: | PN | Name | Description |
+    properties = []
+    # Match rows like: | P1 | No double tags | An entity cannot have... |
+    for match in re.finditer(r'\|\s*(P\d+)\s*\|\s*([^|]+)\s*\|', content):
+        prop_id = match.group(1)
+        prop_name = match.group(2).strip()
+        properties.append((prop_id, prop_name))
+
+    return examples, properties
+
+
+def parse_test_coverage(test_path: str) -> Tuple[List[Tuple[int, str]], List[Tuple[str, str]]]:
+    """Parse test.py for example and property test methods.
+
+    Returns:
+        Tuple of (example_tests, property_tests) where:
+        - example_tests: List of (number, method_name) tuples
+        - property_tests: List of (property_id, method_name) tuples
+    """
+    import re
+
+    with open(test_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # Parse example tests: def test_example_N_*
+    example_tests = []
+    for match in re.finditer(r'def\s+(test_example_(\d+)\w*)', content):
+        method_name = match.group(1)
+        num = int(match.group(2))
+        example_tests.append((num, method_name))
+
+    # Parse property tests: def test_property_pN_* (case insensitive for pN)
+    property_tests = []
+    for match in re.finditer(r'def\s+(test_property_(p\d+)\w*)', content, re.IGNORECASE):
+        method_name = match.group(1)
+        prop_id = match.group(2).upper()  # Normalize to P1, P2, etc.
+        property_tests.append((prop_id, method_name))
+
+    return example_tests, property_tests
+
+
+def verify_design_coverage(design_path: str, test_path: str, verbose: bool = False) -> Tuple[bool, str]:
+    """Verify that design examples and properties have corresponding tests.
+
+    Uses naming convention:
+    - test_example_N_* for Example N
+    - test_property_pN_* for Property PN
+
+    Args:
+        design_path: Path to design.md
+        test_path: Path to test.py
+        verbose: If True, return detailed report
+
+    Returns:
+        Tuple of (passed, report_string)
+    """
+    examples, properties = parse_design_items(design_path)
+    example_tests, property_tests = parse_test_coverage(test_path)
+
+    # Build lookup maps
+    example_test_map = {num: name for num, name in example_tests}
+    property_test_map = {pid: name for pid, name in property_tests}
+
+    # Check coverage
+    example_results = []
+    for num, title in examples:
+        if num in example_test_map:
+            example_results.append((num, title, example_test_map[num], True))
+        else:
+            example_results.append((num, title, None, False))
+
+    property_results = []
+    for prop_id, prop_name in properties:
+        if prop_id in property_test_map:
+            property_results.append((prop_id, prop_name, property_test_map[prop_id], True))
+        else:
+            property_results.append((prop_id, prop_name, None, False))
+
+    # Calculate coverage
+    total_items = len(examples) + len(properties)
+    covered_items = sum(1 for _, _, _, ok in example_results if ok) + \
+                   sum(1 for _, _, _, ok in property_results if ok)
+
+    passed = covered_items == total_items
+
+    # Build report
+    lines = []
+    if verbose:
+        lines.append("Examples:")
+        for num, title, test_name, ok in example_results:
+            status = "OK" if ok else "MISSING"
+            test_display = test_name if test_name else f"test_example_{num}_*"
+            # Truncate title for alignment
+            title_short = title[:30] + "..." if len(title) > 30 else title
+            lines.append(f"  [{num}] {title_short:<34} {test_display:<40} {status}")
+
+        lines.append("")
+        lines.append("Properties:")
+        for prop_id, prop_name, test_name, ok in property_results:
+            status = "OK" if ok else "MISSING"
+            test_display = test_name if test_name else f"test_property_{prop_id.lower()}_*"
+            name_short = prop_name[:30] + "..." if len(prop_name) > 30 else prop_name
+            lines.append(f"  [{prop_id}] {name_short:<34} {test_display:<40} {status}")
+
+        lines.append("")
+
+    coverage_pct = (covered_items / total_items * 100) if total_items > 0 else 100
+    lines.append(f"Coverage: {covered_items}/{total_items} ({coverage_pct:.0f}%)")
+
+    return passed, "\n".join(lines)
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -825,6 +1536,7 @@ Examples:
     certify_parser = subparsers.add_parser("certify", help="Certify a component")
     certify_parser.add_argument("component", help="Component path or name")
     certify_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    certify_parser.add_argument("--dry-run", action="store_true", help="Show results without updating manifest")
     certify_parser.set_defaults(func=cmd_certify)
 
     # status command
@@ -841,6 +1553,28 @@ Examples:
     coverage_parser = subparsers.add_parser("coverage", help="Check design coverage")
     coverage_parser.add_argument("component", help="Component path or name")
     coverage_parser.set_defaults(func=cmd_coverage)
+
+    # play command
+    play_parser = subparsers.add_parser("play", help="Play level with narrative output")
+    play_parser.add_argument("level", help="Level path (e.g., puzzle1)")
+    play_parser.set_defaults(func=cmd_play)
+
+    # trace command
+    trace_parser = subparsers.add_parser("trace", help="Show decomposition tree")
+    trace_parser.add_argument("level", help="Level path (e.g., puzzle1)")
+    trace_parser.add_argument("--goal", "-g", help="Custom goal (default: level's goals())")
+    trace_parser.set_defaults(func=cmd_trace)
+
+    # test-all command
+    test_all_parser = subparsers.add_parser("test-all", help="Run tests for all components")
+    test_all_parser.add_argument("--layer", "-l", help="Filter by layer (primitives, strategies, goals, levels)")
+    test_all_parser.set_defaults(func=cmd_test_all)
+
+    # verify command
+    verify_parser = subparsers.add_parser("verify", help="Verify a level (dependencies + tests + plan)")
+    verify_parser.add_argument("level", help="Level path (e.g., puzzle1)")
+    verify_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    verify_parser.set_defaults(func=cmd_verify)
 
     args = parser.parse_args()
 

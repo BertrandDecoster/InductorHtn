@@ -133,6 +133,46 @@ class HtnTestSuite:
         """
         self._planner = None
         self._loaded_components = set()
+        self._state_snapshot = None
+
+    # =========================================================================
+    # State Snapshot/Restore (for component tests without file reload)
+    # =========================================================================
+
+    def snapshot_state(self):
+        """
+        Save current state for later restore.
+
+        Use this before making changes that you want to undo.
+        Works with component-based tests that don't have a file to reload.
+        """
+        self._state_snapshot = self.get_state()
+        # Also snapshot the loaded components
+        self._components_snapshot = getattr(self, '_loaded_components', set()).copy()
+
+    def restore_state(self):
+        """
+        Restore state from snapshot.
+
+        Reloads components and replays the snapshotted facts.
+        """
+        if not hasattr(self, '_state_snapshot') or self._state_snapshot is None:
+            return False
+
+        # Reset planner
+        self._planner = HtnPlanner(self.verbose)
+        self._loaded_components = set()
+
+        # Reload components that were loaded at snapshot time
+        if hasattr(self, '_components_snapshot'):
+            for comp in self._components_snapshot:
+                self.load_component(comp, reset_first=False)
+
+        # Restore facts
+        for fact in self._state_snapshot:
+            self._planner.HtnCompileCustomVariables(f"{fact}.")
+
+        return True
 
     def load_component(self, component_path: str, reset_first: bool = True) -> bool:
         """
@@ -487,6 +527,126 @@ class HtnTestSuite:
             msg: Optional test message
         """
         return self.assert_plan(goal, min_solutions=0, max_solutions=0, msg=msg)
+
+    def assert_plan_matches_any(self, goal: str, alternatives: List[Dict],
+                                 msg: str = "") -> bool:
+        """
+        Assert plan matches at least one of the alternative patterns.
+
+        Useful for testing design alternatives (Plan A vs Plan B).
+
+        Args:
+            goal: HTN goal to plan
+            alternatives: List of assertion dicts, each with:
+                - 'contains': List of operator substrings that must appear
+                - 'not_contains': List of operator substrings that must NOT appear
+            msg: Optional test message
+
+        Example:
+            self.assert_plan_matches_any("completePuzzle.", [
+                {"contains": ["theBurn"], "not_contains": ["theSlipstream"]},  # Plan A
+                {"contains": ["theSlipstream", "theSlipstream"]},  # Plan B
+            ])
+        """
+        if not self._ensure_planner():
+            return False
+
+        message = msg or f"Plan matches alternatives: {goal}"
+
+        # Get the plan
+        error, result = self._planner.FindAllPlansCustomVariables(goal)
+
+        if error is not None:
+            return self._record(False, message, f"Planning error: {error}")
+
+        solutions = json.loads(result)
+
+        if solutions and isinstance(solutions[0], dict) and "false" in solutions[0]:
+            return self._record(False, message, "Planning failed - no solutions found")
+
+        # Convert solutions to string for checking
+        solution_strs = findAllPlansResultToPrologStringList(result)
+        all_solutions_str = " ".join(solution_strs)
+
+        # Check each alternative
+        for i, alt in enumerate(alternatives):
+            contains = alt.get('contains', [])
+            not_contains = alt.get('not_contains', [])
+
+            # Check if this alternative matches
+            matches = True
+
+            for pattern in contains:
+                if pattern not in all_solutions_str:
+                    matches = False
+                    break
+
+            if matches:
+                for pattern in not_contains:
+                    if pattern in all_solutions_str:
+                        matches = False
+                        break
+
+            if matches:
+                return self._record(True, message,
+                    f"Matched alternative {i + 1}: {alt}")
+
+        # No alternative matched
+        return self._record(False, message,
+            f"Plan did not match any alternative.\n"
+            f"       Solutions: {solution_strs[:3]}...\n"
+            f"       Alternatives: {alternatives}")
+
+    def assert_plan_complexity(self, goal: str,
+                                min_operators: int = None,
+                                max_operators: int = None,
+                                msg: str = "") -> bool:
+        """
+        Assert plan complexity is within bounds.
+
+        Args:
+            goal: HTN goal to plan
+            min_operators: Minimum number of operators required (None = no minimum)
+            max_operators: Maximum number of operators allowed (None = no maximum)
+            msg: Optional test message
+
+        Example:
+            # Plan should have between 3 and 10 operators
+            self.assert_plan_complexity("completePuzzle.", min_operators=3, max_operators=10)
+        """
+        if not self._ensure_planner():
+            return False
+
+        message = msg or f"Plan complexity: {goal}"
+
+        # Get the plan
+        error, result = self._planner.FindAllPlansCustomVariables(goal)
+
+        if error is not None:
+            return self._record(False, message, f"Planning error: {error}")
+
+        solutions = json.loads(result)
+
+        if solutions and isinstance(solutions[0], dict) and "false" in solutions[0]:
+            return self._record(False, message, "Planning failed - no solutions found")
+
+        # Count operators in first solution
+        if solutions and isinstance(solutions[0], list):
+            num_operators = len(solutions[0])
+        else:
+            num_operators = 0
+
+        # Check bounds
+        if min_operators is not None and num_operators < min_operators:
+            return self._record(False, message,
+                f"Plan has {num_operators} operators, expected at least {min_operators}")
+
+        if max_operators is not None and num_operators > max_operators:
+            return self._record(False, message,
+                f"Plan has {num_operators} operators, expected at most {max_operators}")
+
+        return self._record(True, message,
+            f"Plan has {num_operators} operators")
 
     # =========================================================================
     # Query Assertions
