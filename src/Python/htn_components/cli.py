@@ -611,6 +611,7 @@ def cmd_assemble(args) -> int:
 def cmd_play(args) -> int:
     """Play through a level with step-by-step narrative output."""
     level_path = args.level
+    interactive = getattr(args, 'interactive', False)
 
     # Find level directory
     if os.path.isabs(level_path):
@@ -719,26 +720,260 @@ def cmd_play(args) -> int:
     print(f"\nPlan ({len(operators)} operators):")
     print("-" * 50)
 
-    # Step through each operator
-    for i, op in enumerate(operators):
-        op_str = format_operator(op) if isinstance(op, dict) else str(op)
-        print(f"\nStep {i+1}/{len(operators)}: {op_str}")
-        print(f"  -> {format_operator_narrative(op_str)}")
+    if interactive:
+        # Interactive mode with stepping
+        return play_interactive(planner, operators, facts, goal)
+    else:
+        # Non-interactive: step through each operator
+        for i, op in enumerate(operators):
+            op_str = format_operator(op) if isinstance(op, dict) else str(op)
+            print(f"\nStep {i+1}/{len(operators)}: {op_str}")
+            print(f"  -> {format_operator_narrative(op_str)}")
 
-    print("-" * 50)
+        print("-" * 50)
 
-    # Apply solution and show final state
-    planner.ApplySolution(0)
-    error, final_json = planner.GetStateFacts()
-    final_facts = json.loads(final_json) if not error else []
+        # Apply solution and show final state
+        planner.ApplySolution(0)
+        error, final_json = planner.GetStateFacts()
+        final_facts = json.loads(final_json) if not error else []
 
-    print("\nFinal State:")
-    for fact in final_facts:
-        if fact.startswith("at(") or fact.startswith("hasTag("):
-            print(f"  - {format_fact_narrative(fact)}")
+        print("\nFinal State:")
+        for fact in final_facts:
+            if fact.startswith("at(") or fact.startswith("hasTag("):
+                print(f"  - {format_fact_narrative(fact)}")
 
-    print("\nCOMPLETE!")
-    return 0
+        print("\nCOMPLETE!")
+        return 0
+
+
+def play_interactive(planner, operators: list, initial_facts: list, goal: str) -> int:
+    """
+    Interactive plan stepping mode.
+
+    Commands:
+        ENTER - Next step
+        b     - Back one step
+        i     - Inspect all facts
+        ?pat  - Query facts matching pattern
+        g N   - Go to step N
+        w pat - Add pattern to watch list
+        d     - Show state diff from initial
+        q     - Quit
+    """
+    # Build state snapshots for each step
+    # Since we can't incrementally apply operators, we compute initial and final
+    error, final_json = planner.GetSolutionFacts(0)
+    if error:
+        print(f"Error getting solution state: {error}")
+        return 1
+    final_facts = set(json.loads(final_json))
+    initial_set = set(initial_facts)
+
+    # Format operators into strings
+    op_strs = []
+    for op in operators:
+        op_strs.append(format_operator(op) if isinstance(op, dict) else str(op))
+
+    # State at each step (for now: initial for steps 0-N-1, final for step N)
+    # In future, we could reconstruct intermediate states from operator del/add
+    num_steps = len(operators)
+
+    current_step = 0
+    watch_list = []
+    state_history = [initial_set]  # Only have initial state initially
+
+    def get_state_at_step(step: int) -> set:
+        """Get state at given step. Step 0 = initial, step N = final."""
+        if step <= 0:
+            return initial_set
+        elif step >= num_steps:
+            return final_facts
+        else:
+            # Intermediate states - return initial with note
+            # TODO: Implement proper intermediate state tracking
+            return initial_set
+
+    def display_step(step: int, show_diff: bool = True):
+        """Display state at a step."""
+        if step == 0:
+            print(f"\n--- Step 0/{num_steps}: [Initial State] ---")
+        else:
+            op = op_strs[step - 1] if step <= len(op_strs) else "?"
+            print(f"\n--- Step {step}/{num_steps}: {op} ---")
+            print(f"  -> {format_operator_narrative(op)}")
+
+        if show_diff and step > 0:
+            prev_state = get_state_at_step(step - 1)
+            curr_state = get_state_at_step(step)
+
+            # Only show meaningful diff at final step
+            if step >= num_steps:
+                added = curr_state - initial_set
+                removed = initial_set - curr_state
+
+                if removed:
+                    print("\n  [REMOVED]")
+                    for fact in sorted(removed)[:10]:
+                        print(f"    - {fact}")
+                    if len(removed) > 10:
+                        print(f"    ... and {len(removed) - 10} more")
+
+                if added:
+                    print("\n  [ADDED]")
+                    for fact in sorted(added)[:10]:
+                        print(f"    + {fact}")
+                    if len(added) > 10:
+                        print(f"    ... and {len(added) - 10} more")
+
+        # Show watch list items
+        if watch_list:
+            curr_state = get_state_at_step(step)
+            print("\n  [WATCH LIST]")
+            for pattern in watch_list:
+                matches = [f for f in curr_state if pattern in f]
+                if matches:
+                    for m in matches[:3]:
+                        print(f"    {m}")
+                else:
+                    print(f"    {pattern}: (not found)")
+
+    def show_all_facts(step: int):
+        """Show all facts at current step."""
+        state = get_state_at_step(step)
+        print(f"\n  [ALL FACTS at step {step}] ({len(state)} facts)")
+
+        # Group by predicate
+        groups = {}
+        for fact in state:
+            pred = fact.split('(')[0] if '(' in fact else fact
+            if pred not in groups:
+                groups[pred] = []
+            groups[pred].append(fact)
+
+        for pred in sorted(groups.keys()):
+            print(f"\n  {pred}:")
+            for fact in sorted(groups[pred]):
+                print(f"    {fact}")
+
+    def query_facts(step: int, pattern: str):
+        """Query facts matching pattern."""
+        state = get_state_at_step(step)
+        matches = [f for f in state if pattern in f]
+        print(f"\n  [QUERY: '{pattern}'] ({len(matches)} matches)")
+        for m in sorted(matches):
+            print(f"    {m}")
+
+    # Print instructions
+    print("\n[Interactive Mode]")
+    print("Commands: ENTER=next, b=back, i=inspect, ?pat=query, g N=goto, w pat=watch, d=diff, q=quit")
+
+    # Show initial state
+    display_step(current_step, show_diff=False)
+
+    while True:
+        try:
+            cmd = input("\n> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nExiting...")
+            return 0
+
+        if cmd == "" or cmd == "n":
+            # Next step
+            if current_step < num_steps:
+                current_step += 1
+                display_step(current_step)
+            else:
+                print("  (Already at final step)")
+                print("\nCOMPLETE!")
+                return 0
+
+        elif cmd == "b":
+            # Back
+            if current_step > 0:
+                current_step -= 1
+                display_step(current_step)
+            else:
+                print("  (Already at initial state)")
+
+        elif cmd == "i":
+            # Inspect all facts
+            show_all_facts(current_step)
+
+        elif cmd.startswith("?"):
+            # Query facts
+            pattern = cmd[1:].strip()
+            if pattern:
+                query_facts(current_step, pattern)
+            else:
+                print("  Usage: ?pattern (e.g., ?at()")
+
+        elif cmd.startswith("g ") or cmd.startswith("g"):
+            # Go to step
+            try:
+                parts = cmd.split()
+                if len(parts) >= 2:
+                    target = int(parts[1])
+                    if 0 <= target <= num_steps:
+                        current_step = target
+                        display_step(current_step)
+                    else:
+                        print(f"  Invalid step. Range: 0-{num_steps}")
+                else:
+                    print("  Usage: g N (e.g., g 3)")
+            except ValueError:
+                print("  Usage: g N (e.g., g 3)")
+
+        elif cmd.startswith("w "):
+            # Watch
+            pattern = cmd[2:].strip()
+            if pattern:
+                if pattern not in watch_list:
+                    watch_list.append(pattern)
+                    print(f"  Added '{pattern}' to watch list")
+                else:
+                    watch_list.remove(pattern)
+                    print(f"  Removed '{pattern}' from watch list")
+            else:
+                print("  Usage: w pattern (e.g., w hasTag)")
+
+        elif cmd == "d":
+            # Diff from initial
+            curr_state = get_state_at_step(current_step)
+            added = curr_state - initial_set
+            removed = initial_set - curr_state
+
+            print(f"\n  [DIFF from initial to step {current_step}]")
+            print(f"  Added: {len(added)} facts")
+            print(f"  Removed: {len(removed)} facts")
+
+            if removed:
+                print("\n  REMOVED:")
+                for fact in sorted(removed)[:15]:
+                    print(f"    - {fact}")
+
+            if added:
+                print("\n  ADDED:")
+                for fact in sorted(added)[:15]:
+                    print(f"    + {fact}")
+
+        elif cmd == "q":
+            print("\nExiting...")
+            return 0
+
+        elif cmd == "h" or cmd == "help":
+            print("\n  Commands:")
+            print("    ENTER/n - Next step")
+            print("    b       - Back one step")
+            print("    i       - Inspect all facts")
+            print("    ?pat    - Query facts matching pattern")
+            print("    g N     - Go to step N")
+            print("    w pat   - Toggle watch pattern")
+            print("    d       - Show diff from initial")
+            print("    q       - Quit")
+
+        else:
+            print(f"  Unknown command: {cmd}")
+            print("  Type 'h' for help")
 
 
 def format_fact_narrative(fact: str) -> str:
@@ -831,6 +1066,7 @@ def cmd_trace(args) -> int:
     """Show decomposition tree for a level's plan."""
     level_path = args.level
     custom_goal = args.goal
+    interactive = getattr(args, 'interactive', False)
 
     # Find level directory
     if os.path.isabs(level_path):
@@ -926,12 +1162,15 @@ def cmd_trace(args) -> int:
     tree_nodes = json.loads(tree_json)
 
     # Build tree structure
-    nodes_by_id = {node.get('nodeID', node.get('id', i)): node for i, node in enumerate(tree_nodes)}
+    nodes_by_id = {}
+    for i, node in enumerate(tree_nodes):
+        node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', i)))
+        nodes_by_id[node_id] = node
 
     # Find root nodes (parentNodeID == -1 or not present)
     roots = [n for n in tree_nodes if n.get('parentNodeID', -1) == -1]
 
-    # Build children map
+    # Build children map using treeNodeID for proper parent-child relationships
     children_map = {}
     for node in tree_nodes:
         parent_id = node.get('parentNodeID', -1)
@@ -942,11 +1181,14 @@ def cmd_trace(args) -> int:
     # Known strategies for annotation
     known_strategies = {'theBurn', 'theSlipstream', 'theAmbush', 'theSiege'}
 
-    # Print tree recursively
+    if interactive:
+        return trace_interactive(tree_nodes, nodes_by_id, children_map, roots, known_strategies, planner)
+
+    # Print tree recursively (non-interactive mode)
     def print_tree(node, prefix="", is_last=True):
         task_name = node.get('taskName', 'unknown')
         is_operator = node.get('isOperator', False)
-        node_id = node.get('nodeID', node.get('id', '?'))
+        node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', '?')))
 
         # Format the node display
         connector = "└── " if is_last else "├── "
@@ -990,6 +1232,297 @@ def cmd_trace(args) -> int:
             print(f"  - {s}")
 
     return 0
+
+
+def trace_interactive(tree_nodes: list, nodes_by_id: dict, children_map: dict,
+                      roots: list, known_strategies: set, planner) -> int:
+    """
+    Interactive tree exploration mode.
+
+    Commands:
+        ENTER   - Expand current node
+        c       - Collapse current node
+        u       - Go up to parent
+        j/k     - Navigate siblings (down/up)
+        v       - Show variable bindings
+        /pat    - Search for node by pattern
+        q       - Quit
+    """
+    # Build flat list for navigation
+    all_nodes = []
+    node_depths = {}
+    expanded = set()  # treeNodeIDs of expanded nodes
+
+    def flatten_tree(node, depth=0):
+        """Flatten tree for sequential navigation."""
+        node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', len(all_nodes))))
+        all_nodes.append(node)
+        node_depths[node_id] = depth
+
+        if node_id in expanded:
+            children = children_map.get(node_id, [])
+            for child in children:
+                flatten_tree(child, depth + 1)
+
+    def rebuild_flat_list():
+        """Rebuild flat list after expand/collapse."""
+        all_nodes.clear()
+        node_depths.clear()
+        for root in roots:
+            # Roots are always expanded
+            root_id = root.get('treeNodeID', root.get('nodeID', root.get('id', 0)))
+            expanded.add(root_id)
+            flatten_tree(root, 0)
+
+    # Initially expand roots
+    for root in roots:
+        root_id = root.get('treeNodeID', root.get('nodeID', root.get('id', 0)))
+        expanded.add(root_id)
+
+    rebuild_flat_list()
+
+    current_idx = 0
+
+    def get_node_display(node, highlight=False):
+        """Format node for display."""
+        task_name = node.get('taskName', 'unknown')
+        is_operator = node.get('isOperator', False)
+        node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', '?')))
+        depth = node_depths.get(node_id, 0)
+
+        # Check if has children
+        has_children = len(children_map.get(node_id, [])) > 0
+        is_expanded = node_id in expanded
+
+        # Build prefix
+        indent = "  " * depth
+        if has_children:
+            marker = "[-]" if is_expanded else "[+]"
+        else:
+            marker = "   "
+
+        # Highlight current
+        prefix = ">> " if highlight else "   "
+
+        # Strategy annotation
+        task_base = task_name.split('(')[0] if '(' in task_name else task_name
+        annotation = ""
+        if task_base in known_strategies:
+            annotation = f"  <- Strategy"
+
+        # Format
+        if is_operator:
+            return f"{prefix}{indent}{marker} [OP] {task_name}"
+        else:
+            return f"{prefix}{indent}{marker} {task_name}{annotation}"
+
+    def display_tree():
+        """Display current tree view."""
+        print("\n" + "=" * 60)
+        print("[Decomposition Tree - Interactive]")
+        print("=" * 60)
+
+        # Show window around current position
+        start = max(0, current_idx - 10)
+        end = min(len(all_nodes), current_idx + 15)
+
+        if start > 0:
+            print(f"  ... ({start} nodes above)")
+
+        for i in range(start, end):
+            node = all_nodes[i]
+            print(get_node_display(node, highlight=(i == current_idx)))
+
+        if end < len(all_nodes):
+            print(f"  ... ({len(all_nodes) - end} nodes below)")
+
+        print("-" * 60)
+
+    def show_node_details(node):
+        """Show detailed info about a node."""
+        print("\n  [NODE DETAILS]")
+        print(f"    Task: {node.get('taskName', '?')}")
+        print(f"    Type: {'Operator' if node.get('isOperator', False) else 'Method'}")
+
+        tree_id = node.get('treeNodeID', '?')
+        node_id = node.get('nodeID', '?')
+        parent_id = node.get('parentNodeID', -1)
+        print(f"    TreeNodeID: {tree_id}")
+        print(f"    NodeID: {node_id}")
+        print(f"    ParentID: {parent_id}")
+
+        # Show method signature if present
+        method_sig = node.get('methodSignature', '')
+        if method_sig:
+            print(f"    Method: {method_sig}")
+
+        # Show operator signature if present
+        op_sig = node.get('operatorSignature', '')
+        if op_sig:
+            print(f"    Operator: {op_sig}")
+
+        # Show children count
+        children = children_map.get(tree_id, [])
+        print(f"    Children: {len(children)}")
+
+    def search_nodes(pattern: str):
+        """Search for nodes matching pattern."""
+        matches = []
+        for i, node in enumerate(all_nodes):
+            task_name = node.get('taskName', '')
+            if pattern.lower() in task_name.lower():
+                matches.append((i, node))
+
+        print(f"\n  [SEARCH: '{pattern}'] ({len(matches)} matches)")
+        for idx, node in matches[:10]:
+            task_name = node.get('taskName', '')
+            print(f"    [{idx}] {task_name}")
+
+        if len(matches) > 10:
+            print(f"    ... and {len(matches) - 10} more")
+
+        return matches
+
+    # Print instructions
+    print("\n[Interactive Trace Mode]")
+    print("Commands: ENTER=expand/collapse, u=up, j/k=navigate, v=details, /pat=search, q=quit")
+
+    display_tree()
+
+    while True:
+        try:
+            cmd = input("\n> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nExiting...")
+            return 0
+
+        if cmd == "" or cmd == "e":
+            # Toggle expand/collapse
+            if current_idx < len(all_nodes):
+                node = all_nodes[current_idx]
+                node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', current_idx)))
+                if node_id in expanded:
+                    expanded.discard(node_id)
+                else:
+                    expanded.add(node_id)
+                rebuild_flat_list()
+                # Keep cursor on same node
+                for i, n in enumerate(all_nodes):
+                    n_id = n.get('treeNodeID', n.get('nodeID', n.get('id', -1)))
+                    if n_id == node_id:
+                        current_idx = i
+                        break
+            display_tree()
+
+        elif cmd == "c":
+            # Collapse
+            if current_idx < len(all_nodes):
+                node = all_nodes[current_idx]
+                node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', current_idx)))
+                expanded.discard(node_id)
+                rebuild_flat_list()
+            display_tree()
+
+        elif cmd == "u":
+            # Go up to parent
+            if current_idx < len(all_nodes):
+                node = all_nodes[current_idx]
+                parent_id = node.get('parentNodeID', -1)
+                if parent_id != -1:
+                    # Find parent in flat list
+                    for i, n in enumerate(all_nodes):
+                        n_id = n.get('treeNodeID', n.get('nodeID', n.get('id', -1)))
+                        if n_id == parent_id:
+                            current_idx = i
+                            break
+            display_tree()
+
+        elif cmd == "j":
+            # Navigate down
+            if current_idx < len(all_nodes) - 1:
+                current_idx += 1
+            display_tree()
+
+        elif cmd == "k":
+            # Navigate up
+            if current_idx > 0:
+                current_idx -= 1
+            display_tree()
+
+        elif cmd == "v":
+            # Show details
+            if current_idx < len(all_nodes):
+                show_node_details(all_nodes[current_idx])
+
+        elif cmd.startswith("/"):
+            # Search
+            pattern = cmd[1:].strip()
+            if pattern:
+                matches = search_nodes(pattern)
+                if matches:
+                    # Jump to first match
+                    current_idx = matches[0][0]
+                    display_tree()
+            else:
+                print("  Usage: /pattern")
+
+        elif cmd.startswith("g "):
+            # Go to index
+            try:
+                target = int(cmd[2:].strip())
+                if 0 <= target < len(all_nodes):
+                    current_idx = target
+                    display_tree()
+                else:
+                    print(f"  Invalid index. Range: 0-{len(all_nodes)-1}")
+            except ValueError:
+                print("  Usage: g N")
+
+        elif cmd == "a":
+            # Expand all
+            for node in tree_nodes:
+                node_id = node.get('treeNodeID', node.get('nodeID', node.get('id', 0)))
+                expanded.add(node_id)
+            rebuild_flat_list()
+            display_tree()
+
+        elif cmd == "s":
+            # Show strategies summary
+            strategies_used = set()
+            for node in tree_nodes:
+                task_name = node.get('taskName', '')
+                task_base = task_name.split('(')[0] if '(' in task_name else task_name
+                if task_base in known_strategies:
+                    strategies_used.add(task_base)
+
+            print("\n  [STRATEGIES USED]")
+            if strategies_used:
+                for s in sorted(strategies_used):
+                    print(f"    - {s}")
+            else:
+                print("    (none)")
+
+        elif cmd == "q":
+            print("\nExiting...")
+            return 0
+
+        elif cmd == "h" or cmd == "help":
+            print("\n  Commands:")
+            print("    ENTER/e - Toggle expand/collapse")
+            print("    c       - Collapse current node")
+            print("    u       - Go up to parent")
+            print("    j       - Navigate down")
+            print("    k       - Navigate up")
+            print("    v       - Show node details")
+            print("    /pat    - Search for pattern")
+            print("    g N     - Go to index N")
+            print("    a       - Expand all nodes")
+            print("    s       - Show strategies summary")
+            print("    q       - Quit")
+
+        else:
+            print(f"  Unknown command: {cmd}")
+            print("  Type 'h' for help")
 
 
 def cmd_test_all(args) -> int:
@@ -1557,12 +2090,16 @@ Examples:
     # play command
     play_parser = subparsers.add_parser("play", help="Play level with narrative output")
     play_parser.add_argument("level", help="Level path (e.g., puzzle1)")
+    play_parser.add_argument("--interactive", "-i", action="store_true",
+                            help="Interactive stepping mode with state inspection")
     play_parser.set_defaults(func=cmd_play)
 
     # trace command
     trace_parser = subparsers.add_parser("trace", help="Show decomposition tree")
     trace_parser.add_argument("level", help="Level path (e.g., puzzle1)")
     trace_parser.add_argument("--goal", "-g", help="Custom goal (default: level's goals())")
+    trace_parser.add_argument("--interactive", "-i", action="store_true",
+                             help="Interactive exploration mode with failure analysis")
     trace_parser.set_defaults(func=cmd_trace)
 
     # test-all command

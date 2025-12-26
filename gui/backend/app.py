@@ -192,6 +192,43 @@ def get_state_diff():
 
     return jsonify(diff)
 
+@app.route('/api/plan/timeline', methods=['POST'])
+def get_plan_timeline():
+    """
+    Get step-by-step state evolution for a plan.
+
+    Returns a timeline showing the state after each operator, useful for
+    debugging and visualization. Shows initial state, and state diff per step.
+
+    Body: { "session_id": "...", "goal": "travel-to(park)." }
+    Response: {
+        "timeline": [
+            {"step": 0, "operator": null, "state": [...], "added": [], "removed": []},
+            {"step": 1, "operator": "walk(downtown, park)", "added": ["at(park)"], "removed": ["at(downtown)"]}
+        ],
+        "operators": [...],
+        "total_steps": N
+    }
+    """
+    data = request.json
+    session_id = data.get('session_id')
+    goal = data.get('goal')
+
+    if session_id not in sessions:
+        return jsonify({'error': 'Invalid session'}), 400
+
+    if not goal:
+        return jsonify({'error': 'Goal is required'}), 400
+
+    service = sessions[session_id]
+    timeline = service.get_plan_timeline(goal)
+
+    if 'error' in timeline:
+        return jsonify(timeline), 400
+
+    return jsonify(timeline)
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""

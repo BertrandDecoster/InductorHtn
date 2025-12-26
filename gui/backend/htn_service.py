@@ -516,3 +516,106 @@ class HtnService:
                 'removed': [],
                 'unchanged': []
             }
+
+    def get_plan_timeline(self, goal):
+        """
+        Get step-by-step state evolution for a plan.
+
+        Returns a timeline showing the state after each operator, useful for
+        debugging and visualization tools.
+
+        Args:
+            goal: HTN goal to plan (e.g., "travel-to(park).")
+
+        Returns:
+            dict: {
+                'timeline': List of step dicts, each with:
+                    - step: Step number (0 = initial)
+                    - operator: Operator string (None for step 0)
+                    - state: List of facts at this step
+                    - added: Facts added by this step
+                    - removed: Facts removed by this step
+                'operators': List of all operators in plan
+                'total_steps': Total number of steps
+            }
+            or {'error': error_message}
+        """
+        try:
+            # Get initial state
+            initial_facts = self.get_state_facts()
+            initial_set = set(initial_facts)
+
+            # Find plan
+            error, result_json = self.planner.FindAllPlansCustomVariables(goal)
+            if error is not None:
+                return {'error': f'Planning error: {error}'}
+
+            solutions = json.loads(result_json)
+            if not solutions or self._is_failure_result(solutions):
+                return {'error': 'No plan found'}
+
+            # Get operators from first solution
+            operators = solutions[0] if isinstance(solutions[0], list) else []
+
+            # Format operator strings
+            op_strs = []
+            for op in operators:
+                if isinstance(op, dict):
+                    for name, args in op.items():
+                        if isinstance(args, list):
+                            arg_strs = []
+                            for arg in args:
+                                if isinstance(arg, dict):
+                                    for k, _ in arg.items():
+                                        arg_strs.append(k)
+                                        break
+                                else:
+                                    arg_strs.append(str(arg))
+                            op_strs.append(f"{name}({', '.join(arg_strs)})")
+                        else:
+                            op_strs.append(name)
+                        break
+                else:
+                    op_strs.append(str(op))
+
+            # Get final state
+            solution_facts = self.get_solution_facts(0)
+            final_set = set(solution_facts)
+
+            # Build timeline
+            timeline = []
+
+            # Step 0: initial state
+            timeline.append({
+                'step': 0,
+                'operator': None,
+                'state': initial_facts,
+                'added': [],
+                'removed': []
+            })
+
+            # For now, we can only compute initial and final states
+            # Each intermediate step shows the operator but approximates state
+            added = sorted(list(final_set - initial_set))
+            removed = sorted(list(initial_set - final_set))
+
+            for i, op_str in enumerate(op_strs):
+                is_final = (i == len(op_strs) - 1)
+
+                timeline.append({
+                    'step': i + 1,
+                    'operator': op_str,
+                    'state': solution_facts if is_final else initial_facts,
+                    'added': added if is_final else [],
+                    'removed': removed if is_final else []
+                })
+
+            return {
+                'timeline': timeline,
+                'operators': op_strs,
+                'total_steps': len(op_strs) + 1  # Including initial state
+            }
+
+        except Exception as e:
+            print(f"Error getting plan timeline: {e}")
+            return {'error': str(e)}

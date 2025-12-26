@@ -1,0 +1,353 @@
+.validation-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.validation-header {
+  padding: 8px 12px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.validation-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #cccccc;
+}
+
+/* Goal Input */
+.goal-input {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.goal-input input {
+  flex: 1;
+  padding: 6px 10px;
+  background: #3c3c3c;
+  border: 1px solid #4c4c4c;
+  border-radius: 3px;
+  color: #d4d4d4;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.goal-input input:focus {
+  outline: none;
+  border-color: #0078d4;
+}
+
+.goal-input button {
+  padding: 6px 12px;
+  background: #0078d4;
+  border: none;
+  border-radius: 3px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.goal-input button:hover {
+  background: #1a8cd8;
+}
+
+.goal-input button:disabled {
+  background: #555;
+  cursor: not-allowed;
+}
+
+/* Error */
+.validation-error {
+  padding: 8px 12px;
+  background: #5a1d1d;
+  color: #f48771;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+/* Timeline Scrubber */
+.timeline-scrubber {
+  padding: 12px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.timeline-controls button {
+  padding: 4px 12px;
+  background: #3c3c3c;
+  border: 1px solid #4c4c4c;
+  border-radius: 3px;
+  color: #d4d4d4;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.timeline-controls button:hover:not(:disabled) {
+  background: #4c4c4c;
+}
+
+.timeline-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.step-indicator {
+  min-width: 100px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.timeline-slider {
+  width: 100%;
+  height: 8px;
+  -webkit-appearance: none;
+  background: #3c3c3c;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #0078d4;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* Step Info */
+.step-info {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.operator-name {
+  padding: 8px 12px;
+  background: #2d2d2d;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.operator-name strong {
+  color: #9cdcfe;
+}
+
+/* State Sections */
+.state-section {
+  margin-bottom: 8px;
+  background: #252526;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-header:hover {
+  background: #2d2d2d;
+}
+
+.section-title {
+  font-weight: 500;
+}
+
+.state-section.removed .section-title {
+  color: #f48771;
+}
+
+.state-section.added .section-title {
+  color: #89d185;
+}
+
+.section-content {
+  padding: 4px 12px 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.fact-item {
+  padding: 2px 8px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.fact-item.removed {
+  color: #f48771;
+}
+
+.fact-item.added {
+  color: #89d185;
+}
+
+.fact-item.more {
+  color: #808080;
+  font-style: italic;
+}
+
+/* Assertions */
+.assertions-section {
+  padding: 12px;
+  border-top: 1px solid #3c3c3c;
+}
+
+.assertions-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #cccccc;
+}
+
+.assertion-input {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.assertion-input input {
+  flex: 1;
+  padding: 4px 8px;
+  background: #3c3c3c;
+  border: 1px solid #4c4c4c;
+  border-radius: 3px;
+  color: #d4d4d4;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.assertion-input button {
+  padding: 4px 8px;
+  background: #3c3c3c;
+  border: 1px solid #4c4c4c;
+  border-radius: 3px;
+  color: #d4d4d4;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.assertion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assertion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #2d2d2d;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.assertion-item.pass {
+  border-left: 3px solid #89d185;
+}
+
+.assertion-item.fail {
+  border-left: 3px solid #f48771;
+}
+
+.assertion-status {
+  font-weight: bold;
+}
+
+.assertion-item.pass .assertion-status {
+  color: #89d185;
+}
+
+.assertion-item.fail .assertion-status {
+  color: #f48771;
+}
+
+.assertion-pattern {
+  flex: 1;
+  font-family: monospace;
+}
+
+.assertion-remove {
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  color: #808080;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.assertion-remove:hover {
+  color: #f48771;
+}
+
+/* Operators List */
+.operators-list {
+  padding: 12px;
+  border-top: 1px solid #3c3c3c;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.operators-list h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #cccccc;
+}
+
+.operators-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.operator-item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #252526;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.operator-item:hover {
+  background: #2d2d2d;
+}
+
+.operator-item.current {
+  background: #264f78;
+  border-left: 3px solid #0078d4;
+}
+
+.operator-index {
+  color: #808080;
+  min-width: 20px;
+}
+
+.operator-text {
+  color: #dcdcaa;
+  font-family: monospace;
+}

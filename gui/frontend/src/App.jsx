@@ -4,6 +4,7 @@ import axios from 'axios'
 import EditorPanel from './components/EditorPanel'
 import TreePanel from './components/TreePanel'
 import QueryPanel from './components/QueryPanel'
+import ValidationPanel from './components/ValidationPanel'
 import './App.css'
 import { getLastFile, setLastFile } from './utils/storage'
 
@@ -20,6 +21,7 @@ function App() {
   const [solutions, setSolutions] = useState([])
   const [selectedSolution, setSelectedSolution] = useState(0)
   const [factsDiff, setFactsDiff] = useState(null)
+  const [middlePanelView, setMiddlePanelView] = useState('tree') // 'tree' or 'timeline'
 
   // Initialize session on mount and load Game.htn by default
   useEffect(() => {
@@ -220,14 +222,38 @@ function App() {
 
         <PanelResizeHandle className="resize-handle" />
 
-        {/* Middle Panel - Computation Tree */}
+        {/* Middle Panel - Tree / Timeline */}
         <Panel defaultSize={34} minSize={20}>
-          <TreePanel
-            treeData={treeData}
-            solutions={solutions}
-            selectedSolution={selectedSolution}
-            onSolutionSelect={handleSolutionSelect}
-          />
+          <div className="middle-panel-container">
+            <div className="middle-panel-tabs">
+              <button
+                className={`tab-button ${middlePanelView === 'tree' ? 'active' : ''}`}
+                onClick={() => setMiddlePanelView('tree')}
+              >
+                Decomposition Tree
+              </button>
+              <button
+                className={`tab-button ${middlePanelView === 'timeline' ? 'active' : ''}`}
+                onClick={() => setMiddlePanelView('timeline')}
+              >
+                Plan Timeline
+              </button>
+            </div>
+            <div className="middle-panel-content">
+              {middlePanelView === 'tree' ? (
+                <TreePanel
+                  treeData={treeData}
+                  solutions={solutions}
+                  selectedSolution={selectedSolution}
+                  onSolutionSelect={handleSolutionSelect}
+                />
+              ) : (
+                <ValidationPanel
+                  sessionId={sessionId}
+                />
+              )}
+            </div>
+          </div>
         </Panel>
 
         <PanelResizeHandle className="resize-handle" />
