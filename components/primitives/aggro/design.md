@@ -95,6 +95,40 @@ No configurable parameters.
 - Plan contains player and enemy movement plus aggro
 - Final state has: `at(player, roomB)`, `at(enemy1, roomB)`, `hasAggro(enemy1, player)`
 
+### Example 5: Lose aggro
+
+**Given:**
+- `hasAggro(enemy1, player)`
+
+**When:**
+- `loseAggro(enemy1)`
+
+**Then:**
+- Plan contains: `opLoseAggro(enemy1)`
+- Final state does not have: `hasAggro(enemy1, player)`
+
+### Example 6: Lose aggro when none (no-op)
+
+**Given:**
+- Enemy has no aggro
+
+**When:**
+- `loseAggro(enemy1)`
+
+**Then:**
+- Plan contains: empty (no operators)
+
+### Example 7: Enemy already in same room as player
+
+**Given:**
+- `hasAggro(enemy1, player)`, `at(player, roomA)`, `at(enemy1, roomA)`
+
+**When:**
+- `enemyFollows(enemy1, player)`
+
+**Then:**
+- Plan contains: empty (no movement needed)
+
 ## Properties
 
 | ID | Property | Description |

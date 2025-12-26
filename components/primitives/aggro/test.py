@@ -92,9 +92,64 @@ class AggroTest(HtnTestSuite):
         self.assert_state_after("lureToRoom(enemy1, roomB).",
             has=["at(player,roomB)", "at(enemy1,roomB)", "hasAggro(enemy1,player)"])
 
+    def test_example_5_lose_aggro(self):
+        """Example 5: Lose aggro
+
+        Given: hasAggro(enemy1, player)
+        When: loseAggro(enemy1)
+        Then: Plan contains opLoseAggro, state does not have hasAggro
+        """
+        self.set_state([
+            "hasAggro(enemy1, player)"
+        ])
+
+        self.assert_plan("loseAggro(enemy1).",
+            contains=["opLoseAggro(enemy1)"])
+
+        self.assert_state_after("loseAggro(enemy1).",
+            not_has=["hasAggro(enemy1,player)"])
+
+    def test_example_6_lose_aggro_when_none(self):
+        """Example 6: Lose aggro when none (no-op)
+
+        Given: Enemy has no aggro
+        When: loseAggro(enemy1)
+        Then: Plan contains empty (no operators)
+        """
+        # No initial aggro
+        self.assert_plan("loseAggro(enemy1).",
+            not_contains=["opLoseAggro"])
+
+    def test_example_7_enemy_already_in_same_room(self):
+        """Example 7: Enemy already in same room as player
+
+        Given: hasAggro(enemy1, player), at(player, roomA), at(enemy1, roomA)
+        When: enemyFollows(enemy1, player)
+        Then: Plan contains empty (no movement needed)
+        """
+        self.set_state([
+            "hasAggro(enemy1, player)",
+            "at(player, roomA)",
+            "at(enemy1, roomA)"
+        ])
+
+        self.assert_plan("enemyFollows(enemy1, player).",
+            not_contains=["opMoveTo"])
+
     # =========================================================================
     # Property Tests
     # =========================================================================
+
+    def test_property_p1_single_aggro_target(self):
+        """P1: An enemy can only have aggro on one target."""
+        self.set_state([
+            "hasAggro(enemy1, player)"
+        ])
+        # Getting aggro again shouldn't create duplicate
+        self.run_goal("getAggro(enemy1)")
+        state = self.get_state()
+        aggro_count = sum(1 for f in state if f.startswith("hasAggro(enemy1,"))
+        assert aggro_count == 1, f"P1 violated: enemy has {aggro_count} aggro targets"
 
     def test_property_p2_following_requires_aggro(self):
         """P2: enemyFollows only moves if hasAggro exists.
@@ -112,38 +167,21 @@ class AggroTest(HtnTestSuite):
         self.assert_plan("enemyFollows(enemy1, player).",
             not_contains=["opMoveTo"])
 
-    # =========================================================================
-    # Additional Tests
-    # =========================================================================
-
-    def test_lose_aggro(self):
-        """Lose aggro removes the hasAggro fact."""
+    def test_property_p3_lure_is_composite(self):
+        """P3: lureToRoom combines player move + aggro + enemy follow."""
         self.set_state([
-            "hasAggro(enemy1, player)"
-        ])
-
-        self.assert_plan("loseAggro(enemy1).",
-            contains=["opLoseAggro(enemy1)"])
-
-        self.assert_state_after("loseAggro(enemy1).",
-            not_has=["hasAggro(enemy1,player)"])
-
-    def test_lose_aggro_when_none(self):
-        """Lose aggro when no aggro is a no-op."""
-        # No initial aggro
-        self.assert_plan("loseAggro(enemy1).",
-            not_contains=["opLoseAggro"])
-
-    def test_enemy_already_in_same_room(self):
-        """Enemy in same room as player - no movement needed."""
-        self.set_state([
-            "hasAggro(enemy1, player)",
             "at(player, roomA)",
-            "at(enemy1, roomA)"
+            "at(enemy1, roomA)",
+            "connected(roomA, roomB)"
         ])
 
-        self.assert_plan("enemyFollows(enemy1, player).",
-            not_contains=["opMoveTo"])
+        # Lure should contain all three components: player move, aggro, enemy move
+        self.assert_plan("lureToRoom(enemy1, roomB).",
+            contains=[
+                "opMoveTo(player, roomA, roomB)",
+                "opGetAggro(enemy1)",
+                "opMoveTo(enemy1, roomA, roomB)"
+            ])
 
 
 def run_tests():
