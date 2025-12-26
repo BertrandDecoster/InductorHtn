@@ -87,6 +87,25 @@ class TagsTest(HtnTestSuite):
     # Property Tests
     # =========================================================================
 
+    def test_property_p1_no_double_tags(self):
+        """P1: An entity cannot have the same tag twice.
+
+        After applying a tag that already exists, there should still be
+        exactly one instance of that tag.
+        """
+        self.set_state([
+            "hasTag(entity1, burning)"
+        ])
+
+        # Apply the same tag again
+        self.run_goal("applyTag(entity1, burning)")
+        state = self.get_state()
+
+        # Count how many burning tags exist for entity1
+        burning_count = sum(1 for f in state if "hasTag(entity1,burning)" in f)
+
+        assert burning_count == 1, f"P1 violated: expected 1 burning tag, got {burning_count}"
+
     def test_property_p2_combination_replaces(self):
         """P2: After combination, neither original tag exists.
 
@@ -137,11 +156,11 @@ class TagsTest(HtnTestSuite):
         assert has_stunned2, "P3 violated: electrified + wet should produce stunned"
 
     # =========================================================================
-    # Additional Tests
+    # Example Tests (continued)
     # =========================================================================
 
-    def test_frozen_plus_burning_equals_wet(self):
-        """Frozen + burning produces wet (ice melts)."""
+    def test_example_5_frozen_plus_burning_equals_wet(self):
+        """Example 5: Frozen + burning = wet (ice melts)."""
         self.set_state([
             "hasTag(entity1, frozen)"
         ])
@@ -150,14 +169,14 @@ class TagsTest(HtnTestSuite):
             has=["hasTag(entity1,wet)"],
             not_has=["hasTag(entity1,frozen)", "hasTag(entity1,burning)"])
 
-    def test_remove_nonexistent_tag_noop(self):
-        """Removing a tag that doesn't exist is a no-op."""
+    def test_example_6_remove_nonexistent_tag_noop(self):
+        """Example 6: Remove nonexistent tag (no-op)."""
         # No initial tags
         self.assert_plan("removeTag(entity1, burning).",
             not_contains=["opRemoveTag"])
 
-    def test_multiple_entities_independent(self):
-        """Tags on different entities are independent."""
+    def test_example_7_multiple_entities_independent(self):
+        """Example 7: Tags on different entities are independent."""
         self.set_state([
             "hasTag(entity1, burning)",
             "hasTag(entity2, wet)"

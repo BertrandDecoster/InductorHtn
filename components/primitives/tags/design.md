@@ -100,6 +100,42 @@ No configurable parameters. Tag combinations are defined as facts.
 - Plan contains: `opRemoveTag(entity1, burning)`
 - Final state does not have: `hasTag(entity1, burning)`
 
+### Example 5: Frozen + burning = wet (ice melts)
+
+**Given:**
+- `hasTag(entity1, frozen)`
+
+**When:**
+- `applyTag(entity1, burning)`
+
+**Then:**
+- Plan contains: `opRemoveTag(entity1, frozen)`, `opApplyTag(entity1, wet)`
+- Final state has: `hasTag(entity1, wet)`
+- Final state does not have: `hasTag(entity1, frozen)`, `hasTag(entity1, burning)`
+
+### Example 6: Remove nonexistent tag (no-op)
+
+**Given:**
+- Entity has no tags
+
+**When:**
+- `removeTag(entity1, burning)`
+
+**Then:**
+- Plan contains: empty (no operators)
+
+### Example 7: Tags on different entities are independent
+
+**Given:**
+- `hasTag(entity1, burning)`, `hasTag(entity2, wet)`
+
+**When:**
+- `applyTag(entity1, wet)`
+
+**Then:**
+- entity1 gets steam (burning + wet)
+- entity2 unchanged
+
 ## Properties
 
 | ID | Property | Description |
