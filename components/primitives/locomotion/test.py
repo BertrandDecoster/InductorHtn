@@ -163,22 +163,18 @@ class LocomotionTest(HtnTestSuite):
             "connected(roomB, roomC)"
         ])
 
-        # Move player to roomB
-        self.assert_plan("moveTo(player, roomB).",
-            contains=["opMoveTo(player, roomA, roomB)"])
+        # Move player first
+        self.run_goal("moveTo(player, roomB)")
 
-        # Move warden to roomC (separate test instance needed)
-        # Reset and test warden
-        self.setup()
-        self.set_state([
-            "at(player, roomA)",
-            "at(warden, roomB)",
-            "connected(roomA, roomB)",
-            "connected(roomB, roomC)"
-        ])
+        # Move warden (without resetting state)
+        self.run_goal("moveTo(warden, roomC)")
 
-        self.assert_plan("moveTo(warden, roomC).",
-            contains=["opMoveTo(warden, roomB, roomC)"])
+        # Verify final state has both at destinations
+        state = self.get_state()
+        assert any("at(player,roomB)" in f for f in state), "Player should be at roomB"
+        assert any("at(warden,roomC)" in f for f in state), "Warden should be at roomC"
+        assert not any("at(player,roomA)" in f for f in state), "Player should not be at roomA"
+        assert not any("at(warden,roomB)" in f for f in state), "Warden should not be at roomB"
 
 
 def run_tests():
