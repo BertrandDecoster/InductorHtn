@@ -154,8 +154,8 @@ class LocomotionTest(HtnTestSuite):
     # Additional Tests
     # =========================================================================
 
-    def test_multiple_entities(self):
-        """Multiple entities can move independently."""
+    def test_example_5_multiple_entities_independent(self):
+        """Example 5: Multiple entities move independently."""
         self.set_state([
             "at(player, roomA)",
             "at(warden, roomB)",

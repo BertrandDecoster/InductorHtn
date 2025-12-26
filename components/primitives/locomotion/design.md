@@ -97,6 +97,19 @@ No configurable parameters. Movement is instant at HTN level.
 **Then:**
 - Planning fails (no valid plan)
 
+### Example 5: Multiple entities move independently
+
+**Given:**
+- `at(player, roomA)`, `at(warden, roomB)`
+- `connected(roomA, roomB)`, `connected(roomB, roomC)`
+
+**When:**
+- `moveTo(player, roomB)` then `moveTo(warden, roomC)`
+
+**Then:**
+- Each entity moves independently
+- Final state: `at(player, roomB)`, `at(warden, roomC)`
+
 ## Properties
 
 | ID | Property | Description |
