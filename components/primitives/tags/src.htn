@@ -23,6 +23,8 @@ tagCombines(wet, electrified, stunned).
 tagCombines(electrified, wet, stunned).
 tagCombines(frozen, burning, wet).
 tagCombines(burning, frozen, wet).
+tagCombines(electronics, electrified, disabled).
+tagCombines(electrified, electronics, disabled).
 
 % === Methods ===
 

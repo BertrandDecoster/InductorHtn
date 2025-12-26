@@ -186,6 +186,16 @@ class TagsTest(HtnTestSuite):
         self.assert_plan("applyTag(entity1, wet).",
             contains=["opRemoveTag(entity1, burning)", "opApplyTag(entity1, steam)"])
 
+    def test_example_8_electronics_plus_electrified_equals_disabled(self):
+        """Example 8: Electronics + electrified = disabled (device shutdown)."""
+        self.set_state([
+            "hasTag(device1, electronics)"
+        ])
+
+        self.assert_state_after("applyTag(device1, electrified).",
+            has=["hasTag(device1,disabled)"],
+            not_has=["hasTag(device1,electronics)", "hasTag(device1,electrified)"])
+
 
 def run_tests():
     """Run all tests in this file."""

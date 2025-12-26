@@ -4,12 +4,12 @@
   "layer": "primitive",
   "description": "Status effects system with tag combinations",
   "dependencies": [],
-  "certified": false,
+  "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
-    "design_match": false,
-    "last_checked": "2025-12-26T00:17:29.534046"
+    "design_match": true,
+    "last_checked": "2025-12-26T10:17:28.774858"
   },
   "parameters": []
 }

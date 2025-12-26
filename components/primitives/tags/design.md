@@ -35,6 +35,7 @@ Built-in combinations (can be extended per-level):
 | burning | wet | steam |
 | wet | electrified | stunned |
 | frozen | burning | wet |
+| electronics | electrified | disabled |
 
 Note: Combinations are commutative (order doesn't matter).
 
@@ -135,6 +136,19 @@ No configurable parameters. Tag combinations are defined as facts.
 **Then:**
 - entity1 gets steam (burning + wet)
 - entity2 unchanged
+
+### Example 8: Electronics + electrified = disabled
+
+**Given:**
+- `hasTag(device1, electronics)`
+
+**When:**
+- `applyTag(device1, electrified)`
+
+**Then:**
+- Plan contains: `opRemoveTag(device1, electronics)`, `opApplyTag(device1, disabled)`
+- Final state has: `hasTag(device1, disabled)`
+- Final state does not have: `hasTag(device1, electronics)`, `hasTag(device1, electrified)`
 
 ## Properties
 
