@@ -69,6 +69,34 @@ Based on Level 1 concepts from PUZZLE_IDEAS.md, adapted to room-level HTN planni
 2. Freeze path from corridor to generator, push guard2 into electricity
 3. Player moves to exit
 
+## Examples
+
+### Example 1: Puzzle can be completed
+
+**Given:** Initial level state
+**When:** `completePuzzle`
+**Then:** Plan exists with operators
+
+### Example 2: Guard1 uses theBurn strategy
+
+**Given:** guard1 vulnerable to burning, storage has oil
+**When:** `defeatEnemy(guard1)`
+**Then:** guard1 has burning tag
+
+### Example 3: Guard2 uses theSlipstream strategy
+
+**Given:** guard2 vulnerable to electrified, generator has electricity
+**When:** `defeatEnemy(guard2)`
+**Then:** guard2 has electrified tag
+
+## Properties
+
+| ID | Property | Description |
+|----|----------|-------------|
+| P1 | All enemies tagged | After completion, all enemies have status tags |
+| P2 | Player at exit | After completion, player is at exit room |
+| P3 | Valid strategy selection | Strategy matches enemy vulnerability |
+
 ## Success Criteria
 
 - All enemies have status tags (burning, electrified, etc.)

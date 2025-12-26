@@ -42,15 +42,37 @@ class Puzzle1Test(HtnTestSuite):
             raise RuntimeError(f"Failed to compile level: {error}")
 
     # =========================================================================
-    # Level Completion Tests
+    # Example Tests
     # =========================================================================
 
-    def test_puzzle_can_be_completed(self):
-        """The puzzle has at least one valid solution."""
+    def test_example_1_puzzle_can_be_completed(self):
+        """Example 1: The puzzle has at least one valid solution."""
         self.assert_plan("completePuzzle.")
 
-    def test_all_enemies_defeated_after_completion(self):
-        """After completing the puzzle, all enemies have status tags."""
+    def test_example_2_guard1_uses_burn_strategy(self):
+        """Example 2: guard1 in storage should be defeated with theBurn (oil room)."""
+        # guard1 is vulnerable to burning and storage has oil
+        self.run_goal("defeatEnemy(guard1)")
+        state = self.get_state()
+
+        has_burning = any("hasTag(guard1,burning)" in f for f in state)
+        assert has_burning, "guard1 should have burning tag from theBurn strategy"
+
+    def test_example_3_guard2_uses_slipstream_strategy(self):
+        """Example 3: guard2 in corridor should be defeated with theSlipstream (push to generator)."""
+        # guard2 is vulnerable to electrified, generator has electricity
+        self.run_goal("defeatEnemy(guard2)")
+        state = self.get_state()
+
+        has_electrified = any("hasTag(guard2,electrified)" in f for f in state)
+        assert has_electrified, "guard2 should have electrified tag from theSlipstream strategy"
+
+    # =========================================================================
+    # Property Tests
+    # =========================================================================
+
+    def test_property_p1_all_enemies_tagged(self):
+        """P1: After completing the puzzle, all enemies have status tags."""
         self.run_goal("completePuzzle")
         state = self.get_state()
 
@@ -61,35 +83,23 @@ class Puzzle1Test(HtnTestSuite):
         assert guard1_tagged, "guard1 should have a status tag"
         assert guard2_tagged, "guard2 should have a status tag"
 
-    def test_player_at_exit_after_completion(self):
-        """After completing the puzzle, player is at exit."""
+    def test_property_p2_player_at_exit(self):
+        """P2: After completing the puzzle, player is at exit."""
         self.run_goal("completePuzzle")
         state = self.get_state()
 
         player_at_exit = any("at(player,exit)" in f for f in state)
         assert player_at_exit, "Player should be at exit after completion"
 
-    # =========================================================================
-    # Strategy Selection Tests
-    # =========================================================================
+    def test_property_p3_valid_strategy_selection(self):
+        """P3: Strategy matches enemy vulnerability and available hazards.
 
-    def test_guard1_uses_burn_strategy(self):
-        """guard1 in storage should be defeated with theBurn (oil room)."""
-        # guard1 is vulnerable to burning and storage has oil
-        self.run_goal("defeatEnemy(guard1)")
-        state = self.get_state()
-
-        has_burning = any("hasTag(guard1,burning)" in f for f in state)
-        assert has_burning, "guard1 should have burning tag from theBurn strategy"
-
-    def test_guard2_uses_slipstream_strategy(self):
-        """guard2 in corridor should be defeated with theSlipstream (push to generator)."""
-        # guard2 is vulnerable to electrified, generator has electricity
-        self.run_goal("defeatEnemy(guard2)")
-        state = self.get_state()
-
-        has_electrified = any("hasTag(guard2,electrified)" in f for f in state)
-        assert has_electrified, "guard2 should have electrified tag from theSlipstream strategy"
+        Verifies that completePuzzle uses:
+        - theBurn (opConsumeHazard) for guard1 vulnerable to burning
+        - theSlipstream (opApplyRoomTag) for guard2 vulnerable to electrified
+        """
+        self.assert_plan("completePuzzle.",
+            contains=["opConsumeHazard", "opApplyRoomTag"])
 
     # =========================================================================
     # Partial Progress Tests
