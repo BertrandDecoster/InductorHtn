@@ -1,0 +1,43 @@
+% gh_tags - GameHack tag (status effect) application primitive
+% Handles tag application, skill-to-tag mapping, and stub operators
+% applyTagNotPresent is defined by the gh_tag_application action layer
+
+% === Operators ===
+
+% Apply a tag to a target
+opApplyTag(?tag, ?t) :-
+    del(), add(hasTag(?t, ?tag)).
+
+% No-op when tag already on target
+opTagAlreadyOnTarget(?tag, ?t) :-
+    del(), add().
+
+% === Methods ===
+
+% Apply tag - dispatch: already present or not
+applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)),
+    do(opTagAlreadyOnTarget(?tag, ?t)).
+
+applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag))),
+    do(applyTagNotPresent(?tag, ?t)).
+
+% Use a skill on a target - applies all tags from that skill
+useSkillOnTarget(?a, ?s, ?t) :- if(),
+    do(applySkillTags_L_ApplyTag(?s, ?t)).
+
+% Apply all tags from a skill (anyOf for multi-tag skills)
+applySkillTags_L_ApplyTag(?s, ?t) :- anyOf, if(skillAppliesTag(?s, ?tag)),
+    do(opApplyTag(?tag, ?t)).
+
+applySkillTags_L_ApplyTag(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))),
+    do().
+
+% === Tag application by location/mob (game engine visualizes, HTN tracks state) ===
+
+% Location applies tag to target
+useLocationToApplyTag(?l, ?tag, ?t) :- if(),
+    do(opApplyTag(?tag, ?t)).
+
+% Non-ally mob applies skill to target (applies all tags from the skill)
+useMobSkillToApplyTag(?m, ?s, ?t) :- if(),
+    do(applySkillTags_L_ApplyTag(?s, ?t)).

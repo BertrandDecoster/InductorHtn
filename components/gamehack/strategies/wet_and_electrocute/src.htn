@@ -1,0 +1,6 @@
+% wet_and_electrocute - Sequential strategy: apply wet then electrocute
+% Depends on: gh_tags (applyTag)
+
+wetAndElectrocute(?t) :-
+    if(enemy(?t)),
+    do(applyTag(wet, ?t), applyTag(electrocute, ?t)).

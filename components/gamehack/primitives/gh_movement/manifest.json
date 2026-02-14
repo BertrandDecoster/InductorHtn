@@ -1,0 +1,15 @@
+{
+  "name": "gh_movement",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Direct location-to-location movement for GameHack domains",
+  "dependencies": [],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-02-14T20:45:07.757808"
+  },
+  "parameters": []
+}

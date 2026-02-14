@@ -1,0 +1,18 @@
+% gh_tag_application - GameHack tag application action
+% Three-path dispatcher for applying tags that are not yet present
+% Depends on: gh_movement, gh_tags, gh_aggro, gh_skills
+
+% === Path 1: Ally with matching skill ===
+% Find a skill that produces the tag, prepare ally, use skill
+applyTagNotPresent(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+
+% === Path 2: Location that applies the tag ===
+% Lure target to location via aggro chain
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag)),
+    do(bringMobToLocation(?t, ?l), useLocationToApplyTag(?l, ?tag, ?t)).
+
+% === Path 3: Non-ally mob with matching skill ===
+% Bring target and skill-bearing mob together
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?m, ?s), \==(?m, ?t), not(ally(?m)), skillAppliesTag(?s, ?tag)),
+    do(bringMobsTogether(?t, ?m), useMobSkillToApplyTag(?m, ?s, ?t)).

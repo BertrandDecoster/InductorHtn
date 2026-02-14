@@ -1,0 +1,8 @@
+% plan_to_damage - GameHack top-level goal: select strategy to damage enemy
+% Tries stunAndSlowSkill first (simultaneous), then wetAndElectrocute (sequential)
+
+planToDamage(?t) :- if(enemy(?t)),
+    do(stunAndSlowSkill(?t)).
+
+planToDamage(?t) :- if(enemy(?t)),
+    do(wetAndElectrocute(?t)).

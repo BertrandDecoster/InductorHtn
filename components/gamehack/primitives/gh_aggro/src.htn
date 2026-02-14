@@ -1,0 +1,38 @@
+% gh_aggro - GameHack aggro and mob manipulation primitive
+% Handles aggro targeting, luring mobs to locations, and bringing mobs together
+% Depends on: gh_movement (goToLocation, opAggroMoveTo)
+
+% === Operators ===
+
+opAggro(?t, ?a) :-
+    del(), add(aggro(?t, ?a)).
+
+opRemoveAggro(?t, ?a) :-
+    del(aggro(?t, ?a)), add().
+
+opTargetAlreadyAggroed() :-
+    del(), add().
+
+% === Methods ===
+
+% Aggro target onto an ally - swap, new, or already aggroed
+aggroTarget(?t, ?a) :- if(aggro(?t, ?oldTarget), \==(?t, ?a), \==(?oldTarget, ?a)),
+    do(opRemoveAggro(?t, ?oldTarget), opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(not(aggro(?t, ?oldTarget)), \==(?t, ?a)),
+    do(opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(aggro(?t, ?a)),
+    do(opTargetAlreadyAggroed()).
+
+% Bring a mob to a location via aggro chain
+bringMobToLocation(?t, ?l) :- if(at(?t, ?l)),
+    do().
+bringMobToLocation(?t, ?l) :- if(at(?t, ?tOldLocation), \==(?l, ?tOldLocation), not(static(?t)), ally(?a), at(?a, ?aOldLocation)),
+    do(goToLocation(?a, ?tOldLocation), aggroTarget(?t, ?a), goToLocation(?a, ?l), opAggroMoveTo(?t, ?tOldLocation, ?l)).
+
+% Bring two mobs together
+bringMobsTogether(?m1, ?m2) :- if(at(?m1, ?location), at(?m2, ?location)),
+    do().
+bringMobsTogether(?m1, ?m2) :- if(not(static(?m1)), at(?m2, ?m2Location)),
+    do(bringMobToLocation(?m1, ?m2Location)).
+bringMobsTogether(?m1, ?m2) :- if(not(static(?m2)), at(?m1, ?m1Location)),
+    do(bringMobToLocation(?m2, ?m1Location)).

@@ -1,0 +1,17 @@
+{
+  "name": "gh_skills",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Skill acquisition and preparation for GameHack domains",
+  "dependencies": [
+    "gamehack/primitives/gh_movement"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-02-14T20:47:09.579257"
+  },
+  "parameters": []
+}

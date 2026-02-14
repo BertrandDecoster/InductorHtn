@@ -122,8 +122,9 @@ def test_property_p2_no_double_tags(self):        # Matches Property P2
 - HTN focuses on "what to do", engine handles "how to move"
 
 ### Composition Pattern
-- Components loaded via `HtnCompile()` calls (incremental)
-- Dependencies resolved by loading in order
+- Components loaded via `HtnCompile()` calls (incremental). The planner accumulates rules from each call.
+- `load_component` reads `manifest.json` dependencies and recursively loads them first, then compiles the component's own `src.htn`. Order matters: higher layers reference methods/operators defined in lower layers.
+- Higher-layer files are very thin (often 2-5 lines of HTN). A strategy might just be `if(enemy(?t)), do(applyTag(wet, ?t), applyTag(electrocute, ?t)).` — all the actual logic lives in the primitives it composes. Goals are even thinner: just method alternatives selecting between strategies.
 - No preprocessor - parameters are facts
 
 ### Parameter System
@@ -275,3 +276,28 @@ suite.assert_plan_complexity("goal.", min_operators=2, max_operators=10)
 
 ### Levels
 - **puzzle1**: "The Grease Trap" - two guards, theBurn + theSlipstream
+
+### GameHack Components (`gamehack/`)
+
+Separate namespace for combat game domains (direct location movement, skill-based tags, multi-agent aggro).
+
+#### Primitives
+- **gh_movement**: `opMoveTo`, `goToLocation`, `goToSameLocation` (direct, no room connections)
+- **gh_tags**: `opApplyTag`, `applyTag`, `useSkillOnTarget`, `applySkillTags_L_ApplyTag` (skill→tag mapping, anyOf for multi-tag)
+- **gh_aggro**: `opAggro`, `aggroTarget`, `bringMobToLocation`, `bringMobsTogether` (lure via aggro chain)
+- **gh_skills**: `opSwapSkill`, `prepareToUseSkill`, `getSkillFromLocation` (skill acquisition at locations)
+
+#### Actions
+- **gh_tag_application**: 3-path `applyTagNotPresent` dispatcher (ally skill, location, mob skill)
+
+#### Strategies
+- **wet_and_electrocute**: Sequential wet+electrocute combo
+- **stun_and_slow_skill**: Simultaneous two-ally stun+slow with `opSynchronize`
+- **stun_and_burn**: Sequential ice+fire (documented failure without skills)
+
+#### Goals
+- **plan_to_damage**: Select between stunAndSlowSkill and wetAndElectrocute
+
+#### Levels
+- **gamehack_gh4**: GH4-style world, only wetAndElectrocute viable
+- **gamehack_gh7**: GH7-style world, both strategies viable

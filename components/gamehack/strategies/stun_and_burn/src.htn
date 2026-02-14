@@ -1,0 +1,8 @@
+% stun_and_burn - Sequential strategy: apply ice then fire (documented failure)
+% This strategy was declared in GH1-GH6 but never had the required skills in the world.
+% It works IF iceSkill and fireballSkill exist with the right skillAppliesTag mappings.
+% Depends on: gh_tags (applyTag)
+
+stunAndBurn(?t) :-
+    if(enemy(?t)),
+    do(applyTag(ice, ?t), applyTag(fire, ?t)).

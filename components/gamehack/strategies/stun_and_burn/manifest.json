@@ -1,0 +1,21 @@
+{
+  "name": "stun_and_burn",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Sequential ice+fire damage strategy (documented failure without skills)",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro",
+    "gamehack/primitives/gh_skills",
+    "gamehack/actions/gh_tag_application"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-02-14T20:54:12.742564"
+  },
+  "parameters": []
+}

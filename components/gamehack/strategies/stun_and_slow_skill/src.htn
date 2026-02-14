@@ -1,0 +1,29 @@
+% stun_and_slow_skill - Simultaneous strategy: two allies prepare independently then sync
+% Depends on: gh_tags (useSkillOnTarget), gh_skills (prepareToUseSkill), gh_movement
+
+% === Operators ===
+
+opSynchronize(?a1, ?a2) :-
+    del(), add().
+
+% === Methods ===
+
+% Two allies prepare independently, synchronize, then both use skills
+stunAndSlowSkill(?t) :-
+    if(
+        enemy(?t),
+        not(immune(?t, stun)),
+        skillHasTag(?slowSkill, slow),
+        not(immune(?t, slow)),
+        skillAppliesTag(?stunSkill, stun),
+        ally(?a1),
+        ally(?a2),
+        \==(?a1, ?a2)
+    ),
+    do(
+        prepareToUseSkill(?a1, ?stunSkill, ?t),
+        prepareToUseSkill(?a2, ?slowSkill, ?t),
+        opSynchronize(?a1, ?a2),
+        useSkillOnTarget(?a1, ?stunSkill, ?t),
+        useSkillOnTarget(?a2, ?slowSkill, ?t)
+    ).

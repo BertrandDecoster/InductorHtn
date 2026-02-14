@@ -1,0 +1,15 @@
+{
+  "name": "gh_tags",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Tag application and skill-to-tag mapping for GameHack domains",
+  "dependencies": [],
+  "certified": false,
+  "certification": {
+    "linter": false,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-02-14T20:53:59.428124"
+  },
+  "parameters": []
+}

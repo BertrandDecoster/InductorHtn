@@ -1,0 +1,31 @@
+% gh_skills - GameHack skill acquisition and preparation primitive
+% Handles preparing allies to use skills, including learning skills at locations
+% Depends on: gh_movement (goToLocation, goToSameLocation)
+
+% === Operators ===
+
+opSwapSkill(?a, ?oldSkill, ?newSkill) :-
+    del(hasSkill(?a, ?oldSkill)), add(hasSkill(?a, ?newSkill)).
+
+opGetSkill(?a, ?s) :-
+    del(), add(hasSkill(?a, ?s)).
+
+% === Methods ===
+
+% Prepare ally to use a skill on target
+% Case 1: Ally already has the skill - just go to target
+prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)),
+    do(goToSameLocation(?a, ?t)).
+
+% Case 2: Ally doesn't have skill - go learn it, then go to target
+prepareToUseSkill(?a, ?s, ?t) :- if(ally(?a), not(hasSkill(?a, ?s)), canGetSkillAtLocation(?l, ?s)),
+    do(goToLocation(?a, ?l), getSkillFromLocation(?a, ?l, ?s), goToSameLocation(?a, ?t)).
+
+% Get skill from location
+% Case 1: Has existing skill - swap it
+getSkillFromLocation(?a, ?l, ?s) :- if(hasSkill(?a, ?oldSkill)),
+    do(opSwapSkill(?a, ?oldSkill, ?s)).
+
+% Case 2: No existing skill - just learn it
+getSkillFromLocation(?a, ?l, ?s) :- if(not(hasSkill(?a, ?oldSkill))),
+    do(opGetSkill(?a, ?s)).

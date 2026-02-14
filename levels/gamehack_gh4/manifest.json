@@ -1,0 +1,24 @@
+{
+  "name": "gamehack_gh4",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "GH4-style world with wetAndElectrocute strategy",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro",
+    "gamehack/primitives/gh_skills",
+    "gamehack/actions/gh_tag_application",
+    "gamehack/strategies/wet_and_electrocute",
+    "gamehack/strategies/stun_and_slow_skill",
+    "gamehack/goals/plan_to_damage"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": false,
+    "tests_pass": false,
+    "design_match": false,
+    "last_checked": null
+  },
+  "parameters": []
+}

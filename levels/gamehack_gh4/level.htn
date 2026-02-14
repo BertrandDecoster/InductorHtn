@@ -1,0 +1,55 @@
+% GameHack GH4 Level: GH4-style world state
+% Two allies with direct skills (companionE: lightning, companionW: water)
+% Only wetAndElectrocute strategy viable (no stun/slow skills)
+
+% === Agents ===
+agent(player).
+agent(companionE).
+agent(companionW).
+agent(gob).
+
+ally(player).
+ally(companionE).
+ally(companionW).
+enemy(gob).
+enemy(mimic).
+enemy(electricityElemental).
+enemy(teslaTower).
+
+% === Positions ===
+at(player, room).
+at(companionE, hut).
+at(companionW, inn).
+at(mimic, room).
+at(gob, hut).
+at(electricityElemental, mountain).
+at(teslaTower, lake).
+
+% === Locations ===
+location(room).
+location(inn).
+location(hut).
+location(mountain).
+location(lake).
+location(sea).
+
+% === Environment ===
+locationCanApplyTag(lake, wet).
+locationCanApplyTag(sea, wet).
+
+immune(electricityElemental, electrocute).
+
+static(teslaTower).
+
+% === Skills ===
+hasSkill(companionE, lightningSkill).
+hasSkill(companionW, waterSkill).
+hasSkill(teslaTower, lightningSkill).
+hasSkill(electricityElemental, lightningSkill).
+
+skillAppliesTag(lightningSkill, electrocute).
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(waterSkill, clean).
+
+% === Level Goal ===
+goals(planToDamage(gob)).

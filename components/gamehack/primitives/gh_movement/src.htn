@@ -1,0 +1,28 @@
+% gh_movement - GameHack movement primitive
+% Direct location-to-location movement (no room connections needed)
+% Handles goToLocation, goToSameLocation, and static entity checks
+
+% === Operators ===
+
+opMoveTo(?a, ?oldLocation, ?newLocation) :-
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+
+opAggroMoveTo(?a, ?oldLocation, ?newLocation) :-
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+
+opStayInLocation(?a) :-
+    del(), add().
+
+% === Methods ===
+
+% Go to a specific location
+goToLocation(?a, ?l) :- if(at(?a, ?l)),
+    do(opStayInLocation(?a)).
+goToLocation(?a, ?l) :- if(at(?a, ?aLocation), \==(?l, ?aLocation)),
+    do(opMoveTo(?a, ?aLocation, ?l)).
+
+% Go to the same location as a target entity
+goToSameLocation(?a, ?t) :- if(at(?a, ?location), at(?t, ?location)),
+    do(opStayInLocation(?a)).
+goToSameLocation(?a, ?t) :- if(not(static(?a)), at(?a, ?aOldLocation), at(?t, ?tOldLocation), \==(?aOldLocation, ?tOldLocation)),
+    do(goToLocation(?a, ?tOldLocation)).
