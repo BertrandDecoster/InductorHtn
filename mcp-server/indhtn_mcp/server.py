@@ -32,12 +32,10 @@ except ImportError as e:
     parse_htn = None
 
 from mcp.server import Server
-from mcp.server.models import InitializationOptions
+from mcp.server.stdio import stdio_server
 from mcp.types import (
     Tool,
     TextContent,
-    EmptyContent,
-    error_response
 )
 
 from .session import SessionManager
@@ -284,7 +282,10 @@ class IndHTNMCPServer:
                     raise ValueError(f"Unknown tool: {name}")
             except Exception as e:
                 logger.error(f"Error in {name}: {e}", exc_info=True)
-                return error_response(str(e))
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({"error": str(e)})
+                )]
     
     async def _start_session(self, args: dict) -> List[TextContent]:
         """Start a new REPL session"""
@@ -611,20 +612,13 @@ class IndHTNMCPServer:
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-        
+
         logger.info(f"Starting InductorHTN MCP Server with executable: {self.indhtn_path}")
-        
-        # Run the server
-        async with self.server:
-            options = InitializationOptions(
-                server_name="indhtn-repl",
-                server_version="1.0.0",
-                capabilities=self.server.get_capabilities(
-                    notification_options=None,
-                    experimental_capabilities={}
-                )
-            )
-            await self.server.run(options)
+
+        # Run the server using stdio transport
+        async with stdio_server() as (read_stream, write_stream):
+            options = self.server.create_initialization_options()
+            await self.server.run(read_stream, write_stream, options)
 
 
 def main():

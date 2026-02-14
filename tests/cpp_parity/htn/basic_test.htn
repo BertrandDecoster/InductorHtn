@@ -1,0 +1,3 @@
+travel(?destination) :- if(canWalk(?destination)), do(walk(?destination)).
+canWalk(park).
+walk(?dest) :- del(), add(at(?dest)).

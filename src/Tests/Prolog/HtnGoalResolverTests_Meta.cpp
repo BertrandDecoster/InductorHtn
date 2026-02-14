@@ -737,4 +737,95 @@ SUITE(HtnGoalResolverTests)
         // ?Y should not show up since it is in the count() clause
         CHECK_EQUAL(finalUnifier, "((?X = c, ?Count = 3, ?Z = c), (?X = c, ?Count = 3, ?Z = b), (?X = c, ?Count = 3, ?Z = a), (?X = b, ?Count = 3, ?Z = c), (?X = b, ?Count = 3, ?Z = b), (?X = b, ?Count = 3, ?Z = a), (?X = a, ?Count = 3, ?Z = c), (?X = a, ?Count = 3, ?Z = b), (?X = a, ?Count = 3, ?Z = a))");
     }
+
+    TEST(HtnGoalResolverAndTests)
+    {
+        HtnGoalResolver resolver;
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<PrologCompiler> compiler = shared_ptr<PrologCompiler>(new PrologCompiler(factory.get(), state.get()));
+        string testState;
+        string finalUnifier;
+        shared_ptr<vector<UnifierType>> unifier;
+
+//        SetTraceFilter((int)SystemTraceType::Solver, TraceDetail::Diagnostic);
+
+        // ***** and() with single goal returns all matches
+        compiler->Clear();
+        testState = string() +
+            "letter(c). letter(b). letter(a).\r\n"
+            "goals( and(letter(?X)) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "((?X = c), (?X = b), (?X = a))");
+
+        // ***** and() with binding propagation through surrounding goals
+        compiler->Clear();
+        testState = string() +
+            "letter(c). letter(b). letter(a).\r\n"
+            "capital(c).\r\n"
+            "goals( capital(?C), and(letter(?X)), letter(?Y) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "((?C = c, ?X = c, ?Y = c), (?C = c, ?X = c, ?Y = b), (?C = c, ?X = c, ?Y = a), (?C = c, ?X = b, ?Y = c), (?C = c, ?X = b, ?Y = b), (?C = c, ?X = b, ?Y = a), (?C = c, ?X = a, ?Y = c), (?C = c, ?X = a, ?Y = b), (?C = c, ?X = a, ?Y = a))");
+
+        // ***** and() with no arguments succeeds trivially (empty conjunction = true)
+        compiler->Clear();
+        testState = string() +
+            "goals( and() ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "(())");
+
+        // ***** first(and(...)) composability - returns single combined solution
+        compiler->Clear();
+        testState = string() +
+            "letter(c). letter(b). letter(a).\r\n"
+            "goals( first(and(letter(?X), letter(?Y))) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "((?X = c, ?Y = c))");
+
+        // ***** and() for conjunction of comparisons (motivating use case)
+        compiler->Clear();
+        testState = string() +
+            "goals( and(>(3, 0), <(3, 10)) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "(())");
+
+        // ***** and() with failing conjunction
+        compiler->Clear();
+        testState = string() +
+            "goals( and(>(3, 0), <(3, 1)) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "null");
+
+        // ***** and() inside forall
+        compiler->Clear();
+        testState = string() +
+            "number(1). number(2). number(3). number(4).\r\n"
+            "goals( forall(number(?X), and(>(?X, 0), <(?X, 10))) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "(())");
+
+        // ***** and() inside findall
+        compiler->Clear();
+        testState = string() +
+            "word(hello). word(world). word(test).\r\n"
+            "goals( findall(?W, and(word(?W)), ?Words) ).\r\n";
+        CHECK(compiler->Compile(testState));
+        unifier = compiler->SolveGoals();
+        finalUnifier = HtnGoalResolver::ToString(unifier.get());
+        CHECK_EQUAL(finalUnifier, "((?Words = [hello,world,test]))");
+    }
 }

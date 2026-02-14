@@ -77,6 +77,7 @@ public:
 
 private:
     static void RuleAggregate(ResolveState *state);
+    static void RuleAnd(ResolveState *state);
 	static void RuleAssert(ResolveState* state);
     static void RuleAtomChars(ResolveState* state);
     static void RuleAtomConcat(ResolveState* state);

@@ -31,7 +31,7 @@ def test_lint():
     print(f"Found {len(diagnostics)} diagnostics:")
     for d in diagnostics:
         print(f"  [{d.get('severity')}] Line {d.get('line')}: {d.get('message')}")
-    return len([d for d in diagnostics if d.get("severity") == "error"]) == 0
+    assert len([d for d in diagnostics if d.get("severity") == "error"]) == 0
 
 
 def test_introspect():
@@ -55,7 +55,7 @@ def test_introspect():
     for f in facts:
         print(f"  {f.head.name}/{len(f.head.args)} at line {f.line}")
 
-    return len(methods) == 1 and len(operators) == 1 and len(facts) == 1
+    assert len(methods) == 1 and len(operators) == 1 and len(facts) == 1
 
 
 def main():
@@ -67,8 +67,11 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--test":
         test_name = sys.argv[2]
         if test_name in tests:
-            success = tests[test_name]()
-            sys.exit(0 if success else 1)
+            try:
+                tests[test_name]()
+                sys.exit(0)
+            except Exception:
+                sys.exit(1)
         else:
             print(f"Unknown test: {test_name}")
             sys.exit(1)
@@ -77,12 +80,10 @@ def main():
         all_passed = True
         for name, test_fn in tests.items():
             try:
-                if not test_fn():
-                    all_passed = False
-                    print(f"FAILED: {name}")
+                test_fn()
             except Exception as e:
                 all_passed = False
-                print(f"ERROR in {name}: {e}")
+                print(f"FAILED: {name}: {e}")
 
         print("\n" + ("All tests passed!" if all_passed else "Some tests failed."))
         sys.exit(0 if all_passed else 1)

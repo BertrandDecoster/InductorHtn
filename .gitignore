@@ -7,3 +7,4 @@ __pycache__/
 /gui/frontend/node_modules
 *.dll
 .claude/settings.local.json
+*.dylib

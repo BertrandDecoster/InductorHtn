@@ -316,7 +316,7 @@ SUITE(BuiltInPredicateCoverageTests)
         helper.Clear();
         program = "number(1). number(2). number(3). number(4). "
                  "even(?X) :- =(?Y, mod(?X, 2)), =(?Y, 0). "
-                 "goals(forall(number(?X), (>(?X, 0), <(?X, 10)))).";
+                 "goals(forall(number(?X), and(>(?X, 0), <(?X, 10)))).";
         result = helper.SolveGoals(program);
         CHECK_EQUAL("(())", result); // All numbers are between 0 and 10
     }
@@ -720,7 +720,7 @@ SUITE(BuiltInPredicateCoverageTests)
         string program = 
             "word(hello). word(WORLD). word(Test). "
             "goals("
-            "  findall(?Lower, (word(?W), downcase_atom(?W, ?Lower)), ?LowerWords),"
+            "  findall(?Lower, and(word(?W), downcase_atom(?W, ?Lower)), ?LowerWords),"
             "  count(?Count, word(?Any))"
             ").";
         

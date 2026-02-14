@@ -138,7 +138,7 @@ class HtnLinter:
     def _add_call(self, caller: str, task: Term):
         """Add a call relationship to the call graph"""
         # Handle try() and other wrappers
-        if task.name in ('try', 'first'):
+        if task.name in ('try', 'first', 'and'):
             for arg in task.args:
                 self._add_call(caller, arg)
             return
@@ -281,6 +281,7 @@ class HtnLinter:
             # HTN-specific built-ins from InductorHTN
             'count/2',      # count(?count, goal) - count solutions
             'distinct/3',   # distinct(_, term1, term2) - distinct pairs
+            'and/1', 'and/2', 'and/3', 'and/4', 'and/5',  # and(goals...) - conjunction as single term
             'first/1', 'first/2', 'first/3', 'first/4', 'first/5',  # first(goals...) - get first solution only
             'sortBy/3',     # sortBy(?sorted, ?key, term) - sort results
 
@@ -312,7 +313,7 @@ class HtnLinter:
 
     def _check_task_defined(self, task: Term, defined: Set[str]):
         """Check if a task is defined"""
-        if task.name in ('try', 'first'):
+        if task.name in ('try', 'first', 'and'):
             for arg in task.args:
                 self._check_task_defined(arg, defined)
             return

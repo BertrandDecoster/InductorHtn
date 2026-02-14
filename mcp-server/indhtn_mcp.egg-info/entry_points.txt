@@ -1,0 +1,2 @@
+[console_scripts]
+indhtn-mcp = indhtn_mcp.server:main

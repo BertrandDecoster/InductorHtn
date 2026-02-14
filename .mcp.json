@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "indhtn": {
+      "type": "stdio",
+      "command": ".venv/bin/python",
+      "args": ["-m", "indhtn_mcp.server", "./build/indhtn"],
+      "env": {
+        "PYTHONPATH": "mcp-server:gui/backend"
+      }
+    }
+  }
+}

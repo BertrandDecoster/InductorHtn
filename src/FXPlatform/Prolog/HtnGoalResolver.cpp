@@ -491,6 +491,7 @@ shared_ptr<UnifierType> ResolveState::SimplifySolution(const UnifierType &soluti
 
 HtnGoalResolver::HtnGoalResolver()
 {
+    AddCustomRule("and", CustomRuleType({ CustomRuleArgType::SetOfResolvedTerms }, std::bind(&HtnGoalResolver::RuleAnd, std::placeholders::_1)));
     AddCustomRule("assert", CustomRuleType({ CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleAssert, std::placeholders::_1)));
     AddCustomRule("atomic", CustomRuleType({ CustomRuleArgType::Term }, std::bind(&HtnGoalResolver::RuleIsAtom, std::placeholders::_1)));
     AddCustomRule("atom_chars", CustomRuleType({ CustomRuleArgType::ResolvedTerm, CustomRuleArgType::Variable }, std::bind(&HtnGoalResolver::RuleAtomChars, std::placeholders::_1)));
@@ -1167,6 +1168,85 @@ void HtnGoalResolver::RuleAggregate(ResolveState *state)
         }
             break;
             
+        default:
+            StaticFailFastAssert(false);
+            break;
+    }
+}
+
+// and(goals...) - conjunction as a single term
+// Resolves all arguments as a conjunction (like comma-separated goals)
+// and returns all solutions. and() with no args succeeds trivially.
+void HtnGoalResolver::RuleAnd(ResolveState *state)
+{
+    shared_ptr<ResolveNode> currentNode = state->resolveStack->back();
+    shared_ptr<HtnTerm> goal = currentNode->currentGoal();
+    shared_ptr<vector<UnifierType>> &solutions = state->solutions;
+    shared_ptr<vector<shared_ptr<ResolveNode>>> &resolveStack = state->resolveStack;
+    HtnTermFactory *termFactory = state->termFactory;
+
+    switch(currentNode->continuePoint)
+    {
+        case ResolveContinuePoint::CustomStart:
+        {
+            if(goal->arguments().size() == 0)
+            {
+                // and() with no arguments is the empty conjunction, which is true
+                // Succeed by creating a child node with no additional goals or unifiers
+                Trace0("           ", "and() with no arguments: trivially true", state->initialIndent + resolveStack->size(), state->fullTrace);
+                resolveStack->push_back(currentNode->CreateChildNode(termFactory, *state->initialGoals, {}, {}, &(state->uniquifier)));
+                currentNode->continuePoint = ResolveContinuePoint::Return;
+            }
+            else
+            {
+                // Make sure we keep around any variables in the rest of the resolvent
+                shared_ptr<ResolveNode::TermSetType> variablesToKeep = shared_ptr<ResolveNode::TermSetType>(new ResolveNode::TermSetType());
+                for(shared_ptr<HtnTerm> term : *currentNode->resolvent())
+                {
+                    term->GetAllVariables(variablesToKeep.get());
+                }
+
+                // Run the resolver on all arguments as a standalone resolution
+                currentNode->PushStandaloneResolve(state, variablesToKeep, goal->arguments().rbegin(), goal->arguments().rend(), ResolveContinuePoint::CustomContinue1);
+            }
+        }
+        break;
+
+        case ResolveContinuePoint::CustomContinue1:
+        {
+            // Solutions now contains just solutions to what was in the and() term
+            if(solutions == nullptr)
+            {
+                // There were no solutions: fail!
+                state->RecordFailure(goal, currentNode);
+                resolveStack->pop_back();
+            }
+            else
+            {
+                // Create a fake "rule" so we can continue the search
+                shared_ptr<HtnRule> rule = shared_ptr<HtnRule>(new HtnRule(termFactory->CreateConstant("andResult"), {}));
+
+                // Add ALL solutions as "unified rules" so we can loop through them
+                currentNode->rulesThatUnify = shared_ptr<vector<RuleBindingType>>(new vector<RuleBindingType>());
+                for(auto &solution : *solutions)
+                {
+                    currentNode->rulesThatUnify->push_back(RuleBindingType(rule, solution));
+                }
+
+                // Since the solutions already have the unifiers from this node included,
+                // get rid of the unifiers for this node so we don't try to remerge
+                currentNode->unifier = shared_ptr<UnifierType>(new UnifierType());
+
+                // Continue on as if these were all unified rules
+                Trace1("           ", "and() succeeded with {0} solutions", state->initialIndent + resolveStack->size(), state->fullTrace, currentNode->rulesThatUnify->size());
+                currentNode->currentRuleIndex = -1;
+                currentNode->continuePoint = ResolveContinuePoint::NextRuleThatUnifies;
+            }
+
+            currentNode->PopStandaloneResolve(state);
+        }
+        break;
+
         default:
             StaticFailFastAssert(false);
             break;

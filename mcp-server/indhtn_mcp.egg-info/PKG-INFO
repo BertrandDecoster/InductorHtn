@@ -1,0 +1,62 @@
+Metadata-Version: 2.4
+Name: indhtn-mcp
+Version: 1.0.0
+Summary: MCP server for InductorHTN REPL interaction
+Author: InductorHTN MCP
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: mcp>=0.1.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# InductorHTN MCP Server
+
+MCP server for AI assistant integration with InductorHTN.
+
+## Quick Start
+
+### Install
+```bash
+cd mcp-server
+pip install -e .
+```
+
+### Run
+```bash
+# Default path
+indhtn-mcp
+
+# Custom path
+indhtn-mcp /path/to/indhtn
+```
+
+## Environment Variables
+
+```bash
+INDHTN_PATH=/path/to/indhtn        # Default: ./build/Release/indhtn
+INDHTN_MAX_SESSIONS=10             # Default: 10
+INDHTN_LOG_LEVEL=DEBUG             # Default: INFO
+```
+
+## Troubleshooting
+
+### Session hangs
+Check timeout settings, try reset command.
+
+### File not found
+Use absolute paths for HTN files.
+
+### Memory issues
+Reduce max sessions or restart server.

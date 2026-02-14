@@ -386,7 +386,7 @@ class FailureAnalyzer:
     def _is_builtin_predicate(self, term: str) -> bool:
         """Check if a term is a built-in predicate"""
         builtins = ['=', '\\=', '==', '\\==', '<', '>', '=<', '>=',
-                   'is', 'not', '\\+', 'true', 'fail', 'false', '!']
+                   'is', 'not', '\\+', 'true', 'fail', 'false', '!', 'and']
         term_name = term.split('(')[0] if '(' in term else term
         return term_name in builtins
 

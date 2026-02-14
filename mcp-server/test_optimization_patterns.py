@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'build', 'Relea
 from indhtnpy import HtnPlanner
 
 
-def test_pattern(name, slow_code, fast_code, query):
+def run_pattern(name, slow_code, fast_code, query):
     """Test a pattern and return step counts for slow and fast versions."""
     print(f"\n{'='*60}")
     print(f"Pattern: {name}")
@@ -93,7 +93,7 @@ available(taxi4).
 available(taxi5).
 getTaxi(T) :- first(available(T)).
 """
-    results.append(("first() for single-result", *test_pattern(
+    results.append(("first() for single-result", *run_pattern(
         "first() for single-result queries",
         slow, fast, "getTaxi(X)."
     )))
@@ -115,7 +115,7 @@ person(dave).
 rich(dave).
 findRichPerson(P) :- rich(P), person(P).
 """
-    results.append(("Goal ordering - constraining first", *test_pattern(
+    results.append(("Goal ordering - constraining first", *run_pattern(
         "Goal ordering - constraining goal first",
         slow, fast, "findRichPerson(X)."
     )))
@@ -138,7 +138,7 @@ dataByVal(d, 4, w).
 dataByVal(e, 5, v).
 lookup(Val, Key) :- dataByVal(Val, Key, Extra).
 """
-    results.append(("First-argument indexing", *test_pattern(
+    results.append(("First-argument indexing", *run_pattern(
         "First-argument indexing",
         slow, fast, "lookup(c, K)."
     )))
@@ -164,7 +164,7 @@ nonExcluded(c).
 nonExcluded(d).
 findNonExcluded(X) :- nonExcluded(X).
 """
-    results.append(("Pre-computed negation", *test_pattern(
+    results.append(("Pre-computed negation", *run_pattern(
         "Pre-computed vs runtime negation",
         slow, fast, "findNonExcluded(X)."
     )))
@@ -186,7 +186,7 @@ member(d, team2).
 member(e, team2).
 teamSize(Team, Size) :- count(Size, member(X, Team)).
 """
-    results.append(("Direct count vs findall+count", *test_pattern(
+    results.append(("Direct count vs findall+count", *run_pattern(
         "Direct count vs findall+count",
         slow, fast, "teamSize(team1, S)."
     )))
@@ -205,7 +205,7 @@ classify(X, zero) :- ==(X, 0), !.
 classify(X, negative) :- <(X, 0).
 getClassification(X, C) :- classify(X, C).
 """
-    results.append(("Cut for determinism", *test_pattern(
+    results.append(("Cut for determinism", *run_pattern(
         "Cut for deterministic choice",
         slow, fast, "getClassification(5, C)."
     )))
