@@ -1,0 +1,24 @@
+{
+  "name": "complete_toy_level",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Top-level goal for the M0 toy_two_step level: unlock door1, then damage gob1",
+  "dependencies": [
+    "gamehack/primitives/gh_doors",
+    "gamehack/goals/plan_to_damage"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": false,
+    "tests_pass": false,
+    "design_match": false,
+    "last_checked": null
+  },
+  "provides": [
+    "completeToyLevel/0"
+  ],
+  "requires": [
+    "unlockDoor/1",
+    "planToDamage/1"
+  ]
+}

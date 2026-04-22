@@ -1,0 +1,12 @@
+% complete_toy_level - GameHack top-level goal for the M0 two-step toy level.
+% Mission: unlock door1, then damage gob1. The enemy and door are named
+% explicitly because this goal is scoped to one authored level.
+
+completeToyLevel() :- if(locked(door1), enemy(gob1)),
+    do(unlockDoor(door1), planToDamage(gob1)).
+
+completeToyLevel() :- if(not(locked(door1)), enemy(gob1)),
+    do(planToDamage(gob1)).
+
+completeToyLevel() :- if(not(enemy(gob1))),
+    do().

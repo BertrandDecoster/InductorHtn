@@ -1,0 +1,27 @@
+% gh_doors - GameHack door and pressure-plate primitive
+% Locked doors opened by two allies synchronizing on two plates.
+% Dispatches a single compound operator (opSynchronizeOnPlates) to a
+% SynchroLens in the runtime; state-only opUnlock follows.
+
+% === Operators ===
+
+% opSynchronizeOnPlates: two allies step on two plates simultaneously.
+% Dispatched to SynchroLens; the lens carries plate positions as params.
+% Pure marker operator - state effect is none; real game effect is in lens.
+opSynchronizeOnPlates(?a1, ?a2, ?p1, ?p2) :-
+    del(), add().
+
+% opUnlock: the door transitions to unlocked. Pure state mutation.
+opUnlock(?d) :-
+    del(locked(?d)), add().
+
+% === Methods ===
+
+% unlockDoor: coordinate two allies on two plates, then unlock.
+unlockDoor(?d) :- if(locked(?d),
+    plateOpens(?p1, ?d), plateOpens(?p2, ?d), \==(?p1, ?p2),
+    ally(?a1), ally(?a2), \==(?a1, ?a2)),
+    do(opSynchronizeOnPlates(?a1, ?a2, ?p1, ?p2), opUnlock(?d)).
+
+% Already unlocked - no-op.
+unlockDoor(?d) :- if(not(locked(?d))), do().
