@@ -4,12 +4,23 @@
   "layer": "primitive",
   "description": "Tag application and skill-to-tag mapping for GameHack domains",
   "dependencies": [],
-  "certified": false,
+  "certified": true,
   "certification": {
-    "linter": false,
+    "linter": true,
     "tests_pass": true,
-    "design_match": false,
-    "last_checked": "2026-02-14T20:53:59.428124"
+    "design_match": true,
+    "last_checked": "2026-04-22T15:03:49.490260"
   },
-  "parameters": []
+  "provides": [
+    "applySkillTags_L_ApplyTag/2",
+    "applyTag/2",
+    "opApplyTag/2",
+    "opTagAlreadyOnTarget/2",
+    "useLocationToApplyTag/3",
+    "useMobSkillToApplyTag/3",
+    "useSkillOnTarget/3"
+  ],
+  "requires": [
+    "applyTagNotPresent/2"
+  ]
 }

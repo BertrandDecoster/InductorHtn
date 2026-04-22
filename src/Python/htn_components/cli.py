@@ -22,7 +22,7 @@ from typing import Optional, List, Tuple
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from .manifest import (
-    Manifest, CertificationStatus, Parameter,
+    Manifest, CertificationStatus,
     find_component_root, resolve_component_path,
     get_component_manifest, list_all_components
 )
@@ -415,10 +415,30 @@ def cmd_certify(args) -> int:
         "design_match": False
     }
 
-    # Step 1: Linter
+    # Step 0: Auto-infer provides/requires BEFORE the linter, so the
+    # linter can consult the updated `requires` list when deciding which
+    # calls are legitimately external. Runs even if subsequent checks
+    # fail — contracts should reflect what's in the code right now.
     src_path = os.path.join(component_path, "src.htn")
     level_path = os.path.join(component_path, "level.htn")
     htn_path = src_path if os.path.exists(src_path) else (level_path if os.path.exists(level_path) else None)
+    if htn_path:
+        try:
+            from htn_components.loader import infer_contracts
+            with open(htn_path, 'r', encoding='utf-8') as f:
+                source = f.read()
+            provides, requires = infer_contracts(source)
+            manifest.provides = provides
+            manifest.requires = requires
+            # Persist immediately so run_linter (which reads manifest.json)
+            # sees the fresh requires list.
+            manifest.save(os.path.join(component_path, "manifest.json"))
+            if args.verbose:
+                print(f"Contracts: provides={len(provides)}, requires={len(requires)}")
+        except Exception as exc:
+            print(f"  Warning: contract inference failed: {exc}")
+
+    # Step 1: Linter
     if htn_path:
         print("\n[1/3] Running linter...")
         results["linter"] = run_linter(htn_path, component_path)
@@ -641,38 +661,15 @@ def cmd_play(args) -> int:
 
     planner = HtnPlanner(False)
 
-    # Load dependencies (with cycle detection)
-    dependencies = level_manifest.get("dependencies", [])
-    loaded_deps = set()
-
-    def load_dep(dep_name: str):
-        if dep_name in loaded_deps:
-            return
-        loaded_deps.add(dep_name)
-
-        try:
-            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
-        except FileNotFoundError:
-            print(f"  Warning: Dependency not found: {dep_name}")
-            return
-
-        dep_manifest = get_component_manifest(dep_path)
-        for sub_dep in dep_manifest.dependencies:
-            load_dep(sub_dep)
-
-        src_path = os.path.join(dep_path, "src.htn")
-        if os.path.exists(src_path):
-            with open(src_path, 'r', encoding='utf-8') as f:
-                planner.HtnCompileCustomVariables(f.read())
-
-    for dep in dependencies:
-        load_dep(dep)
-
-    # Load level
-    level_htn = os.path.join(full_path, "level.htn")
-    if os.path.exists(level_htn):
-        with open(level_htn, 'r', encoding='utf-8') as f:
-            planner.HtnCompileCustomVariables(f.read())
+    # Load dependencies + level.htn via central loader (enforces dup-op + contracts)
+    from htn_components.loader import ComponentLoader, LoadError
+    loader = ComponentLoader(planner, PROJECT_ROOT)
+    try:
+        loader.load_level_htn(full_path)
+        loader.verify_contracts()
+    except LoadError as exc:
+        print(f"Load error: {exc}")
+        return 1
 
     # Get initial state
     error, facts_json = planner.GetStateFacts()
@@ -689,18 +686,15 @@ def cmd_play(args) -> int:
            fact.startswith("hasTag(") or fact.startswith("roomHasHazard("):
             print(f"  - {format_fact_narrative(fact)}")
 
-    # Find the goal (read from level.htn file)
-    goal = None
-    import re
-    with open(level_htn, 'r', encoding='utf-8') as f:
-        level_content = f.read()
-    goal_match = re.search(r'goals\(([^)]+)\)', level_content)
-    if goal_match:
-        goal = goal_match.group(1).strip() + "."
-
-    if not goal:
+    # Query the compiled planner for goals (proper parser, handles nested parens)
+    err, compiled_goals = planner.GetGoals()
+    if err:
+        print(f"\nError reading goals from planner: {err}")
+        return 1
+    if not compiled_goals:
         print("\nError: No goals() directive found in level.htn")
         return 1
+    goal = compiled_goals[0] + "."
 
     print(f"\nGoal: {goal[:-1]}")
 
@@ -1092,52 +1086,29 @@ def cmd_trace(args) -> int:
 
     planner = HtnPlanner(False)
 
-    # Load dependencies (with cycle detection)
-    dependencies = level_manifest.get("dependencies", [])
-    loaded_deps = set()
-
-    def load_dep(dep_name: str):
-        if dep_name in loaded_deps:
-            return
-        loaded_deps.add(dep_name)
-
-        try:
-            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
-        except FileNotFoundError:
-            print(f"  Warning: Dependency not found: {dep_name}")
-            return
-
-        dep_manifest = get_component_manifest(dep_path)
-        for sub_dep in dep_manifest.dependencies:
-            load_dep(sub_dep)
-
-        src_path = os.path.join(dep_path, "src.htn")
-        if os.path.exists(src_path):
-            with open(src_path, 'r', encoding='utf-8') as f:
-                planner.HtnCompileCustomVariables(f.read())
-
-    for dep in dependencies:
-        load_dep(dep)
-
-    # Load level
+    # Load dependencies + level.htn via central loader (enforces dup-op + contracts)
+    from htn_components.loader import ComponentLoader, LoadError
+    loader = ComponentLoader(planner, PROJECT_ROOT)
+    try:
+        loader.load_level_htn(full_path)
+        loader.verify_contracts()
+    except LoadError as exc:
+        print(f"Load error: {exc}")
+        return 1
     level_htn = os.path.join(full_path, "level.htn")
-    if os.path.exists(level_htn):
-        with open(level_htn, 'r', encoding='utf-8') as f:
-            planner.HtnCompileCustomVariables(f.read())
 
     # Find the goal
     if custom_goal:
         goal = custom_goal if custom_goal.endswith('.') else custom_goal + "."
     else:
-        import re
-        with open(level_htn, 'r', encoding='utf-8') as f:
-            level_content = f.read()
-        goal_match = re.search(r'goals\(([^)]+)\)', level_content)
-        if goal_match:
-            goal = goal_match.group(1).strip() + "."
-        else:
+        err, compiled_goals = planner.GetGoals()
+        if err:
+            print(f"Error reading goals from planner: {err}")
+            return 1
+        if not compiled_goals:
             print("Error: No goals() directive found in level.htn")
             return 1
+        goal = compiled_goals[0] + "."
 
     print(f"\nDecomposition Tree: {goal[:-1]}")
     print("=" * 50)
@@ -1659,40 +1630,20 @@ def cmd_verify(args) -> int:
     from indhtnpy import HtnPlanner
 
     planner = HtnPlanner(False)
-    loaded_deps = set()
-
-    def load_dep(dep_name: str):
-        if dep_name in loaded_deps:
-            return
-        loaded_deps.add(dep_name)
-        try:
-            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
-            dep_manifest = get_component_manifest(dep_path)
-            for sub_dep in dep_manifest.dependencies:
-                load_dep(sub_dep)
-            src_path = os.path.join(dep_path, "src.htn")
-            if os.path.exists(src_path):
-                with open(src_path, 'r', encoding='utf-8') as f:
-                    planner.HtnCompileCustomVariables(f.read())
-        except:
-            pass
-
-    for dep in dependencies:
-        load_dep(dep)
-
-    level_htn = os.path.join(full_path, "level.htn")
-    if os.path.exists(level_htn):
-        with open(level_htn, 'r', encoding='utf-8') as f:
-            planner.HtnCompileCustomVariables(f.read())
+    from htn_components.loader import ComponentLoader, LoadError
+    loader = ComponentLoader(planner, PROJECT_ROOT)
+    try:
+        loader.load_level_htn(full_path)
+        loader.verify_contracts()
+    except LoadError as exc:
+        print(f"  Load error: {exc}")
+        print(f"\nNOT VERIFIED: {level_name} failed to load")
+        return 1
 
     # Find goal and try to plan
-    import re
-    with open(level_htn, 'r', encoding='utf-8') as f:
-        level_content = f.read()
-    goal_match = re.search(r'goals\(([^)]+)\)', level_content)
-
-    if goal_match:
-        goal = goal_match.group(1).strip() + "."
+    err, compiled_goals = planner.GetGoals()
+    if not err and compiled_goals:
+        goal = compiled_goals[0] + "."
         error, result = planner.FindAllPlansCustomVariables(goal)
         solutions = json.loads(result) if result else []
 
@@ -1760,6 +1711,10 @@ def cmd_coverage(args) -> int:
 def run_linter(htn_path: str, component_path: str = None) -> bool:
     """Run the HTN linter on a file.
 
+    The set of signatures defined externally (in declared dependencies,
+    or whitelisted via the manifest's `requires` contract) is passed to
+    the linter so it does not flag them as undefined.
+
     Args:
         htn_path: Path to the HTN file to lint
         component_path: Path to component directory (to resolve dependencies)
@@ -1772,31 +1727,14 @@ def run_linter(htn_path: str, component_path: str = None) -> bool:
         with open(htn_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Check if component has dependencies
-        has_deps = False
+        external_signatures = set()
         if component_path:
-            manifest_path = os.path.join(component_path, "manifest.json")
-            if os.path.exists(manifest_path):
-                with open(manifest_path, 'r') as f:
-                    manifest = json.load(f)
-                has_deps = len(manifest.get("dependencies", [])) > 0
+            external_signatures = _collect_external_signatures(component_path)
 
-        linter = HtnLinter(content)
+        linter = HtnLinter(content, external_signatures=external_signatures)
         diagnostics = linter.lint()
 
-        # Filter diagnostics
-        errors = []
-        for d in diagnostics:
-            severity = getattr(d, 'severity', '')
-            msg = getattr(d, 'message', '')
-
-            # Skip "undefined" errors for components with dependencies
-            # (the dependency provides the definition)
-            if has_deps and 'Undefined' in msg:
-                continue
-
-            if severity == "error":
-                errors.append(d)
+        errors = [d for d in diagnostics if getattr(d, 'severity', '') == "error"]
 
         if errors:
             for error in errors:
@@ -1812,6 +1750,46 @@ def run_linter(htn_path: str, component_path: str = None) -> bool:
     except Exception as e:
         print(f"    Linter error: {e}")
         return False
+
+
+def _collect_external_signatures(component_path: str) -> set:
+    """Return the set of sigs the linter should treat as 'defined elsewhere'.
+
+    This is the manifest's own `requires` list plus every declared
+    dependency's `provides` list (walked transitively through manifests).
+    """
+    external: set = set()
+    own_manifest_path = os.path.join(component_path, "manifest.json")
+    if not os.path.exists(own_manifest_path):
+        return external
+
+    try:
+        own = Manifest.load(own_manifest_path)
+    except Exception:
+        return external
+
+    # Manifest's own declared requires — always treat as external.
+    external.update(own.requires)
+
+    # Transitive provides from dependency manifests.
+    seen = set()
+    def walk(dep_name: str) -> None:
+        if dep_name in seen:
+            return
+        seen.add(dep_name)
+        try:
+            dep_path = resolve_component_path(dep_name, COMPONENTS_ROOT)
+            dep_manifest = get_component_manifest(dep_path)
+        except FileNotFoundError:
+            return
+        external.update(dep_manifest.provides)
+        for sub in dep_manifest.dependencies:
+            walk(sub)
+
+    for dep in own.dependencies:
+        walk(dep)
+
+    return external
 
 
 def run_tests(test_path: str, verbose: bool = False) -> bool:

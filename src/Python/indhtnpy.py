@@ -286,6 +286,16 @@ class HtnPlanner(object):
             ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
         ]
         self.indhtnLib.HtnGetStateFacts.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetGoalsCustomVariables.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetGoalsCustomVariables.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetGoals.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetGoals.restype = ctypes.POINTER(ctypes.c_char)
         self.indhtnLib.HtnGetSolutionFacts.argtypes = [
             ctypes.c_void_p,
             ctypes.c_uint64,
@@ -627,6 +637,30 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
+
+    # Returns (error, goals) where goals is a list of Prolog-ish goal strings
+    # from the goals() directives compiled via HtnCompileCustomVariables.
+    # error = None on success; goals = [] if no goals() directives have been compiled.
+    def GetGoals(self, customVariables=True):
+        import json
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        fn = (self.indhtnLib.HtnGetGoalsCustomVariables
+              if customVariables
+              else self.indhtnLib.HtnGetGoals)
+        resultPtr = fn(self.obj, ctypes.byref(mem))
+
+        resultBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if resultBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            return resultBytes.decode(), None
+        else:
+            goalsJson = ctypes.c_char_p.from_buffer(mem).value.decode()
+            self.indhtnLib.FreeString(mem)
+            try:
+                return None, json.loads(goalsJson)
+            except json.JSONDecodeError as e:
+                return f"Failed to parse goals JSON: {e}", None
 
     # Returns error, factsJson
     # error = None if successful, or a string error message

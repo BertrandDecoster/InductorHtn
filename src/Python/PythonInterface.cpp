@@ -522,6 +522,66 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
         }
     }
 
+    // Helper: render a goals vector as a JSON array of Prolog-ish goal strings
+    std::string GoalsToJsonArray(const std::vector<std::shared_ptr<HtnTerm>> &goals)
+    {
+        std::stringstream ss;
+        ss << "[";
+        bool first = true;
+        for(auto &term : goals)
+        {
+            if(term == nullptr) continue;
+            if(!first) ss << ",";
+            first = false;
+
+            std::string goalStr = term->ToString();
+
+            std::string escaped;
+            for(char c : goalStr)
+            {
+                if(c == '"') escaped += "\\\"";
+                else if(c == '\\') escaped += "\\\\";
+                else escaped += c;
+            }
+            ss << "\"" << escaped << "\"";
+        }
+        ss << "]";
+        return ss.str();
+    }
+
+    // Returns goals() directives from the custom-variables HTN compiler as a JSON array of strings.
+    // Returns nullptr on success (result contains goals JSON), error string on failure.
+    __declspec(dllexport) char* __stdcall HtnGetGoalsCustomVariables(HtnPlannerPythonWrapper* ptr, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+            *result = GetCharPtrFromString(GoalsToJsonArray(ptr->m_htnCompilerCustomVariables->goals()));
+            return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+    // Returns goals() directives from the standard HTN compiler as a JSON array of strings.
+    __declspec(dllexport) char* __stdcall HtnGetGoals(HtnPlannerPythonWrapper* ptr, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+            *result = GetCharPtrFromString(GoalsToJsonArray(ptr->m_htnCompiler->goals()));
+            return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
     // Returns the facts for a specific solution's final state as JSON array
     // Returns nullptr on success (result contains facts JSON), error string on failure
     __declspec(dllexport) char* __stdcall HtnGetSolutionFacts(HtnPlannerPythonWrapper* ptr, const uint64_t solutionIndex, char **result)

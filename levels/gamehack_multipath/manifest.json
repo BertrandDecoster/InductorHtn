@@ -1,8 +1,8 @@
 {
-  "name": "gamehack_gh7",
+  "name": "gamehack_multipath",
   "version": "0.1.0",
   "layer": "level",
-  "description": "GH7-style world with both stunAndSlowSkill and wetAndElectrocute strategies",
+  "description": "Ambitious world: all three damage strategies viable simultaneously and all three dispatcher paths exercised, yielding many distinct plans",
   "dependencies": [
     "gamehack/primitives/gh_movement",
     "gamehack/primitives/gh_tags",
@@ -11,6 +11,7 @@
     "gamehack/actions/gh_tag_application",
     "gamehack/strategies/wet_and_electrocute",
     "gamehack/strategies/stun_and_slow_skill",
+    "gamehack/strategies/stun_and_burn",
     "gamehack/goals/plan_to_damage"
   ],
   "certified": true,
@@ -18,7 +19,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-04-20T23:35:10.149301"
+    "last_checked": "2026-04-22T15:51:51.176166"
   },
   "provides": [
     "agent/1",
@@ -27,7 +28,6 @@
     "canGetSkillAtLocation/2",
     "enemy/1",
     "hasSkill/2",
-    "immune/2",
     "location/1",
     "locationCanApplyTag/2",
     "skillAppliesTag/2",

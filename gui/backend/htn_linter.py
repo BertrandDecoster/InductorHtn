@@ -10,6 +10,62 @@ from collections import defaultdict
 from htn_parser import parse_htn, Rule, Term, Diagnostic
 
 
+# Authoritative list of Prolog/HTN built-in predicates.
+# Used by the linter's undefined-predicate check and by the component-system
+# contract auto-inference. When adding a new built-in to InductorHTN, update
+# this set (there is no other source of truth in the Python tooling).
+BUILTIN_PREDICATES = {
+    # Control flow
+    'true/0', 'fail/0', 'false/0', '!/0',
+
+    # Comparison operators
+    '=/2', '\\=/2', '==/2', '\\==/2',
+    '</2', '>/2', '=</2', '>=/2', '=:=/2', '=\\=/2',
+
+    # Arithmetic
+    'is/2', '+/2', '-/2', '*/2', '//2', 'mod/2',
+    '+/1', '-/1',  # unary
+
+    # Negation
+    'not/1', '\\+/1',
+
+    # Meta-predicates
+    'call/1', 'call/2', 'call/3',
+    'findall/3', 'bagof/3', 'setof/3',
+    'forall/2',
+
+    # Type checking
+    'atom/1', 'number/1', 'atomic/1', 'compound/1',
+    'var/1', 'nonvar/1', 'is_list/1', 'integer/1', 'float/1',
+
+    # Database (assert/retract)
+    'assert/1', 'retract/1', 'retractall/1', 'abolish/1',
+
+    # String manipulation
+    'atom_chars/2', 'atom_concat/3', 'downcase_atom/2',
+    'upcase_atom/2', 'atom_length/2', 'atom_string/2',
+    'char_code/2', 'number_chars/2', 'number_codes/2',
+
+    # HTN-specific built-ins from InductorHTN
+    'count/2',      # count(?count, goal) - count solutions
+    'distinct/3',   # distinct(_, term1, term2) - distinct pairs
+    'and/1', 'and/2', 'and/3', 'and/4', 'and/5',  # and(goals...) - conjunction as single term
+    'first/1', 'first/2', 'first/3', 'first/4', 'first/5',  # first(goals...) - get first solution only
+    'sortBy/3',     # sortBy(?sorted, ?key, term) - sort results
+
+    # List operations
+    'append/3', 'member/2', 'length/2', 'nth0/3', 'nth1/3',
+    'reverse/2', 'sort/2', 'msort/2', 'last/2',
+
+    # Printing (for debugging)
+    'write/1', 'writeln/1', 'print/1', 'nl/0',
+
+    # Misc
+    'copy_term/2', 'ground/1', 'functor/3', 'arg/3',
+    '=../2',  # univ
+}
+
+
 @dataclass
 class SymbolInfo:
     """Information about a symbol (method, operator, predicate)"""
@@ -26,8 +82,18 @@ class SymbolInfo:
 class HtnLinter:
     """Linter for HTN/Prolog files"""
 
-    def __init__(self, source: str):
+    def __init__(self, source: str, external_signatures: Optional[Set[str]] = None):
+        """
+        Args:
+            source: HTN source text.
+            external_signatures: Optional set of `name/arity` strings defined
+                outside this source but available at load time (e.g. provided
+                by a declared dependency, or listed in the manifest's
+                `requires` contract). Such signatures are NOT flagged as
+                undefined.
+        """
         self.source = source
+        self.external_signatures: Set[str] = set(external_signatures or ())
         self.rules: List[Rule] = []
         self.diagnostics: List[Diagnostic] = []
 
@@ -245,58 +311,8 @@ class HtnLinter:
         all_defined.update(self.facts.keys())
         all_defined.update(self.predicates.keys())
 
-        # Built-in predicates and HTN keywords
-        builtins = {
-            # Control flow
-            'true/0', 'fail/0', 'false/0', '!/0',
-
-            # Comparison operators
-            '=/2', '\\=/2', '==/2', '\\==/2',
-            '</2', '>/2', '=</2', '>=/2', '=:=/2', '=\\=/2',
-
-            # Arithmetic
-            'is/2', '+/2', '-/2', '*/2', '//2', 'mod/2',
-            '+/1', '-/1',  # unary
-
-            # Negation
-            'not/1', '\\+/1',
-
-            # Meta-predicates
-            'call/1', 'call/2', 'call/3',
-            'findall/3', 'bagof/3', 'setof/3',
-            'forall/2',
-
-            # Type checking
-            'atom/1', 'number/1', 'atomic/1', 'compound/1',
-            'var/1', 'nonvar/1', 'is_list/1', 'integer/1', 'float/1',
-
-            # Database (assert/retract)
-            'assert/1', 'retract/1', 'retractall/1', 'abolish/1',
-
-            # String manipulation
-            'atom_chars/2', 'atom_concat/3', 'downcase_atom/2',
-            'upcase_atom/2', 'atom_length/2', 'atom_string/2',
-            'char_code/2', 'number_chars/2', 'number_codes/2',
-
-            # HTN-specific built-ins from InductorHTN
-            'count/2',      # count(?count, goal) - count solutions
-            'distinct/3',   # distinct(_, term1, term2) - distinct pairs
-            'and/1', 'and/2', 'and/3', 'and/4', 'and/5',  # and(goals...) - conjunction as single term
-            'first/1', 'first/2', 'first/3', 'first/4', 'first/5',  # first(goals...) - get first solution only
-            'sortBy/3',     # sortBy(?sorted, ?key, term) - sort results
-
-            # List operations
-            'append/3', 'member/2', 'length/2', 'nth0/3', 'nth1/3',
-            'reverse/2', 'sort/2', 'msort/2', 'last/2',
-
-            # Printing (for debugging)
-            'write/1', 'writeln/1', 'print/1', 'nl/0',
-
-            # Misc
-            'copy_term/2', 'ground/1', 'functor/3', 'arg/3',
-            '=../2',  # univ
-        }
-        all_defined.update(builtins)
+        all_defined.update(BUILTIN_PREDICATES)
+        all_defined.update(self.external_signatures)
 
         # Also add atoms that appear as arguments in facts
         # (e.g., "person" in "at(person, downtown)" should be recognized)

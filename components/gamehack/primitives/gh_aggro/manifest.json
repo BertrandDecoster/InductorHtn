@@ -6,12 +6,23 @@
   "dependencies": [
     "gamehack/primitives/gh_movement"
   ],
-  "certified": false,
+  "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
-    "design_match": false,
-    "last_checked": "2026-02-14T20:47:09.375495"
+    "design_match": true,
+    "last_checked": "2026-04-20T23:34:13.829121"
   },
-  "parameters": []
+  "provides": [
+    "aggroTarget/2",
+    "bringMobToLocation/2",
+    "bringMobsTogether/2",
+    "opAggro/2",
+    "opRemoveAggro/2",
+    "opTargetAlreadyAggroed/0"
+  ],
+  "requires": [
+    "goToLocation/2",
+    "opAggroMoveTo/3"
+  ]
 }

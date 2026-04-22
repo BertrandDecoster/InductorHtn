@@ -10,12 +10,17 @@
     "gamehack/primitives/gh_skills",
     "gamehack/actions/gh_tag_application"
   ],
-  "certified": false,
+  "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
-    "design_match": false,
-    "last_checked": "2026-02-14T20:54:12.539276"
+    "design_match": true,
+    "last_checked": "2026-04-20T23:34:14.539684"
   },
-  "parameters": []
+  "provides": [
+    "wetAndElectrocute/1"
+  ],
+  "requires": [
+    "applyTag/2"
+  ]
 }

@@ -6,3 +6,6 @@ planToDamage(?t) :- if(enemy(?t)),
 
 planToDamage(?t) :- if(enemy(?t)),
     do(wetAndElectrocute(?t)).
+
+planToDamage(?t) :- if(enemy(?t)),
+    do(stunAndBurn(?t)).

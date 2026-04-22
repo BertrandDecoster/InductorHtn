@@ -5,7 +5,10 @@ Each component has a manifest.json file that tracks:
 - Component metadata (name, version, layer)
 - Dependencies on other components
 - Certification status
-- Parameter definitions
+- Provides / requires contracts (auto-inferred during certify)
+
+Tunable numeric knobs are expressed as Prolog facts inside src.htn
+(e.g. `dashDistance(3).`), not as manifest parameters.
 """
 
 import json
@@ -50,34 +53,6 @@ class CertificationStatus:
         return self.linter and self.tests_pass and self.design_match
 
 
-@dataclass
-class Parameter:
-    """Defines a parameter for a component."""
-    name: str
-    type: str  # "fact" for now, could expand later
-    description: str
-    default: Optional[str] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        result = {
-            "name": self.name,
-            "type": self.type,
-            "description": self.description
-        }
-        if self.default is not None:
-            result["default"] = self.default
-        return result
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Parameter":
-        return cls(
-            name=data["name"],
-            type=data["type"],
-            description=data["description"],
-            default=data.get("default")
-        )
-
-
 VALID_LAYERS = ["primitive", "strategy", "goal", "level"]
 
 
@@ -91,7 +66,12 @@ class Manifest:
     dependencies: List[str] = field(default_factory=list)
     certified: bool = False
     certification: CertificationStatus = field(default_factory=CertificationStatus)
-    parameters: List[Parameter] = field(default_factory=list)
+    # Signatures (name/arity) defined by this component's src.htn.
+    # Auto-inferred during certify; manually editing is discouraged.
+    provides: List[str] = field(default_factory=list)
+    # Signatures (name/arity) called by this component but defined elsewhere.
+    # Auto-inferred during certify. Used by the loader to validate the dep closure.
+    requires: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         self.validate()
@@ -119,7 +99,8 @@ class Manifest:
             "dependencies": self.dependencies,
             "certified": self.certified,
             "certification": self.certification.to_dict(),
-            "parameters": [p.to_dict() for p in self.parameters]
+            "provides": self.provides,
+            "requires": self.requires,
         }
 
     @classmethod
@@ -135,9 +116,8 @@ class Manifest:
             certification=CertificationStatus.from_dict(
                 data.get("certification", {})
             ),
-            parameters=[
-                Parameter.from_dict(p) for p in data.get("parameters", [])
-            ]
+            provides=data.get("provides", []),
+            requires=data.get("requires", []),
         )
 
     def save(self, path: str):

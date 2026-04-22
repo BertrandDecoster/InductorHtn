@@ -1,0 +1,26 @@
+% GameHack MVP Level: smallest meaningful world
+% Single ally co-located with target; ally has both direct skills.
+% Exercises applyTag -> applyTagNotPresent path 1 (ally-with-skill).
+% stunAndSlowSkill precondition fails (no skillHasTag(?,slow)) -> backtracks to wetAndElectrocute.
+
+% === Agents ===
+agent(player).
+agent(gob).
+
+ally(player).
+enemy(gob).
+
+% === Positions (single location, co-located) ===
+location(room).
+at(player, room).
+at(gob, room).
+
+% === Skills ===
+hasSkill(player, waterSkill).
+hasSkill(player, lightningSkill).
+
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(lightningSkill, electrocute).
+
+% === Level Goal ===
+goals(planToDamage(gob)).

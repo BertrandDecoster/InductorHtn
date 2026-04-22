@@ -132,6 +132,7 @@ class HtnTestSuite:
         Call this before each test to ensure clean state.
         """
         self._planner = None
+        self._loader = None
         self._loaded_components = set()
         self._state_snapshot = None
 
@@ -159,8 +160,10 @@ class HtnTestSuite:
         if not hasattr(self, '_state_snapshot') or self._state_snapshot is None:
             return False
 
-        # Reset planner
+        # Reset planner AND loader — the old loader still references the
+        # previous planner, so drop it so load_component rebuilds.
         self._planner = HtnPlanner(self.verbose)
+        self._loader = None
         self._loaded_components = set()
 
         # Reload components that were loaded at snapshot time
@@ -176,7 +179,11 @@ class HtnTestSuite:
 
     def load_component(self, component_path: str, reset_first: bool = True) -> bool:
         """
-        Load a component and its dependencies.
+        Load a component and its dependencies via the central ComponentLoader.
+
+        Duplicate-operator detection runs at load time. Contract validation
+        (requires/provides) is deferred — call `verify_contracts()` after the
+        last `load_component` in a test's setup() to check it.
 
         Args:
             component_path: Path like "primitives/locomotion" or just "locomotion"
@@ -185,76 +192,51 @@ class HtnTestSuite:
         Returns:
             True if loaded successfully
         """
-        # Track loaded components to avoid duplicates
-        if not hasattr(self, '_loaded_components'):
-            self._loaded_components = set()
+        from htn_components.loader import ComponentLoader, LoadError
 
-        # Reset planner if requested (for fresh state)
-        if reset_first:
+        # Reset planner if requested (fresh state).
+        if reset_first or self._planner is None:
             self._planner = HtnPlanner(self.verbose)
+            self._loader = ComponentLoader(self._planner, self._project_root)
             self._loaded_components = set()
 
-        # Skip if already loaded
-        if component_path in self._loaded_components:
+        # Idempotent re-entry: if a loader already exists for this planner and
+        # the component is known, nothing to do.
+        if getattr(self, "_loader", None) is None:
+            self._loader = ComponentLoader(self._planner, self._project_root)
+
+        if component_path in self._loader.loaded:
+            # Keep legacy snapshot attribute in sync even for cached re-entries.
+            self._loaded_components = set(self._loader.loaded)
             return True
 
-        components_root = os.path.join(self._project_root, "components")
-
-        # Resolve component path
-        full_path = None
-
-        # Try direct path first
-        direct = os.path.join(components_root, component_path)
-        if os.path.isdir(direct):
-            full_path = direct
-        else:
-            # Search in layer directories
-            for layer in ["primitives", "strategies", "goals"]:
-                layer_path = os.path.join(components_root, layer, component_path)
-                if os.path.isdir(layer_path):
-                    full_path = layer_path
-                    break
-
-        if full_path is None:
-            self._record(False, f"Load component: {component_path}",
-                        f"Component not found in {components_root}")
+        try:
+            self._loader.load(component_path)
+        except LoadError as exc:
+            self._record(False, f"Load component: {component_path}", str(exc))
             return False
 
-        # Load manifest to get dependencies
-        manifest_path = os.path.join(full_path, "manifest.json")
-        if os.path.exists(manifest_path):
-            with open(manifest_path, 'r') as f:
-                manifest = json.load(f)
+        # Mirror the loader's registry onto the legacy attribute that
+        # snapshot_state / restore_state / get_failure_context still read.
+        self._loaded_components = set(self._loader.loaded)
+        return True
 
-            # Load dependencies first (recursively, without resetting)
-            for dep in manifest.get("dependencies", []):
-                if not self.load_component(dep, reset_first=False):
-                    return False
+    def verify_contracts(self) -> bool:
+        """
+        Assert every loaded component's `requires` is satisfied by some
+        loaded component's `provides`. Call after the final `load_component`.
 
-        # Load the component's src.htn
-        src_path = os.path.join(full_path, "src.htn")
-        if not os.path.exists(src_path):
-            self._record(False, f"Load component: {component_path}",
-                        f"No src.htn found in {full_path}")
-            return False
+        Returns False (and records the failure) on contract violation.
+        """
+        from htn_components.loader import LoadError
 
-        with open(src_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        if getattr(self, "_loader", None) is None:
+            return self._record(False, "Verify contracts", "No components loaded")
 
-        # Initialize planner if needed
-        if self._planner is None:
-            self._planner = HtnPlanner(self.verbose)
-
-        # Compile component (appends to existing ruleset)
-        error = self._planner.HtnCompileCustomVariables(content)
-        if error is not None:
-            self._record(False, f"Load component: {component_path}",
-                        f"Compile error: {error}")
-            return False
-
-        # Mark as loaded
-        self._loaded_components.add(component_path)
-
+        try:
+            self._loader.verify_contracts()
+        except LoadError as exc:
+            return self._record(False, "Verify contracts", str(exc))
         return True
 
     def set_state(self, facts: List[str]) -> bool:

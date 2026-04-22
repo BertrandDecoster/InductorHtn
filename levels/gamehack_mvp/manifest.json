@@ -1,16 +1,14 @@
 {
-  "name": "gamehack_gh7",
+  "name": "gamehack_mvp",
   "version": "0.1.0",
   "layer": "level",
-  "description": "GH7-style world with both stunAndSlowSkill and wetAndElectrocute strategies",
+  "description": "MVP world exercising wetAndElectrocute via applyTag dispatcher path 1",
   "dependencies": [
     "gamehack/primitives/gh_movement",
     "gamehack/primitives/gh_tags",
-    "gamehack/primitives/gh_aggro",
     "gamehack/primitives/gh_skills",
     "gamehack/actions/gh_tag_application",
     "gamehack/strategies/wet_and_electrocute",
-    "gamehack/strategies/stun_and_slow_skill",
     "gamehack/goals/plan_to_damage"
   ],
   "certified": true,
@@ -18,21 +16,16 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-04-20T23:35:10.149301"
+    "last_checked": "2026-04-22T15:03:51.827718"
   },
   "provides": [
     "agent/1",
     "ally/1",
     "at/2",
-    "canGetSkillAtLocation/2",
     "enemy/1",
     "hasSkill/2",
-    "immune/2",
     "location/1",
-    "locationCanApplyTag/2",
-    "skillAppliesTag/2",
-    "skillHasTag/2",
-    "static/1"
+    "skillAppliesTag/2"
   ],
   "requires": []
 }

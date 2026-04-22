@@ -1,0 +1,71 @@
+% GameHack Multipath Level
+% Ambitious world state: all three damage strategies simultaneously viable,
+% multiple dispatcher paths exercised for the same tag (ally skill, location,
+% and non-ally mob skill). `planToDamage(gob)` returns many distinct plans.
+
+% === Agents ===
+agent(player).
+agent(companionA).
+agent(companionB).
+agent(companionC).
+agent(gob).
+agent(teslaTower).
+agent(iceElemental).
+
+ally(player).
+ally(companionA).
+ally(companionB).
+ally(companionC).
+enemy(gob).
+enemy(teslaTower).
+enemy(iceElemental).
+
+% === Positions ===
+at(player, arena).
+at(companionA, arena).
+at(companionB, forge).
+at(companionC, glacier).
+at(gob, arena).
+at(teslaTower, lakeShore).
+at(iceElemental, glacier).
+
+% === Locations ===
+location(arena).
+location(forge).
+location(glacier).
+location(lakeShore).
+location(sea).
+location(volcano).
+
+% === Environment: locations that apply tags ===
+locationCanApplyTag(lakeShore, wet).
+locationCanApplyTag(sea, wet).
+locationCanApplyTag(glacier, ice).
+
+% === Static entities (cannot be lured) ===
+static(teslaTower).
+
+% === Skills currently held ===
+hasSkill(companionA, waterSkill).
+hasSkill(companionB, fireballSkill).
+hasSkill(teslaTower, lightningSkill).
+hasSkill(iceElemental, iceBlastSkill).
+
+% === Skill acquisition sites ===
+canGetSkillAtLocation(volcano, fireballSkill).
+canGetSkillAtLocation(glacier, iceBlastSkill).
+canGetSkillAtLocation(lakeShore, waterSkill).
+
+% === Skill -> tag mappings ===
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(waterSkill, clean).
+skillAppliesTag(lightningSkill, electrocute).
+skillAppliesTag(fireballSkill, fire).
+skillAppliesTag(iceBlastSkill, stun).
+skillAppliesTag(iceBlastSkill, ice).
+
+% === Slow modifier on fireballSkill unlocks stunAndSlowSkill precondition ===
+skillHasTag(fireballSkill, slow).
+
+% === Level Goal ===
+goals(planToDamage(gob)).
