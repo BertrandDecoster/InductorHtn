@@ -505,10 +505,15 @@ HtnMethod *HtnPlanner::AddMethod(shared_ptr<HtnTerm> head, const vector<shared_p
     return method;
 }
 
-HtnOperator *HtnPlanner::AddOperator(shared_ptr<HtnTerm> head, const vector<shared_ptr<HtnTerm>> &addList, const vector<shared_ptr<HtnTerm>> &deleteList, bool hidden)
+HtnOperator *HtnPlanner::AddOperator(shared_ptr<HtnTerm> head,
+                                     const vector<shared_ptr<HtnTerm>> &addList,
+                                     const vector<shared_ptr<HtnTerm>> &deleteList,
+                                     bool hidden,
+                                     const vector<shared_ptr<HtnTerm>> &increaseList,
+                                     const vector<shared_ptr<HtnTerm>> &decreaseList)
 {
     // operators are owned by the Htn planner and deleted in the destructor. Since they are immutable, we can just record it now
-    HtnOperator *op = new HtnOperator(head, addList, deleteList, hidden);
+    HtnOperator *op = new HtnOperator(head, addList, deleteList, hidden, increaseList, decreaseList);
     m_dynamicSize += op->dynamicSize();
     m_operators.insert(pair<string, HtnOperator *>(head->name(), op));
     return op;

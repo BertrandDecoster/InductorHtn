@@ -94,6 +94,8 @@ public:
         bool isOperatorHidden = false;
         shared_ptr<HtnTerm> constraint = nullptr;
         shared_ptr<HtnTerm> del = nullptr;
+        vector<shared_ptr<HtnTerm>> increases;
+        vector<shared_ptr<HtnTerm>> decreases;
         for(auto item : list)
         {
             if(item->isConstant() && item->name() == "else")
@@ -133,11 +135,35 @@ public:
             {
                 FailFastAssertDesc(del != nullptr && isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
                     "Improper add() statement");
-                m_domain->AddOperator(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), item->arguments(), del->arguments(), isOperatorHidden);
+                m_domain->AddOperator(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), item->arguments(), del->arguments(), isOperatorHidden, increases, decreases);
                 return;
             }
+            else if(item->name() == "increase")
+            {
+                // Each increase() clause is one numeric-fluent effect of the form
+                // increase(fluent, expression). The whole increase(...) term is
+                // stored so downstream consumers can pull fluent + expression.
+                FailFastAssertDesc(isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
+                    "Improper increase() statement.");
+                increases.push_back(item);
+            }
+            else if(item->name() == "decrease")
+            {
+                FailFastAssertDesc(isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
+                    "Improper decrease() statement.");
+                decreases.push_back(item);
+            }
         }
-        
+
+        // Operator with only numeric-fluent effects (no del/add): register it now.
+        // Note: an operator that had both del() and add() would have already returned above.
+        if(!increases.empty() || !decreases.empty())
+        {
+            vector<shared_ptr<HtnTerm>> emptyArgs;
+            m_domain->AddOperator(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), emptyArgs, emptyArgs, isOperatorHidden, increases, decreases);
+            return;
+        }
+
         PrologCompilerBase<VariableRule>::m_state->AddRule(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), list);
     }
     

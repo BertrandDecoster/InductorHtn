@@ -188,7 +188,12 @@ public:
     // Safe to call from another thread
     static void Abort() { m_abort = true; }
     virtual HtnMethod *AddMethod(std::shared_ptr<HtnTerm> head, const std::vector<std::shared_ptr<HtnTerm>> &condition, const std::vector<std::shared_ptr<HtnTerm>> &tasks, HtnMethodType methodType, bool isDefault);
-    virtual HtnOperator *AddOperator(std::shared_ptr<HtnTerm>head, const std::vector<std::shared_ptr<HtnTerm>> &addList, const std::vector<std::shared_ptr<HtnTerm>> &deleteList, bool hidden = false);
+    virtual HtnOperator *AddOperator(std::shared_ptr<HtnTerm>head,
+                                     const std::vector<std::shared_ptr<HtnTerm>> &addList,
+                                     const std::vector<std::shared_ptr<HtnTerm>> &deleteList,
+                                     bool hidden = false,
+                                     const std::vector<std::shared_ptr<HtnTerm>> &increaseList = std::vector<std::shared_ptr<HtnTerm>>(),
+                                     const std::vector<std::shared_ptr<HtnTerm>> &decreaseList = std::vector<std::shared_ptr<HtnTerm>>());
     virtual void ClearAll();
     // Always check factory->outOfMemory() after calling to see if we ran out of memory during processing and the plan might not be complete
     std::shared_ptr<SolutionsType> FindAllPlans(HtnTermFactory *factory, std::shared_ptr<HtnRuleSet> initialState, const std::vector<std::shared_ptr<HtnTerm>> &initialGoals, int memoryBudget = 5000000,
