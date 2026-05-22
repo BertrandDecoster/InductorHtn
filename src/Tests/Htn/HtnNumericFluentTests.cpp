@@ -247,9 +247,18 @@ SUITE(HtnNumericFluentTests)
     // The compiler enforces this via FailFastAssertDesc; we route the assert
     // through an exception (TreatFailFastAsException) so the test runner
     // can observe the failure rather than the process aborting.
+    // RAII guard: enables FailFast-as-exception for the scope of the test,
+    // and restores the runner's default (true, set in TestsMain.cpp) on
+    // destruction so any exception path still leaves the flag correct.
+    struct FailFastAsExceptionGuard
+    {
+        FailFastAsExceptionGuard() { TreatFailFastAsException(true); }
+        ~FailFastAsExceptionGuard() { TreatFailFastAsException(true); }
+    };
+
     TEST(IncreaseWithWrongArity_FailsToCompile_Arity1)
     {
-        TreatFailFastAsException(true);
+        FailFastAsExceptionGuard failFastGuard;
         shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
         shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
         shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
@@ -269,12 +278,11 @@ SUITE(HtnNumericFluentTests)
             threw = true;
         }
         CHECK(threw);
-        TreatFailFastAsException(false);
     }
 
     TEST(DecreaseWithWrongArity_FailsToCompile_Arity3)
     {
-        TreatFailFastAsException(true);
+        FailFastAsExceptionGuard failFastGuard;
         shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
         shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
         shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
@@ -294,6 +302,5 @@ SUITE(HtnNumericFluentTests)
             threw = true;
         }
         CHECK(threw);
-        TreatFailFastAsException(false);
     }
 }
