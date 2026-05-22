@@ -1,0 +1,6 @@
+% TYP001 — moveTo(?agent, ?cell) called with args reversed
+type(agent, player).
+type(cell, c5).
+signature(moveTo, [agent, cell]).
+
+goalA :- if(), do(moveTo(c5, player)).
