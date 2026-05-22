@@ -324,6 +324,32 @@ class TestVerifierCatchesUndefined:
         sem002_errors = [d for d in diags if d["code"] == "SEM002" and d["severity"] == "error"]
         assert sem002_errors == []
 
+    def test_typ001_surfaces_through_assembler(self):
+        # signature(moveTo, [agent, cell]) declares that moveTo expects an
+        # agent in position 1 and a cell in position 2. The call
+        # moveTo(c5, player) swaps them -- c5 is a cell, player is an agent.
+        # The TYP001 rule (layer 2 of the verifier) must catch this.
+        content = (
+            "type(agent, player).\n"
+            "type(cell, c5).\n"
+            "signature(moveTo, [agent, cell]).\n"
+            "moveTo(?a, ?b) :- if(), do().\n"
+            "goalA :- if(), do(moveTo(c5, player)).\n"
+            "goals(goalA).\n"
+        )
+        errors, _, diags = verify_assembled(
+            content, verbose=False, skip_compile=True,
+        )
+        typ001 = [d for d in diags if d["code"] == "TYP001"]
+        assert typ001, f"Expected TYP001 ERROR for type mismatch. Diags: {diags}"
+        assert all(d["severity"] == "error" for d in typ001), (
+            f"TYP001 must be severity=error. Got: {typ001}"
+        )
+        assert errors >= 1, (
+            f"TYP001 diagnostics must contribute to the error count "
+            f"(errors={errors}). Diags: {diags}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Verifier layer 3: C++ parser round-trip
