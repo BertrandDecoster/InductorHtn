@@ -122,11 +122,29 @@ gitignored — committed goldens live under `tests/fixtures/assembled/<level>.ht
 | Layer | Codes | What it catches |
 |-------|-------|-----------------|
 | 1. literal-duplicate clauses | `ASM001` | Same head AND body defined twice (ignores whitespace and trailing comments) |
-| 2. semantic lint | `SEM*`, `VAR*`, `SYN*` | Undefined tasks, unused vars, syntax shape — via `gui/backend/htn_linter.py` |
+| 2. semantic lint | `SEM*`, `VAR*`, `SYN*`, `TYP*` | Undefined tasks, unused vars, syntax shape, typed-parameter mismatches — via `gui/backend/htn_linter.py` |
 | 3. C++ parser round-trip | `ASM002` | Anything the engine itself would reject; uses `HtnPlanner.HtnCompileCustomVariables` (`?varname` syntax) |
 
 Codes `ASM003`/`ASM998`/`ASM999` are infrastructure warnings (binding missing,
 linter import or runtime failure).
+
+### Typed parameters (TYP001)
+
+Components and levels may opt into argument type-checking by declaring two
+conventional facts:
+
+```prolog
+type(typeName, instance).
+signature(predName, [argType1, argType2, ...]).
+```
+
+`TYP001` fires when a *constant* argument at a typed call site is declared as
+a different type, or has no `type/2` declaration at all. Variables and
+compound terms are not yet checked. Rulesets with no `signature/2`
+declarations get no TYP* diagnostics — the rule is fully opt-in.
+
+Example fixtures live under `Examples/ErrorTests/typed_arg_swapped.htn` and
+`Examples/ErrorTests/typed_arg_untyped_constant.htn`.
 
 ### Test Naming Convention
 
