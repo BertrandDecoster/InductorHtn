@@ -12,6 +12,7 @@
 
 #include "FXPlatform/FailFast.h"
 #include "FXPlatform/NanoTrace.h"  // pulls in `using namespace std` used throughout the project
+#include "FXPlatform/Prolog/HtnGoalResolver.h"
 #include "FXPlatform/Prolog/HtnRuleSet.h"
 #include "FXPlatform/Prolog/HtnTerm.h"
 #include "FXPlatform/Prolog/HtnTermFactory.h"
@@ -302,5 +303,168 @@ SUITE(HtnNumericFluentTests)
             threw = true;
         }
         CHECK(threw);
+    }
+
+    // ============================================================
+    // Task 2: Engine application of increase/decrease
+    // ============================================================
+    //
+    // These tests exercise runtime semantics: when the planner applies an
+    // operator with increase/decrease effects, the fluent fact in state
+    // should be removed and re-added with the new numeric value.
+    //
+    // A small fixture wraps compile + plan + apply + state inspection so
+    // the individual tests stay readable.
+
+    class HtnFluentHelper
+    {
+    public:
+        HtnFluentHelper()
+        {
+            factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+            state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+            planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+            compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+            compiler->ClearWithNewRuleSet();
+        }
+
+        // Compile + plan. Returns true if at least one solution found.
+        // Captures the first solution's final state for inspection.
+        bool PlanAndApply(const string &program)
+        {
+            CHECK(compiler->Compile(program));
+            auto solutions = planner->FindAllPlans(factory.get(), compiler->compilerOwnedRuleSet(), compiler->goals());
+            if (solutions == nullptr || solutions->empty())
+            {
+                lastFinalState.reset();
+                return false;
+            }
+            lastFinalState = (*solutions)[0]->finalState();
+            return true;
+        }
+
+        // True if `fact` (a head term written textually as it would render
+        // via HtnTerm::ToString) exists in the post-apply state. The state
+        // is rendered via ToStringFactsProlog which uses Prolog syntax
+        // ("head(..) :- true.") for each fact.
+        bool HasFact(const string &fact)
+        {
+            if (lastFinalState == nullptr)
+            {
+                return false;
+            }
+            string serialized = lastFinalState->ToStringFactsProlog();
+            // Look for "fact :-" — guards against accidental substring
+            // matches between similar-looking facts.
+            return serialized.find(fact + " :-") != string::npos;
+        }
+
+        shared_ptr<HtnTermFactory> factory;
+        shared_ptr<HtnRuleSet> state;
+        shared_ptr<HtnPlanner> planner;
+        shared_ptr<HtnCompiler> compiler;
+        shared_ptr<HtnRuleSet> lastFinalState;
+    };
+
+    // 1. Plain increase by a literal int delta.
+    //    score(player, 10) + opGain(5) => score(player, 15), no leftover 10.
+    TEST(IncreaseUpdatesFact)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,15)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // 2. Symmetric for decrease.
+    TEST(DecreaseUpdatesFact)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opLose(?n) :- decrease(score(player), ?n). "
+            "goals(opLose(3)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,7)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // 3. No matching fact => operator application fails => planning fails.
+    TEST(NoMatchingFactFails)
+    {
+        HtnFluentHelper h;
+        string program =
+            // no score(player, _) fact at all
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        // The planner should not return a successful solution.
+        CHECK(!h.PlanAndApply(program));
+    }
+
+    // 4. Multiple matching facts => ambiguous => fail.
+    TEST(MultipleMatchesFails)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "score(player, 20). "
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        CHECK(!h.PlanAndApply(program));
+    }
+
+    // 5. The fact's trailing arg is not numeric => fail.
+    TEST(NonNumericValueFails)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, foo). "
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        CHECK(!h.PlanAndApply(program));
+    }
+
+    // 6. Effect ordering: del() removals, then increase, then add() additions
+    //    all happen in one application; final state reflects all three.
+    TEST(MixedDelIncreaseAdd)
+    {
+        HtnFluentHelper h;
+        string program =
+            "flag(a). "
+            "score(player, 10). "
+            "opComplex() :- del(flag(a)), increase(score(player), 1), add(flag(b)). "
+            "goals(opComplex()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(!h.HasFact("flag(a)"));
+        CHECK(h.HasFact("flag(b)"));
+        CHECK(h.HasFact("score(player,11)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // 7. Two increase effects in one operator both mutate their fluents.
+    TEST(MultipleIncreasesInOneOperator)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 5). "
+            "mana(player, 7). "
+            "opDouble() :- increase(score(player), 1), increase(mana(player), 2). "
+            "goals(opDouble()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,6)"));
+        CHECK(h.HasFact("mana(player,9)"));
+        CHECK(!h.HasFact("score(player,5)"));
+        CHECK(!h.HasFact("mana(player,7)"));
     }
 }

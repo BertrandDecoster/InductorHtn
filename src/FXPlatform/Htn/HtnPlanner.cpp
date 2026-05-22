@@ -12,6 +12,7 @@
 #include "HtnMethod.h"
 #include "HtnOperator.h"
 #include "HtnPlanner.h"
+#include "HtnRule.h"
 #include "HtnRuleSet.h"
 #include "HtnTerm.h"
 #include "HtnTermFactory.h"
@@ -519,44 +520,206 @@ HtnOperator *HtnPlanner::AddOperator(shared_ptr<HtnTerm> head,
     return op;
 }
 
+// Numeric-fluent helper: translate one operator's increase/decrease effects
+// into additional entries on the existing removals/additions lists.
+//
+// Each `fluentEffect` is a HtnTerm of the form `increase(head, expr)` or
+// `decrease(head, expr)` (arity already enforced by the compiler).
+//   `head` is the fluent's "shape": e.g. score(player) for the fluent
+//        score(player, N). Looking up the current value means querying the
+//        state for the unique fact head/(arity+1) whose leading args match
+//        head and whose trailing arg is the numeric current value.
+//   `expr` is an arithmetic expression yielding the delta. We re-use the
+//        existing HtnTerm::Eval entry point (the same one HtnGoalResolver
+//        invokes from RuleIs) so any expression Eval supports here also
+//        works for is(?x, expr).
+//
+// `sign` is +1 for increase, -1 for decrease.
+//
+// Returns false if any effect cannot be applied (no matching fact / multiple
+// matches / non-numeric current value / delta won't evaluate); the planner
+// treats that as an operator-application failure and backtracks.
+//
+// Note: the fluentEffects passed in are assumed to be ALREADY substituted
+// with the operator's MGU (we substitute the full effect term up front so
+// both head and expr see operator parameter bindings in one pass).
+static bool ApplyFluentDeltas(
+    HtnTermFactory *factory,
+    HtnRuleSet *state,
+    const std::vector<std::shared_ptr<HtnTerm>> &fluentEffects,
+    int sign,
+    std::vector<std::shared_ptr<HtnTerm>> &finalRemovals,
+    std::vector<std::shared_ptr<HtnTerm>> &finalAdditions)
+{
+    for (const std::shared_ptr<HtnTerm> &effect : fluentEffects)
+    {
+        // The compiler guarantees arity 2; defensively bail if not.
+        if (effect->arity() != 2)
+        {
+            return false;
+        }
+        std::shared_ptr<HtnTerm> head = effect->arguments()[0];
+        std::shared_ptr<HtnTerm> delta = effect->arguments()[1];
+
+        // Evaluate the delta first. This must be ground numeric (any unbound
+        // variable in delta is a precondition failure for this op instance).
+        std::shared_ptr<HtnTerm> deltaValue = delta->Eval(factory);
+        if (deltaValue == nullptr)
+        {
+            return false;
+        }
+        HtnTermType deltaType = deltaValue->GetTermType();
+        if (deltaType != HtnTermType::IntType && deltaType != HtnTermType::FloatType)
+        {
+            return false;
+        }
+
+        // The fluent we're looking for has the same name as `head` and one
+        // extra trailing argument. Scan the state for facts matching this
+        // shape and whose leading args structurally equal head's args.
+        std::shared_ptr<HtnTerm> match;
+        int matchCount = 0;
+        const std::vector<std::shared_ptr<HtnTerm>> &headArgs = head->arguments();
+        std::string targetName = head->name();
+        int targetFactArity = (int)headArgs.size() + 1;
+
+        state->AllRules([&](const HtnRule &rule) -> bool
+        {
+            if (!rule.IsFact())
+            {
+                return true;
+            }
+            const std::shared_ptr<HtnTerm> &factHead = rule.head();
+            if (factHead->name() != targetName || factHead->arity() != targetFactArity)
+            {
+                return true;
+            }
+            // Leading args of the fact must equal the head's args.
+            for (size_t i = 0; i < headArgs.size(); ++i)
+            {
+                if (factHead->arguments()[i]->TermCompare(*headArgs[i]) != 0)
+                {
+                    return true; // not a match, keep scanning
+                }
+            }
+            match = factHead;
+            ++matchCount;
+            return true; // keep going so we can detect multi-match
+        });
+
+        if (matchCount != 1)
+        {
+            // 0 matches => no fluent to update; >1 matches => ambiguous.
+            return false;
+        }
+
+        // Read the trailing arg as a numeric value.
+        std::shared_ptr<HtnTerm> currentValueTerm = match->arguments().back();
+        HtnTermType currentType = currentValueTerm->GetTermType();
+        if (currentType != HtnTermType::IntType && currentType != HtnTermType::FloatType)
+        {
+            return false;
+        }
+
+        // Compute newValue = oldValue + sign * delta. Promote to float if
+        // either side is float; otherwise stay integer.
+        bool anyFloat = (currentType == HtnTermType::FloatType) || (deltaType == HtnTermType::FloatType);
+        std::shared_ptr<HtnTerm> newValueTerm;
+        if (anyFloat)
+        {
+            double_t newValue = currentValueTerm->GetDouble() + sign * deltaValue->GetDouble();
+            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(newValue));
+        }
+        else
+        {
+            int64_t newValue = currentValueTerm->GetInt() + sign * deltaValue->GetInt();
+            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(newValue));
+        }
+
+        // Build the replacement fact: same predicate name + same leading
+        // args + new trailing value.
+        std::vector<std::shared_ptr<HtnTerm>> newFactArgs = headArgs;
+        newFactArgs.push_back(newValueTerm);
+        std::shared_ptr<HtnTerm> newFact = factory->CreateFunctor(targetName, newFactArgs);
+
+        finalRemovals.push_back(match);
+        finalAdditions.push_back(newFact);
+    }
+    return true;
+}
+
 bool HtnPlanner::CheckForOperator(PlanState *planState)
 {
     // Make the code more readable and get rid of one pointer dereference
     HtnTermFactory *factory = planState->factory;
     shared_ptr<vector<shared_ptr<PlanNode>>> stack = planState->stack;
-    
+
     shared_ptr<PlanNode> node = stack->back();
-    
+
     // Is it an operator?
     OperatorsType::iterator foundOperator = m_operators.find(node->task->name());
     if(foundOperator != m_operators.end())
     {
         HtnOperator *op = (*foundOperator).second;
-        
+
         // Get the "Most General Unifier" for the operator and the task and make sure it is ground (otherwise it is invalid)
         shared_ptr<UnifierType> mgu = HtnGoalResolver::Unify(factory, node->task, op->head());
         if(mgu != nullptr && HtnGoalResolver::IsGround(mgu.get()))
         {
             // Substitute the MGU into any variables in the operator
             shared_ptr<HtnTerm> operatorSubstituted = HtnGoalResolver::SubstituteUnifiers(factory, *mgu.get(), op->head());
-            
+
             // And into the adds and deletes
             shared_ptr<vector<shared_ptr<HtnTerm>>> finalRemovals = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->deletions());
             shared_ptr<vector<shared_ptr<HtnTerm>>> finalAdditions = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->additions());
-            
+
+            // Numeric fluent effects: substitute the MGU into each whole
+            // increase(...)/decrease(...) term up front, then translate into
+            // additional removals + additions. This preserves the documented
+            // ordering: del() removals (already in finalRemovals), then
+            // fluent del/add pairs, then add() additions.
+            shared_ptr<vector<shared_ptr<HtnTerm>>> substitutedIncreases = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->increases());
+            shared_ptr<vector<shared_ptr<HtnTerm>>> substitutedDecreases = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->decreases());
+
+            // Build a working pair of removals/additions so the fluent step
+            // can append in source order. We rebuild the add list as
+            // [del-deletions] then [fluent-removals] for removals, and
+            // [fluent-additions] then [op-additions] for additions, to
+            // preserve the spec'd ordering of effects.
+            vector<shared_ptr<HtnTerm>> workingRemovals = *finalRemovals;
+            vector<shared_ptr<HtnTerm>> fluentAdditions;
+            bool fluentOk = ApplyFluentDeltas(factory, node->state.get(), *substitutedIncreases, +1, workingRemovals, fluentAdditions)
+                         && ApplyFluentDeltas(factory, node->state.get(), *substitutedDecreases, -1, workingRemovals, fluentAdditions);
+
+            if (!fluentOk)
+            {
+                Trace2("FAIL       ", "nodeID:{0} Operator '{1}' fluent effect failed (no/multi match or non-numeric)", stack->size(), node->nodeID(), op->head()->ToString());
+
+                string failReason = "Operator fluent effect failed: " + op->head()->ToString();
+                MarkNodeFailed(planState, node->nodeID(), failReason);
+
+                Return(planState, false);
+                return true;
+            }
+
+            // Final additions: fluent-additions first (logically applied
+            // between del and add), then the operator's own add() list.
+            vector<shared_ptr<HtnTerm>> mergedAdditions = fluentAdditions;
+            mergedAdditions.insert(mergedAdditions.end(), finalAdditions->begin(), finalAdditions->end());
+
             // We don't have alternatives to try from this node if the branch fails, so we don't need to make a copy of the state so we can try alternatives
             // So, just update the state directly
-            node->state->Update(factory, *finalRemovals, *finalAdditions);
-            
+            node->state->Update(factory, workingRemovals, mergedAdditions);
+
             if(!op->isHidden())
             {
                 // Add the operator to the current list
                 node->AddToOperators(operatorSubstituted);
             }
-            
+
             // Continue recursion: No additional tasks since this is an operator, don't make a copy of the state since we don't need to try alternatives when backtracking
             Trace3("OPERATOR   ", "nodeID:{0} Operator '{1}' unifies with '{2}'", stack->size(), node->nodeID(), op->head()->ToString(), node->task->ToString());
-            Trace3("           ", "isHidden: {0}, deletes:'{1}', adds:'{2}'", stack->size(), op->isHidden(), HtnTerm::ToString(*finalRemovals), HtnTerm::ToString(*finalAdditions));
+            Trace3("           ", "isHidden: {0}, deletes:'{1}', adds:'{2}'", stack->size(), op->isHidden(), HtnTerm::ToString(workingRemovals), HtnTerm::ToString(mergedAdditions));
 
             // Record operator in decomposition tree
             RecordOperator(planState, node->nodeID(), op, *mgu);
