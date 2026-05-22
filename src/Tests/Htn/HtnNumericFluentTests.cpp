@@ -467,4 +467,77 @@ SUITE(HtnNumericFluentTests)
         CHECK(!h.HasFact("score(player,5)"));
         CHECK(!h.HasFact("mana(player,7)"));
     }
+
+    // ============================================================
+    // Task 3: Arithmetic expressions as fluent deltas
+    // ============================================================
+    //
+    // The delta argument of increase/decrease is routed through
+    // HtnTerm::Eval(factory) — the same arithmetic evaluator that backs is/2.
+    // These tests pin that compound expressions (multiplication, addition,
+    // subtraction, variables bound via earlier preconditions) are evaluated
+    // correctly before being applied to the fluent.
+
+    // increase(score(player), *(?base, ?mult)) with ?base=3, ?mult=4
+    // should add 12 to score(player, 10), yielding score(player, 22).
+    TEST(IncreaseAcceptsArithmeticExpression)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opAddBonus(?base, ?mult) :- increase(score(player), *(?base, ?mult)). "
+            "goals(opAddBonus(3, 4)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,22)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // Symmetric for decrease: 100 - 5*4 = 80.
+    TEST(DecreaseAcceptsArithmeticExpression)
+    {
+        HtnFluentHelper h;
+        string program =
+            "energy(player, 100). "
+            "opStrenuous(?base, ?factor) :- decrease(energy(player), *(?base, ?factor)). "
+            "goals(opStrenuous(5, 4)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("energy(player,80)"));
+        CHECK(!h.HasFact("energy(player,100)"));
+    }
+
+    // A method binds ?r via if(rate(?r)) then passes it into an operator that
+    // uses ?r inside an arithmetic expression in increase(). Verifies that
+    // variable bindings flowing from a method precondition reach the fluent
+    // effect's eval correctly. 0 + 7*3 = 21.
+    TEST(FluentDeltaWithBoundVariableFromMethod)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 0). "
+            "rate(7). "
+            "gainBonus() :- if(rate(?r)), do(opGain(?r, 3)). "
+            "opGain(?base, ?mult) :- increase(score(player), *(?base, ?mult)). "
+            "goals(gainBonus()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,21)"));
+        CHECK(!h.HasFact("score(player,0)"));
+    }
+
+    // Composite expression with both subtraction and a positive net delta:
+    // gold(player, 50) + (20 - 5) = gold(player, 65).
+    TEST(FluentDeltaWithSubtractionAndAddition)
+    {
+        HtnFluentHelper h;
+        string program =
+            "gold(player, 50). "
+            "opTransact(?in, ?out) :- increase(gold(player), -(?in, ?out)). "
+            "goals(opTransact(20, 5)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("gold(player,65)"));
+        CHECK(!h.HasFact("gold(player,50)"));
+    }
 }
