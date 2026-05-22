@@ -2,6 +2,9 @@
 % Orchestrates strategies based on enemy vulnerabilities
 % Depends on: locomotion, tags, aggro, the_burn, the_slipstream
 
+% === Signatures (for TYP001 linter) ===
+signature(defeatEnemy, [entity]).
+
 % === Goal Methods ===
 
 % Strategy 1: Use theBurn if enemy vulnerable to burning and oil available

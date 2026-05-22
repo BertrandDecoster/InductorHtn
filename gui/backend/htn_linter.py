@@ -79,6 +79,92 @@ class SymbolInfo:
     callers: List[str] = field(default_factory=list)
 
 
+# Built-in primitive types recognized at signature/2 positions without
+# requiring a user-declared type/2 fact. Numeric literals (ints, floats,
+# negatives) at these positions are accepted by the TYP001 check.
+PRIMITIVE_TYPES = {'int', 'float', 'number'}
+
+
+def _is_numeric_literal(name: str) -> bool:
+    """True if name parses as a number (handles ints, floats, negatives)."""
+    if not name:
+        return False
+    try:
+        float(name)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+@dataclass
+class TypeRegistry:
+    """Collects type/2 and signature/2 declarations from a parsed ruleset.
+
+    Conventions (recognized only by the linter; engine treats as ordinary facts):
+      - type(typeName, instance).
+      - signature(predName, [argType1, argType2, ...]).
+    """
+    types: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
+    signatures: Dict[str, List[str]] = field(default_factory=dict)
+    # Duplicate signature/2 declarations: (predName/arity, line, col) of the
+    # redundant fact. The first declaration wins; later ones are recorded here
+    # so the linter can emit TYP002 diagnostics.
+    duplicate_signatures: List[Tuple[str, int, int]] = field(default_factory=list)
+
+    @classmethod
+    def from_source(cls, source: str) -> 'TypeRegistry':
+        """Convenience: parse `source` then delegate to `from_rules`.
+
+        Note: parser diagnostics are silently discarded. For diagnostic-aware
+        workflows (e.g. `HtnLinter`), parse externally and use `from_rules` so
+        parse errors surface to the caller.
+        """
+        rules, _ = parse_htn(source)
+        return cls.from_rules(rules)
+
+    @classmethod
+    def from_rules(cls, rules: List[Rule]) -> 'TypeRegistry':
+        reg = cls()
+        for rule in rules:
+            head = rule.head
+            # Only facts (no body)
+            if rule.body:
+                continue
+            if head.name == 'type' and len(head.args) == 2:
+                # Skip compound terms and lists — only atomic type names and
+                # instances are allowed. `type(agent, [])` must not register
+                # '[]' as an agent instance.
+                if (head.args[0].args or head.args[0].is_list
+                        or head.args[1].args or head.args[1].is_list):
+                    continue
+                if not head.args[0].is_variable and not head.args[1].is_variable:
+                    type_name = head.args[0].name
+                    instance = head.args[1].name
+                    reg.types[type_name].add(instance)
+            elif head.name == 'signature' and len(head.args) == 2:
+                # Skip compound predicate names — only atomic names allowed
+                if head.args[0].args:
+                    continue
+                pred_name = head.args[0].name
+                arg_list = head.args[1]
+                if arg_list.is_list:
+                    types = [t.name for t in arg_list.args if not t.is_variable]
+                    if len(types) == len(arg_list.args):  # all concrete
+                        key = f"{pred_name}/{len(types)}"
+                        if key in reg.signatures:
+                            # First declaration wins; record the duplicate for
+                            # diagnostic emission (TYP002).
+                            reg.duplicate_signatures.append(
+                                (key, head.args[0].line, head.args[0].col)
+                            )
+                        else:
+                            reg.signatures[key] = types
+        return reg
+
+    def type_of(self, instance: str) -> Set[str]:
+        return {t for t, members in self.types.items() if instance in members}
+
+
 class HtnLinter:
     """Linter for HTN/Prolog files"""
 
@@ -130,6 +216,7 @@ class HtnLinter:
         self._check_else_usage()
         self._check_empty_clauses()
         self._check_singleton_variables()
+        self._check_typed_parameters()
 
         return self.diagnostics
 
@@ -514,37 +601,40 @@ class HtnLinter:
         cycles_found: Set[str] = set()
 
         def dfs(node: str, path: List[str]) -> bool:
+            # try/finally guarantees rec_stack/path are popped on every exit;
+            # earlier versions skipped cleanup on the early return after
+            # recording a cycle, leaking stale rec_stack entries that produced
+            # spurious cycle reports on later DFS roots.
             visited.add(node)
             rec_stack.add(node)
             path.append(node)
-
-            for callee in self.calls.get(node, []):
-                if callee not in visited:
-                    if dfs(callee, path):
-                        return True
-                elif callee in rec_stack:
-                    # Found cycle
-                    cycle_start = path.index(callee)
-                    cycle = path[cycle_start:]
-                    cycle_key = '->'.join(sorted(cycle))
-                    if cycle_key not in cycles_found:
-                        cycles_found.add(cycle_key)
-                        # Report on first node in cycle
-                        name = callee.split('/')[0]
-                        for rule in self.rules:
-                            if rule.head.name == name:
-                                cycle_names = [c.split('/')[0] for c in cycle]
-                                self.diagnostics.append(Diagnostic(
-                                    rule.line, 1, len(name), 'warning',
-                                    f"Potential infinite recursion: {' -> '.join(cycle_names)} -> {name}",
-                                    'SEM006'
-                                ))
-                                break
-                    return False
-
-            path.pop()
-            rec_stack.remove(node)
-            return False
+            try:
+                for callee in self.calls.get(node, []):
+                    if callee not in visited:
+                        if dfs(callee, path):
+                            return True
+                    elif callee in rec_stack:
+                        cycle_start = path.index(callee)
+                        cycle = path[cycle_start:]
+                        cycle_key = '->'.join(sorted(cycle))
+                        if cycle_key not in cycles_found:
+                            cycles_found.add(cycle_key)
+                            # Report on first node in cycle
+                            name = callee.split('/')[0]
+                            for rule in self.rules:
+                                if rule.head.name == name:
+                                    cycle_names = [c.split('/')[0] for c in cycle]
+                                    self.diagnostics.append(Diagnostic(
+                                        rule.line, 1, len(name), 'warning',
+                                        f"Potential infinite recursion: {' -> '.join(cycle_names)} -> {name}",
+                                        'SEM006'
+                                    ))
+                                    break
+                        return False
+                return False
+            finally:
+                path.pop()
+                rec_stack.remove(node)
 
         for node in self.calls:
             if node not in visited:
@@ -623,6 +713,87 @@ class HtnLinter:
                         f"Singleton variable '{var}' appears only once (typo?)",
                         'VAR003'
                     ))
+
+    def _check_typed_parameters(self) -> None:
+        """TYP001: constant argument violates declared signature type.
+
+        Activates only when signature/2 facts are declared. Variables and
+        compound terms are skipped. Untyped constants (no type/2 fact) at
+        a typed position are flagged.
+
+        MVP also does NOT recurse into wrappers: a call nested inside try(),
+        first(), and(), parallel(), forall(), etc. is not type-checked. Only
+        calls directly in if/do/del/add/body are inspected. Future TYP00x.
+        """
+        registry = TypeRegistry.from_rules(self.rules)
+        # Emit TYP002 for any duplicate signature/2 declarations. This fires
+        # regardless of whether any TYP001 checks actually run — the
+        # redeclaration itself is suspect.
+        for (key, line, col) in registry.duplicate_signatures:
+            pred_name = key.split('/')[0]
+            self.diagnostics.append(Diagnostic(
+                line=line,
+                col=col,
+                length=len(pred_name),
+                severity='warning',
+                code='TYP002',
+                message=f"Duplicate signature/2 declaration for '{key}' — first one wins",
+            ))
+        if not registry.signatures:
+            return
+
+        for rule in self.rules:
+            for clause_terms in self._all_call_clauses(rule):
+                for call_term in clause_terms:
+                    self._check_call_against_signature(call_term, registry)
+
+    def _all_call_clauses(self, rule: Rule):
+        """Yield iterables of call terms from a rule's if/do/del/add/body."""
+        if rule.is_method:
+            yield rule.if_clause.args if rule.if_clause else []
+            yield rule.do_clause.args if rule.do_clause else []
+        elif rule.is_operator:
+            yield rule.del_clause.args if rule.del_clause else []
+            yield rule.add_clause.args if rule.add_clause else []
+        else:
+            yield rule.body or []
+
+    def _check_call_against_signature(self, call: Term, registry: TypeRegistry) -> None:
+        if call.is_variable:
+            return
+        sig_key = f"{call.name}/{len(call.args)}"
+        expected_types = registry.signatures.get(sig_key)
+        if expected_types is None:
+            return
+        for i, (arg, expected) in enumerate(zip(call.args, expected_types)):
+            if arg.is_variable:
+                continue
+            if arg.args or arg.is_list:  # compound term or list, skip in MVP
+                continue
+            # Primitive-type carve-out: numeric literals satisfy int/float/number.
+            # Treat the three primitives interchangeably for now (future TYPxx
+            # may distinguish int from float strictness).
+            if expected in PRIMITIVE_TYPES and _is_numeric_literal(arg.name):
+                continue
+            actual_types = registry.type_of(arg.name)
+            if expected in actual_types:
+                continue
+            if not actual_types:
+                msg = (f"Argument {i+1} of '{call.name}/{len(call.args)}' expects "
+                       f"type '{expected}', got constant '{arg.name}' "
+                       f"(no type/2 declaration found)")
+            else:
+                msg = (f"Argument {i+1} of '{call.name}/{len(call.args)}' expects "
+                       f"type '{expected}', got constant '{arg.name}' "
+                       f"(declared as type '{', '.join(sorted(actual_types))}')")
+            self.diagnostics.append(Diagnostic(
+                line=arg.line,
+                col=arg.col,
+                length=len(arg.name),
+                severity='warning',
+                code='TYP001',
+                message=msg,
+            ))
 
 
 def lint_htn(source: str) -> List[Dict]:

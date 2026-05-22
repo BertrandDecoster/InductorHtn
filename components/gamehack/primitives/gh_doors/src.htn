@@ -3,6 +3,11 @@
 % Dispatches a single compound operator (opSynchronizeOnPlates) to a
 % SynchroLens in the runtime; state-only opUnlock follows.
 
+% === Signatures (for TYP001 linter) ===
+signature(opSynchronizeOnPlates, [agent, agent, plate, plate]).
+signature(opUnlock, [door]).
+signature(unlockDoor, [door]).
+
 % === Operators ===
 
 % opSynchronizeOnPlates: two allies step on two plates simultaneously.

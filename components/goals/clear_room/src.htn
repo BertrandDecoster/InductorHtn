@@ -2,6 +2,9 @@
 % Uses allOf to handle multiple enemies
 % Depends on: defeat_enemy
 
+% === Signatures (for TYP001 linter) ===
+signature(clearRoom, [room]).
+
 % === Goal Methods ===
 
 % Fallback FIRST: empty room (no enemies to defeat)

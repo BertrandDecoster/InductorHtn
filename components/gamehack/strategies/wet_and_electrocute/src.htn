@@ -1,6 +1,9 @@
 % wet_and_electrocute - Sequential strategy: apply wet then electrocute
 % Depends on: gh_tags (applyTag)
 
+% === Signatures (for TYP001 linter) ===
+signature(wetAndElectrocute, [agent]).
+
 wetAndElectrocute(?t) :-
     if(enemy(?t)),
     do(applyTag(wet, ?t), applyTag(electrocute, ?t)).

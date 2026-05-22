@@ -2,6 +2,13 @@
 % Handles aggro targeting, luring mobs to locations, and bringing mobs together
 % Depends on: gh_movement (goToLocation, opAggroMoveTo)
 
+% === Signatures (for TYP001 linter) ===
+signature(opAggro, [agent, agent]).
+signature(opRemoveAggro, [agent, agent]).
+signature(aggroTarget, [agent, agent]).
+signature(bringMobToLocation, [agent, location]).
+signature(bringMobsTogether, [agent, agent]).
+
 % === Operators ===
 
 opAggro(?t, ?a) :-

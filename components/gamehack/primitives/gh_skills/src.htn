@@ -2,6 +2,12 @@
 % Handles preparing allies to use skills, including learning skills at locations
 % Depends on: gh_movement (goToLocation, goToSameLocation)
 
+% === Signatures (for TYP001 linter) ===
+signature(opSwapSkill, [agent, skill, skill]).
+signature(opGetSkill, [agent, skill]).
+signature(prepareToUseSkill, [agent, skill, agent]).
+signature(getSkillFromLocation, [agent, location, skill]).
+
 % === Operators ===
 
 opSwapSkill(?a, ?oldSkill, ?newSkill) :-

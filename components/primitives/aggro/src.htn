@@ -2,6 +2,14 @@
 % Handles aggro (threat) between entities and following behavior
 % Depends on: locomotion (for movement)
 
+% === Signatures (for TYP001 linter) ===
+signature(opGetAggro, [entity]).
+signature(opLoseAggro, [entity]).
+signature(getAggro, [entity]).
+signature(loseAggro, [entity]).
+signature(enemyFollows, [entity, entity]).
+signature(lureToRoom, [entity, room]).
+
 % === Operators ===
 
 % Gain aggro on player (enemy now targets player)

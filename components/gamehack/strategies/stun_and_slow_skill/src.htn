@@ -1,6 +1,10 @@
 % stun_and_slow_skill - Simultaneous strategy: two allies prepare independently then sync
 % Depends on: gh_tags (useSkillOnTarget), gh_skills (prepareToUseSkill), gh_movement
 
+% === Signatures (for TYP001 linter) ===
+signature(stunAndSlowSkill, [agent]).
+signature(opSynchronize, [agent, agent]).
+
 % === Operators ===
 
 opSynchronize(?a1, ?a2) :-

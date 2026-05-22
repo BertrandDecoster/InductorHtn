@@ -2,6 +2,11 @@
 % Handles room-to-room movement at the HTN abstraction level
 % Low-level pathfinding is handled by the game engine
 
+% === Signatures (for TYP001 linter) ===
+signature(opMoveTo, [entity, room, room]).
+signature(moveTo, [entity, room]).
+signature(canReach, [entity, room]).
+
 % === Operators ===
 
 % Core movement operator: changes entity location

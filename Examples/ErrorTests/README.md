@@ -46,6 +46,12 @@ Files are named: `{category}_{specific_error}.htn`
 - `htn_empty_if_risky.htn` - Multiple always-true methods
 - `htn_try_always_fail.htn` - try() around always-failing task
 
+### Typed Parameter Errors (`typed_*`)
+TYP001: a constant argument violates the type expected by the call site's
+`signature/2` declaration (types come from `type/2` facts).
+- `typed_arg_swapped.htn` - Args passed in wrong order (cell where agent expected, and vice versa)
+- `typed_arg_untyped_constant.htn` - Constant has no `type/2` declaration but appears in a typed position
+
 ### State Invariant Errors (`invariant_*`)
 - `invariant_duplicate_position.htn` - Can place two units on same tile
 - `invariant_orphan_unit.htn` - Unit left without position

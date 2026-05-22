@@ -12,10 +12,11 @@ Commands:
 
 import argparse
 import os
+import shutil
 import sys
 import subprocess
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Tuple
 
 # Add parent directory to path for imports
@@ -41,6 +42,11 @@ def find_project_root() -> str:
 
 PROJECT_ROOT = find_project_root()
 COMPONENTS_ROOT = os.path.join(PROJECT_ROOT, "components")
+
+# Make the GUI backend importable so we can reuse HtnLinter for assemble verification.
+_BACKEND_DIR = os.path.join(PROJECT_ROOT, "gui", "backend")
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
 
 
 # =============================================================================
@@ -540,6 +546,193 @@ def cmd_status(args) -> int:
     return 0
 
 
+# =============================================================================
+# Assemble verification
+# =============================================================================
+
+VERIFY_VOLATILE_LINE_PREFIX = "% Generated:"
+
+
+def strip_volatile_lines(text: str) -> str:
+    """Drop lines that vary between assemble runs (the timestamp header).
+
+    Exposed for tests doing golden-file comparisons. Returns the text without
+    a trailing newline; callers can re-add one if needed.
+    """
+    return "\n".join(
+        line for line in text.splitlines()
+        if not line.startswith(VERIFY_VOLATILE_LINE_PREFIX)
+    )
+
+
+def _split_clauses(content: str) -> List[Tuple[int, str]]:
+    """Split HTN content into clauses; return (start_line, clause_text) pairs.
+
+    A clause ends at a top-level period (one not inside parens or single-quoted
+    atoms). Line-comments (% to end-of-line) are stripped before splitting so
+    that comment text never affects duplicate detection.
+    """
+    cleaned_lines = []
+    for line in content.splitlines():
+        idx = line.find("%")
+        if idx >= 0:
+            line = line[:idx]
+        cleaned_lines.append(line)
+    cleaned = "\n".join(cleaned_lines)
+
+    clauses: List[Tuple[int, str]] = []
+    buf: List[str] = []
+    buf_start_pos: Optional[int] = None
+    depth = 0
+    in_quote = False
+
+    for i, ch in enumerate(cleaned):
+        if buf_start_pos is None and not ch.isspace():
+            buf_start_pos = i
+        if in_quote:
+            buf.append(ch)
+            if ch == "'":
+                in_quote = False
+            continue
+        if ch == "'":
+            in_quote = True
+            buf.append(ch)
+            continue
+        if ch in "([{":
+            depth += 1
+            buf.append(ch)
+            continue
+        if ch in ")]}":
+            depth -= 1
+            buf.append(ch)
+            continue
+        if ch == "." and depth == 0:
+            text = "".join(buf).strip()
+            if text:
+                line_no = cleaned.count("\n", 0, buf_start_pos) + 1 if buf_start_pos is not None else 1
+                clauses.append((line_no, text))
+            buf = []
+            buf_start_pos = None
+            continue
+        buf.append(ch)
+
+    return clauses
+
+
+def _normalize_clause(clause: str) -> str:
+    """Collapse runs of whitespace so formatting differences don't fool dedup."""
+    return " ".join(clause.split())
+
+
+def _find_duplicate_clauses(content: str) -> List[dict]:
+    """Detect literally-identical clauses (head AND body) appearing more than once.
+
+    Same head with a different body is NOT flagged - that's the standard Prolog
+    idiom for method alternatives or base+recursive rules.
+    """
+    seen: dict = {}
+    diagnostics: List[dict] = []
+    for line, clause in _split_clauses(content):
+        norm = _normalize_clause(clause)
+        if norm in seen:
+            first = seen[norm]
+            diagnostics.append({
+                "line": line,
+                "col": 1,
+                "length": min(len(clause.split("\n", 1)[0]), 80),
+                "severity": "error",
+                "message": f"Duplicate clause (also defined on line {first})",
+                "code": "ASM001",
+            })
+        else:
+            seen[norm] = line
+    return diagnostics
+
+
+def verify_assembled(content: str, *, verbose: bool = True,
+                     skip_compile: bool = False) -> Tuple[int, int, List[dict]]:
+    """Run all verification layers on assembled HTN content.
+
+    Returns (errors, warnings, diagnostics). Each diagnostic is a dict with
+    keys: line, col, length, severity ('error'|'warning'|'info'), message, code.
+
+    Layers:
+      1. Literal-duplicate-clause detection (ASM001) - assemble-specific.
+      2. Semantic lint via gui/backend/htn_linter.HtnLinter (SEM*, VAR*, SYN*).
+      3. C++ parser round-trip via indhtnpy.HtnPlanner.HtnCompile (ASM002).
+
+    If skip_compile is True, layer 3 is omitted (useful when the C++ binding
+    isn't available, e.g. in a fresh checkout without a build).
+    """
+    diagnostics: List[dict] = []
+
+    diagnostics.extend(_find_duplicate_clauses(content))
+
+    try:
+        from htn_linter import HtnLinter  # type: ignore
+        for d in HtnLinter(content).lint():
+            diagnostics.append(d.to_dict())
+    except ImportError as e:
+        diagnostics.append({
+            "line": 0, "col": 0, "length": 0,
+            "severity": "error",
+            "message": f"Verifier could not import HtnLinter: {e}",
+            "code": "ASM998",
+        })
+    except Exception as e:
+        diagnostics.append({
+            "line": 0, "col": 0, "length": 0,
+            "severity": "error",
+            "message": f"Linter crashed: {e}",
+            "code": "ASM999",
+        })
+
+    if not skip_compile:
+        try:
+            from indhtnpy import HtnPlanner  # type: ignore
+            planner = HtnPlanner(False)
+            # Use the ?varname variant since that's the convention everywhere in
+            # this codebase. HtnCompile (without CustomVariables) expects
+            # Prolog-style capitalized variables and will reject any file using
+            # the ?x syntax.
+            error = planner.HtnCompileCustomVariables(content)
+            if error:
+                diagnostics.append({
+                    "line": 0, "col": 0, "length": 0,
+                    "severity": "error",
+                    "message": f"HtnCompile rejected the assembled output: {error.strip()}",
+                    "code": "ASM002",
+                })
+        except ImportError:
+            diagnostics.append({
+                "line": 0, "col": 0, "length": 0,
+                "severity": "warning",
+                "message": "indhtnpy not importable; skipped C++ parser round-trip",
+                "code": "ASM003",
+            })
+        except Exception as e:
+            diagnostics.append({
+                "line": 0, "col": 0, "length": 0,
+                "severity": "error",
+                "message": f"HtnCompile crashed: {e}",
+                "code": "ASM002",
+            })
+
+    errors = sum(1 for d in diagnostics if d["severity"] == "error")
+    warnings = sum(1 for d in diagnostics if d["severity"] == "warning")
+
+    if verbose:
+        print(f"\nVerify: {errors} errors, {warnings} warnings")
+        for d in diagnostics:
+            tag = ("ERROR" if d["severity"] == "error"
+                   else ("WARN " if d["severity"] == "warning" else "INFO "))
+            loc = f"line {d['line']:>4}" if d.get("line") else "        "
+            code = d.get("code") or ""
+            print(f"  {tag} {code:<8} {loc}:  {d['message']}")
+
+    return errors, warnings, diagnostics
+
+
 def cmd_assemble(args) -> int:
     """Assemble a level into a single HTN file."""
     level_path = args.level
@@ -615,14 +808,49 @@ def cmd_assemble(args) -> int:
         assembled_content.append("% === Level-specific content ===")
         assembled_content.append(content)
 
+    # Build final content as a single string (writes happen later, after verify).
+    final_content = '\n'.join(assembled_content)
+
+    # Verify unless explicitly skipped.
+    no_verify = getattr(args, 'no_verify', False)
+    verify_only = getattr(args, 'verify_only', False)
+    skip_compile = getattr(args, 'skip_compile_check', False)
+
+    if not no_verify:
+        errors, warnings, _ = verify_assembled(
+            final_content, verbose=True, skip_compile=skip_compile,
+        )
+        if errors > 0:
+            print(f"\nVerification failed: {errors} error(s). Output not written.")
+            print("(Use --no-verify to write anyway.)")
+            return 2
+
+    if verify_only:
+        print(f"\n[--verify-only] Skipped writing output.")
+        print(f"Components loaded: {len(loaded)}")
+        return 0
+
     # Write output
-    if not output_path:
-        output_path = os.path.join(full_path, f"{os.path.basename(level_path)}_assembled.htn")
+    if output_path:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(final_content)
+        print(f"\nAssembled to: {output_path}")
+    else:
+        level_name = os.path.basename(level_path.rstrip("/\\"))
+        out_dir = os.path.join(PROJECT_ROOT, "assembled", level_name)
+        os.makedirs(out_dir, exist_ok=True)
 
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(assembled_content))
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
+        timestamped_path = os.path.join(out_dir, f"{timestamp}.htn")
+        latest_path = os.path.join(out_dir, "latest.htn")
 
-    print(f"\nAssembled to: {output_path}")
+        with open(timestamped_path, 'w', encoding='utf-8') as f:
+            f.write(final_content)
+        shutil.copyfile(timestamped_path, latest_path)
+
+        print(f"\nAssembled to: {timestamped_path}")
+        print(f"Latest:       {latest_path}")
+
     print(f"Components loaded: {len(loaded)}")
 
     return 0
@@ -2058,6 +2286,18 @@ Examples:
     assemble_parser = subparsers.add_parser("assemble", help="Assemble level")
     assemble_parser.add_argument("level", help="Level path")
     assemble_parser.add_argument("-o", "--output", help="Output file path")
+    assemble_parser.add_argument(
+        "--no-verify", action="store_true", dest="no_verify",
+        help="Skip post-assembly verification (write output unconditionally).",
+    )
+    assemble_parser.add_argument(
+        "--verify-only", action="store_true", dest="verify_only",
+        help="Run verification without writing the output file.",
+    )
+    assemble_parser.add_argument(
+        "--skip-compile-check", action="store_true", dest="skip_compile_check",
+        help="Skip the C++ HtnCompile round-trip during verification.",
+    )
     assemble_parser.set_defaults(func=cmd_assemble)
 
     # coverage command

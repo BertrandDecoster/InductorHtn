@@ -327,6 +327,25 @@ def run_htn_specific_tests(suite: LinterTestSuite):
     )
 
 
+def run_typed_parameter_tests(suite: LinterTestSuite):
+    """Test typed-parameter (TYP001) error detection"""
+    print("\n--- Typed Parameter Tests ---")
+
+    suite.assert_detects_error(
+        'typed_arg_swapped.htn',
+        expected_code='TYP001',
+        expected_severity='warning',
+        msg="Should detect swapped agent/cell args in moveTo call"
+    )
+
+    suite.assert_detects_error(
+        'typed_arg_untyped_constant.htn',
+        expected_code='TYP001',
+        expected_severity='warning',
+        msg="Should detect constant with no type/2 declaration in typed position"
+    )
+
+
 def run_good_file_tests(suite: LinterTestSuite):
     """Test that good files don't produce errors"""
     print("\n--- Good File Tests (should have no errors) ---")
@@ -363,6 +382,7 @@ def main():
     run_variable_error_tests(suite)
     run_semantic_error_tests(suite)
     run_htn_specific_tests(suite)
+    run_typed_parameter_tests(suite)
     run_good_file_tests(suite)
 
     print(suite.summary())

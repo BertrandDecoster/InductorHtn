@@ -100,7 +100,77 @@ trace <level> [--goal GOAL]      # Decomposition tree visualization
 # Batch Operations:
 test-all [--layer <layer>]       # Run all component tests
 verify <level>                   # Full level verification (assemble + certify deps + test)
+
+# Assembly:
+assemble <level> [-o <path>]     # Assemble level + deps into a single .htn
+  [--no-verify]                  #   write output without running the verifier
+  [--verify-only]                #   run the verifier but skip writing output
+  [--skip-compile-check]         #   skip layer 3 (C++ HtnCompile round-trip)
 ```
+
+### Assemble output layout
+
+Without `-o`, `assemble` writes to `assembled/<level>/<UTC-timestamp>.htn`
+and refreshes `assembled/<level>/latest.htn`. The `assembled/` directory is
+gitignored — committed goldens live under `tests/fixtures/assembled/<level>.htn`.
+
+### Assembly verifier
+
+`assemble` runs a 3-layer verifier on the concatenated output before writing
+(unless `--no-verify` is passed). Errors block the write and exit non-zero (2):
+
+| Layer | Codes | What it catches |
+|-------|-------|-----------------|
+| 1. literal-duplicate clauses | `ASM001` | Same head AND body defined twice (ignores whitespace and trailing comments) |
+| 2. semantic lint | `SEM*`, `VAR*`, `SYN*`, `TYP*` | Undefined tasks, unused vars, syntax shape, typed-parameter mismatches — via `gui/backend/htn_linter.py` |
+| 3. C++ parser round-trip | `ASM002` | Anything the engine itself would reject; uses `HtnPlanner.HtnCompileCustomVariables` (`?varname` syntax) |
+
+Codes `ASM003`/`ASM998`/`ASM999` are infrastructure warnings (binding missing,
+linter import or runtime failure).
+
+### Typed parameters (TYP001)
+
+Components and levels may opt into argument type-checking by declaring two
+conventional facts:
+
+```prolog
+type(typeName, instance).
+signature(predName, [argType1, argType2, ...]).
+```
+
+The engine treats both as ordinary facts and never queries them at planning
+time — they exist purely for the linter to read.
+
+`TYP001` (warning) fires when a *constant* argument at a typed call site is
+declared as a different type, or has no `type/2` declaration at all.
+Variables and compound terms are not yet checked. Calls nested inside
+wrappers (`try()`, `first()`, `and()`, `parallel()`, `forall()`) are also
+not recursed into in the MVP — only calls directly in `if`/`do`/`del`/`add`
+clauses are inspected. Rulesets with no `signature/2` declarations get no
+TYP* diagnostics — the rule is fully opt-in.
+
+`TYP002` (warning) fires when the same `predName/arity` appears in two
+`signature/2` facts. The first declaration wins; the rest are reported as
+redundant.
+
+Numeric literals (integers and floats, including negatives) satisfy the
+three built-in primitive types `int`, `float`, and `number`
+interchangeably — no `type(int, 5)` fact required. User-declared types
+layer on top: declaring `type(int, myConstant)` still works for non-numeric
+constants.
+
+The puzzle1 path (`components/primitives/`, `components/strategies/`,
+`components/goals/`) and the gamehack path (`components/gamehack/`) are
+**separate type namespaces** by design. Both declare `signature(opMoveTo,
+...)` with different argument types (`entity`/`room` vs `agent`/`location`)
+to match their respective domain shapes. They are not meant to co-assemble
+into a single level; if a future level depends on both, rename the
+gamehack operator first to avoid the duplicate-signature collision.
+
+Example fixtures live under `Examples/ErrorTests/typed_arg_swapped.htn` and
+`Examples/ErrorTests/typed_arg_untyped_constant.htn`. Example annotations
+live in `components/primitives/*/src.htn` (signatures) and
+`levels/puzzle1/level.htn` (type instances).
 
 ### Test Naming Convention
 

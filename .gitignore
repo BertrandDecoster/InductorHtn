@@ -8,3 +8,6 @@ __pycache__/
 *.dll
 .claude/settings.local.json
 *.dylib
+
+# Default output of `htn_components assemble` (goldens live under tests/fixtures/).
+/assembled/

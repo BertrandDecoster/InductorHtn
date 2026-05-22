@@ -2,6 +2,9 @@
 % Mission: unlock door1, then damage gob1. The enemy and door are named
 % explicitly because this goal is scoped to one authored level.
 
+% === Signatures (for TYP001 linter) ===
+signature(completeToyLevel, []).
+
 completeToyLevel() :- if(locked(door1), enemy(gob1)),
     do(unlockDoor(door1), planToDamage(gob1)).
 
