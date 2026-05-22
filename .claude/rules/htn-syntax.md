@@ -79,6 +79,46 @@ Operators marked `hidden` are excluded from final plan output. Used for internal
 hidden, updateInternalState() :- del(old), add(new).
 ```
 
+### Numeric fluent effects (`increase` / `decrease`)
+
+For facts of shape `pred(arg1, ..., argN, value)` where `value` is numeric, operators may modify the value directly:
+
+```prolog
+opGain(?n) :- increase(score(player), ?n).
+opLose(?n) :- decrease(score(player), ?n).
+opSwap(?a, ?b) :- decrease(mana(?a), 10), increase(mana(?b), 10).
+opTransact(?cost) :- decrease(gold(player), ?cost), add(spent(true)).
+```
+
+Semantics: at apply time, the engine finds the unique fact matching `pred(arg1, ..., argN, ?value)`, evaluates the delta expression using the same arithmetic engine as `is/2` (so `+`, `-`, `*`, `/`, `abs`, etc. all work), removes the matched fact, and adds the replacement with `value ± delta`.
+
+Effect ordering within one operator: all `del()` removals, then all `increase`/`decrease`, then all `add()` additions.
+
+The delta expression can reference any variable bound by the calling method's precondition:
+```prolog
+spendByRate :- if(rate(?r)), do(opSpend(?r)).
+opSpend(?cost) :- decrease(mana(player), *(?cost, 2)).
+```
+
+Failure modes (operator becomes inapplicable, planner backtracks):
+- No fact matches the head pattern.
+- More than one fact matches.
+- The matched fact's last argument is not numeric.
+
+This is sugar for the verbose pattern using `del` + `add` + `is/2`:
+```prolog
+% Verbose
+spend(?c) :- if(mana(player, ?o), is(?n, -(?o, ?c))),
+             do(opSpendV(?o, ?n)).
+opSpendV(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)).
+
+% Concise (observably equivalent — see HtnNumericFluentTests::FluentEquivalentToDelAdd_BasicSpendAndGain)
+spend(?c) :- if(), do(opSpendC(?c)).
+opSpendC(?c) :- decrease(mana(player), ?c).
+```
+
+Both forms produce identical final state. Prefer the concise form for new code.
+
 ## Special Constructs
 
 ### try() - Optional Execution

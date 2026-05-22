@@ -71,6 +71,7 @@ travel(?from, ?to) :- if(at(?from)), do(walk(?from, ?to)).
 ### HTN Syntax
 - **Methods**: `task() :- if(conditions), do(subtasks).`
 - **Operators**: `action() :- del(remove), add(insert).`
+- **Numeric effects**: `increase(pred(args), delta)` / `decrease(pred(args), delta)` for fluent value updates (see `.claude/rules/htn-syntax.md`)
 - **Modifiers**: `else`, `anyOf`, `allOf`, `hidden`
 - **Parallel**: `parallel(taskA, taskB, ...)` - marks tasks for parallel execution
 
