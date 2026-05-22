@@ -79,6 +79,49 @@ class SymbolInfo:
     callers: List[str] = field(default_factory=list)
 
 
+@dataclass
+class TypeRegistry:
+    """Collects type/2 and signature/2 declarations from a parsed ruleset.
+
+    Conventions (recognized only by the linter; engine treats as ordinary facts):
+      - type(typeName, instance).
+      - signature(predName, [argType1, argType2, ...]).
+    """
+    types: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
+    signatures: Dict[str, List[str]] = field(default_factory=dict)
+
+    @classmethod
+    def from_source(cls, source: str) -> 'TypeRegistry':
+        from htn_parser import parse_htn
+        rules, _ = parse_htn(source)
+        return cls.from_rules(rules)
+
+    @classmethod
+    def from_rules(cls, rules) -> 'TypeRegistry':
+        reg = cls()
+        for rule in rules:
+            head = rule.head
+            # Only facts (no body)
+            if rule.body:
+                continue
+            if head.name == 'type' and len(head.args) == 2:
+                if not head.args[0].is_variable and not head.args[1].is_variable:
+                    type_name = head.args[0].name
+                    instance = head.args[1].name
+                    reg.types[type_name].add(instance)
+            elif head.name == 'signature' and len(head.args) == 2:
+                pred_name = head.args[0].name
+                arg_list = head.args[1]
+                if arg_list.is_list:
+                    types = [t.name for t in arg_list.args if not t.is_variable]
+                    if len(types) == len(arg_list.args):  # all concrete
+                        reg.signatures[f"{pred_name}/{len(types)}"] = types
+        return reg
+
+    def type_of(self, instance: str) -> Set[str]:
+        return {t for t, members in self.types.items() if instance in members}
+
+
 class HtnLinter:
     """Linter for HTN/Prolog files"""
 
