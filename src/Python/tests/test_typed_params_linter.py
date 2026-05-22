@@ -87,6 +87,67 @@ def test_type_facts_with_body_are_excluded():
     assert reg.types == {}
 
 
+def _diag_codes(diags):
+    return [d.get('code') if isinstance(d, dict) else d.code for d in diags]
+
+
+def test_typ001_clean_call_no_diagnostic():
+    src = """
+    type(agent, player).
+    type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    goalA :- if(), do(moveTo(player, c5)).
+    """
+    diags = HtnLinter(src).lint()
+    assert 'TYP001' not in _diag_codes(diags)
+
+
+def test_typ001_swapped_args_flagged():
+    src = """
+    type(agent, player).
+    type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    goalA :- if(), do(moveTo(c5, player)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert len(typ_diags) == 2  # both args wrong
+
+
+def test_typ001_untyped_constant_flagged():
+    src = """
+    type(agent, player).
+    type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    goalA :- if(), do(moveTo(wat, c5)).
+    """
+    diags = HtnLinter(src).lint()
+    assert 'TYP001' in _diag_codes(diags)
+
+
+def test_typ001_variable_arg_skipped():
+    src = """
+    type(agent, player).
+    type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    move(?x, ?y) :- if(), do(moveTo(?x, ?y)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_typ001_no_signature_no_diagnostic():
+    src = """
+    type(agent, player).
+    type(cell, c5).
+    goalA :- if(), do(moveTo(c5, player)).
+    """
+    # No signature(moveTo, ...) declared → rule does not engage
+    diags = HtnLinter(src).lint()
+    assert 'TYP001' not in _diag_codes(diags)
+
+
 if __name__ == '__main__':
     test_empty_source_yields_empty_registry()
     test_extracts_type_facts()
@@ -96,4 +157,9 @@ if __name__ == '__main__':
     test_instance_belongs_to_multiple_types()
     test_signature_with_variable_in_list_is_dropped()
     test_type_facts_with_body_are_excluded()
-    print("All TypeRegistry tests passed.")
+    test_typ001_clean_call_no_diagnostic()
+    test_typ001_swapped_args_flagged()
+    test_typ001_untyped_constant_flagged()
+    test_typ001_variable_arg_skipped()
+    test_typ001_no_signature_no_diagnostic()
+    print("All TypeRegistry + TYP001 tests passed.")

@@ -178,6 +178,7 @@ class HtnLinter:
         self._check_else_usage()
         self._check_empty_clauses()
         self._check_singleton_variables()
+        self._check_typed_parameters()
 
         return self.diagnostics
 
@@ -674,6 +675,65 @@ class HtnLinter:
                         f"Singleton variable '{var}' appears only once (typo?)",
                         'VAR003'
                     ))
+
+    def _check_typed_parameters(self) -> None:
+        """TYP001: constant argument violates declared signature type.
+
+        Activates only when signature/2 facts are declared. Variables and
+        compound terms are skipped. Untyped constants (no type/2 fact) at
+        a typed position are flagged.
+        """
+        registry = TypeRegistry.from_rules(self.rules)
+        if not registry.signatures:
+            return
+
+        for rule in self.rules:
+            for clause_terms in self._all_call_clauses(rule):
+                for call_term in clause_terms:
+                    self._check_call_against_signature(call_term, registry)
+
+    def _all_call_clauses(self, rule: Rule):
+        """Yield iterables of call terms from a rule's if/do/del/add/body."""
+        if rule.is_method:
+            yield rule.if_clause.args if rule.if_clause else []
+            yield rule.do_clause.args if rule.do_clause else []
+        elif rule.is_operator:
+            yield rule.del_clause.args if rule.del_clause else []
+            yield rule.add_clause.args if rule.add_clause else []
+        else:
+            yield rule.body or []
+
+    def _check_call_against_signature(self, call: Term, registry: TypeRegistry) -> None:
+        if call.is_variable:
+            return
+        sig_key = f"{call.name}/{len(call.args)}"
+        expected_types = registry.signatures.get(sig_key)
+        if expected_types is None:
+            return
+        for i, (arg, expected) in enumerate(zip(call.args, expected_types)):
+            if arg.is_variable:
+                continue
+            if arg.args:  # compound term, skip in MVP
+                continue
+            actual_types = registry.type_of(arg.name)
+            if expected in actual_types:
+                continue
+            if not actual_types:
+                msg = (f"Argument {i+1} of '{call.name}/{len(call.args)}' expects "
+                       f"type '{expected}', got constant '{arg.name}' "
+                       f"(no type/2 declaration found)")
+            else:
+                msg = (f"Argument {i+1} of '{call.name}/{len(call.args)}' expects "
+                       f"type '{expected}', got constant '{arg.name}' "
+                       f"(declared as type '{', '.join(sorted(actual_types))}')")
+            self.diagnostics.append(Diagnostic(
+                line=arg.line,
+                col=arg.col,
+                length=len(arg.name),
+                severity='error',
+                code='TYP001',
+                message=msg,
+            ))
 
 
 def lint_htn(source: str) -> List[Dict]:
