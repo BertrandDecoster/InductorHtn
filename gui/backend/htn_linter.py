@@ -92,12 +92,11 @@ class TypeRegistry:
 
     @classmethod
     def from_source(cls, source: str) -> 'TypeRegistry':
-        from htn_parser import parse_htn
         rules, _ = parse_htn(source)
         return cls.from_rules(rules)
 
     @classmethod
-    def from_rules(cls, rules) -> 'TypeRegistry':
+    def from_rules(cls, rules: List[Rule]) -> 'TypeRegistry':
         reg = cls()
         for rule in rules:
             head = rule.head
@@ -105,11 +104,17 @@ class TypeRegistry:
             if rule.body:
                 continue
             if head.name == 'type' and len(head.args) == 2:
+                # Skip compound terms — only atomic type names and instances allowed
+                if head.args[0].args or head.args[1].args:
+                    continue
                 if not head.args[0].is_variable and not head.args[1].is_variable:
                     type_name = head.args[0].name
                     instance = head.args[1].name
                     reg.types[type_name].add(instance)
             elif head.name == 'signature' and len(head.args) == 2:
+                # Skip compound predicate names — only atomic names allowed
+                if head.args[0].args:
+                    continue
                 pred_name = head.args[0].name
                 arg_list = head.args[1]
                 if arg_list.is_list:

@@ -50,9 +50,50 @@ def test_type_lookup():
     assert reg.type_of('unknown') == set()
 
 
+def test_signature_arities():
+    """Arity is derived from the type list, not hardcoded to 2."""
+    src = """
+    signature(noargs, []).
+    signature(one, [agent]).
+    signature(three, [agent, cell, tag]).
+    """
+    reg = TypeRegistry.from_source(src)
+    assert reg.signatures == {
+        'noargs/0': [],
+        'one/1': ['agent'],
+        'three/3': ['agent', 'cell', 'tag'],
+    }
+
+
+def test_instance_belongs_to_multiple_types():
+    src = "type(agent, x). type(target, x)."
+    reg = TypeRegistry.from_source(src)
+    assert reg.type_of('x') == {'agent', 'target'}
+
+
+def test_signature_with_variable_in_list_is_dropped():
+    src = "signature(bad, [agent, ?Wat])."
+    reg = TypeRegistry.from_source(src)
+    assert reg.signatures == {}
+
+
+def test_type_facts_with_body_are_excluded():
+    """Rules with bodies are not facts; do not register as type declarations."""
+    src = """
+    type(agent, ?X) :- player(?X).
+    player(p).
+    """
+    reg = TypeRegistry.from_source(src)
+    assert reg.types == {}
+
+
 if __name__ == '__main__':
     test_empty_source_yields_empty_registry()
     test_extracts_type_facts()
     test_extracts_signature_facts()
     test_type_lookup()
+    test_signature_arities()
+    test_instance_belongs_to_multiple_types()
+    test_signature_with_variable_in_list_is_dropped()
+    test_type_facts_with_body_are_excluded()
     print("All TypeRegistry tests passed.")
