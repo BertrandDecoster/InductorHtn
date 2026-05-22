@@ -334,13 +334,14 @@ def run_typed_parameter_tests(suite: LinterTestSuite):
     suite.assert_detects_error(
         'typed_arg_swapped.htn',
         expected_code='TYP001',
-        expected_severity='error',
+        expected_severity='warning',
         msg="Should detect swapped agent/cell args in moveTo call"
     )
 
     suite.assert_detects_error(
         'typed_arg_untyped_constant.htn',
         expected_code='TYP001',
+        expected_severity='warning',
         msg="Should detect constant with no type/2 declaration in typed position"
     )
 

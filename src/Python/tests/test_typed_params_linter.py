@@ -221,6 +221,110 @@ def test_no_false_positives_on_type_signature_facts():
         assert code not in bad_codes, f"unexpected diagnostic: code={code} line={line} msg={msg!r}"
 
 
+# --- F1: primitive-type carve-out ---------------------------------------
+
+def test_typ001_numeric_int_at_int_position_no_diagnostic():
+    src = """
+    type(agent, player).
+    signature(damage, [agent, int]).
+    goal :- if(), do(damage(player, 5)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_typ001_numeric_negative_int_no_diagnostic():
+    src = """
+    type(agent, player).
+    signature(damage, [agent, int]).
+    goal :- if(), do(damage(player, -3)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_typ001_numeric_float_at_number_position_no_diagnostic():
+    src = """
+    type(agent, player).
+    signature(scale, [agent, float]).
+    goal :- if(), do(scale(player, 2.5)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_typ001_numeric_at_non_numeric_position_still_flagged():
+    """Primitive carve-out does NOT apply when expected type is a user-declared type."""
+    src = """
+    type(agent, player).
+    signature(damage, [agent, agent]).
+    goal :- if(), do(damage(player, 5)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert len(typ_diags) == 1  # the '5' arg should still fire
+
+
+# --- F2: list arguments --------------------------------------------------
+
+def test_typ001_empty_list_arg_skipped():
+    src = """
+    type(agent, player).
+    signature(setMembers, [memberSet]).
+    goal :- if(), do(setMembers([])).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_typ001_nonempty_list_arg_skipped():
+    src = """
+    type(agent, player). type(agent, gob1).
+    signature(setMembers, [memberSet]).
+    goal :- if(), do(setMembers([player, gob1])).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_type_registry_rejects_list_as_instance():
+    """type(agent, []) should NOT register '[]' as an agent instance."""
+    src = "type(agent, [])."
+    reg = TypeRegistry.from_source(src)
+    assert reg.types == {}  # nothing registered
+
+
+# --- F4: duplicate signature --------------------------------------------
+
+def test_typ002_duplicate_signature_warned():
+    src = """
+    signature(moveTo, [agent, cell]).
+    signature(moveTo, [cell, agent]).
+    """
+    diags = HtnLinter(src).lint()
+    typ002 = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP002']
+    assert len(typ002) == 1
+
+
+def test_typ001_first_signature_wins():
+    """When duplicates exist, the first declaration is used for checking."""
+    src = """
+    type(agent, player). type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    signature(moveTo, [cell, agent]).
+    goal :- if(), do(moveTo(player, c5)).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    # If first signature wins, moveTo(player, c5) matches [agent, cell] → no TYP001.
+    assert typ_diags == []
+
+
 if __name__ == '__main__':
     test_empty_source_yields_empty_registry()
     test_extracts_type_facts()
@@ -241,4 +345,16 @@ if __name__ == '__main__':
     test_typ001_mvp_skips_calls_inside_try()
     test_typ001_diagnostic_points_at_argument()
     test_no_false_positives_on_type_signature_facts()
-    print("All TypeRegistry + TYP001 tests passed.")
+    # F1: primitive-type carve-out
+    test_typ001_numeric_int_at_int_position_no_diagnostic()
+    test_typ001_numeric_negative_int_no_diagnostic()
+    test_typ001_numeric_float_at_number_position_no_diagnostic()
+    test_typ001_numeric_at_non_numeric_position_still_flagged()
+    # F2: list arguments
+    test_typ001_empty_list_arg_skipped()
+    test_typ001_nonempty_list_arg_skipped()
+    test_type_registry_rejects_list_as_instance()
+    # F4: duplicate signature
+    test_typ002_duplicate_signature_warned()
+    test_typ001_first_signature_wins()
+    print("All TypeRegistry + TYP001/TYP002 tests passed.")

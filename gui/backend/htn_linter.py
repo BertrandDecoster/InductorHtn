@@ -79,6 +79,23 @@ class SymbolInfo:
     callers: List[str] = field(default_factory=list)
 
 
+# Built-in primitive types recognized at signature/2 positions without
+# requiring a user-declared type/2 fact. Numeric literals (ints, floats,
+# negatives) at these positions are accepted by the TYP001 check.
+PRIMITIVE_TYPES = {'int', 'float', 'number'}
+
+
+def _is_numeric_literal(name: str) -> bool:
+    """True if name parses as a number (handles ints, floats, negatives)."""
+    if not name:
+        return False
+    try:
+        float(name)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
 @dataclass
 class TypeRegistry:
     """Collects type/2 and signature/2 declarations from a parsed ruleset.
@@ -89,9 +106,19 @@ class TypeRegistry:
     """
     types: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
     signatures: Dict[str, List[str]] = field(default_factory=dict)
+    # Duplicate signature/2 declarations: (predName/arity, line, col) of the
+    # redundant fact. The first declaration wins; later ones are recorded here
+    # so the linter can emit TYP002 diagnostics.
+    duplicate_signatures: List[Tuple[str, int, int]] = field(default_factory=list)
 
     @classmethod
     def from_source(cls, source: str) -> 'TypeRegistry':
+        """Convenience: parse `source` then delegate to `from_rules`.
+
+        Note: parser diagnostics are silently discarded. For diagnostic-aware
+        workflows (e.g. `HtnLinter`), parse externally and use `from_rules` so
+        parse errors surface to the caller.
+        """
         rules, _ = parse_htn(source)
         return cls.from_rules(rules)
 
@@ -104,8 +131,11 @@ class TypeRegistry:
             if rule.body:
                 continue
             if head.name == 'type' and len(head.args) == 2:
-                # Skip compound terms — only atomic type names and instances allowed
-                if head.args[0].args or head.args[1].args:
+                # Skip compound terms and lists — only atomic type names and
+                # instances are allowed. `type(agent, [])` must not register
+                # '[]' as an agent instance.
+                if (head.args[0].args or head.args[0].is_list
+                        or head.args[1].args or head.args[1].is_list):
                     continue
                 if not head.args[0].is_variable and not head.args[1].is_variable:
                     type_name = head.args[0].name
@@ -120,7 +150,15 @@ class TypeRegistry:
                 if arg_list.is_list:
                     types = [t.name for t in arg_list.args if not t.is_variable]
                     if len(types) == len(arg_list.args):  # all concrete
-                        reg.signatures[f"{pred_name}/{len(types)}"] = types
+                        key = f"{pred_name}/{len(types)}"
+                        if key in reg.signatures:
+                            # First declaration wins; record the duplicate for
+                            # diagnostic emission (TYP002).
+                            reg.duplicate_signatures.append(
+                                (key, head.args[0].line, head.args[0].col)
+                            )
+                        else:
+                            reg.signatures[key] = types
         return reg
 
     def type_of(self, instance: str) -> Set[str]:
@@ -688,6 +726,19 @@ class HtnLinter:
         calls directly in if/do/del/add/body are inspected. Future TYP00x.
         """
         registry = TypeRegistry.from_rules(self.rules)
+        # Emit TYP002 for any duplicate signature/2 declarations. This fires
+        # regardless of whether any TYP001 checks actually run — the
+        # redeclaration itself is suspect.
+        for (key, line, col) in registry.duplicate_signatures:
+            pred_name = key.split('/')[0]
+            self.diagnostics.append(Diagnostic(
+                line=line,
+                col=col,
+                length=len(pred_name),
+                severity='warning',
+                code='TYP002',
+                message=f"Duplicate signature/2 declaration for '{key}' — first one wins",
+            ))
         if not registry.signatures:
             return
 
@@ -717,7 +768,12 @@ class HtnLinter:
         for i, (arg, expected) in enumerate(zip(call.args, expected_types)):
             if arg.is_variable:
                 continue
-            if arg.args:  # compound term, skip in MVP
+            if arg.args or arg.is_list:  # compound term or list, skip in MVP
+                continue
+            # Primitive-type carve-out: numeric literals satisfy int/float/number.
+            # Treat the three primitives interchangeably for now (future TYPxx
+            # may distinguish int from float strictness).
+            if expected in PRIMITIVE_TYPES and _is_numeric_literal(arg.name):
                 continue
             actual_types = registry.type_of(arg.name)
             if expected in actual_types:
@@ -734,7 +790,7 @@ class HtnLinter:
                 line=arg.line,
                 col=arg.col,
                 length=len(arg.name),
-                severity='error',
+                severity='warning',
                 code='TYP001',
                 message=msg,
             ))
