@@ -34,14 +34,16 @@ LEVELS = [
 ]
 
 
-# Strip whole-line `type(...)` or `signature(...)` facts only.
+# Strip whole-line `type/2` or `signature/2` facts only.
 #
 # A "fact line" here is a line whose entire content (modulo leading
-# whitespace) is `type(...).` or `signature(...).`, with optional trailing
+# whitespace) is `type(_,_).` or `signature(_,_).`, with optional trailing
 # whitespace. This deliberately does NOT match the same functors appearing
 # inside method/operator bodies (e.g. `if(type(?x, agent))`) — those are
-# calls, not facts, and we must not touch them.
-FACT_LINE_RE = re.compile(r'^\s*(type|signature)\s*\(.*\)\s*\.\s*$')
+# calls, not facts, and we must not touch them. The required comma rules
+# out unary `type(x).` facts that some future ruleset might use for an
+# unrelated purpose.
+FACT_LINE_RE = re.compile(r'^\s*(type|signature)\s*\(\s*[^,]+,\s*.+\)\s*\.\s*$')
 
 
 def strip_type_signature_facts(source: str) -> str:
@@ -102,13 +104,15 @@ def _assert_plans_equivalent(level_file: str):
     stripped = strip_type_signature_facts(full)
 
     # Sanity: stripping must actually remove something — otherwise the test
-    # isn't proving anything.
-    assert 'signature(' in full, f"{level_file}: expected signature(...) facts in source"
-    assert 'type(' in full, f"{level_file}: expected type(...) facts in source"
-    assert 'signature(' not in stripped, \
-        f"{level_file}: stripping should have removed all signature(...) lines"
-    assert 'type(' not in stripped, \
-        f"{level_file}: stripping should have removed all type(...) lines"
+    # isn't proving anything. Count fact-shaped lines, not raw substring
+    # occurrences, so a future `if(type(?x, agent))` call inside a method
+    # body doesn't confuse the check.
+    fact_lines_before = sum(1 for ln in full.splitlines() if FACT_LINE_RE.match(ln))
+    fact_lines_after = sum(1 for ln in stripped.splitlines() if FACT_LINE_RE.match(ln))
+    assert fact_lines_before > 0, \
+        f"{level_file}: expected at least one type/signature fact line in source"
+    assert fact_lines_after == 0, \
+        f"{level_file}: stripping should have removed every type/signature fact line"
 
     plans_with = find_plans_json(full)
     plans_without = find_plans_json(stripped)

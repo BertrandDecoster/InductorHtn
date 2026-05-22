@@ -141,16 +141,36 @@ signature(predName, [argType1, argType2, ...]).
 The engine treats both as ordinary facts and never queries them at planning
 time — they exist purely for the linter to read.
 
-`TYP001` fires when a *constant* argument at a typed call site is declared as
-a different type, or has no `type/2` declaration at all. Variables and
-compound terms are not yet checked. Calls nested inside wrappers (`try()`,
-`first()`, `and()`, `parallel()`, `forall()`) are also not recursed into in
-the MVP — only calls directly in `if`/`do`/`del`/`add` clauses are inspected.
-Rulesets with no `signature/2` declarations get no TYP* diagnostics — the
-rule is fully opt-in.
+`TYP001` (warning) fires when a *constant* argument at a typed call site is
+declared as a different type, or has no `type/2` declaration at all.
+Variables and compound terms are not yet checked. Calls nested inside
+wrappers (`try()`, `first()`, `and()`, `parallel()`, `forall()`) are also
+not recursed into in the MVP — only calls directly in `if`/`do`/`del`/`add`
+clauses are inspected. Rulesets with no `signature/2` declarations get no
+TYP* diagnostics — the rule is fully opt-in.
+
+`TYP002` (warning) fires when the same `predName/arity` appears in two
+`signature/2` facts. The first declaration wins; the rest are reported as
+redundant.
+
+Numeric literals (integers and floats, including negatives) satisfy the
+three built-in primitive types `int`, `float`, and `number`
+interchangeably — no `type(int, 5)` fact required. User-declared types
+layer on top: declaring `type(int, myConstant)` still works for non-numeric
+constants.
+
+The puzzle1 path (`components/primitives/`, `components/strategies/`,
+`components/goals/`) and the gamehack path (`components/gamehack/`) are
+**separate type namespaces** by design. Both declare `signature(opMoveTo,
+...)` with different argument types (`entity`/`room` vs `agent`/`location`)
+to match their respective domain shapes. They are not meant to co-assemble
+into a single level; if a future level depends on both, rename the
+gamehack operator first to avoid the duplicate-signature collision.
 
 Example fixtures live under `Examples/ErrorTests/typed_arg_swapped.htn` and
-`Examples/ErrorTests/typed_arg_untyped_constant.htn`.
+`Examples/ErrorTests/typed_arg_untyped_constant.htn`. Example annotations
+live in `components/primitives/*/src.htn` (signatures) and
+`levels/puzzle1/level.htn` (type instances).
 
 ### Test Naming Convention
 
