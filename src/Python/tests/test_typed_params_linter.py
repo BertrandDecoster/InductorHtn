@@ -202,6 +202,25 @@ def test_typ001_diagnostic_points_at_argument():
     assert _attr(typ_diags[1], 'length') == 6    # 'player'
 
 
+def test_no_false_positives_on_type_signature_facts():
+    """type/2 and signature/2 are conventional facts; existing linter rules
+    must not flag them as undefined/arity-conflicting/singleton."""
+    src = """
+    type(agent, player).
+    type(agent, gob1).
+    type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    signature(applyTag, [agent, tag]).
+    """
+    diags = HtnLinter(src).lint()
+    bad_codes = {'SEM001', 'SEM003', 'VAR003'}
+    for d in diags:
+        code = d.get('code') if isinstance(d, dict) else d.code
+        msg = d.get('message') if isinstance(d, dict) else d.message
+        line = d.get('line') if isinstance(d, dict) else d.line
+        assert code not in bad_codes, f"unexpected diagnostic: code={code} line={line} msg={msg!r}"
+
+
 if __name__ == '__main__':
     test_empty_source_yields_empty_registry()
     test_extracts_type_facts()
@@ -221,4 +240,5 @@ if __name__ == '__main__':
     test_typ001_fires_in_operator_add()
     test_typ001_mvp_skips_calls_inside_try()
     test_typ001_diagnostic_points_at_argument()
+    test_no_false_positives_on_type_signature_facts()
     print("All TypeRegistry + TYP001 tests passed.")
