@@ -540,4 +540,202 @@ SUITE(HtnNumericFluentTests)
         CHECK(h.HasFact("gold(player,65)"));
         CHECK(!h.HasFact("gold(player,50)"));
     }
+
+    // ============================================================
+    // Task 4: Equivalence with verbose del/add pattern
+    // ============================================================
+    //
+    // The user's #2 acceptance criterion: a ruleset using increase/decrease
+    // produces observably identical final state to an equivalent ruleset
+    // using the verbose del/add/is pattern. The engine routes deltas
+    // through HtnTerm::Eval(factory) — the same arithmetic engine that
+    // backs is/2 — so the two paths should converge byte-for-byte on
+    // state.
+    //
+    // Each test compiles both forms, runs the same goal sequence on each,
+    // and asserts the resulting fact sets (filtered to the predicates
+    // under test) are identical. Operator names in the plan trace are
+    // intentionally NOT compared — only state.
+
+    // Collect all facts whose head functor name matches one of the
+    // `predicateNames`, as their Prolog-syntax string ("head(..) :- true.").
+    // Wrapped in a set so we can compare by value-equality across the
+    // two helpers' final states.
+    static std::set<std::string> FactsOfPredicates(
+        const std::shared_ptr<HtnRuleSet> &state,
+        const std::set<std::string> &predicateNames)
+    {
+        std::set<std::string> result;
+        if (state == nullptr)
+        {
+            return result;
+        }
+        state->AllRules([&](const HtnRule &rule)
+        {
+            if (rule.IsFact() && predicateNames.count(rule.head()->name()) > 0)
+            {
+                result.insert(rule.ToStringProlog());
+            }
+            return true;
+        });
+        return result;
+    }
+
+    // 4.1 Headline equivalence: a basic spend/gain sequence threaded
+    // through an unique numeric fluent. Verbose form uses is/2 in the
+    // method precondition and a plain del/add operator. Concise form
+    // collapses that into a decrease/increase effect inside the operator.
+    // After applying solution 0, the mana/xp facts must be identical.
+    TEST(FluentEquivalentToDelAdd_BasicSpendAndGain)
+    {
+        string verboseProgram =
+            "mana(player, 50). "
+            "xp(player, 0). "
+            "spend(?c) :- if(mana(player, ?o), is(?n, -(?o, ?c))), "
+            "             do(opVerboseSpend(?o, ?n)). "
+            "opVerboseSpend(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)). "
+            "gain(?a) :- if(xp(player, ?o), is(?n, +(?o, ?a))), "
+            "            do(opVerboseGain(?o, ?n)). "
+            "opVerboseGain(?o, ?n) :- del(xp(player, ?o)), add(xp(player, ?n)). "
+            "goals(spend(15), gain(7), spend(5)). ";
+
+        string conciseProgram =
+            "mana(player, 50). "
+            "xp(player, 0). "
+            "spend(?c) :- if(), do(opConciseSpend(?c)). "
+            "opConciseSpend(?c) :- decrease(mana(player), ?c). "
+            "gain(?a) :- if(), do(opConciseGain(?a)). "
+            "opConciseGain(?a) :- increase(xp(player), ?a). "
+            "goals(spend(15), gain(7), spend(5)). ";
+
+        HtnFluentHelper hVerbose;
+        CHECK(hVerbose.PlanAndApply(verboseProgram));
+
+        HtnFluentHelper hConcise;
+        CHECK(hConcise.PlanAndApply(conciseProgram));
+
+        std::set<std::string> preds{"mana", "xp"};
+        auto verboseFacts = FactsOfPredicates(hVerbose.lastFinalState, preds);
+        auto conciseFacts = FactsOfPredicates(hConcise.lastFinalState, preds);
+
+        CHECK(verboseFacts == conciseFacts);
+        // And belt-and-braces: both arrived at the expected final values.
+        // 50 - 15 - 5 = 30, 0 + 7 = 7.
+        CHECK(hVerbose.HasFact("mana(player,30)"));
+        CHECK(hVerbose.HasFact("xp(player,7)"));
+        CHECK(hConcise.HasFact("mana(player,30)"));
+        CHECK(hConcise.HasFact("xp(player,7)"));
+    }
+
+    // 4.2 Repeated alternating calls (25 spend(1) + 25 gain(2), interleaved)
+    // exercise the rebind-fluent cycle 50 times in a single plan. Verifies
+    // that there is no accumulating asymmetry between the two forms over
+    // many applications.
+    TEST(FluentEquivalentUnderRepeatedCalls)
+    {
+        // Build "spend(1), gain(2)" repeated 25 times, comma-separated.
+        std::stringstream goals;
+        goals << "goals(";
+        for (int i = 0; i < 25; i++)
+        {
+            if (i > 0)
+            {
+                goals << ", ";
+            }
+            goals << "spend(1), gain(2)";
+        }
+        goals << "). ";
+        string goalsString = goals.str();
+
+        string verboseProgram =
+            "mana(player, 100). "
+            "xp(player, 0). "
+            "spend(?c) :- if(mana(player, ?o), is(?n, -(?o, ?c))), "
+            "             do(opVerboseSpend(?o, ?n)). "
+            "opVerboseSpend(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)). "
+            "gain(?a) :- if(xp(player, ?o), is(?n, +(?o, ?a))), "
+            "            do(opVerboseGain(?o, ?n)). "
+            "opVerboseGain(?o, ?n) :- del(xp(player, ?o)), add(xp(player, ?n)). "
+            + goalsString;
+
+        string conciseProgram =
+            "mana(player, 100). "
+            "xp(player, 0). "
+            "spend(?c) :- if(), do(opConciseSpend(?c)). "
+            "opConciseSpend(?c) :- decrease(mana(player), ?c). "
+            "gain(?a) :- if(), do(opConciseGain(?a)). "
+            "opConciseGain(?a) :- increase(xp(player), ?a). "
+            + goalsString;
+
+        HtnFluentHelper hVerbose;
+        CHECK(hVerbose.PlanAndApply(verboseProgram));
+
+        HtnFluentHelper hConcise;
+        CHECK(hConcise.PlanAndApply(conciseProgram));
+
+        std::set<std::string> preds{"mana", "xp"};
+        auto verboseFacts = FactsOfPredicates(hVerbose.lastFinalState, preds);
+        auto conciseFacts = FactsOfPredicates(hConcise.lastFinalState, preds);
+
+        CHECK(verboseFacts == conciseFacts);
+        // 100 - 25*1 = 75 mana, 0 + 25*2 = 50 xp.
+        CHECK(hVerbose.HasFact("mana(player,75)"));
+        CHECK(hVerbose.HasFact("xp(player,50)"));
+        CHECK(hConcise.HasFact("mana(player,75)"));
+        CHECK(hConcise.HasFact("xp(player,50)"));
+    }
+
+    // 4.3 Branching method selection: the planner picks among method
+    // alternatives based on the current fluent value. Both forms share
+    // the same method-level branching (with else); only the OPERATOR
+    // effects differ. With mana=25, the bigCast branch fails its
+    // precondition (>=(?m, 30)) and the else branch fires in BOTH
+    // rulesets, ending with mana = 25 - 10 = 15.
+    //
+    // This pins that branch selection is identical even when the
+    // operator-level mechanism (verbose del/add vs concise decrease)
+    // differs. If the branch chosen had differed, the asserted final
+    // state would differ too.
+    TEST(FluentEquivalentWithBranchingMethods)
+    {
+        string verboseProgram =
+            "mana(player, 25). "
+            // Method-level branching: same in both rulesets.
+            "cast :- if(mana(player, ?m), >=(?m, 30)), do(bigCastVerbose). "
+            "cast :- else, if(), do(smallCastVerbose). "
+            // Verbose path: wrapping methods bind via is/2, then call a
+            // plain del/add operator.
+            "bigCastVerbose :- if(mana(player, ?o), is(?n, -(?o, 30))), "
+            "                  do(opVerboseSpend(?o, ?n)). "
+            "smallCastVerbose :- if(mana(player, ?o), is(?n, -(?o, 10))), "
+            "                    do(opVerboseSpend(?o, ?n)). "
+            "opVerboseSpend(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)). "
+            "goals(cast). ";
+
+        string conciseProgram =
+            "mana(player, 25). "
+            // Identical method-level branching.
+            "cast :- if(mana(player, ?m), >=(?m, 30)), do(opBigCastConcise). "
+            "cast :- else, if(), do(opSmallCastConcise). "
+            // Concise path: operators use decrease() directly, no wrapper.
+            "opBigCastConcise :- decrease(mana(player), 30). "
+            "opSmallCastConcise :- decrease(mana(player), 10). "
+            "goals(cast). ";
+
+        HtnFluentHelper hVerbose;
+        CHECK(hVerbose.PlanAndApply(verboseProgram));
+
+        HtnFluentHelper hConcise;
+        CHECK(hConcise.PlanAndApply(conciseProgram));
+
+        std::set<std::string> preds{"mana"};
+        auto verboseFacts = FactsOfPredicates(hVerbose.lastFinalState, preds);
+        auto conciseFacts = FactsOfPredicates(hConcise.lastFinalState, preds);
+
+        CHECK(verboseFacts == conciseFacts);
+        // The else branch must have fired in BOTH (mana started at 25,
+        // so >= 30 is false). 25 - 10 = 15.
+        CHECK(hVerbose.HasFact("mana(player,15)"));
+        CHECK(hConcise.HasFact("mana(player,15)"));
+    }
 }
