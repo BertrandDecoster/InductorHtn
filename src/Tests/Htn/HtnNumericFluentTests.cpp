@@ -738,4 +738,85 @@ SUITE(HtnNumericFluentTests)
         CHECK(hVerbose.HasFact("mana(player,15)"));
         CHECK(hConcise.HasFact("mana(player,15)"));
     }
+
+    // ============================================================
+    // Task 7: Sequential application of fluent ops on the same fluent
+    // ============================================================
+    //
+    // When multiple increase/decrease effects target the same fluent in a
+    // single operator, each effect must read the value produced by the
+    // previous effect (not the original pre-operator value). This pins:
+    //   - same-fluent ops do not duplicate the removal of the original fact
+    //     (which would crash HtnRuleSet::Update);
+    //   - the accumulated final value matches what sequential application
+    //     would produce.
+
+    // Two increases on the same fluent should accumulate.
+    // score(0) + 1 + 2 = score(3).
+    TEST(MultipleIncreasesOnSameFluent_Accumulate)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 0). "
+            "opAccum() :- increase(score(player), 1), increase(score(player), 2). "
+            "goals(opAccum()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,3)"));
+        CHECK(!h.HasFact("score(player,0)"));
+        CHECK(!h.HasFact("score(player,1)"));   // no intermediate value leaks
+    }
+
+    // Two decreases on the same fluent should accumulate.
+    // score(10) - 1 - 2 = score(7).
+    TEST(MultipleDecreasesOnSameFluent_Accumulate)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opDrain() :- decrease(score(player), 1), decrease(score(player), 2). "
+            "goals(opDrain()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,7)"));
+        CHECK(!h.HasFact("score(player,10)"));
+        CHECK(!h.HasFact("score(player,9)"));
+    }
+
+    // Mixed increase + decrease on the same fluent should compose:
+    // mana(50) + 5 - 10 = mana(45). Verifies that the shared working
+    // state spans both the increase and decrease passes.
+    TEST(MixedIncreaseDecreaseOnSameFluent_Composes)
+    {
+        HtnFluentHelper h;
+        string program =
+            "mana(player, 50). "
+            "opMix() :- increase(mana(player), 5), decrease(mana(player), 10). "
+            "goals(opMix()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("mana(player,45)"));
+        CHECK(!h.HasFact("mana(player,50)"));
+        CHECK(!h.HasFact("mana(player,55)"));
+    }
+
+    // Combining same-fluent and different-fluent ops in one operator:
+    // - score gets +1 +2 = +3 (two passes on same fluent)
+    // - mana gets +10 (single pass on a different fluent)
+    // Both must apply correctly without interfering.
+    TEST(SameFluentAndOtherFluent_BothApplyCorrectly)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 0). "
+            "mana(player, 100). "
+            "opMulti() :- increase(score(player), 1), increase(mana(player), 10), increase(score(player), 2). "
+            "goals(opMulti()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,3)"));
+        CHECK(h.HasFact("mana(player,110)"));
+        CHECK(!h.HasFact("score(player,0)"));
+        CHECK(!h.HasFact("mana(player,100)"));
+    }
 }

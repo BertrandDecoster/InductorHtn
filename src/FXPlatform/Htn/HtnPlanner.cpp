@@ -543,107 +543,183 @@ HtnOperator *HtnPlanner::AddOperator(shared_ptr<HtnTerm> head,
 // Note: the fluentEffects passed in are assumed to be ALREADY substituted
 // with the operator's MGU (we substitute the full effect term up front so
 // both head and expr see operator parameter bindings in one pass).
+// Per-fluent working state used while sequentially applying same-fluent
+// increase/decrease effects. Tracks the original fact (to remove once at
+// the end) and the running value (which subsequent ops on the same fluent
+// read from instead of rescanning the unchanged state).
+struct PendingFluent
+{
+    std::shared_ptr<HtnTerm> originalFact;
+    std::vector<std::shared_ptr<HtnTerm>> headArgs;
+    std::string targetName;
+    bool isFloat;
+    int64_t intValue;
+    double_t floatValue;
+};
+
+// Apply all increase + decrease effects of an operator. Effects targeting
+// the same fluent (same head pattern after MGU substitution) are composed
+// sequentially: each subsequent effect reads the value produced by the
+// previous one, not the original pre-operator state. This prevents the
+// duplicate-removal crash that the naive "scan state once per effect"
+// approach would cause, and produces the accumulated final value.
+//
+// Returns false (operator inapplicable, planner backtracks) on: 0 or >1
+// matching facts in state for any first-encountered fluent, a matched
+// fact with a non-numeric trailing arg, or a delta expression that
+// doesn't evaluate to a number.
+//
+// Note: the effects are assumed to be ALREADY substituted with the
+// operator's MGU (the caller substitutes whole effect terms up front so
+// head and expr both see operator parameter bindings).
 static bool ApplyFluentDeltas(
     HtnTermFactory *factory,
     HtnRuleSet *state,
-    const std::vector<std::shared_ptr<HtnTerm>> &fluentEffects,
-    int sign,
+    const std::vector<std::shared_ptr<HtnTerm>> &increases,
+    const std::vector<std::shared_ptr<HtnTerm>> &decreases,
     std::vector<std::shared_ptr<HtnTerm>> &finalRemovals,
     std::vector<std::shared_ptr<HtnTerm>> &finalAdditions)
 {
-    for (const std::shared_ptr<HtnTerm> &effect : fluentEffects)
+    // Working table: one entry per distinct fluent touched by this op.
+    // Key is the head's ToString() — uniquely identifies the fluent after
+    // MGU substitution (e.g. "score(player)" or "mana(gob1)").
+    std::map<std::string, PendingFluent> pending;
+
+    // Apply all increases first (sign=+1), then all decreases (sign=-1).
+    // The two passes share `pending`, so e.g. an increase followed by a
+    // decrease on the same fluent composes correctly.
+    for (int pass = 0; pass < 2; ++pass)
     {
-        // The compiler guarantees arity 2; defensively bail if not.
-        if (effect->arity() != 2)
-        {
-            return false;
-        }
-        std::shared_ptr<HtnTerm> head = effect->arguments()[0];
-        std::shared_ptr<HtnTerm> delta = effect->arguments()[1];
+        const std::vector<std::shared_ptr<HtnTerm>> &effects = (pass == 0) ? increases : decreases;
+        int sign = (pass == 0) ? +1 : -1;
 
-        // Evaluate the delta first. This must be ground numeric (any unbound
-        // variable in delta is a precondition failure for this op instance).
-        std::shared_ptr<HtnTerm> deltaValue = delta->Eval(factory);
-        if (deltaValue == nullptr)
+        for (const std::shared_ptr<HtnTerm> &effect : effects)
         {
-            return false;
-        }
-        HtnTermType deltaType = deltaValue->GetTermType();
-        if (deltaType != HtnTermType::IntType && deltaType != HtnTermType::FloatType)
-        {
-            return false;
-        }
-
-        // The fluent we're looking for has the same name as `head` and one
-        // extra trailing argument. Scan the state for facts matching this
-        // shape and whose leading args structurally equal head's args.
-        std::shared_ptr<HtnTerm> match;
-        int matchCount = 0;
-        const std::vector<std::shared_ptr<HtnTerm>> &headArgs = head->arguments();
-        std::string targetName = head->name();
-        int targetFactArity = (int)headArgs.size() + 1;
-
-        state->AllRules([&](const HtnRule &rule) -> bool
-        {
-            if (!rule.IsFact())
+            // The compiler guarantees arity 2; defensively bail if not.
+            if (effect->arity() != 2)
             {
-                return true;
+                return false;
             }
-            const std::shared_ptr<HtnTerm> &factHead = rule.head();
-            if (factHead->name() != targetName || factHead->arity() != targetFactArity)
+            std::shared_ptr<HtnTerm> head = effect->arguments()[0];
+            std::shared_ptr<HtnTerm> delta = effect->arguments()[1];
+
+            // Evaluate the delta first. Must be ground numeric.
+            std::shared_ptr<HtnTerm> deltaValue = delta->Eval(factory);
+            if (deltaValue == nullptr)
             {
-                return true;
+                return false;
             }
-            // Leading args of the fact must equal the head's args.
-            for (size_t i = 0; i < headArgs.size(); ++i)
+            HtnTermType deltaType = deltaValue->GetTermType();
+            if (deltaType != HtnTermType::IntType && deltaType != HtnTermType::FloatType)
             {
-                if (factHead->arguments()[i]->TermCompare(*headArgs[i]) != 0)
+                return false;
+            }
+
+            std::string key = head->ToString();
+            auto existing = pending.find(key);
+            if (existing != pending.end())
+            {
+                // Same fluent already touched by an earlier effect: apply
+                // this delta to the running working value, no state scan.
+                PendingFluent &p = existing->second;
+                if (!p.isFloat && deltaType == HtnTermType::FloatType)
                 {
-                    return true; // not a match, keep scanning
+                    // Promote int-track to float-track.
+                    p.floatValue = (double_t)p.intValue;
+                    p.isFloat = true;
                 }
+                if (p.isFloat)
+                {
+                    p.floatValue += sign * deltaValue->GetDouble();
+                }
+                else
+                {
+                    p.intValue += sign * deltaValue->GetInt();
+                }
+                continue;
             }
-            match = factHead;
-            ++matchCount;
-            return true; // keep going so we can detect multi-match
-        });
 
-        if (matchCount != 1)
-        {
-            // 0 matches => no fluent to update; >1 matches => ambiguous.
-            return false;
+            // First time touching this fluent: scan state for the unique
+            // matching fact.
+            std::shared_ptr<HtnTerm> match;
+            int matchCount = 0;
+            const std::vector<std::shared_ptr<HtnTerm>> &headArgs = head->arguments();
+            std::string targetName = head->name();
+            int targetFactArity = (int)headArgs.size() + 1;
+
+            state->AllRules([&](const HtnRule &rule) -> bool
+            {
+                if (!rule.IsFact())
+                {
+                    return true;
+                }
+                const std::shared_ptr<HtnTerm> &factHead = rule.head();
+                if (factHead->name() != targetName || factHead->arity() != targetFactArity)
+                {
+                    return true;
+                }
+                for (size_t i = 0; i < headArgs.size(); ++i)
+                {
+                    if (factHead->arguments()[i]->TermCompare(*headArgs[i]) != 0)
+                    {
+                        return true;
+                    }
+                }
+                match = factHead;
+                ++matchCount;
+                return true;
+            });
+
+            if (matchCount != 1)
+            {
+                return false;
+            }
+
+            std::shared_ptr<HtnTerm> currentValueTerm = match->arguments().back();
+            HtnTermType currentType = currentValueTerm->GetTermType();
+            if (currentType != HtnTermType::IntType && currentType != HtnTermType::FloatType)
+            {
+                return false;
+            }
+
+            PendingFluent p;
+            p.originalFact = match;
+            p.headArgs = headArgs;
+            p.targetName = targetName;
+            p.isFloat = (currentType == HtnTermType::FloatType) || (deltaType == HtnTermType::FloatType);
+            if (p.isFloat)
+            {
+                p.floatValue = currentValueTerm->GetDouble() + sign * deltaValue->GetDouble();
+                p.intValue = 0;
+            }
+            else
+            {
+                p.intValue = currentValueTerm->GetInt() + sign * deltaValue->GetInt();
+                p.floatValue = 0.0;
+            }
+            pending[key] = p;
         }
+    }
 
-        // Read the trailing arg as a numeric value.
-        std::shared_ptr<HtnTerm> currentValueTerm = match->arguments().back();
-        HtnTermType currentType = currentValueTerm->GetTermType();
-        if (currentType != HtnTermType::IntType && currentType != HtnTermType::FloatType)
-        {
-            return false;
-        }
-
-        // Compute newValue = oldValue + sign * delta. Promote to float if
-        // either side is float; otherwise stay integer.
-        bool anyFloat = (currentType == HtnTermType::FloatType) || (deltaType == HtnTermType::FloatType);
+    // Emit one removal + one addition per touched fluent. Each fluent's
+    // original fact is removed exactly once (no duplicate-removal crash),
+    // and the final fact carries the fully-composed value.
+    for (const auto &entry : pending)
+    {
+        const PendingFluent &p = entry.second;
         std::shared_ptr<HtnTerm> newValueTerm;
-        if (anyFloat)
+        if (p.isFloat)
         {
-            double_t newValue = currentValueTerm->GetDouble() + sign * deltaValue->GetDouble();
-            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(newValue));
+            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(p.floatValue));
         }
         else
         {
-            int64_t newValue = currentValueTerm->GetInt() + sign * deltaValue->GetInt();
-            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(newValue));
+            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(p.intValue));
         }
-
-        // Build the replacement fact: same predicate name + same leading
-        // args + new trailing value.
-        std::vector<std::shared_ptr<HtnTerm>> newFactArgs = headArgs;
+        std::vector<std::shared_ptr<HtnTerm>> newFactArgs = p.headArgs;
         newFactArgs.push_back(newValueTerm);
-        std::shared_ptr<HtnTerm> newFact = factory->CreateFunctor(targetName, newFactArgs);
-
-        finalRemovals.push_back(match);
-        finalAdditions.push_back(newFact);
+        finalRemovals.push_back(p.originalFact);
+        finalAdditions.push_back(factory->CreateFunctor(p.targetName, newFactArgs));
     }
     return true;
 }
@@ -688,8 +764,9 @@ bool HtnPlanner::CheckForOperator(PlanState *planState)
             // preserve the spec'd ordering of effects.
             vector<shared_ptr<HtnTerm>> workingRemovals = *finalRemovals;
             vector<shared_ptr<HtnTerm>> fluentAdditions;
-            bool fluentOk = ApplyFluentDeltas(factory, node->state.get(), *substitutedIncreases, +1, workingRemovals, fluentAdditions)
-                         && ApplyFluentDeltas(factory, node->state.get(), *substitutedDecreases, -1, workingRemovals, fluentAdditions);
+            bool fluentOk = ApplyFluentDeltas(factory, node->state.get(),
+                                              *substitutedIncreases, *substitutedDecreases,
+                                              workingRemovals, fluentAdditions);
 
             if (!fluentOk)
             {
