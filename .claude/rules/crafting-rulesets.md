@@ -370,6 +370,25 @@ Succeeds only if all wounded allies are healed.
 
 ---
 
+### Numeric resources
+
+For resource-tracking facts (`mana(player, 50)`, `xp(player, 0)`, etc.), prefer `increase`/`decrease` over the verbose `del/add/is` pattern:
+
+```prolog
+% Old (still works)
+opSpend(?cost) :-
+    if(mana(player, ?old), is(?new, -(?old, ?cost))),  % in calling method
+    do(opSpendInner(?old, ?new)).
+opSpendInner(?old, ?new) :- del(mana(player, ?old)), add(mana(player, ?new)).
+
+% Preferred
+opSpend(?cost) :- decrease(mana(player), ?cost).
+```
+
+The two forms are observably equivalent. See `.claude/rules/htn-syntax.md` for full semantics.
+
+---
+
 ## Validation Methodology
 
 Patterns marked `[VALIDATED]` were tested by measuring Prolog resolution steps. To validate patterns yourself:
