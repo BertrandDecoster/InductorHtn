@@ -138,10 +138,16 @@ type(typeName, instance).
 signature(predName, [argType1, argType2, ...]).
 ```
 
+The engine treats both as ordinary facts and never queries them at planning
+time — they exist purely for the linter to read.
+
 `TYP001` fires when a *constant* argument at a typed call site is declared as
 a different type, or has no `type/2` declaration at all. Variables and
-compound terms are not yet checked. Rulesets with no `signature/2`
-declarations get no TYP* diagnostics — the rule is fully opt-in.
+compound terms are not yet checked. Calls nested inside wrappers (`try()`,
+`first()`, `and()`, `parallel()`, `forall()`) are also not recursed into in
+the MVP — only calls directly in `if`/`do`/`del`/`add` clauses are inspected.
+Rulesets with no `signature/2` declarations get no TYP* diagnostics — the
+rule is fully opt-in.
 
 Example fixtures live under `Examples/ErrorTests/typed_arg_swapped.htn` and
 `Examples/ErrorTests/typed_arg_untyped_constant.htn`.
