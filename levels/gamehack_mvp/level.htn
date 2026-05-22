@@ -3,6 +3,25 @@
 % Exercises applyTag -> applyTagNotPresent path 1 (ally-with-skill).
 % stunAndSlowSkill precondition fails (no skillHasTag(?,slow)) -> backtracks to wetAndElectrocute.
 
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (characters: player, allies, enemies)
+type(agent, player).
+type(agent, gob).
+
+% Locations (named positions in the world)
+type(location, room).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrocute).
+type(tag, ice).
+type(tag, fire).
+
+% Skills (abilities)
+type(skill, waterSkill).
+type(skill, lightningSkill).
+
 % === Agents ===
 agent(player).
 agent(gob).

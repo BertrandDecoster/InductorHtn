@@ -3,6 +3,9 @@
 % It works IF iceSkill and fireballSkill exist with the right skillAppliesTag mappings.
 % Depends on: gh_tags (applyTag)
 
+% === Signatures (for TYP001 linter) ===
+signature(stunAndBurn, [agent]).
+
 stunAndBurn(?t) :-
     if(enemy(?t)),
     do(applyTag(ice, ?t), applyTag(fire, ?t)).

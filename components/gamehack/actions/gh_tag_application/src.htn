@@ -2,6 +2,9 @@
 % Three-path dispatcher for applying tags that are not yet present
 % Depends on: gh_movement, gh_tags, gh_aggro, gh_skills
 
+% === Signatures (for TYP001 linter) ===
+signature(applyTagNotPresent, [tag, agent]).
+
 % === Path 1: Ally with matching skill ===
 % Find a skill that produces the tag, prepare ally, use skill
 applyTagNotPresent(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag)),

@@ -5,6 +5,13 @@
 % Direct location-to-location movement (no room connections needed)
 % Handles goToLocation, goToSameLocation, and static entity checks
 
+% === Signatures (for TYP001 linter) ===
+signature(opMoveTo, [agent, location, location]).
+signature(opAggroMoveTo, [agent, location, location]).
+signature(opStayInLocation, [agent]).
+signature(goToLocation, [agent, location]).
+signature(goToSameLocation, [agent, agent]).
+
 % === Operators ===
 
 opMoveTo(?a, ?oldLocation, ?newLocation) :-
@@ -35,6 +42,15 @@ goToSameLocation(?a, ?t) :- if(not(static(?a)), at(?a, ?aOldLocation), at(?t, ?t
 % gh_tags - GameHack tag (status effect) application primitive
 % Handles tag application, skill-to-tag mapping, and stub operators
 % applyTagNotPresent is defined by the gh_tag_application action layer
+
+% === Signatures (for TYP001 linter) ===
+signature(opApplyTag, [tag, agent]).
+signature(opTagAlreadyOnTarget, [tag, agent]).
+signature(applyTag, [tag, agent]).
+signature(useSkillOnTarget, [agent, skill, agent]).
+signature(applySkillTags_L_ApplyTag, [skill, agent]).
+signature(useLocationToApplyTag, [location, tag, agent]).
+signature(useMobSkillToApplyTag, [agent, skill, agent]).
 
 % === Operators ===
 
@@ -82,6 +98,12 @@ useMobSkillToApplyTag(?m, ?s, ?t) :- if(),
 % Handles preparing allies to use skills, including learning skills at locations
 % Depends on: gh_movement (goToLocation, goToSameLocation)
 
+% === Signatures (for TYP001 linter) ===
+signature(opSwapSkill, [agent, skill, skill]).
+signature(opGetSkill, [agent, skill]).
+signature(prepareToUseSkill, [agent, skill, agent]).
+signature(getSkillFromLocation, [agent, location, skill]).
+
 % === Operators ===
 
 opSwapSkill(?a, ?oldSkill, ?newSkill) :-
@@ -115,6 +137,13 @@ getSkillFromLocation(?a, ?l, ?s) :- if(not(hasSkill(?a, ?oldSkill))),
 % gh_aggro - GameHack aggro and mob manipulation primitive
 % Handles aggro targeting, luring mobs to locations, and bringing mobs together
 % Depends on: gh_movement (goToLocation, opAggroMoveTo)
+
+% === Signatures (for TYP001 linter) ===
+signature(opAggro, [agent, agent]).
+signature(opRemoveAggro, [agent, agent]).
+signature(aggroTarget, [agent, agent]).
+signature(bringMobToLocation, [agent, location]).
+signature(bringMobsTogether, [agent, agent]).
 
 % === Operators ===
 
@@ -157,6 +186,9 @@ bringMobsTogether(?m1, ?m2) :- if(not(static(?m2)), at(?m1, ?m1Location)),
 % Three-path dispatcher for applying tags that are not yet present
 % Depends on: gh_movement, gh_tags, gh_aggro, gh_skills
 
+% === Signatures (for TYP001 linter) ===
+signature(applyTagNotPresent, [tag, agent]).
+
 % === Path 1: Ally with matching skill ===
 % Find a skill that produces the tag, prepare ally, use skill
 applyTagNotPresent(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag)),
@@ -177,6 +209,9 @@ applyTagNotPresent(?tag, ?t) :- if(hasSkill(?m, ?s), \==(?m, ?t), not(ally(?m)),
 % wet_and_electrocute - Sequential strategy: apply wet then electrocute
 % Depends on: gh_tags (applyTag)
 
+% === Signatures (for TYP001 linter) ===
+signature(wetAndElectrocute, [agent]).
+
 wetAndElectrocute(?t) :-
     if(enemy(?t)),
     do(applyTag(wet, ?t), applyTag(electrocute, ?t)).
@@ -185,6 +220,10 @@ wetAndElectrocute(?t) :-
 % === Component: gamehack/strategies/stun_and_slow_skill ===
 % stun_and_slow_skill - Simultaneous strategy: two allies prepare independently then sync
 % Depends on: gh_tags (useSkillOnTarget), gh_skills (prepareToUseSkill), gh_movement
+
+% === Signatures (for TYP001 linter) ===
+signature(stunAndSlowSkill, [agent]).
+signature(opSynchronize, [agent, agent]).
 
 % === Operators ===
 
@@ -220,6 +259,9 @@ stunAndSlowSkill(?t) :-
 % It works IF iceSkill and fireballSkill exist with the right skillAppliesTag mappings.
 % Depends on: gh_tags (applyTag)
 
+% === Signatures (for TYP001 linter) ===
+signature(stunAndBurn, [agent]).
+
 stunAndBurn(?t) :-
     if(enemy(?t)),
     do(applyTag(ice, ?t), applyTag(fire, ?t)).
@@ -228,6 +270,9 @@ stunAndBurn(?t) :-
 % === Component: gamehack/goals/plan_to_damage ===
 % plan_to_damage - GameHack top-level goal: select strategy to damage enemy
 % Tries stunAndSlowSkill first (simultaneous), then wetAndElectrocute (sequential)
+
+% === Signatures (for TYP001 linter) ===
+signature(planToDamage, [agent]).
 
 planToDamage(?t) :- if(enemy(?t)),
     do(stunAndSlowSkill(?t)).
@@ -244,6 +289,25 @@ planToDamage(?t) :- if(enemy(?t)),
 % Single ally co-located with target; ally has both direct skills.
 % Exercises applyTag -> applyTagNotPresent path 1 (ally-with-skill).
 % stunAndSlowSkill precondition fails (no skillHasTag(?,slow)) -> backtracks to wetAndElectrocute.
+
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (characters: player, allies, enemies)
+type(agent, player).
+type(agent, gob).
+
+% Locations (named positions in the world)
+type(location, room).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrocute).
+type(tag, ice).
+type(tag, fire).
+
+% Skills (abilities)
+type(skill, waterSkill).
+type(skill, lightningSkill).
 
 % === Agents ===
 agent(player).

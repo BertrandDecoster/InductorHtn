@@ -2,6 +2,15 @@
 % Handles tag application, skill-to-tag mapping, and stub operators
 % applyTagNotPresent is defined by the gh_tag_application action layer
 
+% === Signatures (for TYP001 linter) ===
+signature(opApplyTag, [tag, agent]).
+signature(opTagAlreadyOnTarget, [tag, agent]).
+signature(applyTag, [tag, agent]).
+signature(useSkillOnTarget, [agent, skill, agent]).
+signature(applySkillTags_L_ApplyTag, [skill, agent]).
+signature(useLocationToApplyTag, [location, tag, agent]).
+signature(useMobSkillToApplyTag, [agent, skill, agent]).
+
 % === Operators ===
 
 % Apply a tag to a target
