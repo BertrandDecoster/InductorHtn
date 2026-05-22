@@ -100,7 +100,33 @@ trace <level> [--goal GOAL]      # Decomposition tree visualization
 # Batch Operations:
 test-all [--layer <layer>]       # Run all component tests
 verify <level>                   # Full level verification (assemble + certify deps + test)
+
+# Assembly:
+assemble <level> [-o <path>]     # Assemble level + deps into a single .htn
+  [--no-verify]                  #   write output without running the verifier
+  [--verify-only]                #   run the verifier but skip writing output
+  [--skip-compile-check]         #   skip layer 3 (C++ HtnCompile round-trip)
 ```
+
+### Assemble output layout
+
+Without `-o`, `assemble` writes to `assembled/<level>/<UTC-timestamp>.htn`
+and refreshes `assembled/<level>/latest.htn`. The `assembled/` directory is
+gitignored — committed goldens live under `tests/fixtures/assembled/<level>.htn`.
+
+### Assembly verifier
+
+`assemble` runs a 3-layer verifier on the concatenated output before writing
+(unless `--no-verify` is passed). Errors block the write and exit non-zero (2):
+
+| Layer | Codes | What it catches |
+|-------|-------|-----------------|
+| 1. literal-duplicate clauses | `ASM001` | Same head AND body defined twice (ignores whitespace and trailing comments) |
+| 2. semantic lint | `SEM*`, `VAR*`, `SYN*` | Undefined tasks, unused vars, syntax shape — via `gui/backend/htn_linter.py` |
+| 3. C++ parser round-trip | `ASM002` | Anything the engine itself would reject; uses `HtnPlanner.HtnCompileCustomVariables` (`?varname` syntax) |
+
+Codes `ASM003`/`ASM998`/`ASM999` are infrastructure warnings (binding missing,
+linter import or runtime failure).
 
 ### Test Naming Convention
 

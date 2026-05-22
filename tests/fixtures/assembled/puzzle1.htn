@@ -1,0 +1,464 @@
+% Assembled level: puzzle1
+
+% === Component: primitives/locomotion ===
+% locomotion - Primitive component for high-level movement
+% Handles room-to-room movement at the HTN abstraction level
+% Low-level pathfinding is handled by the game engine
+
+% === Operators ===
+
+% Core movement operator: changes entity location
+opMoveTo(?entity, ?from, ?to) :-
+    del(at(?entity, ?from)),
+    add(at(?entity, ?to)).
+
+% === Methods ===
+
+% Already at destination - no-op (check first for efficiency)
+moveTo(?entity, ?destination) :-
+    if(at(?entity, ?destination)),
+    do().
+
+% Move entity to destination (direct connection)
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             connected(?current, ?destination)),
+    do(opMoveTo(?entity, ?current, ?destination)).
+
+% Multi-hop movement: find path through connected rooms (explicit path)
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             pathThrough(?current, ?destination, ?via)),
+    do(opMoveTo(?entity, ?current, ?via),
+       moveTo(?entity, ?destination)).
+
+% Multi-hop movement: 2-hop through intermediate room
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             connected(?current, ?intermediate),
+             connected(?intermediate, ?destination)),
+    do(opMoveTo(?entity, ?current, ?intermediate),
+       opMoveTo(?entity, ?intermediate, ?destination)).
+
+% Multi-hop movement: 3-hop through two intermediate rooms
+moveTo(?entity, ?destination) :-
+    else, if(at(?entity, ?current),
+             connected(?current, ?via1),
+             connected(?via1, ?via2),
+             connected(?via2, ?destination)),
+    do(opMoveTo(?entity, ?current, ?via1),
+       opMoveTo(?entity, ?via1, ?via2),
+       opMoveTo(?entity, ?via2, ?destination)).
+
+% === Helper predicates ===
+
+% Check if entity can reach destination (used for preconditions)
+canReach(?entity, ?destination) :-
+    at(?entity, ?current),
+    reachable(?current, ?destination).
+
+% Reachable: either direct connection or path exists
+reachable(?from, ?to) :- connected(?from, ?to).
+reachable(?from, ?to) :- pathThrough(?from, ?to, ?via).
+
+% Symmetric connection helper (if connections are bidirectional)
+connectedBoth(?a, ?b) :- connected(?a, ?b).
+connectedBoth(?a, ?b) :- connected(?b, ?a).
+
+
+% === Component: primitives/tags ===
+% tags - Primitive component for status effects
+% Handles applying, removing, and combining tags on entities
+
+% === Operators ===
+
+% Apply a tag to an entity
+opApplyTag(?entity, ?tag) :-
+    del(),
+    add(hasTag(?entity, ?tag)).
+
+% Remove a tag from an entity
+opRemoveTag(?entity, ?tag) :-
+    del(hasTag(?entity, ?tag)),
+    add().
+
+% === Tag Combination Rules ===
+% Define explicit combinations: tagCombines(tag1, tag2, result)
+% When entity has tag1 and receives tag2, both are replaced with result
+
+tagCombines(burning, wet, steam).
+tagCombines(wet, burning, steam).
+tagCombines(wet, electrified, stunned).
+tagCombines(electrified, wet, stunned).
+tagCombines(frozen, burning, wet).
+tagCombines(burning, frozen, wet).
+tagCombines(electronics, electrified, disabled).
+tagCombines(electrified, electronics, disabled).
+
+% === Methods ===
+
+% Apply tag with combination check
+% Case 1: Entity has existing tag that combines with new tag
+applyTag(?entity, ?tag) :-
+    if(hasTag(?entity, ?existing),
+       tagCombines(?tag, ?existing, ?result)),
+    do(opRemoveTag(?entity, ?existing),
+       opApplyTag(?entity, ?result)).
+
+% Case 2: Entity already has this tag (no-op)
+applyTag(?entity, ?tag) :-
+    else, if(hasTag(?entity, ?tag)),
+    do().
+
+% Case 3: Simple apply (no combination)
+applyTag(?entity, ?tag) :-
+    else, if(),
+    do(opApplyTag(?entity, ?tag)).
+
+% Remove a tag
+removeTag(?entity, ?tag) :-
+    if(hasTag(?entity, ?tag)),
+    do(opRemoveTag(?entity, ?tag)).
+
+% Remove tag - no-op if doesn't exist
+removeTag(?entity, ?tag) :-
+    else, if(),
+    do().
+
+% === Query Helpers ===
+
+% Check if entity is vulnerable to a tag type
+isVulnerableTo(?entity, ?tag) :-
+    vulnerability(?entity, ?tag).
+
+% Check if entity has any tag
+hasAnyTag(?entity) :-
+    hasTag(?entity, ?anyTag).
+
+
+% === Component: primitives/aggro ===
+% aggro - Primitive component for enemy threat management
+% Handles aggro (threat) between entities and following behavior
+% Depends on: locomotion (for movement)
+
+% === Operators ===
+
+% Gain aggro on player (enemy now targets player)
+opGetAggro(?enemy) :-
+    del(),
+    add(hasAggro(?enemy, player)).
+
+% Lose aggro (enemy no longer targets anyone)
+opLoseAggro(?enemy) :-
+    del(hasAggro(?enemy, player)),
+    add().
+
+% === Methods ===
+
+% Get aggro if not already have it
+getAggro(?enemy) :-
+    if(not(hasAggro(?enemy, player))),
+    do(opGetAggro(?enemy)).
+
+% Already has aggro - no-op
+getAggro(?enemy) :-
+    else, if(),
+    do().
+
+% Lose aggro if currently has it
+loseAggro(?enemy) :-
+    if(hasAggro(?enemy, player)),
+    do(opLoseAggro(?enemy)).
+
+% Doesn't have aggro - no-op
+loseAggro(?enemy) :-
+    else, if(),
+    do().
+
+% === High-level aggro methods ===
+
+% Enemy follows target to their location
+% Uses locomotion component for movement
+enemyFollows(?enemy, ?target) :-
+    if(hasAggro(?enemy, ?target),
+       at(?target, ?room),
+       at(?enemy, ?enemyRoom),
+       not(=(?room, ?enemyRoom))),
+    do(moveTo(?enemy, ?room)).
+
+% Already in same room - no-op
+enemyFollows(?enemy, ?target) :-
+    else, if(hasAggro(?enemy, ?target),
+             at(?target, ?room),
+             at(?enemy, ?room)),
+    do().
+
+% No aggro - no following
+enemyFollows(?enemy, ?target) :-
+    else, if(),
+    do().
+
+% Lure enemy to a specific room
+% Player moves to room, gains aggro, enemy follows
+lureToRoom(?enemy, ?targetRoom) :-
+    if(at(player, ?currentRoom)),
+    do(moveTo(player, ?targetRoom),
+       getAggro(?enemy),
+       enemyFollows(?enemy, player)).
+
+% === Query Helpers ===
+
+% Check if enemy is aggressive
+isAggressive(?enemy) :-
+    hasAggro(?enemy, ?anyTarget).
+
+% Check if enemy is following player
+isFollowingPlayer(?enemy) :-
+    hasAggro(?enemy, player).
+
+
+% === Component: strategies/the_burn ===
+% the_burn - Strategy: Lure enemy to oil, ignite
+% Tactical pattern that combines aggro + locomotion + tags
+% Depends on: locomotion, tags, aggro
+
+% === Strategy Methods ===
+
+% The Burn: Lure enemy to oil room, then ignite
+% Preconditions:
+%   - There's a room with oil hazard
+%   - Player can apply burning tag (has ignite ability)
+theBurn(?enemy) :-
+    if(roomHasHazard(?oilRoom, oil),
+       canApplyTag(player, burning),
+       at(?enemy, ?enemyRoom)),
+    do(lureToRoom(?enemy, ?oilRoom),
+       igniteRoom(?oilRoom)).
+
+% === Supporting Methods ===
+
+% Ignite a room with oil - applies burning to all entities there
+igniteRoom(?room) :-
+    if(roomHasHazard(?room, oil),
+       at(?entity, ?room),
+       not(=(?entity, player))),
+    do(applyTag(?entity, burning),
+       consumeHazard(?room, oil)).
+
+% Fallback: ignite room but no valid target
+igniteRoom(?room) :-
+    else, if(roomHasHazard(?room, oil)),
+    do(consumeHazard(?room, oil)).
+
+% === Operators ===
+
+% Consume a hazard (oil burns up after ignition)
+opConsumeHazard(?room, ?hazard) :-
+    del(roomHasHazard(?room, ?hazard)),
+    add(hazardConsumed(?room, ?hazard)).
+
+% Method wrapper for consuming hazard
+consumeHazard(?room, ?hazard) :-
+    if(roomHasHazard(?room, ?hazard)),
+    do(opConsumeHazard(?room, ?hazard)).
+
+consumeHazard(?room, ?hazard) :-
+    else, if(),
+    do().
+
+
+% === Component: strategies/the_slipstream ===
+% the_slipstream - Strategy: Freeze path, slide enemy into hazard
+% Uses ice physics to push enemy into danger
+% Depends on: locomotion, tags
+
+% === Strategy Methods ===
+
+% The Slipstream: Freeze corridor, push enemy through into hazard
+% Preconditions:
+%   - There's a path from enemy to hazard room
+%   - Path has a corridor that can be frozen
+%   - Entity can apply frozen tag
+theSlipstream(?enemy) :-
+    if(at(?enemy, ?enemyRoom),
+       roomHasHazard(?hazardRoom, ?hazard),
+       pathThrough(?enemyRoom, ?hazardRoom, ?corridor),
+       canApplyTag(arcanist, frozen)),
+    do(freezeCorridor(?corridor),
+       pushIntoRoom(?enemy, ?hazardRoom),
+       applyHazardEffect(?enemy, ?hazard)).
+
+% Simpler version: enemy adjacent to hazard room
+theSlipstream(?enemy) :-
+    else, if(at(?enemy, ?enemyRoom),
+             roomHasHazard(?hazardRoom, ?hazard),
+             connected(?enemyRoom, ?hazardRoom),
+             canApplyTag(arcanist, frozen)),
+    do(freezeRoom(?enemyRoom),
+       pushIntoRoom(?enemy, ?hazardRoom),
+       applyHazardEffect(?enemy, ?hazard)).
+
+% === Supporting Methods ===
+
+% Freeze a corridor (creates slippery ice path)
+freezeCorridor(?corridor) :-
+    if(canApplyTag(arcanist, frozen)),
+    do(applyTagToRoom(?corridor, frozen)).
+
+% Freeze a room
+freezeRoom(?room) :-
+    if(canApplyTag(arcanist, frozen)),
+    do(applyTagToRoom(?room, frozen)).
+
+% Apply frozen tag to a room (all surfaces become icy)
+% Skip if room already has the tag (idempotent)
+applyTagToRoom(?room, ?tag) :-
+    if(roomHasTag(?room, ?tag)),
+    do().
+
+applyTagToRoom(?room, ?tag) :-
+    else, if(),
+    do(opApplyRoomTag(?room, ?tag)).
+
+% Push entity into a room (sliding on ice)
+pushIntoRoom(?entity, ?targetRoom) :-
+    if(at(?entity, ?currentRoom)),
+    do(opMoveTo(?entity, ?currentRoom, ?targetRoom)).
+
+% Apply hazard effect to entity
+applyHazardEffect(?entity, ?hazard) :-
+    if(hazardAppliesTag(?hazard, ?tag)),
+    do(applyTag(?entity, ?tag)).
+
+% Fallback if hazard doesn't apply a tag
+applyHazardEffect(?entity, ?hazard) :-
+    else, if(),
+    do().
+
+% === Operators ===
+
+% Apply a tag to a room (environmental effect)
+opApplyRoomTag(?room, ?tag) :-
+    del(),
+    add(roomHasTag(?room, ?tag)).
+
+% === Hazard-to-tag mappings ===
+hazardAppliesTag(fire, burning).
+hazardAppliesTag(electricity, electrified).
+hazardAppliesTag(spikes, wounded).
+hazardAppliesTag(acid, dissolved).
+
+
+% === Component: goals/defeat_enemy ===
+% defeat_enemy - Goal: Select and execute strategy to defeat enemy
+% Orchestrates strategies based on enemy vulnerabilities
+% Depends on: locomotion, tags, aggro, the_burn, the_slipstream
+
+% === Goal Methods ===
+
+% Strategy 1: Use theBurn if enemy vulnerable to burning and oil available
+defeatEnemy(?enemy) :-
+    if(vulnerableTo(?enemy, burning),
+       roomHasHazard(?oilRoom, oil),
+       canApplyTag(player, burning)),
+    do(theBurn(?enemy)).
+
+% Strategy 2: Use theSlipstream for enemies vulnerable to hazard effects
+% Match enemy vulnerability to hazard type
+defeatEnemy(?enemy) :-
+    else, if(vulnerableTo(?enemy, ?tag),
+             roomHasHazard(?hazardRoom, ?hazard),
+             hazardAppliesTag(?hazard, ?tag),
+             canApplyTag(arcanist, frozen)),
+    do(theSlipstream(?enemy)).
+
+% Strategy 3: Direct slipstream without vulnerability check
+% Fallback when we just want to push enemy into any hazard
+defeatEnemy(?enemy) :-
+    else, if(roomHasHazard(?hazardRoom, ?hazard),
+             canApplyTag(arcanist, frozen)),
+    do(theSlipstream(?enemy)).
+
+
+% === Component: goals/clear_room ===
+% clear_room - Goal: Defeat all enemies in a room
+% Uses allOf to handle multiple enemies
+% Depends on: defeat_enemy
+
+% === Goal Methods ===
+
+% Fallback FIRST: empty room (no enemies to defeat)
+% This must come first so allOf method only triggers when enemies exist
+clearRoom(?room) :-
+    if(not(at(?enemy, ?room), isEnemy(?enemy))),
+    do().
+
+% Clear room with enemies: defeat each one
+% allOf ensures ALL enemies in room are defeated
+clearRoom(?room) :-
+    else, allOf, if(at(?enemy, ?room), isEnemy(?enemy)),
+    do(defeatEnemy(?enemy)).
+
+
+% === Level-specific content ===
+% Puzzle 1: The Grease Trap
+% An introductory puzzle demonstrating theBurn and theSlipstream strategies
+% Depends on: locomotion, tags, aggro, the_burn, the_slipstream, defeat_enemy, clear_room
+
+% === Level-specific Goal ===
+
+% Complete the puzzle: defeat all enemies and reach exit
+completePuzzle :-
+    if(),
+    do(defeatAllGuards, reachExit).
+
+% Defeat all guards in the level
+defeatAllGuards :-
+    if(),
+    do(clearRoom(storage), clearRoom(corridor)).
+
+% Reach the exit room
+reachExit :-
+    if(),
+    do(moveTo(player, exit)).
+
+% === Initial World State ===
+
+% Room connections (bidirectional)
+connected(main, storage).
+connected(storage, main).
+connected(main, generator).
+connected(generator, main).
+connected(main, corridor).
+connected(corridor, main).
+connected(corridor, exit).
+connected(exit, corridor).
+
+% Direct connections to hazard rooms for slipstream
+connected(corridor, generator).
+connected(generator, corridor).
+
+% Entity positions
+at(player, main).
+at(warden, main).
+at(guard1, storage).
+at(guard2, corridor).
+
+% Enemy markers
+isEnemy(guard1).
+isEnemy(guard2).
+
+% Environmental hazards
+roomHasHazard(storage, oil).
+roomHasHazard(generator, electricity).
+
+% Character abilities
+canApplyTag(player, burning).
+canApplyTag(arcanist, frozen).
+
+% Enemy vulnerabilities
+vulnerableTo(guard1, burning).
+vulnerableTo(guard2, electrified).
+
+% Level goal
+goals(completePuzzle).

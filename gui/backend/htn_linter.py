@@ -514,37 +514,40 @@ class HtnLinter:
         cycles_found: Set[str] = set()
 
         def dfs(node: str, path: List[str]) -> bool:
+            # try/finally guarantees rec_stack/path are popped on every exit;
+            # earlier versions skipped cleanup on the early return after
+            # recording a cycle, leaking stale rec_stack entries that produced
+            # spurious cycle reports on later DFS roots.
             visited.add(node)
             rec_stack.add(node)
             path.append(node)
-
-            for callee in self.calls.get(node, []):
-                if callee not in visited:
-                    if dfs(callee, path):
-                        return True
-                elif callee in rec_stack:
-                    # Found cycle
-                    cycle_start = path.index(callee)
-                    cycle = path[cycle_start:]
-                    cycle_key = '->'.join(sorted(cycle))
-                    if cycle_key not in cycles_found:
-                        cycles_found.add(cycle_key)
-                        # Report on first node in cycle
-                        name = callee.split('/')[0]
-                        for rule in self.rules:
-                            if rule.head.name == name:
-                                cycle_names = [c.split('/')[0] for c in cycle]
-                                self.diagnostics.append(Diagnostic(
-                                    rule.line, 1, len(name), 'warning',
-                                    f"Potential infinite recursion: {' -> '.join(cycle_names)} -> {name}",
-                                    'SEM006'
-                                ))
-                                break
-                    return False
-
-            path.pop()
-            rec_stack.remove(node)
-            return False
+            try:
+                for callee in self.calls.get(node, []):
+                    if callee not in visited:
+                        if dfs(callee, path):
+                            return True
+                    elif callee in rec_stack:
+                        cycle_start = path.index(callee)
+                        cycle = path[cycle_start:]
+                        cycle_key = '->'.join(sorted(cycle))
+                        if cycle_key not in cycles_found:
+                            cycles_found.add(cycle_key)
+                            # Report on first node in cycle
+                            name = callee.split('/')[0]
+                            for rule in self.rules:
+                                if rule.head.name == name:
+                                    cycle_names = [c.split('/')[0] for c in cycle]
+                                    self.diagnostics.append(Diagnostic(
+                                        rule.line, 1, len(name), 'warning',
+                                        f"Potential infinite recursion: {' -> '.join(cycle_names)} -> {name}",
+                                        'SEM006'
+                                    ))
+                                    break
+                        return False
+                return False
+            finally:
+                path.pop()
+                rec_stack.remove(node)
 
         for node in self.calls:
             if node not in visited:
