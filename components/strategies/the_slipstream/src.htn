@@ -2,6 +2,15 @@
 % Uses ice physics to push enemy into danger
 % Depends on: locomotion, tags
 
+% === Signatures (for TYP001 linter) ===
+signature(theSlipstream, [entity]).
+signature(freezeCorridor, [room]).
+signature(freezeRoom, [room]).
+signature(applyTagToRoom, [room, tag]).
+signature(pushIntoRoom, [entity, room]).
+signature(applyHazardEffect, [entity, hazard]).
+signature(opApplyRoomTag, [room, tag]).
+
 % === Strategy Methods ===
 
 % The Slipstream: Freeze corridor, push enemy through into hazard

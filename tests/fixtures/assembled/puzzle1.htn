@@ -5,6 +5,11 @@
 % Handles room-to-room movement at the HTN abstraction level
 % Low-level pathfinding is handled by the game engine
 
+% === Signatures (for TYP001 linter) ===
+signature(opMoveTo, [entity, room, room]).
+signature(moveTo, [entity, room]).
+signature(canReach, [entity, room]).
+
 % === Operators ===
 
 % Core movement operator: changes entity location
@@ -69,6 +74,12 @@ connectedBoth(?a, ?b) :- connected(?b, ?a).
 % === Component: primitives/tags ===
 % tags - Primitive component for status effects
 % Handles applying, removing, and combining tags on entities
+
+% === Signatures (for TYP001 linter) ===
+signature(opApplyTag, [entity, tag]).
+signature(opRemoveTag, [entity, tag]).
+signature(applyTag, [entity, tag]).
+signature(removeTag, [entity, tag]).
 
 % === Operators ===
 
@@ -140,6 +151,14 @@ hasAnyTag(?entity) :-
 % aggro - Primitive component for enemy threat management
 % Handles aggro (threat) between entities and following behavior
 % Depends on: locomotion (for movement)
+
+% === Signatures (for TYP001 linter) ===
+signature(opGetAggro, [entity]).
+signature(opLoseAggro, [entity]).
+signature(getAggro, [entity]).
+signature(loseAggro, [entity]).
+signature(enemyFollows, [entity, entity]).
+signature(lureToRoom, [entity, room]).
 
 % === Operators ===
 
@@ -222,6 +241,12 @@ isFollowingPlayer(?enemy) :-
 % Tactical pattern that combines aggro + locomotion + tags
 % Depends on: locomotion, tags, aggro
 
+% === Signatures (for TYP001 linter) ===
+signature(theBurn, [entity]).
+signature(igniteRoom, [room]).
+signature(opConsumeHazard, [room, hazard]).
+signature(consumeHazard, [room, hazard]).
+
 % === Strategy Methods ===
 
 % The Burn: Lure enemy to oil room, then ignite
@@ -271,6 +296,15 @@ consumeHazard(?room, ?hazard) :-
 % the_slipstream - Strategy: Freeze path, slide enemy into hazard
 % Uses ice physics to push enemy into danger
 % Depends on: locomotion, tags
+
+% === Signatures (for TYP001 linter) ===
+signature(theSlipstream, [entity]).
+signature(freezeCorridor, [room]).
+signature(freezeRoom, [room]).
+signature(applyTagToRoom, [room, tag]).
+signature(pushIntoRoom, [entity, room]).
+signature(applyHazardEffect, [entity, hazard]).
+signature(opApplyRoomTag, [room, tag]).
 
 % === Strategy Methods ===
 
@@ -354,6 +388,9 @@ hazardAppliesTag(acid, dissolved).
 % Orchestrates strategies based on enemy vulnerabilities
 % Depends on: locomotion, tags, aggro, the_burn, the_slipstream
 
+% === Signatures (for TYP001 linter) ===
+signature(defeatEnemy, [entity]).
+
 % === Goal Methods ===
 
 % Strategy 1: Use theBurn if enemy vulnerable to burning and oil available
@@ -385,6 +422,9 @@ defeatEnemy(?enemy) :-
 % Uses allOf to handle multiple enemies
 % Depends on: defeat_enemy
 
+% === Signatures (for TYP001 linter) ===
+signature(clearRoom, [room]).
+
 % === Goal Methods ===
 
 % Fallback FIRST: empty room (no enemies to defeat)
@@ -404,6 +444,37 @@ clearRoom(?room) :-
 % Puzzle 1: The Grease Trap
 % An introductory puzzle demonstrating theBurn and theSlipstream strategies
 % Depends on: locomotion, tags, aggro, the_burn, the_slipstream, defeat_enemy, clear_room
+
+% === Type Declarations (for TYP001 linter) ===
+
+% Entities (characters: player, allies, enemies)
+type(entity, player).
+type(entity, warden).
+type(entity, arcanist).
+type(entity, guard1).
+type(entity, guard2).
+
+% Rooms (locations in the level)
+type(room, main).
+type(room, storage).
+type(room, generator).
+type(room, corridor).
+type(room, exit).
+
+% Tags (status effects applied to entities/rooms)
+type(tag, burning).
+type(tag, frozen).
+type(tag, wet).
+type(tag, electrified).
+type(tag, oil).
+type(tag, electricity).
+
+% Hazards (environmental hazard types; dual-typed with tag where they coincide)
+type(hazard, oil).
+type(hazard, electricity).
+type(hazard, fire).
+type(hazard, spikes).
+type(hazard, acid).
 
 % === Level-specific Goal ===
 
