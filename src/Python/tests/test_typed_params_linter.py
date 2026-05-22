@@ -148,6 +148,60 @@ def test_typ001_no_signature_no_diagnostic():
     assert 'TYP001' not in _diag_codes(diags)
 
 
+def test_typ001_fires_in_if_clause():
+    src = """
+    type(agent, player). type(cell, c5).
+    signature(at, [agent, cell]).
+    goal :- if(at(c5, player)), do().
+    """
+    diags = HtnLinter(src).lint()
+    assert any((d.get('code') if isinstance(d, dict) else d.code) == 'TYP001' for d in diags)
+
+
+def test_typ001_fires_in_operator_del():
+    src = """
+    type(agent, player). type(cell, c5).
+    signature(at, [agent, cell]).
+    op() :- del(at(c5, player)), add().
+    """
+    diags = HtnLinter(src).lint()
+    assert any((d.get('code') if isinstance(d, dict) else d.code) == 'TYP001' for d in diags)
+
+
+def test_typ001_fires_in_operator_add():
+    src = """
+    type(agent, player). type(cell, c5).
+    signature(at, [agent, cell]).
+    op() :- del(), add(at(c5, player)).
+    """
+    diags = HtnLinter(src).lint()
+    assert any((d.get('code') if isinstance(d, dict) else d.code) == 'TYP001' for d in diags)
+
+
+def test_typ001_mvp_skips_calls_inside_try():
+    """MVP scope cut: calls inside try() are not recursed into."""
+    src = """
+    type(agent, player). type(cell, c5).
+    signature(moveTo, [agent, cell]).
+    goal :- if(), do(try(moveTo(c5, player))).
+    """
+    diags = HtnLinter(src).lint()
+    typ_diags = [d for d in diags if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert typ_diags == []
+
+
+def test_typ001_diagnostic_points_at_argument():
+    src = "type(agent, player).\ntype(cell, c5).\nsignature(moveTo, [agent, cell]).\ngoalA :- if(), do(moveTo(c5, player)).\n"
+    typ_diags = [d for d in HtnLinter(src).lint() if (d.get('code') if isinstance(d, dict) else d.code) == 'TYP001']
+    assert len(typ_diags) == 2
+    # Pull out .line/.length whether dataclass or dict
+    def _attr(d, name):
+        return d.get(name) if isinstance(d, dict) else getattr(d, name)
+    assert _attr(typ_diags[0], 'line') == 4
+    assert _attr(typ_diags[0], 'length') == 2    # 'c5'
+    assert _attr(typ_diags[1], 'length') == 6    # 'player'
+
+
 if __name__ == '__main__':
     test_empty_source_yields_empty_registry()
     test_extracts_type_facts()
@@ -162,4 +216,9 @@ if __name__ == '__main__':
     test_typ001_untyped_constant_flagged()
     test_typ001_variable_arg_skipped()
     test_typ001_no_signature_no_diagnostic()
+    test_typ001_fires_in_if_clause()
+    test_typ001_fires_in_operator_del()
+    test_typ001_fires_in_operator_add()
+    test_typ001_mvp_skips_calls_inside_try()
+    test_typ001_diagnostic_points_at_argument()
     print("All TypeRegistry + TYP001 tests passed.")

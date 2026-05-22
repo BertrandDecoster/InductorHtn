@@ -682,6 +682,10 @@ class HtnLinter:
         Activates only when signature/2 facts are declared. Variables and
         compound terms are skipped. Untyped constants (no type/2 fact) at
         a typed position are flagged.
+
+        MVP also does NOT recurse into wrappers: a call nested inside try(),
+        first(), and(), parallel(), forall(), etc. is not type-checked. Only
+        calls directly in if/do/del/add/body are inspected. Future TYP00x.
         """
         registry = TypeRegistry.from_rules(self.rules)
         if not registry.signatures:
