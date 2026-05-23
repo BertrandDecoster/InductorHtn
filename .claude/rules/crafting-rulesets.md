@@ -110,25 +110,39 @@ List all methods, operators, and facts in a ruleset.
 ```
 Returns: methods[], operators[], facts[] with signatures and line numbers.
 
-### indhtn_state_diff
-Preview what a plan would change (without applying).
+### indhtn_preview_solution_facts
+Preview the state that would result from applying a cached plan, without
+modifying state. Call `indhtn_find_plans` first to populate the cache.
 ```json
 {
   "sessionId": "<id>",
-  "goal": "travel-to(park)"
+  "solutionIndex": 0
 }
 ```
-Returns: plan preview.
+Returns: `{facts, added, removed}` — full post-apply state plus the diff
+vs. current.
 
-### indhtn_step
-Execute one operator at a time for debugging.
+### indhtn_apply_operator
+Apply a single primitive operator (one `del()`/`add()` step). Useful for
+step-by-step debugging when you want to walk a plan by hand rather than
+let the planner pick the decomposition.
 ```json
 {
   "sessionId": "<id>",
-  "operator": "walk(downtown, park)"
+  "operator": "opMoveTo(player, roomA, roomB)"
 }
 ```
-Returns: operator result, query facts to see new state.
+Returns: `{ok, operator, facts, added, removed}` on success. On failure
+returns `{ok: false, code: ...}` with one of these discriminants:
+- `preconditions_failed` — `del()` clauses didn't match current state
+- `expanded_to_multiple_ops` — the call decomposed into multiple ops
+  (looks like a method, not a primitive)
+- `ambiguous_unification` — multiple plans matched the call; the
+  alternatives are returned in `candidates[]`
+
+### indhtn_query
+Run a Prolog query against current state without planning. Use this to
+ask "what's true right now?" — `at(?x).`, `count(?n, enemy(?e)).`, etc.
 
 ---
 
