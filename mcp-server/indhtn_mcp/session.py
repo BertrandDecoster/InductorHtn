@@ -75,18 +75,27 @@ def _strip_trailing_period(text: str) -> str:
     return text
 
 
+def _sanitize_engine_error(text):
+    """Drop the ` -- file: <absolute path>, line:N` suffix the C++ engine
+    appends to runtime_error messages. Returning the absolute developer
+    path to MCP clients is noise at best and a small info leak at worst.
+    Returns the input unchanged if it doesn't carry the suffix."""
+    if text is None:
+        return None
+    cut = text.find(" -- file:")
+    if cut < 0:
+        return text
+    return text[:cut].rstrip()
+
+
 def _extract_missing_fact(error: str) -> str | None:
     """Pull the term name out of a 'Can't retract X: term -- file: ...' error."""
     marker = "doesn't exist:"
     idx = error.find(marker)
     if idx < 0:
         return None
-    tail = error[idx + len(marker):].strip()
-    # Trim the file/line suffix.
-    cut = tail.find(" -- ")
-    if cut >= 0:
-        tail = tail[:cut]
-    return tail.strip() or None
+    tail = _sanitize_engine_error(error[idx + len(marker):]).strip()
+    return tail or None
 
 
 class CompileError(RuntimeError):
@@ -178,7 +187,7 @@ class HtnSession:
         results = []
         for src in self.sources[:limit]:
             err = self._replay_one(src)
-            results.append({"label": src.label, "error": err})
+            results.append({"label": src.label, "error": _sanitize_engine_error(err)})
         return results
 
     # ------------------------------------------------------------------
@@ -208,7 +217,7 @@ class HtnSession:
         for src in new_sources:
             err = self._replay_one(src)
             if err is not None:
-                errors.append({"file": src.label, "error": err})
+                errors.append({"file": src.label, "error": _sanitize_engine_error(err)})
             else:
                 self.sources.append(src)
                 loaded.append(src.label)
@@ -236,7 +245,7 @@ class HtnSession:
             label = f"inline-{uuid.uuid4().hex[:8]}"
         err = self._compile_with(dialect, source)
         if err is not None:
-            return {"label": label, "error": err}
+            return {"label": label, "error": _sanitize_engine_error(err)}
         self.sources.append(
             LoadedSource(kind="inline", dialect=dialect, label=label, content=source)
         )
@@ -302,7 +311,12 @@ class HtnSession:
         result = dict(parsed)
         if max_plans is not None and result.get("ok"):
             result["plans"] = result["plans"][:max_plans]
-        result["lastResolutionStepCount"] = self.planner.GetLastResolutionStepCount()
+        # NOTE: GetLastResolutionStepCount is only updated by the Prolog
+        # ResolveAll paths (PrologQuery, PrologSolveGoals) — see
+        # PythonInterface.cpp. HtnFindAllPlans* does not thread a counter
+        # through HtnPlanner::FindAllPlans, so reading the counter here would
+        # return stale data from the previous query (or 0). Use indhtn_query
+        # when you need a step count.
         return result
 
     def apply_plan(self, solution_index: int = 0) -> dict:
@@ -345,6 +359,12 @@ class HtnSession:
         """
         g = _ensure_period(operator)
         operator_clean = _strip_trailing_period(operator)
+        # Snapshot state BEFORE planning. For direct primitive-operator goals
+        # (no method decomposition above them), FindAllPlansCustomVariables
+        # already mutates the rule set as part of resolving the operator —
+        # so taking facts_before AFTER planning would yield a no-op diff
+        # against facts_after, even though the operator clearly changed state.
+        facts_before = self.state_facts()
         error, raw = self.planner.FindAllPlansCustomVariables(g)
         if error is not None:
             # The engine raises a runtime_error during plan construction when
@@ -357,13 +377,13 @@ class HtnSession:
                     "code": "preconditions_failed",
                     "operator": operator_clean,
                     "failedPrecondition": _extract_missing_fact(error),
-                    "error": error,
+                    "error": _sanitize_engine_error(error),
                 }
             return {
                 "ok": False,
                 "code": "compile_error",
                 "operator": operator_clean,
-                "error": error,
+                "error": _sanitize_engine_error(error),
             }
         parsed = parse_plans(raw)
         if not parsed.get("ok"):
@@ -410,7 +430,6 @@ class HtnSession:
             }
         # Cache so subsequent decomposition-tree / preview queries work.
         self.last_plan_result = PlanCache(goal=g, raw_json=raw, parsed=parsed)
-        facts_before = self.state_facts()
         ok = self.planner.ApplySolution(0)
         if not ok:
             return {
@@ -492,7 +511,7 @@ class HtnSession:
                 continue
             error, _raw = self.planner.PrologQuery(f"assert({fact_clean}).")
             if error is not None:
-                errors.append({"fact": fact, "error": error})
+                errors.append({"fact": fact, "error": _sanitize_engine_error(error)})
             else:
                 added.append(fact_clean)
         return {"added": added, "errors": errors}
@@ -558,7 +577,7 @@ class HtnSession:
         replay_results = []
         for src in kept_sources:
             err = self._replay_one(src)
-            replay_results.append({"label": src.label, "error": err})
+            replay_results.append({"label": src.label, "error": _sanitize_engine_error(err)})
 
         current = self.state_facts()
         current_set = set(current)

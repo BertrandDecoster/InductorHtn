@@ -91,11 +91,16 @@ planner = HtnPlanner(debug=False)
 ```
 
 Core Methods:
-- `HtnCompile(program)` - Compile HTN program
-- `PrologCompile(program)` - Compile Prolog program
-- `FindAllPlans(goal)` - Find all HTN plans
+- `HtnCompile(program)` - Compile HTN program (**standard Prolog variables** — `?varname` syntax is rejected)
+- `HtnCompileCustomVariables(program)` - Compile HTN program written with `?varname` variables (this repo's convention — used by assembled levels, components, and the MCP server's default dialect)
+- `PrologCompile(program)` - Compile Prolog program (standard variables)
+- `PrologCompileCustomVariables(program)` - Compile Prolog program with `?varname` variables
+- `FindAllPlans(goal)` - Find all HTN plans (standard variables)
+- `FindAllPlansCustomVariables(goal)` - Find all HTN plans, goal uses `?varname` variables
 - `PrologQuery(query)` - Execute Prolog query
 - `PrologQueryToJson(query)` - Execute query, return JSON
+
+**Picking the right Compile**: ruleset files in this repo (`Examples/*.htn`, `components/**/src.htn`, `levels/**/level.htn`, `htn_components assemble` output) all use `?varname`. Feeding them to `HtnCompile` raises `Expected functor` on the first `?`. Use `HtnCompileCustomVariables` for anything authored against this codebase. Reserve `HtnCompile` for files written in standard Prolog (capitalised variables) — there are essentially none in-tree.
 
 State & Results:
 - `GetDecompositionTree(solutionIndex)` - Get HTN decomposition tree

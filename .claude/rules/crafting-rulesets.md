@@ -25,7 +25,10 @@ Tools for understanding ruleset dynamics - seeing what plans work, how state cha
 from indhtnpy import HtnPlanner
 
 planner = HtnPlanner(False)
-planner.Compile(open("Examples/Taxi.htn").read())
+# Use HtnCompileCustomVariables for ?varname-style files (everything in
+# this repo: Examples/, components/**/src.htn, assembled levels). Plain
+# HtnCompile() rejects `?` and only works on standard-Prolog files.
+planner.HtnCompileCustomVariables(open("Examples/Taxi.htn").read())
 
 # Get ALL current facts
 error, facts = planner.GetStateFacts()  # Returns JSON list
