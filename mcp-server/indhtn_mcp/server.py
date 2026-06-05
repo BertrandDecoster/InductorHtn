@@ -371,6 +371,25 @@ class IndHTNMCPServer:
                 }, required=["sessionId"]),
             ),
             Tool(
+                name="indhtn_method_failures",
+                description=(
+                    "Pinpoint WHERE a goal's methods fail. Runs a find-all pass and "
+                    "returns, per method clause, a furthestCompleted histogram "
+                    "[fail@subtask0, ..., fail@subtask(N-1), full-success] telling you "
+                    "whether the method dies at its precondition GATE (gateFailCount>0, "
+                    "groundings==0) or at a specific body subtask k. Use it when a goal "
+                    "yields FEWER plans than expected instead of hand-flipping facts. "
+                    "Also returns a by-atom rollup and a richness summary "
+                    "(planCount, difficulty). Requires an engine built with "
+                    "INDHTN_CHOICE_TRACKING (else ok:false, code:choice_tracking_unavailable). "
+                    "See docs/method-failure-analysis.md for how to read it."
+                ),
+                inputSchema=obj({
+                    "sessionId": {"type": "string"},
+                    "goal": {"type": "string"},
+                }, required=["sessionId", "goal"]),
+            ),
+            Tool(
                 name="indhtn_preview_solution_facts",
                 description=(
                     "Return what the world state would look like after applying solution N, "
@@ -734,6 +753,18 @@ async def _h_get_decomposition_tree(srv: IndHTNMCPServer, args: dict) -> List[Te
     return _text(_ok_dict(solutionIndex=idx, tree=tree))
 
 
+async def _h_method_failures(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    sid = _require_str(args, "sessionId")
+    goal = _require_str(args, "goal")
+    session = srv.session_manager.get(sid)
+    result = await srv._run_in_session(
+        session, lambda: session.method_failures(goal)
+    )
+    # result already carries its own ok / code (ok:false when CHOICE_TRACKING
+    # is not compiled in); pass it through verbatim.
+    return _text(result)
+
+
 async def _h_preview_solution_facts(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
     sid = _require_str(args, "sessionId")
     idx = int(args.get("solutionIndex", 0))
@@ -891,6 +922,7 @@ _HANDLERS = {
     "indhtn_query": _h_query,
     "indhtn_find_plans": _h_find_plans,
     "indhtn_get_decomposition_tree": _h_get_decomposition_tree,
+    "indhtn_method_failures": _h_method_failures,
     "indhtn_preview_solution_facts": _h_preview_solution_facts,
     "indhtn_get_parallelized_plan": _h_get_parallelized_plan,
     "indhtn_apply_plan": _h_apply_plan,

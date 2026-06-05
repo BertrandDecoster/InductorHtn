@@ -42,7 +42,7 @@ The first location that resolves wins. The server also pre-loads the
 library and augments the OS library search path so subsequent `ctypes.CDLL`
 calls inside `indhtnpy.py` find an already-mapped image.
 
-## Tool surface (28 tools)
+## Tool surface (29 tools)
 
 ### Session lifecycle
 - `indhtn_create_session(debug?, memoryBudgetBytes?)` → `{sessionId}`
@@ -69,6 +69,10 @@ Dialects: `htn`, `htn_custom_vars` (default — `?var` prefix),
 - `indhtn_query(sessionId, query)` — Prolog query (no `do()`)
 - `indhtn_find_plans(sessionId, goal, maxPlans?)` — HTN planning
 - `indhtn_get_decomposition_tree(sessionId, solutionIndex?)`
+- `indhtn_method_failures(sessionId, goal)` — per-method failure histogram:
+  where each method's decomposition blocks (precondition gate vs body subtask).
+  Returns `code: "choice_tracking_unavailable"` unless the engine was built with
+  `INDHTN_CHOICE_TRACKING`. See `docs/method-failure-analysis.md`.
 - `indhtn_preview_solution_facts(sessionId, solutionIndex?)`
 - `indhtn_get_parallelized_plan(sessionId, solutionIndex?)`
 

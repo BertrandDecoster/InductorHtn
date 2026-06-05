@@ -1,0 +1,330 @@
+% =============================================================================
+% Trunk Thumper  -  an HTN combat domain
+% =============================================================================
+%
+% Faithful InductorHTN port of the canonical game-AI HTN example: the
+% "Trunk Thumper" troll from Transformers: Fall of Cybertron, as taught in
+% Game AI Pro ch.12, "Exploring HTN Planners through Example" (Troy Humphreys).
+%
+% That domain runs on a TOTAL-ORDER FORWARD-DECOMPOSITION planner - exactly
+% InductorHTN's model - so it maps almost 1:1:
+%
+%   Compound Task + Method[cond]/Subtasks  ->  task(...) :- if(cond), do(...).
+%   Primitive Task + Operator + Effects    ->  op(...)  :- del(...), add(...).
+%   Effects [WsTrunkHealth += -1]          ->  decrease(trunkHealth(?t), 1)
+%   recursive AttackEnemy -> ... -> Attack ->  recursive method (fluent-guarded)
+%
+% The chapter develops the domain in stages; this file FUSES them into one
+% ruleset: the trunk-health recursion (ch. 12.6), the WsPowerUp / Whirlwind /
+% Recovery attack (ch. 12.8), and the two-method DoTrunkSlam (Fig 12.2/12.3) all
+% appear together. Two deliberate divergences, both for teaching: navigation
+% uses one generic recursive navigateTo + pathNext instead of the chapter's
+% per-target NavigateToEnemy/NavigateToBridge wrappers (see guide section 5);
+% and the top-level attack methods are PLAIN alternatives, not the chapter's
+% priority `else` ladder, so FindAllPlans ENUMERATES every viable strategy
+% (the multi-plan headline below) rather than committing to the highest-priority.
+%
+% The HEADLINE: one goal - attackEnemy(thumper, theHero) - admits SEVERAL
+% completely different, player-natural plans. With a charged power-up, an
+% intact trunk, and a loose boulder all available, the planner discovers three
+% distinct strategies:
+%
+%   Plan 1  "Whirlwind combo"  : navigate -> opWhirlwind -> recover   (charged special)
+%   Plan 2  "Trunk slam"       : navigate -> doTrunkSlam -> recover   (basic melee)
+%   Plan 3  "Boulder toss"     : opPickupBoulder -> opThrowBoulderAt      (ranged)
+%
+% Note the TWO distinct uses of "multiple methods" living side by side:
+%   * attackEnemy's methods are PLAIN alternatives (no else) -> strategy
+%     ENUMERATION: each viable one is a separate plan (the headline above).
+%   * doTrunkSlam's two methods are an `else` ladder -> variant SELECTION:
+%     exactly one fires (taunt+power-slam vs telegraph+slam), so Plan 2 stays
+%     ONE plan. This mirrors the chapter's DoTrunkSlam-with-two-methods.
+%
+% And when the trunk breaks (trunkHealth = 0), HTN RECURSION re-arms the troll:
+%
+%   Plan   "Re-arm"            : go to grove -> uproot a fresh trunk ->
+%                                go back -> opTrunkSlam -> recover
+%
+% Numeric fluents (trunkHealth, stamina) gate method selection and tick down
+% as the plan is applied - see decrease()/increase() below.
+% =============================================================================
+
+
+% =============================================================================
+% WORLD STATE (initial facts)
+% =============================================================================
+% Laid out so that several attackEnemy strategies are simultaneously viable.
+
+% --- Actors ---
+troll(thumper).
+hero(theHero).
+
+% --- Map ---
+%   bridge1 --- bridge2          (the troll's patrol route)
+%      |
+%    grove                       (where fresh tree trunks grow)
+%
+% Edges are `linked/2` facts (directed; list both directions for a two-way
+% link). The engine's native pathNext/3 (Dijkstra) reads these - and optional
+% size/2 node weights - to return the next hop on the shortest path, so the
+% planner never has to search the graph itself. See navigateTo below.
+bridge(bridge1).
+bridge(bridge2).
+location(grove).
+location(bridge1).
+location(bridge2).
+
+linked(bridge1, bridge2).  linked(bridge2, bridge1).
+linked(bridge1, grove).    linked(grove, bridge1).
+
+% Movement cost per node (consumed by pathNext as edge weight; default 1).
+size(bridge1, 1).
+size(bridge2, 1).
+size(grove, 2).            % the grove is rough ground - costlier to cross
+
+% --- Positions ---
+at(thumper, bridge1).
+at(theHero, bridge1).
+
+% --- Perception / engagement ---
+canSee(thumper, theHero).
+inMeleeRange(thumper, theHero).
+
+% --- Resources (numeric fluents) ---
+trunkHealth(thumper, 3).   % intact trunk          -> trunk slam viable
+powerUp(thumper, 3).       % charged special meter -> whirlwind viable
+stamina(thumper, 5).
+
+% --- Loose ordnance ---
+boulderAvailable(thumper).            % a boulder is within reach -> ranged viable
+trunkAt(oakTrunk, grove).             % a fresh trunk to uproot if ours breaks
+
+
+% =============================================================================
+% TYPE HINTS  (opt-in; read by the linter, ignored by the planner)
+% =============================================================================
+% Two conventional facts give the linter a type system:
+%   type(typeName, instance).            -- tag a constant with a type
+%   signature(pred, [type1, type2, ..]). -- declare a call's argument types
+% The engine never queries these at planning time. The linter (TYP001) flags a
+% *constant* argument inside an if/do/del/add clause whose declared type doesn't
+% match the signature. Numeric literals satisfy int/float/number automatically.
+
+% --- Type instances ---
+type(troll, thumper).
+type(hero, theHero).
+type(actor, thumper).         % `actor` = anything that occupies a location
+type(actor, theHero).
+type(location, bridge1).
+type(location, bridge2).
+type(location, grove).
+type(trunk, oakTrunk).
+
+% --- Signatures ---
+signature(at, [actor, location]).
+signature(trunkAt, [trunk, location]).
+signature(linked, [location, location]).
+signature(size, [location, number]).
+signature(trunkHealth, [troll, number]).
+signature(powerUp, [troll, number]).
+signature(stamina, [troll, number]).
+
+signature(beTrunkThumper, [troll]).
+signature(attackEnemy, [troll, hero]).
+signature(doTrunkSlam, [troll, hero]).
+signature(patrol, [troll]).
+signature(navigateTo, [actor, location]).
+
+signature(opMoveTo, [actor, location, location]).
+signature(opTrunkSlam, [troll, hero]).
+signature(opPowerSlam, [troll, hero]).
+signature(opTaunt, [troll, hero]).
+signature(opTelegraph, [troll, hero]).
+signature(opWhirlwind, [troll, hero, number]).
+signature(opPickupBoulder, [troll]).
+signature(opThrowBoulderAt, [troll, hero]).
+signature(opUprootTrunk, [troll, trunk, location]).
+signature(opRecovery, [troll]).
+signature(opCheckBridge, [troll, location]).
+
+
+% =============================================================================
+% OPERATORS (primitive tasks: del / add / numeric effects)
+% =============================================================================
+
+% Movement
+opMoveTo(?who, ?from, ?to) :-
+    del(at(?who, ?from)),
+    add(at(?who, ?to)).
+
+% Basic melee. Spends one point of trunk durability and one of stamina.
+% (Game AI Pro: Effects [WsTrunkHealth += -1])
+opTrunkSlam(?t, ?e) :-
+    decrease(trunkHealth(?t), 1),
+    decrease(stamina(?t), 1),
+    add(struck(?e)).
+
+% Heavier melee variant - same trunk wear, but more exhausting. Selected by the
+% doTrunkSlam compound when the troll has stamina to spare (see methods below).
+opPowerSlam(?t, ?e) :-
+    decrease(trunkHealth(?t), 1),
+    decrease(stamina(?t), 2),
+    add(struck(?e)).
+
+% Telegraph beats - the "tell" before a slam (Game AI Pro Fig 12.2 Taunt/Tell).
+% Pure animation in the game; here each marks its own intent so the two 2-task
+% combos are observably different in the plan. They carry no resource cost.
+opTaunt(?t, ?e) :-
+    del(),
+    add(taunted(?t, ?e)).
+
+opTelegraph(?t, ?e) :-
+    del(),
+    add(telegraphed(?t, ?e)).
+
+% Charged special. Discharges the power-up meter to zero and is exhausting.
+% The current meter value ?p is passed in by the method so the discharge
+% (decrease by ?p -> 0) is fully ground. (Game AI Pro: Effects [WsPowerUp = 0])
+opWhirlwind(?t, ?e, ?p) :-
+    decrease(powerUp(?t), ?p),
+    decrease(stamina(?t), 2),
+    add(struck(?e)).
+
+% Ranged option.
+opPickupBoulder(?t) :-
+    del(boulderAvailable(?t)),
+    add(holdingBoulder(?t)).
+
+opThrowBoulderAt(?t, ?e) :-
+    del(holdingBoulder(?t)),
+    add(struck(?e)).
+
+% Re-arm: grab a fresh trunk from the grove, restoring durability to 3.
+% The re-arm method only fires when trunkHealth = 0, so increasing by 3
+% lands exactly on a full trunk. (Game AI Pro: Effects [WsTrunkHealth = 3])
+opUprootTrunk(?t, ?trunk, ?loc) :-
+    del(trunkAt(?trunk, ?loc)),
+    increase(trunkHealth(?t), 3),
+    add(holdingTrunk(?t, ?trunk)).
+
+% Recovery beat after an attack - a chance to breathe (regain a little stamina).
+opRecovery(?t) :-
+    increase(stamina(?t), 1).
+
+% Patrol bookkeeping.
+opCheckBridge(?t, ?bridge) :-
+    del(),
+    add(checked(?t, ?bridge)).
+
+
+% =============================================================================
+% METHODS - Navigation (genuinely recursive, any actor, any distance)
+% =============================================================================
+% navigateTo walks ?who one hop at a time toward ?dest and recurses. The next
+% hop comes from the engine's pathNext/3 built-in (native Dijkstra over the
+% linked/2 graph), so:
+%   * it works over arbitrarily long paths, not a hardcoded 1/2/3-hop ladder;
+%   * the planner does no graph search - O(E log V) per hop in C++;
+%   * it can't loop: pathNext fails when ?cur == ?dest, and the base case below
+%     catches "already there", so each step strictly approaches ?dest.
+% It is fully generic - it navigates the troll, the hero, or anything with an
+% at/2 fact; callers just pass the destination location.
+
+% Base case: already at the destination.
+navigateTo(?who, ?dest) :-
+    if(at(?who, ?dest)),
+    do().
+
+% Recursive case: step onto the next node of the shortest path, then continue.
+navigateTo(?who, ?dest) :-
+    else, if(at(?who, ?cur), pathNext(?cur, ?dest, ?next)),
+    do(opMoveTo(?who, ?cur, ?next),
+       navigateTo(?who, ?dest)).
+
+
+% =============================================================================
+% METHODS - attackEnemy : the multi-plan core
+% =============================================================================
+% These are PLAIN ALTERNATIVES (no `else`). Every method whose precondition
+% holds is a distinct decomposition, so FindAllPlans enumerates one plan per
+% viable strategy. This is the heart of the demo.
+
+% Strategy 1 - Whirlwind combo: unleash the charged special.
+attackEnemy(?t, ?e) :-
+    if(powerUp(?t, ?p), >=(?p, 3),
+       stamina(?t, ?s), >=(?s, 2),
+       inMeleeRange(?t, ?e), at(?e, ?loc)),
+    do(navigateTo(?t, ?loc), opWhirlwind(?t, ?e, ?p), opRecovery(?t)).
+
+% Strategy 2 - Trunk slam: the bread-and-butter melee, needs an intact trunk.
+% Delegates the actual slam to the doTrunkSlam compound, which picks a variant.
+attackEnemy(?t, ?e) :-
+    if(trunkHealth(?t, ?h), >(?h, 0),
+       stamina(?t, ?s), >(?s, 0),
+       inMeleeRange(?t, ?e), at(?e, ?loc)),
+    do(navigateTo(?t, ?loc), doTrunkSlam(?t, ?e), opRecovery(?t)).
+
+% --- Nested compound: doTrunkSlam has TWO methods (the chapter's DoTrunkSlam) ---
+% This is the OTHER use of multiple methods: not strategy-enumeration but
+% variant-SELECTION. These are an `else` PRIORITY ladder, so exactly one fires
+% for a given state -> doTrunkSlam resolves to a single decomposition and the
+% top-level attackEnemy plan COUNT is unchanged. Contrast with the plain
+% (no-else) attackEnemy alternatives above, which each yield a distinct plan.
+%
+% Each method is a TWO-task combo - a telegraph then the slam - exactly as in
+% Game AI Pro Fig 12.2/12.3 (Method 0 = [Taunt, SuperSlam]; Method 1 =
+% [Tell, Slam]). This is the whole reason DoTrunkSlam is a *compound*: a method
+% bundles a SET of subtasks, not just one.
+%   * Method 0 - heavy combo when there's stamina to spare: taunt -> power slam;
+%   * Method 1 - else: the standard telegraph -> slam.
+doTrunkSlam(?t, ?e) :-
+    if(stamina(?t, ?s), >=(?s, 4)),
+    do(opTaunt(?t, ?e), opPowerSlam(?t, ?e)).
+
+doTrunkSlam(?t, ?e) :-
+    else, if(),
+    do(opTelegraph(?t, ?e), opTrunkSlam(?t, ?e)).
+
+% Strategy 3 - Boulder toss: a ranged answer when one is lying around.
+attackEnemy(?t, ?e) :-
+    if(boulderAvailable(?t), at(?e, ?loc)),
+    do(opPickupBoulder(?t), opThrowBoulderAt(?t, ?e)).
+
+% Strategy 4 - Re-arm, then attack (RECURSION). Only fires when the trunk has
+% broken (trunkHealth = 0). opUprootTrunk resets durability to 3, so the
+% recursive call drops into the slam/whirlwind branches and terminates.
+attackEnemy(?t, ?e) :-
+    if(trunkHealth(?t, 0), trunkAt(?trunk, ?tloc)),
+    do(navigateTo(?t, ?tloc),
+       opUprootTrunk(?t, ?trunk, ?tloc),
+       attackEnemy(?t, ?e)).
+
+
+% =============================================================================
+% METHODS - beTrunkThumper : the root behaviour
+% =============================================================================
+% Top of the hierarchy: if the troll can see the hero, attack; otherwise patrol
+% the bridges looking for intruders.
+
+beTrunkThumper(?t) :-
+    if(canSee(?t, ?e)),
+    do(attackEnemy(?t, ?e)).
+
+beTrunkThumper(?t) :-
+    else, if(),
+    do(patrol(?t)).
+
+patrol(?t) :-
+    if(at(?t, ?cur), bridge(?next), \==(?cur, ?next)),
+    do(navigateTo(?t, ?next), opCheckBridge(?t, ?next)).
+
+
+% =============================================================================
+% GOAL
+% =============================================================================
+% The headline goal - one task, several completely different natural plans.
+goals(attackEnemy(thumper, theHero)).
+
+% Other goals to explore in the REPL / MCP:
+%   goals(beTrunkThumper(thumper)).   % full hierarchy from the root
+%   goals(patrol(thumper)).           % the see-no-enemy fallback

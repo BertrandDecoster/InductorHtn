@@ -319,6 +319,63 @@ class HtnSession:
         # when you need a step count.
         return result
 
+    def method_failures(self, goal: str) -> dict:
+        """Report WHERE a goal's methods block, via the choice-tracking histogram.
+
+        Runs a find-all pass (which accumulates the planner's cross-search
+        choice stats) and projects the by-method / by-atom views the CLI
+        ``evaluate`` command already uses.
+
+        We call ``GetChoiceStats()`` directly rather than through
+        ``htn_evaluator.evaluate_level`` on purpose: ``evaluate_level``
+        early-returns and DROPS the choice stats when the goal yields zero
+        plans — which is exactly the case you most need to analyse. The view
+        builders are reused, since they are the same projection the C++
+        component tests trust.
+
+        Read-only w.r.t. state: this plans but never applies. Returns
+        ``ok: False, code: "choice_tracking_unavailable"`` when the engine was
+        built without ``-DINDHTN_CHOICE_TRACKING=ON``.
+        """
+        # Imported lazily: htn_evaluator lives in src/Python, which
+        # bindings_loader puts on sys.path when the planner class is loaded.
+        from htn_evaluator import _build_by_method_view, _build_by_atom_view
+
+        g = _ensure_period(goal)
+        error, raw = self.planner.FindAllPlansCustomVariables(g)
+        if error is not None:
+            raise RuntimeError(f"FindAllPlans: {error}")
+        parsed = parse_plans(raw)
+        # Cache so subsequent decomposition-tree / preview queries compose,
+        # mirroring find_plans (the same find-all pass just ran).
+        self.last_plan_result = PlanCache(goal=g, raw_json=raw, parsed=parsed)
+        plan_count = parsed.get("planCount", 0) if parsed.get("ok") else 0
+
+        try:
+            stats = self.planner.GetChoiceStats()
+        except (RuntimeError, ValueError):
+            stats = None
+        if stats is None:
+            return {
+                "ok": False,
+                "code": "choice_tracking_unavailable",
+                "goal": g,
+                "note": (
+                    "Method-failure analysis requires the engine built with "
+                    "-DINDHTN_CHOICE_TRACKING=ON."
+                ),
+                "solvable": plan_count > 0,
+                "planCount": plan_count,
+            }
+        return {
+            "ok": True,
+            "goal": g,
+            "solvable": plan_count > 0,
+            "planCount": plan_count,
+            "byMethod": _build_by_method_view(stats),
+            "byAtom": _build_by_atom_view(stats),
+        }
+
     def apply_plan(self, solution_index: int = 0, include_facts: bool = False) -> dict:
         if self.last_plan_result is None:
             raise RuntimeError(

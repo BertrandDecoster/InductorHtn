@@ -43,7 +43,7 @@ mcp-server/
 └── setup.py                # Package installation
 ```
 
-## MCP Tools (28 total)
+## MCP Tools (29 total)
 
 Authoritative list lives in `mcp-server/README.md`. The headline tools:
 
@@ -61,6 +61,7 @@ Authoritative list lives in `mcp-server/README.md`. The headline tools:
 | `indhtn_set_trace` / `indhtn_get_traces` | Capture planner trace |
 | `indhtn_lint` / `indhtn_introspect` | Static analysis (no session) |
 | `indhtn_get_decomposition_tree` / `indhtn_preview_solution_facts` / `indhtn_get_parallelized_plan` | Plan inspection |
+| `indhtn_method_failures` | Per-method failure histogram — where each method's decomposition blocks (gate vs body subtask). Needs an `INDHTN_CHOICE_TRACKING` build |
 
 ## Response convention: `ok`, partial failures, and `errors[]`
 
