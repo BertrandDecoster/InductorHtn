@@ -355,6 +355,11 @@ class IndHTNMCPServer:
                     "sessionId": {"type": "string"},
                     "goal": {"type": "string"},
                     "maxPlans": {"type": "integer", "minimum": 1},
+                    "includeRaw": {
+                        "type": "boolean",
+                        "description": "Include operatorsRaw (C++ term JSON) alongside operators strings. Default false.",
+                        "default": False,
+                    },
                 }, required=["sessionId", "goal"]),
             ),
             Tool(
@@ -389,11 +394,18 @@ class IndHTNMCPServer:
                 name="indhtn_apply_plan",
                 description=(
                     "Apply the cached plan (from indhtn_find_plans) to the world state. "
-                    "Picks the solution by index. State is modified; use snapshots to undo."
+                    "Picks the solution by index. State is modified; use snapshots to undo. "
+                    "Returns applied operators and the state diff (added/removed). "
+                    "Pass includeFacts=true to also receive the full post-apply fact list."
                 ),
                 inputSchema=obj({
                     "sessionId": {"type": "string"},
                     "solutionIndex": {"type": "integer", "minimum": 0, "default": 0},
+                    "includeFacts": {
+                        "type": "boolean",
+                        "description": "Include full post-apply world state. Default false; use indhtn_list_facts to fetch state explicitly.",
+                        "default": False,
+                    },
                 }, required=["sessionId"]),
             ),
             Tool(
@@ -401,11 +413,17 @@ class IndHTNMCPServer:
                 description=(
                     "Apply a single operator (del/add primitive). Fails with a structured "
                     "error if preconditions don't match, or if the call would decompose "
-                    "into multiple ops (suggesting it's a method, not a primitive)."
+                    "into multiple ops (suggesting it's a method, not a primitive). "
+                    "Pass includeFacts=true to receive the full post-apply fact list."
                 ),
                 inputSchema=obj({
                     "sessionId": {"type": "string"},
                     "operator": {"type": "string"},
+                    "includeFacts": {
+                        "type": "boolean",
+                        "description": "Include full post-apply world state. Default false; use indhtn_list_facts to fetch state explicitly.",
+                        "default": False,
+                    },
                 }, required=["sessionId", "operator"]),
             ),
             # ---- Snapshots ----
@@ -692,11 +710,17 @@ async def _h_find_plans(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
     sid = _require_str(args, "sessionId")
     goal = _require_str(args, "goal")
     max_plans = args.get("maxPlans")
+    include_raw = bool(args.get("includeRaw", False))
     session = srv.session_manager.get(sid)
     result = await srv._run_in_session(
         session, lambda: session.find_plans(goal, max_plans=max_plans)
     )
     payload = {"ok": result["ok"], **result, "goal": goal}
+    if not include_raw and "plans" in payload:
+        payload["plans"] = [
+            {k: v for k, v in plan.items() if k != "operatorsRaw"}
+            for plan in payload["plans"]
+        ]
     return _text(payload)
 
 
@@ -733,17 +757,21 @@ async def _h_get_parallelized_plan(srv: IndHTNMCPServer, args: dict) -> List[Tex
 async def _h_apply_plan(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
     sid = _require_str(args, "sessionId")
     idx = int(args.get("solutionIndex", 0))
+    include_facts = bool(args.get("includeFacts", False))
     session = srv.session_manager.get(sid)
-    result = await srv._run_in_session(session, lambda: session.apply_plan(idx))
+    result = await srv._run_in_session(
+        session, lambda: session.apply_plan(idx, include_facts=include_facts)
+    )
     return _text(result)
 
 
 async def _h_apply_operator(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
     sid = _require_str(args, "sessionId")
     operator = _require_str(args, "operator")
+    include_facts = bool(args.get("includeFacts", False))
     session = srv.session_manager.get(sid)
     result = await srv._run_in_session(
-        session, lambda: session.apply_operator(operator)
+        session, lambda: session.apply_operator(operator, include_facts=include_facts)
     )
     return _text(result)
 

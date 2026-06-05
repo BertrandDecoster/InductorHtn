@@ -117,6 +117,11 @@ public:
 #ifdef INDHTN_TRACK_RESOLUTION_STEPS
     int64_t m_lastResolutionStepCount;
 #endif
+#ifdef INDHTN_CHOICE_TRACKING
+    std::vector<ChoiceRecord> m_lastChoiceData;
+    std::vector<MethodClauseStats> m_lastMethodStats;
+    std::vector<AtomStats> m_lastAtomStats;
+#endif
 };
 
 #if defined(_MSC_VER)
@@ -335,7 +340,6 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                 int64_t highestMemoryUsedReturn;
                 int furthestFailureIndex;
                 std::vector<std::shared_ptr<HtnTerm>> farthestFailureContext;
-
                 ptr->m_lastSolutions = ptr->m_planner->FindAllPlans(ptr->m_factory.get(),
                                                                     ptr->m_state,
                                                                     queryCompiler->result(),
@@ -343,7 +347,12 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                                                                     &highestMemoryUsedReturn,
                                                                     &furthestFailureIndex,
                                                                     &farthestFailureContext);
-                
+#ifdef INDHTN_CHOICE_TRACKING
+                ptr->m_lastChoiceData = ptr->m_planner->GetLastChoiceData();
+                ptr->m_lastMethodStats = ptr->m_planner->GetLastMethodStats();
+                ptr->m_lastAtomStats = ptr->m_planner->GetLastAtomStats();
+#endif
+
                 if(ptr->m_factory->outOfMemory())
                 {
                     string outOfMemoryString =  "out of memory: Budget:" + lexical_cast<string>(ptr->m_budgetBytes) +
@@ -366,7 +375,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                 {
                     *result = GetCharPtrFromString(HtnPlanner::ToStringSolutions(ptr->m_lastSolutions, true));
                 }
-                
+
                 return nullptr;
             }
             else
@@ -401,7 +410,6 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                 int64_t highestMemoryUsedReturn;
                 int furthestFailureIndex;
                 std::vector<std::shared_ptr<HtnTerm>> farthestFailureContext;
-
                 ptr->m_lastSolutions = ptr->m_planner->FindAllPlans(ptr->m_factory.get(),
                                                                     ptr->m_state,
                                                                     queryCompiler->result(),
@@ -409,7 +417,12 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                                                                     &highestMemoryUsedReturn,
                                                                     &furthestFailureIndex,
                                                                     &farthestFailureContext);
-                
+#ifdef INDHTN_CHOICE_TRACKING
+                ptr->m_lastChoiceData = ptr->m_planner->GetLastChoiceData();
+                ptr->m_lastMethodStats = ptr->m_planner->GetLastMethodStats();
+                ptr->m_lastAtomStats = ptr->m_planner->GetLastAtomStats();
+#endif
+
                 if(ptr->m_factory->outOfMemory())
                 {
                     string outOfMemoryString =  "out of memory: Budget:" + lexical_cast<string>(ptr->m_budgetBytes) +
@@ -432,7 +445,7 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
                 {
                     *result = GetCharPtrFromString(HtnPlanner::ToStringSolutions(ptr->m_lastSolutions, true));
                 }
-                
+
                 return nullptr;
             }
             else
@@ -464,6 +477,158 @@ extern "C"  //Tells the compile to use C-linkage for the next scope.
             auto solution = (*ptr->m_lastSolutions)[solutionIndex];
             *result = GetCharPtrFromString(HtnPlanner::ToStringTree(solution));
             return nullptr;
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+    // Returns choice data as JSON array - records which methods unified and which had satisfiable preconditions
+    // Returns nullptr on success (result contains choice data JSON), error string on failure
+    __declspec(dllexport) char* __stdcall HtnGetChoiceData(HtnPlannerPythonWrapper* ptr, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+#ifdef INDHTN_CHOICE_TRACKING
+            std::stringstream ss;
+            ss << "[";
+            bool firstRecord = true;
+            for(auto& record : ptr->m_lastChoiceData) {
+                if(!firstRecord) ss << ",";
+                firstRecord = false;
+                auto escapeStr = [](const std::string& s) {
+                    std::string out;
+                    for(char c : s) {
+                        if(c == '"') out += "\\\"";
+                        else if(c == '\\') out += "\\\\";
+                        else if(c == '\n') out += "\\n";
+                        else if(c == '\r') out += "\\r";
+                        else if(c == '\t') out += "\\t";
+                        else out += c;
+                    }
+                    return out;
+                };
+                ss << "{";
+                ss << "\"taskFunctor\":\"" << escapeStr(record.taskFunctor) << "\",";
+                ss << "\"taskFull\":\"" << escapeStr(record.taskFull) << "\",";
+                ss << "\"depth\":" << record.depth << ",";
+                ss << "\"unifyingMethods\":[";
+                for(size_t i = 0; i < record.unifyingMethods.size(); i++) {
+                    if(i > 0) ss << ",";
+                    ss << "\"" << escapeStr(record.unifyingMethods[i]) << "\"";
+                }
+                ss << "],";
+                ss << "\"viableMethods\":[";
+                for(size_t i = 0; i < record.viableMethods.size(); i++) {
+                    if(i > 0) ss << ",";
+                    ss << "\"" << escapeStr(record.viableMethods[i]) << "\"";
+                }
+                ss << "]";
+                ss << "}";
+            }
+            ss << "]";
+            *result = GetCharPtrFromString(ss.str());
+            return nullptr;
+#else
+            *result = nullptr;
+            return GetCharPtrFromString("INDHTN_CHOICE_TRACKING not compiled in; rebuild with -DINDHTN_CHOICE_TRACKING=ON");
+#endif
+        }
+        catch(runtime_error &error)
+        {
+            *result = nullptr;
+            return GetCharPtrFromString(error.what());
+        }
+    }
+
+    // Returns the cross-search choice-count stats as JSON: { "byAtom": [...], "byMethod": [...] }.
+    // Returns nullptr on success (result contains the JSON), error string on failure.
+    __declspec(dllexport) char* __stdcall HtnGetChoiceStats(HtnPlannerPythonWrapper* ptr, char **result)
+    {
+        TreatFailFastAsException(true);
+        try
+        {
+#ifdef INDHTN_CHOICE_TRACKING
+            auto escapeStr = [](const std::string& s) {
+                std::string out;
+                for(char c : s) {
+                    if(c == '"') out += "\\\"";
+                    else if(c == '\\') out += "\\\\";
+                    else if(c == '\n') out += "\\n";
+                    else if(c == '\r') out += "\\r";
+                    else if(c == '\t') out += "\\t";
+                    else out += c;
+                }
+                return out;
+            };
+            auto writeClears = [&](std::stringstream& s, const std::vector<AtomMethodClear>& clears) {
+                s << "[";
+                for(size_t i = 0; i < clears.size(); i++) {
+                    if(i > 0) s << ",";
+                    s << "{\"method\":\"" << escapeStr(clears[i].methodSignature) << "\",";
+                    s << "\"methodDocOrder\":" << clears[i].methodDocOrder << ",";
+                    s << "\"count\":" << clears[i].clearCount << "}";
+                }
+                s << "]";
+            };
+
+            std::stringstream ss;
+            ss << "{";
+            ss << "\"byAtom\":[";
+            for(size_t i = 0; i < ptr->m_lastAtomStats.size(); i++) {
+                if(i > 0) ss << ",";
+                auto& a = ptr->m_lastAtomStats[i];
+                ss << "{\"atomFunctor\":\"" << escapeStr(a.atomFunctor) << "\",";
+                ss << "\"isOperator\":" << (a.isOperator ? "true" : "false") << ",";
+                ss << "\"tested\":" << a.testedCount << ",";
+                ss << "\"fail\":" << a.failCount << ",";
+                ss << "\"clears\":";
+                writeClears(ss, a.clears);
+                ss << "}";
+            }
+            ss << "],";
+            ss << "\"byMethod\":[";
+            for(size_t i = 0; i < ptr->m_lastMethodStats.size(); i++) {
+                if(i > 0) ss << ",";
+                auto& m = ptr->m_lastMethodStats[i];
+                ss << "{\"clauseDocOrder\":" << m.clauseDocOrder << ",";
+                ss << "\"clauseSignature\":\"" << escapeStr(m.clauseSignature) << "\",";
+                ss << "\"methodType\":\"" << escapeStr(m.methodType) << "\",";
+                ss << "\"subtaskCount\":" << m.subtaskCount << ",";
+                ss << "\"groundingsN\":" << m.groundingsN << ",";
+                ss << "\"successS\":" << m.successS << ",";
+                ss << "\"gateFailCount\":" << m.gateFailCount << ",";
+                ss << "\"furthestCompleted\":[";
+                for(size_t k = 0; k < m.furthestCompleted.size(); k++) {
+                    if(k > 0) ss << ",";
+                    ss << m.furthestCompleted[k];
+                }
+                ss << "],";
+                ss << "\"positions\":[";
+                for(size_t j = 0; j < m.positions.size(); j++) {
+                    if(j > 0) ss << ",";
+                    auto& p = m.positions[j];
+                    ss << "{\"positionIndex\":" << p.positionIndex << ",";
+                    ss << "\"atomFunctor\":\"" << escapeStr(p.atomFunctor) << "\",";
+                    ss << "\"tested\":" << p.testedCount << ",";
+                    ss << "\"fail\":" << p.failCount << ",";
+                    ss << "\"clears\":";
+                    writeClears(ss, p.clears);
+                    ss << "}";
+                }
+                ss << "]}";
+            }
+            ss << "]";
+            ss << "}";
+            *result = GetCharPtrFromString(ss.str());
+            return nullptr;
+#else
+            *result = nullptr;
+            return GetCharPtrFromString("INDHTN_CHOICE_TRACKING not compiled in; rebuild with -DINDHTN_CHOICE_TRACKING=ON");
+#endif
         }
         catch(runtime_error &error)
         {

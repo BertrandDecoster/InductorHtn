@@ -319,7 +319,7 @@ class HtnSession:
         # when you need a step count.
         return result
 
-    def apply_plan(self, solution_index: int = 0) -> dict:
+    def apply_plan(self, solution_index: int = 0, include_facts: bool = False) -> dict:
         if self.last_plan_result is None:
             raise RuntimeError(
                 "No plan cached. Call find_plans first to populate the solution list."
@@ -341,16 +341,18 @@ class HtnSession:
         facts_after = self.state_facts()
         diff = diff_facts(facts_before, facts_after)
         operators = cache.parsed["plans"][solution_index]["operators"]
-        return {
+        result = {
             "ok": True,
             "solutionIndex": solution_index,
             "applied": operators,
-            "facts": facts_after,
             "added": diff["added"],
             "removed": diff["removed"],
         }
+        if include_facts:
+            result["facts"] = facts_after
+        return result
 
-    def apply_operator(self, operator: str) -> dict:
+    def apply_operator(self, operator: str, include_facts: bool = False) -> dict:
         """Plan ``operator`` as a single-task goal and apply the result.
 
         Returns a structured result. On precondition failure, returns
@@ -439,13 +441,15 @@ class HtnSession:
             }
         facts_after = self.state_facts()
         diff = diff_facts(facts_before, facts_after)
-        return {
+        result = {
             "ok": True,
             "operator": ops[0],
-            "facts": facts_after,
             "added": diff["added"],
             "removed": diff["removed"],
         }
+        if include_facts:
+            result["facts"] = facts_after
+        return result
 
     # ------------------------------------------------------------------
     # Plan inspection

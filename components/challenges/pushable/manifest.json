@@ -1,0 +1,30 @@
+{
+  "name": "pushable",
+  "version": "1.0.0",
+  "layer": "challenges",
+  "description": "Push an object to a target position (Sokoban-style)",
+  "dependencies": [
+    "challenges/nav_obstacle"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-06-04T19:57:07.197500"
+  },
+  "provides": [],
+  "requires": [],
+  "challenge": {
+    "class": "C",
+    "behavioral_axes": [
+      "plan_length",
+      "push_count"
+    ],
+    "expected": {
+      "min_plans": 1,
+      "max_plans": 5,
+      "min_distinct_methods": 1
+    }
+  }
+}

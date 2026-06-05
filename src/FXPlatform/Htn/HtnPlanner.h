@@ -14,6 +14,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <set>
 #include <sstream>
 
 // Decomposition tree node for exposing HTN structure to callers
@@ -102,6 +103,91 @@ struct DecompTreeNode
     }
 };
 
+#ifdef INDHTN_CHOICE_TRACKING
+struct ChoiceRecord {
+    std::string taskFunctor;          // e.g. "defeatEnemy"
+    std::string taskFull;             // e.g. "defeatEnemy(guard1)"
+    int depth;                        // stack depth when task was popped
+    std::vector<std::string> unifyingMethods;  // all methods whose head unified
+    std::vector<std::string> viableMethods;    // subset with satisfiable if()
+};
+
+// ---------------------------------------------------------------------------
+// Cross-search choice-count tracking (richer than ChoiceRecord's sets).
+//
+// Accumulated over the ENTIRE backtracking search (not just successful plans).
+// Two report views are projected from the same recorded events:
+//   * "by atom"   - global rollup keyed by the task functor.
+//   * "by method" - keyed by the parent method clause, with one entry per
+//                   subtask position in its do() list.
+//
+// Counting model (unit = groundings, LOCAL completion):
+//   For a normal method M with N body subtasks, each precondition grounding is
+//   classified by the furthest subtask of M's OWN body that fully completed
+//   (its whole subtree reached leaves), independent of anything downstream of M:
+//     furthestCompleted[k] (0<=k<N) = # groundings that completed subtasks
+//                                     0..k-1 but failed to complete subtask k.
+//     furthestCompleted[N]          = # groundings whose entire body completed.
+//   So sum(furthestCompleted) == groundingsN. The histogram answers, e.g. for
+//   do(find_enemy, cast_spell, loot_body): did this method fail to find, to
+//   cast, or to loot? "Completion" is signalled locally by reaching M's
+//   methodScopeEnd marker (which sits before M's continuation), so a downstream
+//   sibling's failure does NOT count against M.
+//   For backward-compatible reporting, positions[k].failCount == furthestCompleted[k]
+//   and successS == furthestCompleted[N].
+//   anyOf/allOf clauses are excluded from the histogram (they merge groundings).
+// ---------------------------------------------------------------------------
+
+// Per (atom, resolving method): how many invocations of the atom had this
+// method's precondition clear (boolean per invocation; methods can overlap so
+// these can sum to more than the atom's testedCount).
+struct AtomMethodClear {
+    std::string methodSignature;
+    int methodDocOrder;
+    int clearCount;
+};
+
+// "by atom" rollup, keyed by task functor.
+struct AtomStats {
+    std::string atomFunctor;
+    bool isOperator;                  // true for leaf operators (no clears)
+    int testedCount;                  // # invocations across the whole search
+    int failCount;                    // # groundings that failed at this atom
+    std::vector<AtomMethodClear> clears;
+};
+
+// One subtask position of a parent method clause's do() list.
+struct MethodPositionStats {
+    int positionIndex;
+    std::string atomFunctor;          // functor of the subtask at this position
+    int testedCount;                  // # times this position's atom was resolved
+    int failCount;                    // # parent groundings that failed here
+    std::vector<AtomMethodClear> clears;
+};
+
+// "by method" rollup, keyed by parent clause documentOrder (-1 == goal).
+struct MethodClauseStats {
+    int clauseDocOrder;
+    std::string clauseSignature;
+    std::string methodType;           // "normal" | "anyOf" | "allOf" | "goal"
+    int subtaskCount;                 // N: # body subtasks (real, non-bookkeeping)
+    int groundingsN;                  // # precondition groundings (== sum of furthestCompleted)
+    int successS;                     // groundings whose whole body completed (== furthestCompleted[N])
+    int gateFailCount;                // times the precondition gate failed (N==0)
+    std::vector<int> furthestCompleted;  // size N+1; furthest locally-completed subtask histogram
+    std::vector<MethodPositionStats> positions;
+};
+
+// Emission-time tag attached to each bound subtask term so that, when the term
+// is later resolved, we can attribute it to the parent clause + position that
+// emitted it. Keyed by HtnTerm* (see csTermOrigin).
+struct ChoiceOrigin {
+    int clauseDocOrder;               // parent clause (-1 == goal)
+    int slot;                         // position within parent's do()
+    int parentNodeID;                 // parent PlanNode nodeID (for grounding keys)
+};
+#endif
+
 class HtnMethod;
 enum class HtnMethodType;
 class HtnOperator;
@@ -149,6 +235,38 @@ private:
     std::map<int, int> nodeIDToLastTreeNodeID;    // PlanNode nodeID -> last treeNodeID created for it
     std::map<int, int> bookkeepingParents;  // Track parent relationships for bookkeeping tasks (tryEnd, etc.)
     int currentSolutionID;  // Incremented each time a solution is found
+
+#ifdef INDHTN_CHOICE_TRACKING
+    std::vector<ChoiceRecord> choiceData;
+    std::map<int, size_t> treeNodeIDToChoiceIndex;  // treeNodeID -> index in choiceData (unique per task, handles try() same-node reuse)
+
+    // Cross-search choice-count tracking (see struct comments above).
+    std::map<std::string, AtomStats> atomStatsByFunctor;   // "by atom" rollup
+    std::map<int, MethodClauseStats> methodStatsByClause;  // "by method", key = clause documentOrder (-1 == goal)
+    // bound-subtask term -> emitting clause/position. Keyed by interned HtnTerm*.
+    // KNOWN LIMITATION: the same fully-ground subtask at two positions of one do()
+    // (e.g. do(foo(x), foo(x))) interns to one pointer, so both resolve to the last
+    // slot tagged. Mis-slots within that one method only; by-atom counts stay exact.
+    // A decomposition-tree fix was scoped and declined as too invasive for the payoff
+    // (see docs/method-failure-analysis.md "Semantics caveats").
+    // Each entry holds the origin tag PLUS a strong ref to the (arithmetic-resolved)
+    // term it is keyed on. The strong ref keeps that interned term alive for the whole
+    // search so the factory's weak_ptr interning cannot free it and re-intern the same
+    // subtask at a different address (which would miss the tag). It lives in the map
+    // (rather than a side vector) so re-tagging the SAME interned pointer overwrites in
+    // place instead of accumulating — retention is bounded by the number of DISTINCT
+    // tagged terms, not by groundings*subtasks.
+    //
+    // The lifetime is whole-search ON PURPOSE: groundings nest (a deeper grounding can
+    // complete while an outer one is still mid-body), so clearing per-grounding would
+    // free an outer grounding's not-yet-tested subtasks and break attribution. Keeping
+    // everything alive is correct; the strong ref in the map only removes the redundant
+    // duplication, it does not (and must not) shorten the lifetime.
+    std::map<const HtnTerm*, std::pair<ChoiceOrigin, std::shared_ptr<HtnTerm>>> csTermOrigin;
+    std::map<int, int> csGroundingDeepestPos;              // parent nodeID -> deepest slot reached this grounding
+    std::map<int, bool> csGroundingBodyDone;               // parent nodeID -> reached methodScopeEnd (body fully completed) this grounding
+    std::map<int, std::set<int>> csClearedCounted;         // atom-resolving nodeID -> method docOrders already counted this invocation
+#endif
 };
 
 
@@ -198,6 +316,14 @@ public:
     // Always check factory->outOfMemory() after calling to see if we ran out of memory during processing and the plan might not be complete
     std::shared_ptr<SolutionsType> FindAllPlans(HtnTermFactory *factory, std::shared_ptr<HtnRuleSet> initialState, const std::vector<std::shared_ptr<HtnTerm>> &initialGoals, int memoryBudget = 5000000,
                                                 int64_t *highestMemoryUsedReturn = nullptr, int *furthestFailureIndex = nullptr, std::vector<std::shared_ptr<HtnTerm>> *furthestFailureContext = nullptr);
+#ifdef INDHTN_CHOICE_TRACKING
+    // Choice-count tracking results from the most recent FindAllPlans call. Retained
+    // on the planner (like GetLastResolutionStepCount) rather than returned through
+    // FindAllPlans' signature, so the macro never changes that public API's ABI.
+    const std::vector<ChoiceRecord>& GetLastChoiceData() const { return m_lastChoiceData; }
+    const std::vector<MethodClauseStats>& GetLastMethodStats() const { return m_lastMethodStats; }
+    const std::vector<AtomStats>& GetLastAtomStats() const { return m_lastAtomStats; }
+#endif
     // Always check factory->outOfMemory() after calling to see if we ran out of memory during processing and the plan might not be complete
     std::shared_ptr<SolutionType> FindPlan(HtnTermFactory *factory, std::shared_ptr<HtnRuleSet> initialState, std::vector<std::shared_ptr<HtnTerm>> &initialGoals, int memoryBudget = 5000000);
     // Always check factory->outOfMemory() after calling to see if we ran out of memory during processing and the plan might not be complete
@@ -257,6 +383,30 @@ private:
     int DetermineTreeParent(PlanState* planState, PlanNode* node);
     static int NodeIDToTreeNodeID(PlanState* planState, int nodeID);
     void CreateTreeNodeForTask(PlanState* planState, PlanNode* node);
+
+#ifdef INDHTN_CHOICE_TRACKING
+    // Cross-search choice-count tracking helpers (see struct comments above)
+    static bool csIsBookkeeping(const std::string& name);
+    static MethodClauseStats& csClause(PlanState* planState, int docOrder, const std::string& sig, const std::string& methodType);
+    static MethodPositionStats& csPosition(MethodClauseStats& clause, int slot, const std::string& atomFunctor);
+    static AtomStats& csAtom(PlanState* planState, const std::string& functor, bool isOperator);
+    static void csBumpClear(std::vector<AtomMethodClear>& clears, const std::string& sig, int docOrder);
+    // Tag each non-bookkeeping bound subtask with its emitting clause/position.
+    void csTagBody(PlanState* planState, int clauseDocOrder, const std::string& clauseSig, int parentNodeID,
+                   const std::string& methodType, const std::vector<std::shared_ptr<HtnTerm>>& boundSubtasks);
+    bool csIsOperatorTask(const std::string& name);
+    void csRecordTested(PlanState* planState, PlanNode* node);          // Hook A
+    void csRecordClear(PlanState* planState, PlanNode* node);           // Hook B
+    void csRecordGrounding(PlanState* planState, PlanNode* node, bool success);  // Hook C/D
+    void csRecordGateFail(PlanState* planState, PlanNode* node);        // gate failure (N==0)
+
+    // Retained results of the most recent FindAllPlans (copied from PlanState before
+    // it is destroyed); exposed via GetLast* accessors. *** Update dynamicSize? No —
+    // these belong to the planner, not the per-search PlanState. ***
+    std::vector<ChoiceRecord> m_lastChoiceData;
+    std::vector<MethodClauseStats> m_lastMethodStats;
+    std::vector<AtomStats> m_lastAtomStats;
+#endif
 
     // *** Remember to update dynamicSize() if you change any member variables!
     // Awful hack making this static. necessary because it was too late in schedule to properly plumb through an Abort

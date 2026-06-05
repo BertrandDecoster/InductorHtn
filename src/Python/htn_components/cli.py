@@ -8,9 +8,12 @@ Commands:
     status                   List all components with status
     assemble <level_path>    Assemble level into single HTN file
     coverage <component_path> Check design-to-test coverage
+    evaluate <level_path>    Evaluate plan-space richness of a level
+    library-coverage         Aggregate plan-space metrics across all levels
 """
 
 import argparse
+import math
 import os
 import shutil
 import sys
@@ -23,7 +26,8 @@ from typing import Optional, List, Tuple
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from .manifest import (
-    Manifest, CertificationStatus,
+    Manifest, CertificationStatus, ManifestValidationError,
+    ChallengeBlock,
     find_component_root, resolve_component_path,
     get_component_manifest, list_all_components
 )
@@ -443,6 +447,18 @@ def cmd_certify(args) -> int:
                 print(f"Contracts: provides={len(provides)}, requires={len(requires)}")
         except Exception as exc:
             print(f"  Warning: contract inference failed: {exc}")
+
+    # Step 0b: Validate the challenge block if present.
+    if manifest.challenge is not None:
+        print("\n[0b] Validating challenge block...")
+        try:
+            manifest.challenge.validate()
+            print("  Challenge block: VALID")
+        except ManifestValidationError as exc:
+            print(f"  Challenge block: INVALID — {exc}")
+            print("\n" + "=" * 50)
+            print("NOT CERTIFIED - challenge block is malformed")
+            return 1
 
     # Step 1: Linter
     if htn_path:
@@ -2233,6 +2249,257 @@ def verify_design_coverage(design_path: str, test_path: str, verbose: bool = Fal
 
 
 # =============================================================================
+# Evaluate / Library-Coverage Commands
+# =============================================================================
+
+def _load_level_for_evaluate(level_path: str):
+    """Load a level into a fresh HtnPlanner via ComponentLoader.
+
+    Returns (planner, level_name) or raises SystemExit on error.
+    """
+    if os.path.isabs(level_path):
+        full_path = level_path
+    else:
+        full_path = os.path.join(PROJECT_ROOT, "levels", level_path)
+
+    if not os.path.isdir(full_path):
+        print(f"Error: Level not found at {full_path}")
+        sys.exit(1)
+
+    manifest_path = os.path.join(full_path, "manifest.json")
+    if not os.path.exists(manifest_path):
+        print(f"Error: No manifest.json in level directory {full_path}")
+        sys.exit(1)
+
+    with open(manifest_path, "r") as f:
+        level_manifest = json.load(f)
+
+    level_name = level_manifest.get("name", os.path.basename(full_path.rstrip("/\\")))
+
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from indhtnpy import HtnPlanner  # type: ignore
+    from htn_components.loader import ComponentLoader, LoadError  # type: ignore
+
+    planner = HtnPlanner(False)
+    loader = ComponentLoader(planner, PROJECT_ROOT)
+    try:
+        loader.load_level_htn(full_path)
+    except LoadError as exc:
+        print(f"Load error: {exc}")
+        sys.exit(1)
+
+    return planner, level_name, level_manifest
+
+
+def cmd_evaluate(args) -> int:
+    """Evaluate the plan-space richness of a level."""
+    planner, level_name, level_manifest = _load_level_for_evaluate(args.level)
+
+    # Import evaluator
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_evaluator import (  # type: ignore
+        evaluate_level,
+        _build_by_atom_view,
+        _build_by_method_view,
+    )
+
+    # Get goal from planner's compiled goals() directive
+    err, compiled_goals = planner.GetGoals()
+    if err or not compiled_goals:
+        print(f"Error: No goals() directive found in level (err={err!r})")
+        return 1
+    goal = compiled_goals[0]
+
+    report = evaluate_level(planner, goal)
+
+    # ---- Print report -------------------------------------------------------
+    print(f"\n=== {level_name} evaluation ===")
+    print(f"solvable:         {report['solvable']}")
+    print(f"plan_count:       {report['plan_count']}")
+    print(f"difficulty:       {report['difficulty_estimate']}")
+
+    lengths = report["plan_lengths"]
+    if lengths:
+        mean_len = sum(lengths) / len(lengths)
+        print(f"plan_lengths:     {lengths}  (mean: {mean_len:.1f})")
+    else:
+        print(f"plan_lengths:     []")
+
+    csc = report["context_switch_cost"]
+    print(f"context_switches: {csc:.1f} mean per plan")
+
+    variety = report["operator_variety"]
+    print(f"operator_variety: {variety}  ({len(variety)} distinct)")
+
+    if report["choice_data"] is None:
+        print(
+            "\nchoice nodes:     "
+            "(not available — rebuild with -DINDHTN_CHOICE_TRACKING=ON)"
+        )
+    else:
+        ad = report.get("activation_distribution") or {}
+        if ad:
+            print("\nchoice nodes (activation distribution by depth):")
+            # Group by depth, sort by depth then functor name
+            by_depth: dict = {}
+            for functor, entry in ad.items():
+                d = entry.get("depth", 0)
+                by_depth.setdefault(d, []).append((functor, entry))
+            for depth in sorted(by_depth):
+                print(f"  depth {depth}:")
+                for functor, entry in sorted(by_depth[depth]):
+                    print(
+                        f"    {functor:<30}  "
+                        f"activations={entry['activation_count']}  "
+                        f"viable={entry['viable_count']}"
+                    )
+
+    # ---- Cross-search choice-count stats (by atom / by method) --------------
+    choice_stats = report.get("choice_stats")
+    if choice_stats:
+        def _label(method_sig: str) -> str:
+            # The clear's method signature is the full clause ToString; show the
+            # head ("travelTo(?d)") rather than the whole "=> if(...), do(...)".
+            return method_sig.split(" =>")[0].strip()
+
+        by_atom = _build_by_atom_view(choice_stats) or []
+        if by_atom:
+            print("\nBy atom (tested / fail / per-resolving-method clears):")
+            for a in by_atom:
+                clears = "  ".join(
+                    f"{_label(c['method'])}:{c['count']}" for c in a.get("clears", [])
+                )
+                op = " (op)" if a.get("isOperator") else ""
+                line = f"  {a['atomFunctor']}{op}  tested={a['tested']} fail={a['fail']}"
+                if clears:
+                    line += f"  | {clears}"
+                print(line)
+
+        by_method = _build_by_method_view(choice_stats) or []
+        if by_method:
+            print("\nBy method (furthest LOCAL completion: which own subtask blocks):")
+            for m in by_method:
+                mt = m.get("methodType", "normal")
+                if mt == "normal":
+                    part = f"passes(N)={m['groundingsN']} fullSuccess={m['successS']} gateFail={m['gateFailCount']}"
+                elif mt == "goal":
+                    part = "goal entry"
+                else:
+                    part = f"[{mt}] histogram=N/A gateFail={m['gateFailCount']}"
+                print(f"  {m['clauseSignature']}")
+                print(f"      {part}")
+                # Furthest-completed histogram with subtask labels (normal methods).
+                hist = m.get("furthestCompleted") or []
+                positions = m.get("positions", [])
+                if mt == "normal" and hist:
+                    labels = {p["positionIndex"]: p["atomFunctor"] for p in positions}
+                    n = m.get("subtaskCount", len(hist) - 1)
+                    parts = []
+                    for k, count in enumerate(hist):
+                        if k == n:
+                            parts.append(f"done={count}")
+                        else:
+                            parts.append(f"failAt[{k}]{labels.get(k, '?')}={count}")
+                    print(f"      furthest: {'  '.join(parts)}")
+                for p in positions:
+                    clears = "  ".join(
+                        f"{_label(c['method'])}:{c['count']}" for c in p.get("clears", [])
+                    )
+                    line = (f"      [{p['positionIndex']}] {p['atomFunctor']}  "
+                            f"tested={p['tested']}")
+                    if clears:
+                        line += f"  {clears}"
+                    print(line)
+
+    # ---- Exit-code logic ----------------------------------------------------
+    if not report["solvable"]:
+        print("\nResult: UNSOLVABLE")
+        return 1
+
+    # Check challenge.expected block in manifest if present.
+    # Use ChallengeBlock / ChallengeExpected so all constraints (including
+    # min_distinct_methods) are enforced consistently with cmd_certify.
+    raw_challenge = level_manifest.get("challenge")
+    if raw_challenge is not None:
+        try:
+            challenge_block = ChallengeBlock.from_dict(raw_challenge)
+            violations = challenge_block.expected.check_report(report)
+            if violations:
+                print("\nResult: CONSTRAINT VIOLATION")
+                for v in violations:
+                    print(f"  {v}")
+                return 1
+            if challenge_block.expected.to_dict():
+                print("\nResult: OK (within expected bounds)")
+            else:
+                print("\nResult: OK")
+        except ManifestValidationError as exc:
+            print(f"\nWarning: invalid challenge block — {exc}")
+            print("\nResult: OK")
+    else:
+        print("\nResult: OK")
+
+    return 0
+
+
+def cmd_library_coverage(args) -> int:
+    """Aggregate plan-space metrics across all levels."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_evaluator import library_coverage  # type: ignore
+
+    levels_dir = os.path.join(PROJECT_ROOT, "levels")
+    layer_filter = getattr(args, "layer", None)
+
+    report = library_coverage(levels_dir, layer_filter=layer_filter)
+
+    total = report["total_levels"]
+    unsolvable = report.get("unsolvable_levels", 0)
+    counts = report["method_activation_counts"]
+    dead = report["dead_methods"]
+    unsolvable_ops = report.get("unsolvable_only_operators", [])
+    over_concentrated = report["over_concentrated"]
+    entropy = report["uniformity_entropy"]
+
+    # Compute max possible entropy (log2 of number of distinct methods)
+    num_methods = len(counts)
+    max_entropy = math.log2(num_methods) if num_methods > 1 else 1.0
+
+    print(f"\n=== Library Coverage ===")
+    print(f"Levels evaluated: {total}" + (f"  ({unsolvable} unsolvable)" if unsolvable else ""))
+
+    if not counts:
+        print("\n(No method activations recorded — no solvable levels found)")
+        return 0
+
+    print(f"\nMethod activation (level count / total levels):")
+
+    # Sort by activation count descending, then alphabetically
+    sorted_methods = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
+
+    bar_width = 20
+    for method, cnt in sorted_methods:
+        if total > 0:
+            pct = cnt / total
+        else:
+            pct = 0.0
+        bar_filled = int(pct * bar_width)
+        bar = "█" * bar_filled + " " * (bar_width - bar_filled)
+        dead_marker = "   <- DEAD" if cnt == 0 else ""
+        print(f"  {method:<30}  {cnt}/{total}  {bar}  ({pct*100:.0f}%){dead_marker}")
+
+    print(f"\nUniformity entropy: {entropy:.2f} (max: {max_entropy:.2f})")
+
+    if dead:
+        print(f"\nDead methods (0 activations):   {dead}")
+    if unsolvable_ops:
+        print(f"Operators only in unsolvable levels (not dead): {unsolvable_ops}")
+    if over_concentrated:
+        print(f"Over-concentrated (>50%):        {over_concentrated}")
+
+    return 0
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -2242,12 +2509,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Commands:
-  new       Create a new component from template
-  test      Run tests for a component
-  certify   Certify a component (all checks must pass)
-  status    List all components with certification status
-  assemble  Assemble a level into a single HTN file
-  coverage  Check design-to-test coverage
+  new               Create a new component from template
+  test              Run tests for a component
+  certify           Certify a component (all checks must pass)
+  status            List all components with certification status
+  assemble          Assemble a level into a single HTN file
+  coverage          Check design-to-test coverage
+  evaluate          Evaluate plan-space richness of a level
+  library-coverage  Aggregate plan-space metrics across all levels
 
 Examples:
   python -m htn_components new primitives/tags
@@ -2255,6 +2524,9 @@ Examples:
   python -m htn_components certify primitives/tags
   python -m htn_components status
   python -m htn_components assemble puzzle1 --output level1.htn
+  python -m htn_components evaluate puzzle1
+  python -m htn_components library-coverage
+  python -m htn_components library-coverage --layer puzzle
 """
     )
 
@@ -2330,6 +2602,26 @@ Examples:
     verify_parser.add_argument("level", help="Level path (e.g., puzzle1)")
     verify_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     verify_parser.set_defaults(func=cmd_verify)
+
+    # evaluate command
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="Evaluate plan-space richness of a level (solvability, difficulty, operator variety)",
+    )
+    evaluate_parser.add_argument("level", help="Level path (e.g., puzzle1 or levels/puzzle1)")
+    evaluate_parser.set_defaults(func=cmd_evaluate)
+
+    # library-coverage command
+    lib_cov_parser = subparsers.add_parser(
+        "library-coverage",
+        help="Aggregate plan-space metrics across all levels",
+    )
+    lib_cov_parser.add_argument(
+        "--layer", "-l",
+        help="Filter levels by path substring (e.g., puzzle or gamehack)",
+        default=None,
+    )
+    lib_cov_parser.set_defaults(func=cmd_library_coverage)
 
     args = parser.parse_args()
 

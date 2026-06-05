@@ -277,3 +277,89 @@ planState->decompositionTree.push_back(treeNode);
 4. **Backtracking** - State copying only when needed
 5. **Method Order** - Preserved from source file
 6. **Sibling Tracking** - Scope markers ensure correct tree parent relationships
+
+## Choice-Count Tracking (`INDHTN_CHOICE_TRACKING`)
+
+Compiled out by default (`option ... OFF` in `src/CMakeLists.txt`). When enabled,
+`FindAllPlans` accumulates two kinds of data across the **entire** backtracking
+search (not just successful plans):
+
+- **`ChoiceRecord`** (original): per task tree-node, the *sets* `unifyingMethods`
+  and `viableMethods`. Exposed via `HtnGetChoiceData` → `GetChoiceData()`.
+- **`MethodClauseStats` / `AtomStats`** (cross-search counts): exposed via
+  `HtnGetChoiceStats` → `GetChoiceStats()` as `{byAtom, byMethod}` and rendered
+  by `htn_components evaluate`.
+
+### Counting model — unit is **groundings**, completion is **local**
+
+For a normal method `M` with `N` body subtasks, the precondition produces some
+number of groundings; each grounding is classified by the **furthest subtask of
+`M`'s own body that fully completed** (its whole subtree reached leaves),
+*independent of anything downstream of `M`*:
+
+```
+furthestCompleted[k]  (0 <= k < N)  = groundings that completed subtasks 0..k-1
+                                      but failed to complete subtask k
+furthestCompleted[N]                = groundings whose entire body completed
+sum(furthestCompleted) == groundingsN
+```
+
+For backward-compatible reporting, `positions[k].failCount == furthestCompleted[k]`
+and `successS == furthestCompleted[N]`. A precondition gate failure (`N == 0`
+groundings) is counted separately in `gateFailCount`.
+
+This answers, e.g. for `do(find_enemy, cast_spell, loot_body)`: did the method
+fail to *find*, to *cast*, or to *loot*? — using only the method's own body.
+
+**Why local (not continuation-based).** Body subtasks are pushed *ahead of* the
+method's continuation, with a `methodScopeEnd(M)` marker between them. Reaching
+subtask `k+1` proves subtask `k` fully completed to leaves; reaching
+`methodScopeEnd(M)` proves the whole body completed — all **before** `M`'s
+continuation runs. So a *downstream* sibling failing does **not** count against
+`M`. Concretely, for `head :- do(func1, func2)` where `func2(c)` fails: `head`
+is recorded as failing at position 1 (`func2`), and `func1`'s own grounding for
+that case is recorded as a **full local success** (its body completed), not a
+failure. (`completion` is detected via the `methodScopeEnd` marker, which
+requires `INDHTN_TREE_SIBLING_TRACKING`; without it the histogram degrades to
+the continuation-based `returnValue`.)
+
+### Per-hook implementation
+
+| Hook | Location (`HtnPlanner.cpp`) | What it records |
+|------|----------------------------|-----------------|
+| Emission tag | `NextNormalMethodCondition` (before the `SearchNextNodeBacktrackable` push); `HandleAllOf`/`HandleAnyOf`; goals tagged in `PlanState` ctor | `csTagBody` stamps each bound subtask term with `{clauseDocOrder, slot, parentNodeID}` in `csTermOrigin`, and resets `csGroundingDeepestPos[M]` for the new grounding |
+| A — tested | `NextTask`, right after `CreateTreeNodeForTask` | `csRecordTested`: bumps by-atom + by-method position `testedCount` (operators included, bookkeeping skipped); updates deepest-position-reached. Also detects `methodScopeEnd(parentNodeID)` and marks that parent's body as locally completed this grounding (`csGroundingBodyDone`) |
+| B — clears | the existing viable block (`NextMethodThatApplies` success path) | `csRecordClear`: bumps per-resolving-method `clearCount` (deduped once per invocation via `csClearedCounted`) |
+| C/D — grounding outcome | `ReturnFromNextNormalMethodCondition` | `csRecordGrounding`: `groundingsN++`; increments `furthestCompleted[N]` if the body completed locally (`methodScopeEnd` reached, or `N==0`, or `returnValue`), else `furthestCompleted[deepestReached]` |
+| Gate fail | `conditionResolutions == nullptr` branch | `csRecordGateFail`: `gateFailCount++` |
+
+Attribution avoids the sibling stack entirely: parent clause + position travel
+on the **term tag** (`csTermOrigin`, keyed by `HtnTerm*`). Because terms are
+interned, the tag is stable across find-all re-resolution (same pointer).
+
+Two pointer-identity subtleties are handled, one is a documented residual:
+- **Arithmetic args** (e.g. `opGain(+(2,3))`): `NextTask` runs
+  `ResolveArithmeticTerms` (re-interning to `opGain(5)`, a *different* pointer)
+  before the tag is read. `csTagBody` therefore keys on the *resolved* term and
+  pins it alive in `csTermOriginKeepAlive` so the factory's weak-ptr interning
+  can't free it before re-resolution. Without this the by-method position for an
+  arithmetic-bearing subtask would silently drop.
+- **Address reuse across groundings**: each grounding re-runs `csTagBody`, which
+  overwrites the stale `csTermOrigin[ptr]` entry before that grounding's subtasks
+  are tested, so a freed-then-reused address self-corrects.
+- **Residual (known limitation)**: the *same fully-ground subtask appearing at
+  two positions in one `do()`* — e.g. `do(foo(x), foo(x))` — interns to a single
+  pointer, so both occurrences resolve to the last slot tagged. This mis-slots
+  between two positions of one method only; by-atom counts are unaffected. A
+  structural (decomposition-tree) fix was scoped and declined as too invasive for
+  the payoff — see the by-method caveats in `docs/method-failure-analysis.md`.
+
+### Excluded / approximate cases
+
+- **`anyOf`/`allOf`** clauses are excluded from the S+A+B partition (their
+  groundings are merged/flattened, returning via `ReturnFromSetOfConditions`, not
+  `ReturnFromNextNormalMethodCondition`). They still record `tested`/`clears`,
+  and are labelled `methodType` `anyOf`/`allOf` (report shows `partition=N/A`).
+- Tasks inside `try()` and `parallel()` are not separately tagged, so their
+  by-method position attribution falls back; by-atom counts are still exact (they
+  only need the functor).

@@ -1,0 +1,48 @@
+% combo_sequence - Challenge: Apply N effects in correct order to achieve goal
+% Insight-class: player must discover and execute the correct effect ordering
+% Effects are ordered by comboStep facts; only applies effects not already present
+
+% === Signatures (for TYP001 linter) ===
+signature(opApplyEffect, [target, effect]).
+signature(applyEffect, [target, effect]).
+signature(executeCombo, [target]).
+
+% === Operators ===
+
+% Apply an effect to a target (removes the need for it, marks it as applied)
+opApplyEffect(?target, ?effect) :-
+    del(needsEffect(?target, ?effect)),
+    add(hasEffect(?target, ?effect)).
+
+% === Methods ===
+
+% Apply one effect: skip if already present, otherwise apply
+applyEffect(?target, ?effect) :-
+    if(hasEffect(?target, ?effect)),
+    do().
+
+applyEffect(?target, ?effect) :-
+    else, if(needsEffect(?target, ?effect)),
+    do(opApplyEffect(?target, ?effect)).
+
+% Execute a 3-step combo in order (check for step 3 first so it takes priority)
+executeCombo(?target) :-
+    if(needsEffect(?target, ?e1),
+       comboStep(?e1, 1),
+       needsEffect(?target, ?e2),
+       comboStep(?e2, 2),
+       needsEffect(?target, ?e3),
+       comboStep(?e3, 3)),
+    do(applyEffect(?target, ?e1),
+       applyEffect(?target, ?e2),
+       applyEffect(?target, ?e3)).
+
+% Execute a 2-step combo in order (no step 3 needed)
+executeCombo(?target) :-
+    else, if(needsEffect(?target, ?e1),
+             comboStep(?e1, 1),
+             needsEffect(?target, ?e2),
+             comboStep(?e2, 2),
+             not(comboStep(?e3, 3))),
+    do(applyEffect(?target, ?e1),
+       applyEffect(?target, ?e2)).

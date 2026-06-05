@@ -104,7 +104,7 @@ async def _mcp_run_direct_movement() -> dict:
         "indhtn_find_plans", {"sessionId": sid, "goal": "moveTo(player, roomB)"}
     )
     applied = await srv.call_tool_direct(
-        "indhtn_apply_plan", {"sessionId": sid, "solutionIndex": 0}
+        "indhtn_apply_plan", {"sessionId": sid, "solutionIndex": 0, "includeFacts": True}
     )
     return {
         "plans": plans,
@@ -136,7 +136,7 @@ async def _mcp_run_multi_hop() -> dict:
         "indhtn_find_plans", {"sessionId": sid, "goal": "moveTo(player, roomB)"}
     )
     applied = await srv.call_tool_direct(
-        "indhtn_apply_plan", {"sessionId": sid, "solutionIndex": 0}
+        "indhtn_apply_plan", {"sessionId": sid, "solutionIndex": 0, "includeFacts": True}
     )
     return {
         "plans": plans,

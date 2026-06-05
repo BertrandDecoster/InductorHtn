@@ -13,5 +13,6 @@ target_sources(runtests
         ${CMAKE_CURRENT_SOURCE_DIR}/HtnDecompositionTreeTests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/HtnParallelTests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/HtnNumericFluentTests.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/HtnChoiceTrackingTests.cpp
 )
 target_include_directories(testLib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)
