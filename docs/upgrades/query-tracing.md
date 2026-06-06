@@ -98,11 +98,11 @@ public:
 
 ### Changes Required
 
-1. **HtnPlanner.h** (~line 64-82):
+1. **`HtnPlanner.h`** (`TreeNode` struct + `SolutionType`):
    - Add `TreeNode` struct
    - Add `decompositionTree` to `SolutionType`
 
-2. **HtnPlanner.cpp** - `SolutionFromCurrentNode()` (~line 139):
+2. **`HtnPlanner.cpp`** - `SolutionFromCurrentNode()`:
    - Walk the stack and build tree from `PlanNode` parent/child relationships
    - Store in solution before returning
 

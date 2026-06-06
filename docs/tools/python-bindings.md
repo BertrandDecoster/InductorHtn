@@ -1,8 +1,3 @@
----
-description: Python bindings via indhtnpy
-globs: src/Python/**
----
-
 # Python Bindings
 
 Python interface to InductorHTN via ctypes.

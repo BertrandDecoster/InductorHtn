@@ -4,7 +4,7 @@
 > Built on the planner's in-flight instrumentation (`INDHTN_CHOICE_TRACKING` /
 > `GetChoiceStats` — "choice" there refers to the method *choice points* the
 > planner branches on). The *mechanism* (how the histogram is computed) lives in
-> `.claude/rules/planner-internals.md`; this file is the *usage* guide.
+> `docs/reference/planner-internals.md`; this file is the *usage* guide.
 
 The planner records, across the **entire** backtracking search (not just
 successful plans), *where every method got blocked*. Use it to debug and tune

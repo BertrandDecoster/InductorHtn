@@ -1,5 +1,5 @@
 """Tests for ``indhtn_method_failures`` — the MCP surface over the planner's
-choice-tracking / method-failure histogram (``docs/method-failure-analysis.md``).
+choice-tracking / method-failure histogram (``docs/upgrades/method-failure-tracking.md``).
 
 These tests skip automatically when the loaded engine was built without
 ``INDHTN_CHOICE_TRACKING`` (the tool then returns
@@ -28,7 +28,7 @@ pytestmark = pytest.mark.asyncio
 # A 3-subtask top method that always blocks at subtask 1 (castSpell): subtask 0
 # (findEnemy) completes, but castSpell's precondition (mana) never holds, so
 # lootBody (subtask 2) is never reached. Mirrors the `craft` worked example in
-# docs/method-failure-analysis.md (there the histogram is [0, 5, 0]).
+# docs/upgrades/method-failure-tracking.md (there the histogram is [0, 5, 0]).
 _RULESET = """
 enemy(orc).
 

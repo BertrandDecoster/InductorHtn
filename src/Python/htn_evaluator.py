@@ -11,7 +11,7 @@ succeeds or fails. Per method it reports a `furthestCompleted` histogram —
 [fail@subtask0, ..., fail@subtask(N-1), full-success] — that pinpoints whether a
 method dies at its precondition gate or at a specific body subtask. Use it to
 debug/tune rulesets: if a method's mass sits at subtask k, add the facts that
-subtask k needs. Full diagnostic workflow: see `docs/method-failure-analysis.md`.
+subtask k needs. Full diagnostic workflow: see `docs/upgrades/method-failure-tracking.md`.
 The by-atom / by-method views are built by `_build_by_atom_view` /
 `_build_by_method_view`.
 """

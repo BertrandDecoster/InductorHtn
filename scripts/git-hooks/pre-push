@@ -1,0 +1,25 @@
+#!/bin/sh
+# pre-push: keep docs honest before anything leaves this machine.
+#
+# Activate (one-time, per clone):  git config core.hooksPath scripts/git-hooks
+# Bypass once:                     git push --no-verify
+#
+# Runs the same check as CI (.github/workflows/docs-lint.yml), so a red CI is
+# never your first warning of doc/code drift.
+
+PY=$(command -v python3 || command -v python)
+if [ -z "$PY" ]; then
+    echo "pre-push: no python found; skipping docs-lint" >&2
+    exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel)
+echo "pre-push: running docs-lint..." >&2
+if ! "$PY" "$ROOT/scripts/docs_lint.py" >/dev/null; then
+    echo "pre-push: docs-lint FAILED — docs are out of sync with code." >&2
+    echo "  details: $PY scripts/docs_lint.py" >&2
+    echo "  bypass:  git push --no-verify" >&2
+    exit 1
+fi
+echo "pre-push: docs-lint OK" >&2
+exit 0

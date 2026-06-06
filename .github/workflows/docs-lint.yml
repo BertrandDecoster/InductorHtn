@@ -1,0 +1,19 @@
+name: docs-lint
+
+# Runs on GitHub's hosted runners (not your machine) whenever code or docs
+# change, to keep documentation honest about the code. Pure-Python, no build.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check docs match code
+        run: python scripts/docs_lint.py

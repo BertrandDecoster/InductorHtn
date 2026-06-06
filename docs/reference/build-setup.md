@@ -1,8 +1,3 @@
----
-description: Build environment setup and troubleshooting
-globs: CMakeLists.txt, src/**
----
-
 # Build Setup & Troubleshooting
 
 ## Windows Setup (One-Time)

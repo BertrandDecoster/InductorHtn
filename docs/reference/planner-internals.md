@@ -1,8 +1,3 @@
----
-description: HTN planner internals - FindNextPlan algorithm and state machine
-globs: src/FXPlatform/Htn/HtnPlanner.*
----
-
 # HTN Planner Internals
 
 The `FindNextPlan` function in `HtnPlanner.cpp` implements a stackless depth-first search HTN planner.
@@ -35,7 +30,7 @@ Key members:
 
 ### PlanNodeContinuePoint Enum
 
-Controls state machine flow (`HtnPlanner.cpp:~85`):
+Controls state machine flow (`enum class PlanNodeContinuePoint` in `HtnPlanner.cpp`):
 
 | Continue Point | Description |
 |---------------|-------------|
@@ -90,14 +85,14 @@ ReturnFromCheckForOperator
 
 ## Special Constructs Handling
 
-### try() Handling (`HtnPlanner.cpp:514`)
+### try() Handling (`HtnPlanner::CheckForSpecialTask`)
 Creates two alternative branches:
 1. Execute the `try()` subtasks
 2. Skip the `try()` clause if first fails
 
 Uses `retry` flag to track if should try second branch.
 
-### anyOf Handling (`HtnPlanner.cpp:~1160`)
+### anyOf Handling (the `countAnyOf` bookkeeping path in `HtnPlanner.cpp`)
 - Wraps each condition resolution in `try()`
 - Adds `countAnyOf()` to track successes
 - Adds `failIfNoneOf()` at end
@@ -352,7 +347,7 @@ Two pointer-identity subtleties are handled, one is a documented residual:
   pointer, so both occurrences resolve to the last slot tagged. This mis-slots
   between two positions of one method only; by-atom counts are unaffected. A
   structural (decomposition-tree) fix was scoped and declined as too invasive for
-  the payoff — see the by-method caveats in `docs/method-failure-analysis.md`.
+  the payoff — see the by-method caveats in `docs/upgrades/method-failure-tracking.md`.
 
 ### Excluded / approximate cases
 

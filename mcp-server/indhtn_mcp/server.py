@@ -382,7 +382,7 @@ class IndHTNMCPServer:
                     "Also returns a by-atom rollup and a richness summary "
                     "(planCount, difficulty). Requires an engine built with "
                     "INDHTN_CHOICE_TRACKING (else ok:false, code:choice_tracking_unavailable). "
-                    "See docs/method-failure-analysis.md for how to read it."
+                    "See docs/upgrades/method-failure-tracking.md for how to read it."
                 ),
                 inputSchema=obj({
                     "sessionId": {"type": "string"},

@@ -1,8 +1,3 @@
----
-description: Prolog syntax, built-in predicates, and custom rules reference
-globs: src/FXPlatform/Prolog/**
----
-
 # Prolog Reference
 
 ## Variable Syntax
@@ -38,7 +33,7 @@ All added in `HtnGoalResolver::HtnGoalResolver()` via `AddCustomRule()`.
 =(?X, ?Y)                 % Unifies two terms
 ```
 
-### Arithmetic (`HtnTerm.cpp:86-206`)
+### Arithmetic (`HtnTerm::Eval` + `HtnArithmeticOperators`)
 ```prolog
 is(?Result, Expression)   % Evaluate: is(?x, +(3, 4)) -> ?x = 7
 <(?X, ?Y)                 % Less than
@@ -52,7 +47,7 @@ is(?Result, Expression)   % Evaluate: is(?x, +(3, 4)) -> ?x = 7
 ```prolog
 !                         % Cut - commits to current choices
 not(Goal)                 % Negation as failure
-first(Goal)               % Returns first solution only (HtnGoalResolver.cpp:1843)
+first(Goal)               % Returns first solution only (HtnGoalResolver::RuleFirst)
 forall(Generator, Test)   % Universal quantification
 ```
 
@@ -87,8 +82,8 @@ atomic(?X)                % True if X is atom (not compound)
 
 To integrate external tools, add a custom rule in `HtnGoalResolver.cpp`:
 
-1. Register in constructor (~line 486-516) with `AddCustomRule()`
-2. Declare static method in `HtnGoalResolver.h` (~line 79-103)
+1. Register in the `HtnGoalResolver::HtnGoalResolver()` constructor with `AddCustomRule()`
+2. Declare the static rule method in `HtnGoalResolver.h`
 3. Implement using existing rules as template
 
 Example patterns to follow:

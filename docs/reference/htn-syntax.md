@@ -1,13 +1,8 @@
----
-description: HTN syntax reference for methods, operators, and modifiers
-globs: src/FXPlatform/Htn/**, Examples/**/*.htn
----
-
 # HTN Syntax Reference
 
 ## Methods (Task Decomposition)
 
-Methods decompose complex tasks into subtasks. Parsed in `HtnCompiler.h:115-125`.
+Methods decompose complex tasks into subtasks. Parsed by `HtnCompilerBase` in `src/FXPlatform/Htn/HtnCompiler.h`.
 
 ```prolog
 methodName(?params) :- if(preconditions), do(subtask1, subtask2).
@@ -23,7 +18,7 @@ move(?from, ?to) :- if(), do(walk(?from, ?to)).
 
 ## Operators (Primitive Actions)
 
-Operators modify world state directly. Parsed in `HtnCompiler.h:126-137`.
+Operators modify world state directly. Parsed by `HtnCompilerBase` in `src/FXPlatform/Htn/HtnCompiler.h`.
 
 ```prolog
 operatorName(?params) :- del(factsToRemove), add(factsToAdd).
@@ -41,7 +36,7 @@ drive(?vehicle, ?from, ?to) :-
 
 ## Method Modifiers
 
-Parsed in `HtnCompiler.h:99-114`.
+Parsed by `HtnCompilerBase` in `src/FXPlatform/Htn/HtnCompiler.h` (the `isDefault`/`hidden` handling).
 
 ### else - Fallback Methods
 Methods marked `else` only execute if all previous non-else methods fail.
@@ -122,7 +117,7 @@ Both forms produce identical final state. Prefer the concise form for new code.
 ## Special Constructs
 
 ### try() - Optional Execution
-Handled in `HtnPlanner.cpp:514` (`CheckForSpecialTask`). Wraps tasks for optional execution. If the wrapped task fails, the parent method continues.
+Handled in `HtnPlanner::CheckForSpecialTask` (`src/FXPlatform/Htn/HtnPlanner.cpp`). Wraps tasks for optional execution. If the wrapped task fails, the parent method continues.
 
 ```prolog
 collectRewards() :- if(), do(getMainReward, try(getBonusItem)).
@@ -130,7 +125,7 @@ collectRewards() :- if(), do(getMainReward, try(getBonusItem)).
 If `getBonusItem` fails, method still succeeds with just `getMainReward`.
 
 ### first() - First Solution Only
-Implemented in `HtnGoalResolver.cpp:1843` (`RuleFirst`). Returns only the first solution from a Prolog query. Prevents backtracking.
+Implemented in `HtnGoalResolver::RuleFirst` (`src/FXPlatform/Prolog/HtnGoalResolver.cpp`). Returns only the first solution from a Prolog query. Prevents backtracking.
 
 ```prolog
 getTaxi() :- if(first(available(?taxi))), do(hire(?taxi)).
