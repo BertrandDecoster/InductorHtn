@@ -308,6 +308,16 @@ class HtnPlanner(object):
             ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
         ]
         self.indhtnLib.HtnGetParallelizedPlan.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetChoiceData.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetChoiceData.restype = ctypes.POINTER(ctypes.c_char)
+        self.indhtnLib.HtnGetChoiceStats.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.POINTER(ctypes.c_char)),
+        ]
+        self.indhtnLib.HtnGetChoiceStats.restype = ctypes.POINTER(ctypes.c_char)
         # Resolution step counter (enabled by default, disable with -DINDHTN_TRACK_RESOLUTION_STEPS=OFF)
         self.indhtnLib.GetLastResolutionStepCount.argtypes = [ctypes.c_void_p]
         self.indhtnLib.GetLastResolutionStepCount.restype = ctypes.c_int64
@@ -729,6 +739,50 @@ class HtnPlanner(object):
             resultQuery = ctypes.c_char_p.from_buffer(mem).value.decode()
             self.indhtnLib.FreeString(mem)
             return None, resultQuery
+
+    # Returns a list of choice-point records captured during the last planning call.
+    # Raises RuntimeError if INDHTN_CHOICE_TRACKING was not compiled in (the default build
+    # has this flag OFF, so this will raise unless the library was built with it ON).
+    # When the feature is compiled in, returns a Python list parsed from the JSON the C++
+    # side produced.
+    def GetChoiceData(self):
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnGetChoiceData(self.obj, ctypes.byref(mem))
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info("GetChoiceData %s ms", str(elapsedTimeNS / 1000000))
+
+        errorBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if errorBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            raise RuntimeError(errorBytes.decode("utf-8", "replace"))
+
+        raw = ctypes.c_char_p.from_buffer(mem).value
+        self.indhtnLib.FreeString(mem)
+        return json.loads(raw.decode("utf-8"))
+
+    def GetChoiceStats(self):
+        """Return cross-search choice-count stats {"byAtom": [...], "byMethod": [...]}.
+
+        Raises RuntimeError if the feature was not compiled in
+        (build with -DINDHTN_CHOICE_TRACKING=ON).
+        """
+        mem = ctypes.POINTER(ctypes.c_char)()
+
+        startTime = perf_counter_ns()
+        resultPtr = self.indhtnLib.HtnGetChoiceStats(self.obj, ctypes.byref(mem))
+        elapsedTimeNS = perf_counter_ns() - startTime
+        perfLogger.info("GetChoiceStats %s ms", str(elapsedTimeNS / 1000000))
+
+        errorBytes = ctypes.c_char_p.from_buffer(resultPtr).value
+        if errorBytes is not None:
+            self.indhtnLib.FreeString(resultPtr)
+            raise RuntimeError(errorBytes.decode("utf-8", "replace"))
+
+        raw = ctypes.c_char_p.from_buffer(mem).value
+        self.indhtnLib.FreeString(mem)
+        return json.loads(raw.decode("utf-8"))
 
     def __del__(self):
         self.indhtnLib.DeleteHtnPlanner(self.obj)

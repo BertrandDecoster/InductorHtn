@@ -53,7 +53,132 @@ class CertificationStatus:
         return self.linter and self.tests_pass and self.design_match
 
 
-VALID_LAYERS = ["primitive", "strategy", "goal", "level"]
+VALID_LAYERS = ["primitive", "strategy", "goal", "level", "challenges"]
+
+VALID_CHALLENGE_CLASSES = ["S", "P", "C", "O"]
+
+
+@dataclass
+class ChallengeExpected:
+    """Optional numeric bounds declared in a challenge block."""
+    min_plans: Optional[int] = None
+    max_plans: Optional[int] = None
+    min_distinct_methods: Optional[int] = None
+
+    def validate(self):
+        """Validate expected bounds."""
+        if self.min_plans is not None:
+            if not isinstance(self.min_plans, int) or self.min_plans < 0:
+                raise ManifestValidationError(
+                    "challenge.expected.min_plans must be an integer >= 0"
+                )
+        if self.max_plans is not None:
+            if not isinstance(self.max_plans, int) or self.max_plans < 1:
+                raise ManifestValidationError(
+                    "challenge.expected.max_plans must be an integer >= 1"
+                )
+        if self.min_distinct_methods is not None:
+            if not isinstance(self.min_distinct_methods, int) or self.min_distinct_methods < 1:
+                raise ManifestValidationError(
+                    "challenge.expected.min_distinct_methods must be an integer >= 1"
+                )
+        if self.min_plans is not None and self.max_plans is not None:
+            if self.min_plans > self.max_plans:
+                raise ManifestValidationError(
+                    f"challenge.expected.min_plans ({self.min_plans}) must be <= max_plans ({self.max_plans})"
+                )
+
+    def check_report(self, report: Dict[str, Any]) -> List[str]:
+        """Return a list of violation strings for an evaluate_level report.
+
+        Returns an empty list when all declared bounds are satisfied.
+        """
+        violations: List[str] = []
+        plan_count = report.get("plan_count", 0)
+        if self.min_plans is not None and plan_count < self.min_plans:
+            violations.append(
+                f"plan_count {plan_count} < min_plans {self.min_plans}"
+            )
+        if self.max_plans is not None and plan_count > self.max_plans:
+            violations.append(
+                f"plan_count {plan_count} > max_plans {self.max_plans}"
+            )
+        if self.min_distinct_methods is not None:
+            distinct = len(report.get("operator_variety", []))
+            if distinct < self.min_distinct_methods:
+                violations.append(
+                    f"distinct_methods {distinct} < min_distinct_methods {self.min_distinct_methods}"
+                )
+        return violations
+
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {}
+        if self.min_plans is not None:
+            d["min_plans"] = self.min_plans
+        if self.max_plans is not None:
+            d["max_plans"] = self.max_plans
+        if self.min_distinct_methods is not None:
+            d["min_distinct_methods"] = self.min_distinct_methods
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChallengeExpected":
+        return cls(
+            min_plans=data.get("min_plans"),
+            max_plans=data.get("max_plans"),
+            min_distinct_methods=data.get("min_distinct_methods"),
+        )
+
+
+@dataclass
+class ChallengeBlock:
+    """Optional challenge metadata for a component."""
+    cls: str  # one of VALID_CHALLENGE_CLASSES — named 'cls' to avoid shadowing built-in
+    behavioral_axes: List[str]
+    expected: ChallengeExpected = field(default_factory=ChallengeExpected)
+
+    def validate(self):
+        """Validate the challenge block."""
+        if self.cls not in VALID_CHALLENGE_CLASSES:
+            raise ManifestValidationError(
+                f"challenge.class must be one of {VALID_CHALLENGE_CLASSES}, got '{self.cls}'"
+            )
+        if not isinstance(self.behavioral_axes, list):
+            raise ManifestValidationError(
+                "challenge.behavioral_axes must be a list of strings"
+            )
+        for axis in self.behavioral_axes:
+            if not isinstance(axis, str):
+                raise ManifestValidationError(
+                    f"challenge.behavioral_axes entries must be strings, got {axis!r}"
+                )
+        self.expected.validate()
+
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {
+            "class": self.cls,
+            "behavioral_axes": self.behavioral_axes,
+        }
+        expected_dict = self.expected.to_dict()
+        if expected_dict:
+            d["expected"] = expected_dict
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChallengeBlock":
+        if "class" not in data:
+            raise ManifestValidationError(
+                "challenge block requires 'class' field"
+            )
+        if "behavioral_axes" not in data:
+            raise ManifestValidationError(
+                "challenge block requires 'behavioral_axes' field"
+            )
+        return cls(
+            cls=data["class"],
+            behavioral_axes=data["behavioral_axes"],
+            expected=ChallengeExpected.from_dict(data.get("expected", {})),
+        )
 
 
 @dataclass
@@ -72,6 +197,9 @@ class Manifest:
     # Signatures (name/arity) called by this component but defined elsewhere.
     # Auto-inferred during certify. Used by the loader to validate the dep closure.
     requires: List[str] = field(default_factory=list)
+    # Optional challenge metadata — purely informational at load time,
+    # validated as part of the certify command when present.
+    challenge: Optional["ChallengeBlock"] = field(default=None)
 
     def __post_init__(self):
         self.validate()
@@ -89,9 +217,12 @@ class Manifest:
                 f"Invalid layer '{self.layer}'. Must be one of: {VALID_LAYERS}"
             )
 
+        if self.challenge is not None:
+            self.challenge.validate()
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert manifest to dictionary for JSON serialization."""
-        return {
+        d: Dict[str, Any] = {
             "name": self.name,
             "version": self.version,
             "layer": self.layer,
@@ -102,10 +233,17 @@ class Manifest:
             "provides": self.provides,
             "requires": self.requires,
         }
+        if self.challenge is not None:
+            d["challenge"] = self.challenge.to_dict()
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Manifest":
         """Create manifest from dictionary."""
+        challenge: Optional[ChallengeBlock] = None
+        raw_challenge = data.get("challenge")
+        if raw_challenge is not None:
+            challenge = ChallengeBlock.from_dict(raw_challenge)
         return cls(
             name=data["name"],
             version=data["version"],
@@ -118,6 +256,7 @@ class Manifest:
             ),
             provides=data.get("provides", []),
             requires=data.get("requires", []),
+            challenge=challenge,
         )
 
     def save(self, path: str):
@@ -187,7 +326,7 @@ def resolve_component_path(component_name: str, components_root: str) -> str:
             return level_path
 
     # Search in layer directories within components/
-    for layer_dir in ["primitives", "strategies", "goals"]:
+    for layer_dir in ["primitives", "strategies", "goals", "challenges"]:
         layer_path = os.path.join(components_root, layer_dir, component_name)
         if os.path.isdir(layer_path):
             return layer_path
@@ -214,7 +353,7 @@ def list_all_components(components_root: str) -> List[Dict[str, Any]]:
     components = []
 
     # List components from components/ directory
-    for layer_dir in ["primitives", "strategies", "goals"]:
+    for layer_dir in ["primitives", "strategies", "goals", "challenges"]:
         layer_path = os.path.join(components_root, layer_dir)
         if not os.path.isdir(layer_path):
             continue

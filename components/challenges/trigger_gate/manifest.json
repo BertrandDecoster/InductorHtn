@@ -1,0 +1,30 @@
+{
+  "name": "trigger_gate",
+  "version": "1.0.0",
+  "layer": "challenges",
+  "description": "Activate a switch to open a blocked path, then proceed",
+  "dependencies": [
+    "challenges/nav_obstacle"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-06-04T19:56:09.517716"
+  },
+  "provides": [],
+  "requires": [],
+  "challenge": {
+    "class": "C",
+    "behavioral_axes": [
+      "plan_length",
+      "gate_count"
+    ],
+    "expected": {
+      "min_plans": 1,
+      "max_plans": 5,
+      "min_distinct_methods": 1
+    }
+  }
+}

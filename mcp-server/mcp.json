@@ -1,10 +1,11 @@
 {
   "mcpServers": {
-    "indhtn-repl": {
+    "indhtn": {
       "command": "python",
       "args": ["-m", "indhtn_mcp.server"],
       "env": {
-        "INDHTN_PATH": "../build/Release/indhtn"
+        "INDHTN_LIB_PATH": "",
+        "INDHTN_REPO_ROOT": ""
       }
     }
   }

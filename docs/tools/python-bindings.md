@@ -1,0 +1,141 @@
+# Python Bindings
+
+Python interface to InductorHTN via ctypes.
+
+## Files
+
+```
+src/Python/
+├── indhtnpy.py           # Python wrapper class
+├── PythonUsage.py        # Basic usage examples
+├── PythonUsageBD.py      # Block Dude game example
+├── PythonUsageTree.py    # Decomposition tree example
+├── PythonUsageTrace.py   # Tracing example
+├── HtnTreeReconstructor.py  # Tree reconstruction utilities
+├── htn_test_framework.py # Test framework
+└── htn_test_suite.py     # Test suite
+```
+
+C++ side:
+```
+src/FXPlatform/PythonInterface.cpp  # DLL exports
+```
+
+## Adding a New Python Function
+
+### Step 1: Add C++ Export
+In `PythonInterface.cpp`, add function with `__declspec(dllexport)`:
+
+```cpp
+extern "C" __declspec(dllexport) const char* NewFunction(
+    void* planner,
+    const char* param
+) {
+    // Implementation
+    return result;
+}
+```
+
+### Step 2: Build Library
+```bash
+cmake --build ./build --config Release
+```
+
+Copy to path:
+- Windows: Add to PATH or copy `indhtnpy.dll`
+- macOS: `cp libindhtnpy.dylib /usr/local/lib/`
+- Linux: `cp libindhtnpy.so /usr/lib/`
+
+### Step 3: Declare in indhtnpy.py
+Add metadata in `HtnPlanner.__init__`:
+
+```python
+# Argument types
+self.indhtnLib.NewFunction.argtypes = [c_void_p, c_char_p]
+
+# Return type
+self.indhtnLib.NewFunction.restype = c_char_p
+```
+
+### Step 4: Create Wrapper Method
+In `HtnPlanner` class:
+
+```python
+def NewFunction(self, param):
+    result = self.indhtnLib.NewFunction(
+        self.planner,
+        param.encode('utf-8')
+    )
+    return result.decode('utf-8') if result else None
+```
+
+### Step 5: Use in Python
+```python
+from indhtnpy import HtnPlanner
+
+planner = HtnPlanner(False)  # False = no debug
+result = planner.NewFunction("param")
+```
+
+## Existing API
+
+### HtnPlanner Class
+
+```python
+planner = HtnPlanner(debug=False)
+```
+
+Core Methods:
+- `HtnCompile(program)` - Compile HTN program (**standard Prolog variables** — `?varname` syntax is rejected)
+- `HtnCompileCustomVariables(program)` - Compile HTN program written with `?varname` variables (this repo's convention — used by assembled levels, components, and the MCP server's default dialect)
+- `PrologCompile(program)` - Compile Prolog program (standard variables)
+- `PrologCompileCustomVariables(program)` - Compile Prolog program with `?varname` variables
+- `FindAllPlans(goal)` - Find all HTN plans (standard variables)
+- `FindAllPlansCustomVariables(goal)` - Find all HTN plans, goal uses `?varname` variables
+- `PrologQuery(query)` - Execute Prolog query
+- `PrologQueryToJson(query)` - Execute query, return JSON
+
+**Picking the right Compile**: ruleset files in this repo (`Examples/*.htn`, `components/**/src.htn`, `levels/**/level.htn`, `htn_components assemble` output) all use `?varname`. Feeding them to `HtnCompile` raises `Expected functor` on the first `?`. Use `HtnCompileCustomVariables` for anything authored against this codebase. Reserve `HtnCompile` for files written in standard Prolog (capitalised variables) — there are essentially none in-tree.
+
+State & Results:
+- `GetDecompositionTree(solutionIndex)` - Get HTN decomposition tree
+- `GetStateFacts()` - Get current world state facts
+- `GetSolutionFacts(solutionIndex)` - Get facts after applying solution
+- `ApplySolution(index)` - Apply solution to modify state
+
+Tracing & Debugging:
+- `SetDebugTracing(debug)` - Enable/disable debug output
+- `SetLogLevel(traceType, traceDetail)` - Configure log verbosity
+- `StartTraceCapture(alsoOutputToStdout)` - Begin capturing traces
+- `StopTraceCapture()` - Stop capturing traces
+- `GetCapturedTraces()` - Retrieve captured trace output
+- `ClearTraceBuffer()` - Clear trace buffer
+- `LogToFile(fileNameAndPath)` - Log to file
+
+Memory:
+- `SetMemoryBudget(budgetBytes)` - Set memory limit for planning
+
+### Return Format
+
+Results returned as JSON:
+```python
+# Terms are dicts with name as key, args as value
+{"termName": [{"arg1": []}, {"arg2": []}]}
+
+# Variables have ? prefix
+{"?Who": {"socrates": []}}
+```
+
+Helper functions:
+- `termName(term)` - Get term's functor name
+- `termArgs(term)` - Get term's arguments
+
+## Library Path Requirements
+
+The shared library must be findable:
+
+| Platform | Library | Location |
+|----------|---------|----------|
+| Windows | `indhtnpy.dll` | PATH or working directory |
+| macOS | `libindhtnpy.dylib` | `/usr/local/lib` |
+| Linux | `libindhtnpy.so` | `/usr/lib` or LD_LIBRARY_PATH |

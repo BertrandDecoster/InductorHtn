@@ -18,6 +18,12 @@ if(INDHTN_TREE_SIBLING_TRACKING)
     message(STATUS "Tree sibling tracking enabled")
 endif()
 
+option(INDHTN_CHOICE_TRACKING "Track method choice sets at each task node for challenge evaluation" OFF)
+if(INDHTN_CHOICE_TRACKING)
+    add_compile_definitions(INDHTN_CHOICE_TRACKING)
+    message(STATUS "Choice tracking enabled")
+endif()
+
 add_executable(runtests TestsMain.cpp)
 # this allows us to use our executable as a link library
 # therefore we can inherit all compiler options and library dependencies

@@ -1,0 +1,28 @@
+{
+  "name": "combo_sequence",
+  "version": "1.0.0",
+  "layer": "challenges",
+  "description": "Apply N effects in correct order to achieve goal (tag combo / skill rotation)",
+  "dependencies": [],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-06-04T20:00:50.069552"
+  },
+  "provides": [],
+  "requires": [],
+  "challenge": {
+    "class": "S",
+    "behavioral_axes": [
+      "plan_length",
+      "combo_length"
+    ],
+    "expected": {
+      "min_plans": 1,
+      "max_plans": 5,
+      "min_distinct_methods": 1
+    }
+  }
+}

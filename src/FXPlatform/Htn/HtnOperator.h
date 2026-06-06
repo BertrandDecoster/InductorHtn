@@ -16,28 +16,47 @@ class HtnTerm;
 // Operators are immutable
 // Each operator indicates how a primitive task can be performed.
 // Has a head which is a term, defines all the variables which can be used for deletions and additions
-// Has deletions and additions
+// Has deletions and additions.
+// May also carry numeric-fluent effects (increase/decrease). These are parsed
+// by the compiler but currently ignored by the planner at apply time —
+// runtime semantics arrive in a later task.
 class HtnOperator
 {
 public:
-    HtnOperator(std::shared_ptr<HtnTerm> head, const std::vector<std::shared_ptr<HtnTerm>> &additions, const std::vector<std::shared_ptr<HtnTerm>> &deletions, bool hidden = false) :
+    HtnOperator(std::shared_ptr<HtnTerm> head,
+                const std::vector<std::shared_ptr<HtnTerm>> &additions,
+                const std::vector<std::shared_ptr<HtnTerm>> &deletions,
+                bool hidden = false,
+                const std::vector<std::shared_ptr<HtnTerm>> &increases = std::vector<std::shared_ptr<HtnTerm>>(),
+                const std::vector<std::shared_ptr<HtnTerm>> &decreases = std::vector<std::shared_ptr<HtnTerm>>()) :
         m_additions(additions),
         m_deletions(deletions),
+        m_increases(increases),
+        m_decreases(decreases),
         m_head(head),
         m_isHidden(hidden)
     {
     }
-    
+
     const std::vector<std::shared_ptr<HtnTerm>> additions() const { return m_additions; }
     const std::vector<std::shared_ptr<HtnTerm>> deletions() const { return m_deletions; }
-    int64_t dynamicSize() { return sizeof(HtnOperator) + (m_additions.size() + m_deletions.size()) * sizeof(std::shared_ptr<HtnTerm>); }
+    const std::vector<std::shared_ptr<HtnTerm>> increases() const { return m_increases; }
+    const std::vector<std::shared_ptr<HtnTerm>> decreases() const { return m_decreases; }
+    int64_t dynamicSize()
+    {
+        return sizeof(HtnOperator)
+            + (m_additions.size() + m_deletions.size() + m_increases.size() + m_decreases.size())
+              * sizeof(std::shared_ptr<HtnTerm>);
+    }
     const std::shared_ptr<HtnTerm> head() const { return m_head; }
-    std::string ToString() const;    
+    std::string ToString() const;
     bool isHidden() { return m_isHidden; }
-    
+
 private:
     std::vector<std::shared_ptr<HtnTerm>> m_additions;
     std::vector<std::shared_ptr<HtnTerm>> m_deletions;
+    std::vector<std::shared_ptr<HtnTerm>> m_increases;
+    std::vector<std::shared_ptr<HtnTerm>> m_decreases;
     std::shared_ptr<HtnTerm> m_head;
     bool m_isHidden;
 };
