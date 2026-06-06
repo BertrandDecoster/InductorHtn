@@ -23,6 +23,52 @@ CORS(app)  # Enable CORS for frontend requests
 # In-memory session storage
 sessions = {}
 
+# --- HTN source folder ------------------------------------------------------
+# The editor's file dropdown lists every .htn in a chosen folder. The choice is
+# persisted (so it survives restarts) and appended to a log. Defaults to the
+# repo's Examples/ directory (Taxi.htn etc.).
+import json
+import datetime
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+DEFAULT_HTN_FOLDER = os.path.join(PROJECT_ROOT, 'Examples')
+FOLDER_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'htn_folder.json')
+FOLDER_LOG_PATH = os.path.join(os.path.dirname(__file__), 'htn_folder.log')
+
+
+def get_current_folder():
+    """The folder whose .htn files populate the dropdown. Falls back to Examples."""
+    try:
+        with open(FOLDER_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            folder = json.load(f).get('folder')
+        if folder and os.path.isdir(folder):
+            return folder
+    except (FileNotFoundError, ValueError, OSError):
+        pass
+    return DEFAULT_HTN_FOLDER
+
+
+def set_current_folder(folder):
+    """Persist + log a new source folder. Returns its absolute path."""
+    folder = os.path.abspath(os.path.expanduser(folder))
+    if not os.path.isdir(folder):
+        raise NotADirectoryError(folder)
+    with open(FOLDER_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump({'folder': folder}, f, indent=2)
+    with open(FOLDER_LOG_PATH, 'a', encoding='utf-8') as f:
+        f.write(f"{datetime.datetime.now().isoformat()}\t{folder}\n")
+    return folder
+
+
+def list_htn_files(folder):
+    """Sorted [{name, path}] of *.htn in folder, with absolute paths."""
+    files = []
+    if os.path.isdir(folder):
+        for name in sorted(os.listdir(folder)):
+            if name.endswith('.htn'):
+                files.append({'name': name, 'path': os.path.join(folder, name)})
+    return files
+
 @app.route('/api/session/create', methods=['POST'])
 def create_session():
     """Create a new HTN planner session"""
@@ -109,21 +155,69 @@ def save_file():
 
 @app.route('/api/file/list', methods=['GET'])
 def list_files():
-    """List available .htn files in the Examples directory"""
+    """List available .htn files in the current source folder."""
     try:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-        examples_dir = os.path.join(project_root, 'Examples')
+        folder = get_current_folder()
+        return jsonify({'folder': folder, 'files': list_htn_files(folder)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-        files = []
-        if os.path.exists(examples_dir):
-            for filename in os.listdir(examples_dir):
-                if filename.endswith('.htn'):
-                    files.append({
-                        'name': filename,
-                        'path': f'Examples/{filename}'
-                    })
 
-        return jsonify({'files': files})
+@app.route('/api/folder', methods=['GET'])
+def get_folder():
+    """Return the current source folder and its .htn files."""
+    folder = get_current_folder()
+    return jsonify({'folder': folder, 'files': list_htn_files(folder)})
+
+
+@app.route('/api/folder', methods=['POST'])
+def set_folder():
+    """Set the source folder. Body: { "folder": "/abs/or/~/path" }."""
+    data = request.json or {}
+    folder = data.get('folder')
+    if not folder:
+        return jsonify({'error': 'Must provide "folder"'}), 400
+    try:
+        folder = set_current_folder(folder)
+        return jsonify({'folder': folder, 'files': list_htn_files(folder)})
+    except NotADirectoryError:
+        return jsonify({'error': f'Not a directory: {folder}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/folder/browse', methods=['POST'])
+def browse_folder():
+    """Server-side directory browser for the 'Change folder' picker.
+
+    Body: { "path": "/abs/path" }  (defaults to the current folder)
+    Returns the directory's subfolders and how many .htn files it holds.
+    """
+    data = request.json or {}
+    path = data.get('path') or get_current_folder()
+    try:
+        path = os.path.abspath(os.path.expanduser(path))
+        if not os.path.isdir(path):
+            return jsonify({'error': f'Not a directory: {path}'}), 400
+
+        dirs = []
+        htn_count = 0
+        for name in sorted(os.listdir(path)):
+            full = os.path.join(path, name)
+            if name.startswith('.'):
+                continue
+            if os.path.isdir(full):
+                dirs.append(name)
+            elif name.endswith('.htn'):
+                htn_count += 1
+
+        parent = os.path.dirname(path)
+        return jsonify({
+            'path': path,
+            'parent': parent if parent != path else None,
+            'dirs': dirs,
+            'htnCount': htn_count,
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

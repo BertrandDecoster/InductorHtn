@@ -89,6 +89,9 @@ Main endpoints:
 | `/api/file/save` | POST | Save edited file |
 | `/api/file/content` | POST | Get file content for editor |
 | `/api/file/list` | GET | List available .htn files |
+| `/api/folder` | GET | Return the current source folder and its .htn files |
+| `/api/folder` | POST | Set the source folder |
+| `/api/folder/browse` | POST | Server-side directory browser for the folder picker |
 | `/api/plan/timeline` | POST | Step-by-step state evolution for a plan (state diff per operator) |
 | `/api/query/execute` | POST | Execute Prolog query |
 | `/api/htn/execute` | POST | Execute HTN planning query |
