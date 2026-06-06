@@ -16,7 +16,13 @@ import signal
 import argparse
 
 # Configuration
-BACKEND_PORT = 5000
+# Port 5000 is taken by AirPlay Receiver on macOS, so default the backend to 5001.
+# Override with INDHTN_GUI_BACKEND_PORT (the value is passed through to both the
+# Flask backend and the Vite proxy so they stay in sync).
+BACKEND_PORT = int(os.environ.get('INDHTN_GUI_BACKEND_PORT', '5001'))
+# Re-export the resolved port so the backend and Vite subprocesses (which inherit
+# this environment) agree on it without each re-reading a possibly-unset default.
+os.environ['INDHTN_GUI_BACKEND_PORT'] = str(BACKEND_PORT)
 FRONTEND_PORT = 5173
 BACKEND_URL = f"http://localhost:{BACKEND_PORT}"
 FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"

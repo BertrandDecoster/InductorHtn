@@ -477,7 +477,10 @@ def get_callgraph():
 
 
 if __name__ == '__main__':
+    # Port 5000 is taken by AirPlay Receiver on macOS, so default to 5001.
+    # Override with INDHTN_GUI_BACKEND_PORT to match the frontend proxy.
+    port = int(os.environ.get('INDHTN_GUI_BACKEND_PORT', '5001'))
     print("Starting InductorHTN IDE Backend Server...")
-    print("Server will be available at http://localhost:5000")
+    print(f"Server will be available at http://localhost:{port}")
     print("Press Ctrl+C to stop")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=port)

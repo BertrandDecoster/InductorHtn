@@ -8,7 +8,10 @@ import ValidationPanel from './components/ValidationPanel'
 import './App.css'
 import { getLastFile, setLastFile } from './utils/storage'
 
-const API_BASE = 'http://localhost:5000'
+// Empty base => relative URLs that go through the Vite dev proxy (vite.config.js),
+// which forwards /api to the backend. Avoids hardcoding the backend port (5000
+// collides with macOS AirPlay Receiver; the proxy now targets 5001).
+const API_BASE = ''
 
 function App() {
   const [sessionId, setSessionId] = useState(null)
