@@ -2,7 +2,7 @@
 
 Ruleset-language capabilities this fork added over upstream InductorHtn. Full
 syntax for these (and all other keywords) is in
-[`../reference/htn-syntax.md`](../reference/htn-syntax.md); the component-system
+[`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md); the component-system
 type rules are in [`../reference/component-system.md`](../reference/component-system.md).
 
 ## `parallel()` — parallel execution
@@ -52,7 +52,7 @@ opSwap(?a, ?b) :- decrease(mana(?a), 10), increase(mana(?b), 10).
 
 The delta expression uses the same arithmetic engine as `is/2`. Effect ordering
 within one operator: all `del()` removals, then all `increase`/`decrease`, then
-all `add()` additions. See [`../reference/htn-syntax.md`](../reference/htn-syntax.md)
+all `add()` additions. See [`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md)
 for full semantics and failure modes.
 
 ## Typed parameters

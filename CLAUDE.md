@@ -33,8 +33,9 @@ docs/                    # All documentation (see map below)
 
 All docs live under `docs/`. Start at `docs/README.md`.
 
-- **Authoring rulesets** → `docs/reference/authoring-rulesets.md` (worked example: `Examples/TrunkThumper.htn`)
-- **Syntax & Prolog reference** → `docs/reference/htn-syntax.md`, `docs/reference/prolog-reference.md`
+- **Writing rulesets** → `docs/reference/ruleset-writing.md` (heuristics, examples, validated optimizations; worked example: `Examples/TrunkThumper.htn`)
+- **Iterating on rulesets** (debug/analyze/improve) → `docs/reference/ruleset-iterating.md`
+- **Syntax & Prolog reference** → `docs/reference/ruleset-htn-syntax.md`, `docs/reference/prolog-reference.md`
 - **Planner internals** → `docs/reference/planner-internals.md`
 - **Component system** → `docs/reference/component-system.md`
 - **Tools** (REPL, tests, Python, GUI, MCP, components CLI) → `docs/TOOLS.md`
@@ -53,7 +54,7 @@ travel(?from, ?to) :- if(at(?from)), do(walk(?from, ?to)).
 ### HTN Syntax
 - **Methods**: `task() :- if(conditions), do(subtasks).`
 - **Operators**: `action() :- del(remove), add(insert).`
-- **Numeric effects**: `increase(pred(args), delta)` / `decrease(pred(args), delta)` — see `docs/reference/htn-syntax.md`
+- **Numeric effects**: `increase(pred(args), delta)` / `decrease(pred(args), delta)` — see `docs/reference/ruleset-htn-syntax.md`
 - **Modifiers**: `else`, `anyOf`, `allOf`, `hidden`
 - **Parallel**: `parallel(taskA, taskB, ...)` marks tasks for parallel execution — see `docs/upgrades/ruleset-keywords.md`
 

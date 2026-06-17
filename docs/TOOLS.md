@@ -14,5 +14,5 @@ Every executable and interface in the project. Each tool has its own page under
 
 ## Related reference
 
-- Authoring rulesets with these tools: [`reference/authoring-rulesets.md`](reference/authoring-rulesets.md)
+- Iterating on rulesets with these tools (debug/analyze/improve): [`reference/ruleset-iterating.md`](reference/ruleset-iterating.md)
 - Stepping through a level with MCP: [`reference/challenge-play-protocol.md`](reference/challenge-play-protocol.md)
