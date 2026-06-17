@@ -58,5 +58,19 @@
         "variant": "cpp",
         "algorithm": "cpp",
         "functional": "cpp"
+    },
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            { "scope": "comment.line.percentage.htn",  "settings": { "foreground": "#6A9955", "fontStyle": "italic" } },
+            { "scope": "comment.block.htn",            "settings": { "foreground": "#6A9955", "fontStyle": "italic" } },
+            { "scope": "variable.parameter.htn",       "settings": { "foreground": "#9CDCFE" } },
+            { "scope": "entity.name.function.htn",     "settings": { "foreground": "#DCDCAA" } },
+            { "scope": "keyword.control.htn",          "settings": { "foreground": "#C586C0" } },
+            { "scope": "support.function.builtin.htn", "settings": { "foreground": "#4EC9B0" } },
+            { "scope": "keyword.operator.rule.htn",    "settings": { "foreground": "#FF5555", "fontStyle": "bold" } },
+            { "scope": "keyword.operator.htn",         "settings": { "foreground": "#D4D4D4" } },
+            { "scope": "constant.numeric.htn",         "settings": { "foreground": "#B5CEA8" } },
+            { "scope": "string.quoted.double.htn",     "settings": { "foreground": "#CE9178" } }
+        ]
     }
 }

@@ -1,0 +1,36 @@
+{
+  "name": "htn-syntax",
+  "displayName": "HTN (InductorHTN) Syntax",
+  "description": "Syntax highlighting for InductorHTN .htn rulesets (Prolog + HTN keywords).",
+  "version": "0.1.0",
+  "publisher": "inductorhtn",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "htn",
+        "aliases": [
+          "HTN",
+          "InductorHTN",
+          "htn"
+        ],
+        "extensions": [
+          ".htn"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "htn",
+        "scopeName": "source.htn",
+        "path": "./syntaxes/htn.tmLanguage.json"
+      }
+    ]
+  }
+}
