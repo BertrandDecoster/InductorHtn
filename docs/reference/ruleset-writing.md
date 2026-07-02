@@ -21,14 +21,17 @@ heuristic below has a negative (avoid) and positive (prefer) example.
   - Avoid: `crossDoorWithTeleport(?c)`, `opPressButton1(?c)`, `opRejoin(?c1,?c2)`.
   - Prefer: `goTo(?c, ?area)` reading `connected/2` + `connectedSkill/3` facts.
 - **One source of truth.** Keep only the predicate your methods actually query.
-  - Avoid: `type(agent, gateGuard).` *beside* `enemy(gateGuard).` -- the engine
-    reads only `enemy/1`, so the `type/2` line is invisible and drifts.
+  - Avoid: `type(agent, gateGuard).` *beside* `enemy(gateGuard).` -- `type/2` is
+    legacy: neither the engine nor the linter reads it, so it silently drifts.
   - Prefer: `enemy(gateGuard).` alone, queried by `disableEnemy(?e) :- if(enemy(?e), ...)`.
+    The linter infers types from exactly these unary facts (a constant's sorts
+    are the unary predicates it appears under).
 - **Full-relation arity.** Give a predicate an argument for every dimension that
   changes its meaning; don't hide an assumption a small arity can't state.
   - Avoid: `skillGrants(lightningStep, electrified).` (lands on whom?).
   - Prefer: `skillGrants(lightningStep, electrified, target).` and
-    `skillGrants(lightningStep, teleport, self).`
+    `skillGrants(lightningStep, teleport, source).` (`source` = on the caster,
+    `target` = on an enemy/the environment).
 - **Closed, minimal vocabulary.** Every term should be produced and consumed by
   something; orphans read as capabilities that don't exist.
   - Avoid: declaring `effect(overloaded)` that no skill grants and no rule derives.
@@ -44,21 +47,26 @@ heuristic below has a negative (avoid) and positive (prefer) example.
   it. Method markers `m<N>_...` are auto-inserted by preprocessing -- never
   hand-written.
 
-**Type hints (optional, linter-only -- how to use them).** Declare a
-`signature/2` for a predicate whose call sites pass *constants*, plus `type/2`
-facts for those constants; the linter then flags a wrong literal (`TYP001`):
+**Type checking (inferred, linter-only).** Types come from the unary facts you
+already write: `enemy(gateGuard).` makes `gateGuard : enemy`. The linter infers
+a type for each argument position (from facts, rule bodies, and how variables
+flow) and flags an argument whose type is *provably disjoint* from it
+(`TYP010`) -- including variables, the common case:
 
 ```prolog
-signature(disableEnemy, [agent]).
-type(agent, gateGuard).  type(agent, sentinel).
-clearGate() :- if(), do(disableEnemy(gteGuard)).   % TYP001: gteGuard is not an agent
+enemy(gateGuard). enemy(sentinel). effect(frozen).
+disableEnemy(?e) :- if(enemy(?e), ...), do(...).   % ?e is an enemy (type-guard)
+clearGate() :- if(effect(?f)), do(disableEnemy(?f)).  % TYP010: ?f is an effect, not an enemy
 ```
 
-It checks *only* constants written directly in `if/do/del/add` -- never variables
-(the common case) -- so it is a typo-catcher for literal call sites, not a type
-system. The planner ignores `type/2` and `signature/2` entirely; with no
-`signature/2` declared, type hints do nothing. Skip them unless a predicate is
-routinely called with literal constants.
+It is high-signal by design: it flags only when no instance could ever satisfy
+the position (so `agent` vs `enemy` are *not* disjoint if some instance is
+both), and stays silent on genuinely polymorphic or under-determined positions.
+No declarations are required. For an explicit contract -- to document intent or
+pin a type inference can't reach -- put a `%::` directive directly above the
+rule (`%:: disableEnemy(?e: enemy)`); the engine ignores the comment. The old
+`type/2`/`signature/2` facts are no longer read. See
+`docs/reference/ruleset-htn-syntax.md` ("Types").
 
 ## Logic-programming efficiency -- order the work
 

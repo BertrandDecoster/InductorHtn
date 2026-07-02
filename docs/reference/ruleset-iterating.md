@@ -19,7 +19,12 @@ Work bottom-up so a failure is localized, and let the tools tell you what's wron
    code" reachable via other goals), `SEM006` (intended recursion), `HTN005`
    (empty `do()` base case), and `SYN012` on `hidden`/`parallel` used as atoms
    (the engine accepts them; the linter can't parse them). Trust the engine over
-   the linter when they disagree.
+   the linter when they disagree. `TYP010` (type mismatch) is the opposite --
+   high-signal: it fires only when an argument's inferred type is provably
+   disjoint from the position's (no instance could be both), so treat it as a
+   real bug. To fix a genuine one, correct the call; to teach the linter a type
+   it can't infer, add a unary fact or a `%::` directive (see
+   `ruleset-htn-syntax.md`, "Types").
 2. **`indhtn_introspect`** -- confirm methods/operators/facts parsed as intended.
 3. **`indhtn_find_plans`** -- verify the goal yields the expected *set* of plans;
    `indhtn_get_decomposition_tree` shows the hierarchy and bindings.

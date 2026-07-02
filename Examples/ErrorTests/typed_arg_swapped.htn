@@ -1,6 +1,9 @@
-% TYP001 — moveTo(?agent, ?cell) called with args reversed
-type(agent, player).
-type(cell, c5).
-signature(moveTo, [agent, cell]).
+% TYP010 — moveTo(agent, cell) called with args reversed.
+% Types come from unary facts; the %:: directive pins moveTo's arg types.
+agent(player).
+cell(c5).
+
+%:: moveTo(?a: agent, ?c: cell)
+moveTo(?a, ?c) :- del(), add(at(?a, ?c)).
 
 goalA :- if(), do(moveTo(c5, player)).

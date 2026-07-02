@@ -1,0 +1,65 @@
+/* ============================================================================
+ * decision-dag spike — a level as a DAG of fundamental states whose edges are
+ * DEFAULT-LOCKED and become traversable only when the player holds the
+ * capability a "decision" grants.
+ *
+ * Research mapping (see plan file):
+ *   B5  the planner is used as a design-time solvability prover
+ *   C7  multiple decision-sets each yield distinct winning strategies
+ *   C8  the unit of success is a WHOLE plan, never a single edge
+ *   C10 a path is only FAIR if every gated edge it uses has a discoverable clue
+ *       (the deliberately unclued `masterKey` shortcut is the moon-logic trap)
+ *
+ * The DAG (acyclic, so traversal enumerates all simple paths and terminates):
+ *
+ *        electric          orcAlly
+ *   start ------> vault      bridge <------ start
+ *     |  \         | \       /  |              (start also has a masterKey
+ *     |   \  orcAlly|  none  |  | electric      shortcut straight to goal)
+ *     |    \        v   \   /   v
+ *     |     \      cavern <-+  goal
+ *     |      \       | fireImmune
+ *  masterKey  +----> +--------> goal
+ *     v
+ *    goal
+ *
+ * Capabilities (decision tokens): electric, orcAlly, fireImmune, masterKey.
+ * Clues exist for electric / orcAlly / fireImmune.  masterKey has NO clue.
+ * ============================================================================ */
+
+/* --- Reachability of an edge: free, or gated by a held capability --- */
+passable(?a, ?b) :- edge(?a, ?b, none).
+passable(?a, ?b) :- edge(?a, ?b, ?cap), have(?cap).
+
+/* --- Methods: walk start -> goal one hop at a time.  NO `else`, so the
+ *     planner enumerates EVERY simple path (= every distinct strategy). --- */
+solve(?p) :- if(at(?p, start)), do(go(?p, goal)).
+
+go(?p, ?dest) :- if(at(?p, ?dest)), do().
+go(?p, ?dest) :- if(at(?p, ?cur), passable(?cur, ?next)),
+                 do(opMove(?p, ?cur, ?next), go(?p, ?dest)).
+
+/* --- Operator: the only state change is the player's position --- */
+opMove(?p, ?from, ?to) :- del(at(?p, ?from)), add(at(?p, ?to)).
+
+/* --- The DAG, as data: edge(from, to, unlock).  unlock = none | capability --- */
+edge(start, vault, electric).
+edge(start, bridge, orcAlly).
+edge(start, goal, masterKey).      /* unclued shortcut: the moon-logic trap */
+edge(vault, goal, orcAlly).
+edge(vault, cavern, none).
+edge(bridge, goal, electric).
+edge(bridge, cavern, none).
+edge(cavern, goal, fireImmune).
+
+/* --- Fairness data: a clue makes a capability fairly discoverable (C10).
+ *     masterKey is intentionally absent here. --- */
+clue(electric, "scorch marks ring the vault door").
+clue(orcAlly, "the wounded orc gestures at the bridge mechanism").
+clue(fireImmune, "the cavern mouth glows with lava heat").
+
+/* --- Initial state: player at the root.  No `have(...)` facts yet — every
+ *     decision-set is injected at runtime by the sweep driver. --- */
+at(player, start).
+
+goals(solve(player)).

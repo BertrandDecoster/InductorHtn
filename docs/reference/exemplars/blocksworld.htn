@@ -1,0 +1,55 @@
+% Blocks World -- translated to InductorHTN syntax.
+%
+% Source domain: the canonical AI / HTN teaching domain (PyHOP / GTPyhop
+% "blocks_world", and Nau et al.'s SHOP blocks world).
+%
+% Pattern it teaches: RECURSION + GOAL REGRESSION. To put one block somewhere
+% you must first recursively clear whatever is stacked on top of it. The
+% recursion bottoms out in a base-case method with an empty do().
+%
+% Idioms on show:
+%   - a recursive task (clearBlock) with a clear/empty-do base case
+%   - mutually exclusive method preconditions => one deterministic plan
+%   - methods gate with if(); operators only mutate with del()/add()
+%
+% Run it:  goals(buildTower()).  -- builds tower d / a / b (b on the table).
+
+/* ---------- Operators (primitive moves; no preconditions, only effects) ---------- */
+
+% Move ?x off block ?z and onto the table. ?x must already be clear.
+opMoveToTable(?x, ?z)   :- del(on(?x, ?z)), add(onTable(?x), clear(?z)).
+
+% Move ?x from the table onto the (already clear) block ?y.
+opMoveFromTable(?x, ?y) :- del(onTable(?x), clear(?y)), add(on(?x, ?y)).
+
+% Move ?x off block ?z and onto the (already clear) block ?y.
+opMoveFromBlock(?x, ?z, ?y) :- del(on(?x, ?z), clear(?y)), add(on(?x, ?y), clear(?z)).
+
+/* ---------- Methods (decomposition; recursion lives here) ---------- */
+
+% clearBlock(?x): make ?x clear. Base case = already clear (empty do()).
+clearBlock(?x) :- if(clear(?x)), do().
+clearBlock(?x) :- if(on(?y, ?x)), do(toTable(?y)).
+
+% toTable(?x): get ?x onto the table, clearing it first.
+toTable(?x) :- if(onTable(?x)), do(clearBlock(?x)).
+toTable(?x) :- if(on(?x, ?z)), do(clearBlock(?x), opMoveToTable(?x, ?z)).
+
+% stackOn(?x, ?y): put ?x onto ?y, clearing both first.
+stackOn(?x, ?y) :- if(onTable(?x)), do(clearBlock(?x), clearBlock(?y), opMoveFromTable(?x, ?y)).
+stackOn(?x, ?y) :- if(on(?x, ?z)), do(clearBlock(?x), clearBlock(?y), opMoveFromBlock(?x, ?z, ?y)).
+
+% Top-level goal task.
+buildTower() :- if(), do(stackOn(a, b), stackOn(d, a)).
+
+/* ---------- World state ---------- */
+
+% Types (unary facts -> linter sorts).
+block(a).  block(b).  block(c).  block(d).  block(e).
+
+% Layout: a on table (clear); b on table with e on top; c on table with d on top.
+onTable(a).  onTable(b).  onTable(c).
+on(e, b).    on(d, c).
+clear(a).    clear(e).    clear(d).
+
+goals(buildTower()).

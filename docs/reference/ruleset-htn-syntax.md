@@ -163,6 +163,39 @@ safeSpot(?loc) :- if(location(?loc), not(enemy(?loc))), do(camp(?loc)).
 unbound variable makes `not()` succeed if *any* non-matching value exists, which
 is almost never what you mean.
 
+## Types (linter type checking)
+
+Types are a **linter-only** concern — the engine never sees them. A constant's
+type(s) are inferred from the **unary facts** it appears under:
+
+```prolog
+skill(frostNova).      % frostNova : skill
+enemy(gateGuard).      % gateGuard : enemy
+agent(gateGuard).      % ... and also : agent (an instance may have many sorts)
+```
+
+The linter infers a type for every argument position (from facts, rule bodies,
+and how variables flow between goals) and emits `TYP010` when an argument's
+type is **provably disjoint** from a well-determined position — including
+variables. It is high-signal: it never flags a position whose sorts overlap on
+some instance, nor a genuinely polymorphic/under-determined one. Unary
+predicates an operator `del`/`add`s (e.g. `at/1`) are treated as mutable
+*state*, not sorts.
+
+**Optional `%::` directive.** To document or pin a contract inference can't
+reach, place a directive comment directly above the rule. It's a Prolog
+comment, so the engine ignores it; the linter binds the named head variables
+and anchors the position's expected type:
+
+```prolog
+%:: disableEnemy(?e: enemy)
+disableEnemy(?e) :- if(...), do(opFight(player, ?e)).
+```
+
+> Legacy: `type(typeName, instance).` and `signature(pred, [types]).` facts are
+> no longer read by the linter. Convert `type(skill, frostNova).` to the unary
+> fact `skill(frostNova).`; use a `%::` directive for an explicit contract.
+
 ## Complete example
 
 ```prolog

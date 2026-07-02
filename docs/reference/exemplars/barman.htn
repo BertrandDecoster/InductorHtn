@@ -1,0 +1,69 @@
+% Barman -- translated to InductorHTN syntax (reduced core).
+%
+% Source domain: the IPC "Barman" domain -- a robot bartender mixes cocktails
+% from ingredients using shakers and shot glasses. The full domain has two
+% hands, dispensers, and shot glasses; this core keeps one shaker and one hand
+% so the file reads as a teaching example, not a benchmark.
+%
+% Pattern it teaches: RESOURCE / STATE TRACKING with a NUMERIC FLUENT, and
+% TIGHT PRECONDITION ORDERING. Each pour increases a shaker fill level
+% (increase numeric fluent); shaking is gated on the level reaching the recipe
+% size, so the "mix" step can only fire once the resource is full.
+%
+% Idioms on show:
+%   - increase() on a fact shaped pred(args, value) for resource counting
+%   - gating a step on the fluent's value (shakeWhenFull checks the level) ->
+%     an explicit ordering / readiness constraint
+%   - clean/used state transition on the shaker (a consumable container)
+%   - an operator combining a fluent effect and an add() in one body
+%
+% Note: the linter reports SEM002 "Undefined predicate: 2/0" on the numeric
+% literal in the fluent gate. That is a known linter gap with integer literals
+% in goal positions (the engine plans it fine); see exemplars/README.md.
+%
+% Run it:  goals(makeCocktail(cocktail1)).  -- gin + juice, shaken.
+
+/* ---------- Operators ---------- */
+
+% Pick the shaker up (the hand is the tracked resource).
+opGraspShaker(?s) :- del(handEmpty), add(holding(?s)).
+
+% Pour one ingredient into the shaker: +1 to the fill level.
+opFill(?s, ?ing) :- increase(shakerLevel(?s), 1), add(contains(?s, ?ing)).
+
+% Shake: consumes the shaker's "clean" state, yields the mixed cocktail.
+opShake(?s, ?c) :- del(clean(?s)), add(used(?s), mixed(?s, ?c)).
+
+/* ---------- Methods ---------- */
+
+% makeCocktail(?c): grasp a clean empty shaker, pour both recipe ingredients,
+% shake. The gate binds the two ingredients from the recipe (data), so the
+% ordering of the pours is fixed by the recipe.
+makeCocktail(?c) :-
+    if(recipe(?c, ?ing1, ?ing2),
+       shaker(?s), clean(?s), shakerLevel(?s, 0), handEmpty),
+    do(opGraspShaker(?s),
+       opFill(?s, ?ing1),
+       opFill(?s, ?ing2),
+       shakeWhenFull(?s, ?c)).
+
+% Only shake once the shaker is full (both ingredients poured -> level 2). This
+% is the fluent doing real work: it gates the mix step on the running count.
+shakeWhenFull(?s, ?c) :- if(shakerLevel(?s, 2)), do(opShake(?s, ?c)).
+
+/* ---------- World state ---------- */
+
+% Types (unary facts -> linter sorts).
+shaker(shaker1).
+ingredient(gin).   ingredient(juice).
+cocktail(cocktail1).
+
+% Recipe (data, not methods).
+recipe(cocktail1, gin, juice).
+
+% Initial state: empty clean shaker, free hand.
+handEmpty.
+clean(shaker1).
+shakerLevel(shaker1, 0).
+
+goals(makeCocktail(cocktail1)).
