@@ -1,61 +1,47 @@
-% core_attunement - Primer -> Detonator, two roles, two companions
+% core_attunement - what a fight needs, and the roles that make it a team
 %
-% GDD 2: no single entity can overcome a significant challenge alone. Here
-% that is a *role* rule, not an identity rule: whoever primes a region may
-% not be the one who pays it off. Any companion can fill either role - the
-% player character and the AI companions have the same abilities and differ
-% only by who controls them - so cooperation comes from the task's shape,
-% not from a fact that names the human.
+% Top-down: a strategy needs an enemy blasted dead, or struck dead, or
+% exposed. These methods say what would work (a reaction that blasts
+% lethally, a strike element the enemy is not immune to) and hand the
+% ingredients to core_chemistry, which finds who holds them.
 %
-% Every pay-off method exists in two arities: the bare form (anyone may do
-% it) and a form taking `?not`, the companion excluded from the role -
-% usually the primer. Strategies bind the primer first (`primer/2`) and pass
-% it down.
+% GDD 2: no single entity overcomes a significant challenge alone. Here that
+% is a *role* rule, not an identity rule: whoever primes a region may not be
+% the one who pays it off. Any companion can fill either role - the player
+% character and the AI companions have the same abilities and differ only by
+% who controls them - so cooperation comes from the task's shape, not from a
+% fact that names the human. Every pay-off exists in two arities: the bare
+% form (anyone), and one taking `?not`, the companion excluded from the role.
 
 % === Rules ===
 
-% The first companion who can put ?el down.
-primer(?el, ?a) :-
-    first(and(canAct(?a), hasSkill(?a, ?skill), skillElement(?skill, ?el),
-              canPay(?a, ?skill))).
+% Who would prime with ?el: the first companion who can put it down.
+primer(?el, ?a) :- first(holder(?el, ?a)).
 
 % === Methods ===
 
-% Prime: put an element on a region. Bare form picks the first companion
-% who can; the named form is for a strategy that already chose the primer.
-prime(?el, ?r) :- if(primer(?el, ?a)), do(applyToRegion(?a, ?el, ?r)).
-prime(?el, ?r, ?a) :- if(canAct(?a)), do(applyToRegion(?a, ?el, ?r)).
+% Prime: put an element on a region. Bare form lets chemistry pick the
+% holder; the named form is for a strategy that already assigned the role.
+prime(?el, ?r) :- if(), do(castElement(?el, ?r)).
+prime(?el, ?r, ?a) :- if(), do(castElementAs(?a, ?el, ?r)).
 
-% Detonate: any companion but ?not triggers the pay-off on a region.
-detonate(?el, ?r) :- if(), do(detonate(?el, ?r, none)).
-detonate(?el, ?r, ?not) :-
-    if(canAct(?a), \==(?a, ?not)),
-    do(applyToRegion(?a, ?el, ?r)).
+% The need: whatever stands exposed in ?r is blasted dead. Some element must
+% react lethally with the feature there; anyone but ?not casts it.
+blastDeadAt(?r) :- if(), do(blastDeadAt(?r, none)).
+blastDeadAt(?r, ?not) :-
+    if(regionHas(?r, ?feat), blast(?el, ?feat, dead), reacts(?el, ?feat, ?new)),
+    do(castElement(?el, ?r, ?not)).
 
-% Detonate with whatever lethal element the pay-off holds for this terrain:
-% a blast that kills the exposed enemies standing in ?r.
-detonateLethal(?r) :- if(), do(detonateLethal(?r, none)).
-detonateLethal(?r, ?not) :-
-    if(canAct(?a), \==(?a, ?not), regionHas(?r, ?feat),
-       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el),
-                 blast(?el, ?feat, dead), reacts(?el, ?feat, ?new), canPay(?a, ?skill)))),
-    do(applyToRegion(?a, ?el, ?r)).
+% The need: ?e is struck dead. Some strike element must be lethal and the
+% enemy not immune to it; anyone but ?not casts it.
+strikeDead(?e) :- if(), do(strikeDead(?e, none)).
+strikeDead(?e, ?not) :-
+    if(strike(?el, dead), not(immune(?e, ?el))),
+    do(strikeElement(?el, ?e, ?not)).
 
-% Finish: any companion but ?not strikes a vulnerable enemy with the first
-% lethal element they can afford and the enemy is not immune to.
-finish(?e) :- if(), do(finish(?e, none)).
-finish(?e, ?not) :-
-    if(canAct(?a), \==(?a, ?not), vulnerable(?e),
-       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el),
-                 strike(?el, ?status), not(immune(?e, ?el)), canPay(?a, ?skill)))),
-    do(applyToEntity(?a, ?el, ?e)).
-
-% Expose: make an enemy take blasts. Already exposed: nothing to do; else
-% whoever holds a marking element does it (a flare in the eyes drops the
-% shield).
+% The need: ?e takes blasts. Already exposed: nothing to do; else some mark
+% element drops its guard (a flare in the eyes).
 expose(?e) :- if(exposed(?e)), do().
 expose(?e) :-
-    else, if(canAct(?a),
-             first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el),
-                       mark(?el, ?status), not(immune(?e, ?el)), canPay(?a, ?skill)))),
-    do(markEntity(?a, ?el, ?e)).
+    else, if(role(?e, enemy), mark(?el, ?status), not(immune(?e, ?el))),
+    do(markElement(?el, ?e)).

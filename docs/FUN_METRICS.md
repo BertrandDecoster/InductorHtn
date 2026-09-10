@@ -445,7 +445,11 @@ default kit each route is a single line once chosen. That is the next rule to ch
 
 The loop steered three design changes on the way here: iron for the bearer instead of a shield
 (so Magnetize, not Gust, is the answer to it), Magnetize moving iron only, and `lure` no longer
-dragging the Warden into the sludge.
+dragging the Warden into the sludge. Two design laws then reshaped the ruleset without moving a
+number: the player character and the AI companions are interchangeable in ability (the
+player-only detonator became a primer/pay-off role rule), and the ruleset decomposes top-down
+from the need (`defeatGroup` → `theBurn`/`theSlipstream` → `blastDeadAt`/`strikeDead` →
+`castElement`, which binds the holder at the leaf). Same two plans, same scorecard.
 
 ## 8. Usage
 

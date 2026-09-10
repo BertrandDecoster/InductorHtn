@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:34:12.084157"
+    "last_checked": "2026-09-10T15:41:27.800019"
   },
   "provides": [
     "gatherOthers/2",
@@ -20,7 +20,7 @@
   ],
   "requires": [
     "bringTo/2",
-    "detonate/2",
+    "castElement/2",
     "expose/1"
   ]
 }

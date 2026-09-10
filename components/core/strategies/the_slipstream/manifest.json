@@ -12,23 +12,21 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:34:12.553135"
+    "last_checked": "2026-09-10T15:41:28.302491"
   },
   "provides": [
     "coverAt/1",
-    "ensureTrap/2",
     "finishTrap/3",
     "gatherIntoTrap/2",
-    "sludgeable/1",
-    "snaring/1",
+    "makeTrap/3",
     "theSlipstream/1",
-    "trapPrimer/2"
+    "trapSite/3"
   ],
   "requires": [
+    "blastDeadAt/2",
     "bringTo/2",
-    "detonateLethal/2",
-    "finish/2",
     "holdPosition/2",
-    "prime/3"
+    "prime/3",
+    "strikeDead/2"
   ]
 }

@@ -1,31 +1,30 @@
-% the_slipstream - freeze the oil into sludge, get them stuck, finish them
+% the_slipstream - get them stuck, then finish them
 %
-% Two roles. The *primer* freezes the oil into sludge (or the sludge from an
-% earlier fight is reused and nobody primes). The *pay-off* either strikes
-% the snared enemy or detonates a lethal element on the sludge and takes
-% everything in it - and the pay-off may not be the primer. Anyone may fill
-% either role; what they hold decides. In between, whoever carries the
-% shield plants it at the edge as cover (a commitment), and the enemy is
-% brought in - pushed, dragged or taunted - with whoever else can be
-% brought in.
+% The need is a dead enemy. This way of meeting it: a region with snaring
+% terrain (made by a reaction if it does not exist yet - the primer role),
+% cover at its edge (whoever carries the shield plants it: a commitment),
+% the enemy brought in with whoever else can be brought, and then the
+% pay-off: strike the snared one dead, or blast the whole region. The
+% pay-off may not be the primer. Anyone may fill either role; what they
+% hold decides. Sludge persists, so the trap made for one fight serves the
+% next; the shield commitment persists too.
 
 theSlipstream(?e) :-
-    if(role(?e, enemy), not(status(?e, dead)), first(sludgeable(?r)), trapPrimer(?r, ?p)),
-    do(ensureTrap(?r, ?p), coverAt(?r), bringTo(?e, ?r), try(gatherIntoTrap(?e, ?r)),
+    if(role(?e, enemy), not(status(?e, dead)), terrain(?trap, snared),
+       trapSite(?r, ?trap, ?p)),
+    do(makeTrap(?r, ?trap, ?p), coverAt(?r), bringTo(?e, ?r), try(gatherIntoTrap(?e, ?r)),
        finishTrap(?e, ?r, ?p)).
 
-% A region that is, or can be frozen into, snaring terrain.
-snaring(?r) :- regionHas(?r, ?trap), terrain(?trap, snared).
-sludgeable(?r) :- snaring(?r).
-sludgeable(?r) :- regionHas(?r, ?feat), reacts(freeze, ?feat, ?trap), terrain(?trap, snared).
+% Where the trap is, and who primes it: nobody if the terrain is already
+% there, else the first companion who can cause the reaction that makes it.
+trapSite(?r, ?trap, none) :- regionHas(?r, ?trap).
+trapSite(?r, ?trap, ?p) :-
+    not(regionHas(?r, ?trap)), regionHas(?r, ?old), reacts(?el, ?old, ?trap), primer(?el, ?p).
 
-% Who primes: nobody if the trap already exists, else the first companion
-% who can freeze. Bound up front so the pay-off can be someone else.
-trapPrimer(?r, none) :- snaring(?r).
-trapPrimer(?r, ?p) :- not(snaring(?r)), primer(freeze, ?p).
-
-ensureTrap(?r, none) :- if(), do().
-ensureTrap(?r, ?p) :- if(\==(?p, none)), do(prime(freeze, ?r, ?p)).
+makeTrap(?r, ?trap, none) :- if(), do().
+makeTrap(?r, ?trap, ?p) :-
+    if(\==(?p, none), regionHas(?r, ?old), reacts(?el, ?old, ?trap)),
+    do(prime(?el, ?r, ?p)).
 
 % The shield-bearer holds the first region adjoining the trap.
 coverAt(?r) :-
@@ -40,5 +39,5 @@ gatherIntoTrap(?e, ?r) :-
 
 % Finish the one, or blast the lot. Alternatives, not fallbacks. Never the
 % primer.
-finishTrap(?e, ?r, ?p) :- if(status(?e, snared)), do(finish(?e, ?p)).
-finishTrap(?e, ?r, ?p) :- if(status(?e, snared)), do(detonateLethal(?r, ?p)).
+finishTrap(?e, ?r, ?p) :- if(status(?e, snared)), do(strikeDead(?e, ?p)).
+finishTrap(?e, ?r, ?p) :- if(status(?e, snared)), do(blastDeadAt(?r, ?p)).

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Area denial. Someone brings the enemy onto the oil; someone with fire ignites it. The oil is the level's own primer, so the burn has a single pay-off role that any companion may take.
+Area denial. The need is a dead enemy; this way of meeting it finds ground whose feature reacts lethally with some element, brings the enemy there, and has whoever holds that element put it down. The oil the level laid is the primer, so the burn has one pay-off role, open to any companion.
 The explosion kills what stands in it and scorches the floor, so the oil is
 gone for whatever comes next.
 
@@ -19,7 +19,7 @@ strategy
 
 | Method | Description |
 |--------|-------------|
-| `theBurn(?e)` | Bring `?e` to a region whose feature fire blasts lethally, then whoever holds fire detonates it there. |
+| `theBurn(?e)` | Find a region whose feature some element blasts lethally, bring `?e` there, expose it, gather the others, then `castElement` that element there. |
 
 ## Examples
 

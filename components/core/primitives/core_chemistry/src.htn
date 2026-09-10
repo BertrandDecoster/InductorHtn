@@ -1,5 +1,8 @@
-% core_chemistry - elements change materials, elements change entities,
-% materials never change materials
+% core_chemistry - how an element gets onto a region or an entity
+%
+% Top-down: a caller needs "fire on this region" or "lightning on that
+% enemy"; this component answers *how*. Who holds the element is bound at
+% the leaf, as the answer to that question - never as the premise.
 %
 % The three rules of the chemistry engine, as facts a level declares:
 %   skillElement(?skill, ?element)      ignite -> fire, freeze -> freeze, ...
@@ -36,7 +39,12 @@ opStatus(?a, ?e, ?status) :-
 free(?a, ?skill) :- signature(?a, ?skill).
 free(?a, ?skill) :- unlimited(?skill).
 canPay(?a, ?skill) :- free(?a, ?skill).
-canPay(?a, ?skill) :- charge(?a, ?skill, ?tok).
+canPay(?a, ?skill) :- not(free(?a, ?skill)), first(charge(?a, ?skill, ?tok)).
+
+% Who can put ?el down: one answer per companion, whatever they control.
+holder(?el, ?a) :-
+    canAct(?a),
+    first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill))).
 
 % A shield turns blasts; a snared or dazzled enemy has dropped its guard.
 % One clause, so an `allOf` over exposed enemies binds each of them once.
@@ -57,16 +65,30 @@ payFor(?a, ?skill) :-
     else, if(first(charge(?a, ?skill, ?tok))),
     do(opSpendCharge(?a, ?skill, ?tok)).
 
-% Put an element on a region. The feature there reacts; the blast hits the
-% exposed enemies present; the new terrain settles on whoever stands in it.
-applyToRegion(?a, ?el, ?r) :-
-    if(canAct(?a),
-       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill))),
-       regionHas(?r, ?feat), reacts(?el, ?feat, ?new)),
+% The need: element ?el lands on region ?r. Anyone but ?not who holds it
+% casts from a vantage; the feature reacts; the blast hits the exposed
+% enemies present; the new terrain settles on whoever stands in it.
+castElement(?el, ?r) :- if(), do(castElement(?el, ?r, none)).
+castElement(?el, ?r, ?not) :-
+    if(regionHas(?r, ?feat), reacts(?el, ?feat, ?new), holder(?el, ?a), \==(?a, ?not)),
+    do(castElementAs(?a, ?el, ?r)).
+
+% The same need with the caster already chosen (a strategy that assigned
+% the primer role).
+castElementAs(?a, ?el, ?r) :-
+    if(canAct(?a), regionHas(?r, ?feat), reacts(?el, ?feat, ?new),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
     do(takeVantage(?a, ?r), payFor(?a, ?skill),
        opCastRegion(?a, ?skill, ?r, ?feat, ?new),
        try(blastEntities(?a, ?el, ?feat, ?r)),
        try(settleTerrain(?a, ?r))).
+
+% The need: region ?r has feature ?feat. Already true, or made by a reaction
+% on what is there now.
+obtainFeature(?r, ?feat) :- if(regionHas(?r, ?feat)), do().
+obtainFeature(?r, ?feat) :-
+    else, if(regionHas(?r, ?old), reacts(?el, ?old, ?feat)),
+    do(castElement(?el, ?r)).
 
 blastEntities(?a, ?el, ?feat, ?r) :-
     allOf, if(blast(?el, ?feat, ?status), at(?e, ?r), role(?e, enemy),
@@ -83,16 +105,19 @@ sufferTerrain(?a, ?e, ?r) :-
     allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), not(status(?e, ?status))),
     do(opStatus(?a, ?e, ?status)).
 
-% Put an element on an entity directly. Only a vulnerable target takes a
-% strike; any enemy takes a mark.
-applyToEntity(?a, ?el, ?e) :-
-    if(canAct(?a), vulnerable(?e), not(immune(?e, ?el)), strike(?el, ?status),
-       not(status(?e, ?status)), at(?e, ?r),
+% The need: element ?el strikes entity ?e. Only a vulnerable target takes a
+% strike; anyone but ?not who holds the element does it from a vantage.
+strikeElement(?el, ?e) :- if(), do(strikeElement(?el, ?e, none)).
+strikeElement(?el, ?e, ?not) :-
+    if(vulnerable(?e), not(immune(?e, ?el)), strike(?el, ?status),
+       not(status(?e, ?status)), at(?e, ?r), holder(?el, ?a), \==(?a, ?not),
        first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
     do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastEntity(?a, ?skill, ?e, ?status)).
 
-markEntity(?a, ?el, ?e) :-
-    if(canAct(?a), role(?e, enemy), not(immune(?e, ?el)), mark(?el, ?status),
-       not(status(?e, ?status)), at(?e, ?r),
+% The need: element ?el marks enemy ?e (a flare in the eyes). Any enemy
+% takes a mark.
+markElement(?el, ?e) :-
+    if(role(?e, enemy), not(immune(?e, ?el)), mark(?el, ?status),
+       not(status(?e, ?status)), at(?e, ?r), holder(?el, ?a),
        first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
     do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastEntity(?a, ?skill, ?e, ?status)).

@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:34:11.758168"
+    "last_checked": "2026-09-10T15:41:27.494815"
   },
   "provides": [
     "bringTo/2",

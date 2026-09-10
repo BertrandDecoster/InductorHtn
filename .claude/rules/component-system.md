@@ -283,9 +283,14 @@ companions; they differ only by who controls them. Abilities live on the charact
 primer (`detonate(?el, ?r, ?not)`, `finish(?e, ?not)`, `detonateLethal(?r, ?not)`); anyone may
 fill either role.
 
-**Attunement** (`core_attunement`): `primer(?el, ?a)` (rule: first companion who can put the
-element down), `prime(?el, ?r[, ?a])`, `detonate(?el, ?r[, ?not])`, `finish(?e[, ?not])`,
-`expose(?e)`.
+**Chemistry as needs** (`core_chemistry`): `castElement(?el, ?r[, ?not])` (element on region:
+who holds it is bound at the leaf), `castElementAs(?a, ?el, ?r)`, `obtainFeature(?r, ?feat)`
+(already there, or made by a reaction), `strikeElement(?el, ?e[, ?not])`, `markElement(?el, ?e)`,
+rule `holder(?el, ?a)`.
+
+**Attunement** (`core_attunement`): the fight's needs - `blastDeadAt(?r[, ?not])` (some element
+reacts lethally with the feature there), `strikeDead(?e[, ?not])`, `expose(?e)`; `prime(?el, ?r[, ?a])`
+and rule `primer(?el, ?a)` for the primer role.
 
 **Aggro** (`core_aggro`): `lure` (iron only, from range - Magnetize), `push` (flesh only - Gust),
 `taunt` (dash; the player lands in the terrain too), `holdPosition` (`opAnchor`/`opRelease`:
@@ -317,7 +322,12 @@ what happens" is a bottom-up simulation, not a plan - see `.claude/rules/craftin
    (see `exposed`, `vulnerable` in `core_chemistry`).
 4. **No `hidden` operators.** They vanish from the plan and desync state replay from
    `GetSolutionFacts`.
-5. **Actor first.** The metrics (`actor_position: 0`) and the MCP play tools read the actor
+5. **A failed search that decomposed locks the rule set.** After `FindAllPlans` returns no
+   solution for a goal whose method *did* decompose into subtasks, `HtnCompile` of further
+   facts fails with `Internal Error ... HtnRuleSet.cpp line 16` (`m_isLocked`). A goal that
+   fails at its own `if()` does not lock. In tests, set all facts first, or query the leaf
+   arity directly for the no-plan case; in tools, use a fresh planner per world.
+6. **Actor first.** The metrics (`actor_position: 0`) and the MCP play tools read the actor
    from the first argument. A level can override per operator with `funActor(opName, index)`
    and mark bookkeeping with `funNoop(opName)`.
 
@@ -352,10 +362,12 @@ what happens" is a bottom-up simulation, not a plan - see `.claude/rules/craftin
 ### Core Components (`core/`) - the unified vocabulary
 
 - **Primitives:** `core_world` (regions, `navigate`, `takeVantage`), `core_chemistry`
-  (`applyToRegion`, `applyToEntity`, `payFor`), `core_attunement` (`prime`, `detonate`,
-  `finish`, `expose`), `core_aggro` (`lure`, `push`, `taunt`, `holdPosition`, `bringTo`)
-- **Strategies:** `the_burn` (bring the enemy onto the oil, the player ignites it),
-  `the_slipstream` (freeze the oil to sludge, cover, bring them in, finish or blast)
+  (`castElement`, `obtainFeature`, `strikeElement`, `markElement`, `payFor`), `core_attunement`
+  (`blastDeadAt`, `strikeDead`, `expose`, `prime`), `core_aggro` (`lure`, `push`, `taunt`,
+  `holdPosition`, `bringTo`)
+- **Strategies:** `the_burn` (ground that burns: bring the enemy there, someone lights it),
+  `the_slipstream` (ground that snares, made if needed by the primer; cover; bring them in;
+  someone other than the primer strikes or blasts)
 - **Goals:** `defeat_group` (burn or slipstream, both enumerable)
 - **Levels:** `grease_trap` - swarm in the gallery, iron bearer at the exit, pick 2 of 5
   skills; declares `funChoiceSpace` so F4 is measured

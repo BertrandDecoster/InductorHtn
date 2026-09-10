@@ -11,17 +11,20 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:34:11.035381"
+    "last_checked": "2026-09-10T15:43:12.542946"
   },
   "provides": [
-    "applyToEntity/3",
-    "applyToRegion/3",
     "blastEntities/4",
     "canPay/2",
+    "castElement/2",
+    "castElement/3",
+    "castElementAs/3",
     "exposed/1",
     "free/2",
     "guarded/1",
-    "markEntity/3",
+    "holder/2",
+    "markElement/2",
+    "obtainFeature/2",
     "opCastEntity/4",
     "opCastRegion/5",
     "opSpendCharge/3",
@@ -29,6 +32,8 @@
     "open/1",
     "payFor/2",
     "settleTerrain/2",
+    "strikeElement/2",
+    "strikeElement/3",
     "sufferTerrain/3",
     "vulnerable/1"
   ],

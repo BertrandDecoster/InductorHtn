@@ -12,23 +12,23 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:34:11.356896"
+    "last_checked": "2026-09-10T15:41:27.075371"
   },
   "provides": [
-    "detonate/2",
-    "detonate/3",
-    "detonateLethal/1",
-    "detonateLethal/2",
+    "blastDeadAt/1",
+    "blastDeadAt/2",
     "expose/1",
-    "finish/1",
-    "finish/2",
     "prime/2",
     "prime/3",
-    "primer/2"
+    "primer/2",
+    "strikeDead/1",
+    "strikeDead/2"
   ],
   "requires": [
-    "applyToEntity/3",
-    "applyToRegion/3",
-    "markEntity/3"
+    "castElement/2",
+    "castElement/3",
+    "castElementAs/3",
+    "markElement/2",
+    "strikeElement/3"
   ]
 }

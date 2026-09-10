@@ -406,9 +406,13 @@ blastDead(?e)           :- if(blast(?el, ?feat, dead)),       % what would work:
 obtainFeature(?r, ?feat):- if(regionHas(?r, ?feat)), do().    % already there
 obtainFeature(?r, ?feat):- if(reacts(?el2, ?old, ?feat), regionHas(?r, ?old)),
                            do(castElement(?el2, ?r)).         % or make it
-castElement(?el, ?r)    :- if(haveElement(?el, ?a)),           % who holds it - bound at the leaf
-                           do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastRegion(...)).
+castElement(?el, ?r)    :- if(regionHas(?r, ?feat), reacts(?el, ?feat, ?new), holder(?el, ?a)),
+                           do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastRegion(...)).  % who holds it - bound at the leaf
 ```
+
+That is the shape of `components/core`: `defeatGroup` needs a dead enemy; `theBurn` and
+`theSlipstream` are ways; `blastDeadAt` / `strikeDead` say what would work; `castElement` /
+`obtainFeature` / `strikeElement` find the holder and the region; `bringTo` finds the mover.
 
 Actors, skills and regions are bound at the leaves as the answer to "how can I get X".
 A method shaped "I am `?a`, I hold `?el`, there is a region `?r`, let us see what happens"

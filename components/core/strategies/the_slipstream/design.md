@@ -24,12 +24,12 @@ strategy
 
 | Method | Description |
 |--------|-------------|
-| `theSlipstream(?e)` | Bind the primer, ensure a snaring trap exists, cover its edge, bring `?e` in, bring whoever else can be brought, then someone other than the primer finishes the one or blasts the lot. |
-| `trapPrimer(?r, ?p)` (rule) | `none` if `?r` already snares, else the first companion who can freeze. |
-| `ensureTrap(?r, ?p)` | No-op for `none`, else `?p` primes freeze there. |
+| `theSlipstream(?e)` | Find a region that snares or can be made to, bind the primer, make the trap, cover its edge, bring `?e` in, bring whoever else can be brought, then someone other than the primer strikes the one dead or blasts the lot. |
+| `trapSite(?r, ?trap, ?p)` (rule) | A region that has the snaring terrain (`?p` = `none`), or can be made to by a reaction whose first able caster is `?p`. |
+| `makeTrap(?r, ?trap, ?p)` | No-op for `none`, else `?p` primes the reaction that makes the terrain. |
 | `coverAt(?r)` | The shield-bearer holds the first region adjoining `?r`. |
 | `gatherIntoTrap(?e, ?r)` | Every other living enemy that can be brought into the trap, is. |
-| `finishTrap(?e, ?r, ?p)` | Strike the snared enemy, or detonate a lethal element on the sludge, by anyone but `?p`. Alternatives. |
+| `finishTrap(?e, ?r, ?p)` | `strikeDead` the snared enemy, or `blastDeadAt` the trap, by anyone but `?p`. Alternatives. |
 
 ## Examples
 

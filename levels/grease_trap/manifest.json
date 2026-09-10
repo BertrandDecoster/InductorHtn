@@ -11,7 +11,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:34:13.409779"
+    "last_checked": "2026-09-10T15:41:29.190011"
   },
   "provides": [
     "at/2",

@@ -2,12 +2,15 @@
 
 ## Purpose
 
-The multiplicative part of the ruleset: elements change materials, elements
-change entities, materials never change materials. A level declares a handful
-of `reacts`, `blast`, `terrain` and `strike` facts and every combination of
-skills and terrain follows from them. Reactions rewrite the world, so what one
-fight consumes is gone for the next; that persistence is what makes the
-second encounter depend on how the first was won.
+How an element gets onto a region or an entity. This is the "how can I get
+X" layer of a top-down ruleset: a strategy needs *fire on this region* or
+*lightning on that enemy* and asks here; who holds the element is bound at
+the leaf, as the answer, never as the premise. The multiplicative part of
+the ruleset lives in facts: elements change materials, elements change
+entities, materials never change materials. A level declares a handful of
+`reacts`, `blast`, `terrain` and `strike` facts and every combination of
+skills and terrain follows from them. Reactions rewrite the world, so what
+one fight consumes is gone for the next.
 
 ## Layer
 
@@ -30,18 +33,22 @@ primitive
 
 | Method | Description |
 |--------|-------------|
+| `castElement(?el, ?r)` / `castElement(?el, ?r, ?not)` | The need "element on region": anyone but `?not` who holds `?el` casts it from a vantage; the feature reacts; the blast hits exposed enemies present; the new terrain settles on everyone standing there. |
+| `castElementAs(?a, ?el, ?r)` | The same need with the caster already chosen. |
+| `obtainFeature(?r, ?feat)` | The need "region has feature": already true, or made by a reaction on what is there now. |
+| `strikeElement(?el, ?e)` / `strikeElement(?el, ?e, ?not)` | The need "element strikes entity": a vulnerable (snared or dazzled) target, anyone but `?not` who holds the element. |
+| `markElement(?el, ?e)` | The need "element marks enemy": any enemy, whoever holds the element. |
 | `payFor(?a, ?skill)` | Free for signature/unlimited skills; else spends one token. |
-| `applyToRegion(?a, ?el, ?r)` | Cast the element; the feature reacts; the blast hits exposed enemies present; the new terrain settles on everyone standing there. |
-| `applyToEntity(?a, ?el, ?e)` | Direct strike on a vulnerable (snared) entity. |
 | `sufferTerrain(?a, ?e, ?r)` | `?e` arriving in `?r` takes the terrain's status. |
 
 ## Rules
 
 | Rule | Description |
 |------|-------------|
+| `holder(?el, ?a)` | A companion who can put `?el` down now (one answer per companion). |
 | `canPay(?a, ?skill)` | Free, or a charge token exists. |
-| `exposed(?e)` | Not shielded, or snared (guard dropped). |
-| `vulnerable(?e)` | Snared. |
+| `exposed(?e)` | Not shielded, or snared or dazzled (guard dropped). |
+| `vulnerable(?e)` | Snared or dazzled. |
 
 ## Required Facts
 
@@ -61,7 +68,7 @@ primitive
 
 **Given:** `regionHas(pit, oil)`, `reacts(fire, oil, scorched)`, `blast(fire, oil, dead)`, an enemy `gob` at `pit`, the player at `pit` with one `ignite` charge.
 
-**When:** `applyToRegion(player, fire, pit)`
+**When:** `castElement(fire, pit)`
 
 **Then:** plan contains `opSpendCharge(player, ignite, c1)`, `opCastRegion(player, ignite, pit, oil, scorched)`, `opStatus(player, gob, dead)`; final state has `regionHas(pit, scorched)` and no `charge(player, ignite, c1)`.
 
@@ -69,7 +76,7 @@ primitive
 
 **Given:** `signature(arcanist, freeze)`, `reacts(freeze, oil, sludge)`.
 
-**When:** `applyToRegion(arcanist, freeze, pit)`
+**When:** `castElement(freeze, pit)`
 
 **Then:** plan contains `opCastRegion(arcanist, freeze, pit, oil, sludge)` and no `opSpendCharge`.
 
@@ -77,14 +84,23 @@ primitive
 
 **Given:** `strike(fire, dead)`, `gob` not snared.
 
-**When:** `applyToEntity(player, fire, gob)`
+**When:** `strikeElement(fire, gob)`
 
 **Then:** no plan. With `status(gob, snared)` the plan contains `opCastEntity(player, ignite, gob, dead)`.
+
+### Example 4: Obtain a feature
+
+**Given:** oil at `pit`, `reacts(freeze, oil, sludge)`, the arcanist holding `freeze`.
+
+**When:** `obtainFeature(pit, sludge)`
+
+**Then:** plan contains `opCastRegion(arcanist, freeze, pit, oil, sludge)`; asked again once the sludge exists, the plan is empty.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No charge, no cast | Without a `charge` token or a free skill there is no `applyToRegion` plan. |
+| P1 | No charge, no cast | Without a `charge` token or a free skill there is no `castElement` plan. |
 | P2 | Shields turn blasts | A `shielded` enemy in the region is not given the blast status. |
 | P3 | Terrain settles | After freezing oil to sludge with `terrain(sludge, snared)`, an enemy standing there is `snared`. |
+| P4 | The holder is bound at the leaf | With two holders of an element, `castElement` has one plan per holder, and `castElement(?el, ?r, ?not)` has none by `?not`. |
