@@ -24,7 +24,7 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "mcp>=0.1.0",
+        "mcp>=1.2,<2",
     ],
     entry_points={
         "console_scripts": [

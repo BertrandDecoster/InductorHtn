@@ -49,16 +49,60 @@ status                           # List all components with certification
 certify <path> [--dry-run]       # Full certification (linter + tests + design)
 test <path>                      # Run component tests
 test-all [--layer <layer>]       # Batch test all components
-play <level>                     # Step-by-step plan narrative
+play <level> [--solution N | --class LABEL] [-i]   # Plan narrative (grounded effects)
 trace <level> [--goal GOAL]      # Decomposition tree visualization
-verify <level>                   # Full level verification
+verify <level>                   # deps + tests + plan + fun scorecard (non-gating)
+
+fun <level> [--ablate] [--loadouts] [--json] [--md FILE]   # Fun scorecard
+fun-all                          # Comparison table across levels
+fun-compare <a> <b>              # Side-by-side profile diff
 ```
 
+## Fun Metrics
+
+`fun` scores the *shape of a level's solution space* — how many genuinely different
+ways exist, how deep they are, whether the player is required, and which of the
+declared X-of-Y choices work. It never claims a level is fun.
+
+Full definition, bands, and known blind spots: **`docs/FUN_METRICS.md`**.
+Calibration fixtures: `tests/fun_fixtures/`; tests: `python -m pytest tests/test_fun_metrics.py`.
+
+Bands and weights are data, in `src/Python/htn_metrics/metrics.json` — calibrate there, not in code.
+
+A level opts into the choice-space family (F4) by declaring facts in `level.htn`:
+```prolog
+funChoiceSpace(kit, 2).                       % pick 2 ...
+funChoice(kit, emp).                          % ... from these
+funChoiceFact(emp, carrying(player, emp)).    % how a pick alters the world
+funBlocker(door).                             % must be solved
+funBlockerGoal(door, clear(door)).            % optional; else derived from goals()
+```
+`--ablate` and `--loadouts` re-plan many times; results are disk-cached in
+`.htn_metrics_cache/`, so a second run over an unchanged level is fast.
+
+## Level Design Loop & MCP Play
+
+Iterate a level as: one hypothesis → one rule change → certify → play it through the
+MCP level tools as the player → `explain`/`fun` afterwards → compare → a human tries it.
+Rules: `.claude/rules/level-design-loop.md`. Tools: `.claude/rules/mcp-server.md`
+(`indhtn_load_level`, `indhtn_observe`, `indhtn_actions`, `indhtn_act`, `indhtn_undo`,
+`indhtn_explain`, `indhtn_fun`). `.mcp.json` starts the server via `mcp-server/launch.py`;
+`python mcp-server/launch.py --check` verifies the setup. Playthroughs land in
+`.playthroughs/` (gitignored).
+
 **Current certified components:**
-- Primitives: `locomotion`, `tags`, `aggro`
-- Strategies: `the_burn`, `the_slipstream`
-- Goals: `defeat_enemy`, `clear_room`
-- Levels: `puzzle1`
+- Core (unified vocabulary, `components/core/`): primitives `core_world`, `core_chemistry`,
+  `core_attunement`, `core_aggro`; strategies `the_burn`, `the_slipstream`; goal
+  `defeat_group`; level `grease_trap`
+- Original tree: primitives `locomotion`, `tags`, `aggro`; strategies `the_burn`,
+  `the_slipstream`; goals `defeat_enemy`, `clear_room`; level `puzzle1`
+- GameHack (`components/gamehack/`): primitives `gh_movement`, `gh_tags`, `gh_aggro`,
+  `gh_skills`; action `gh_tag_application`; strategies `wet_and_electrocute`,
+  `stun_and_slow_skill`, `stun_and_burn`; goal `plan_to_damage`; levels `gamehack_gh4`,
+  `gamehack_gh7`, `gamehack_mvp`, `gamehack_multipath` (`gh_doors`, `complete_toy_level`
+  are not certified)
+
+Core vocabulary and operator rules: `.claude/rules/component-system.md`.
 
 ## Critical Rules
 

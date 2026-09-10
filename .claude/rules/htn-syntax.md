@@ -33,11 +33,21 @@ operatorName(?params) :- del(factsToRemove), add(factsToAdd).
 ```prolog
 walk(?from, ?to) :- del(at(?from)), add(at(?to)).
 
-drive(?vehicle, ?from, ?to) :-
-    del(at(?from), fuel(?vehicle, ?f)),
-    add(at(?to), fuel(?vehicle, ?newF)),
-    is(?newF, -(?f, 1)).
+% Consumables are tokens, not counters: the method picks a token in if(),
+% the operator deletes it. One fact per remaining use.
+drive(?vehicle, ?from, ?to, ?tok) :-
+    del(at(?from), fuel(?vehicle, ?tok)),
+    add(at(?to)).
+
+travel(?to) :- if(at(?from), hasVehicle(?v), first(fuel(?v, ?tok))),
+               do(drive(?v, ?from, ?to, ?tok)).
 ```
+
+**Operators cannot compute.** `HtnCompiler.h:97-139` drops any `is()` after
+`add()`, and `HtnPlanner.cpp:532-544` substitutes del/add with the head's
+bindings only. So `fuel(?v, ?newF)` with `is(?newF, -(?f, 1))` silently
+does nothing, and every variable in `del`/`add` must appear in the head.
+Count with tokens (`fuel(car, f1). fuel(car, f2).`) and delete one per use.
 
 ## Method Modifiers
 

@@ -209,62 +209,46 @@ def get_component_manifest(component_path: str) -> Manifest:
     return Manifest.load(manifest_path)
 
 
+def _describe(path_label: str, fallback_name: str, manifest_path: str) -> Dict[str, Any]:
+    try:
+        manifest = Manifest.load(manifest_path)
+        return {
+            "path": path_label,
+            "name": manifest.name,
+            "version": manifest.version,
+            "layer": manifest.layer,
+            "certified": manifest.certified,
+            "certification": manifest.certification.to_dict(),
+        }
+    except Exception as e:
+        return {"path": path_label, "name": fallback_name, "error": str(e)}
+
+
 def list_all_components(components_root: str) -> List[Dict[str, Any]]:
-    """List all components with their certification status."""
-    components = []
+    """List all components with their certification status.
 
-    # List components from components/ directory
-    for layer_dir in ["primitives", "strategies", "goals"]:
-        layer_path = os.path.join(components_root, layer_dir)
-        if not os.path.isdir(layer_path):
+    Walks `components/` recursively, so namespaced trees (`core/primitives/x`,
+    `gamehack/goals/y`) are listed beside the top-level layers. A directory
+    holding a `manifest.json` is a component; its children are not searched.
+    Levels live in `<project>/levels/` and are appended last.
+    """
+    components: List[Dict[str, Any]] = []
+
+    for dirpath, dirnames, filenames in os.walk(components_root):
+        dirnames.sort()
+        if "manifest.json" not in filenames:
             continue
+        dirnames[:] = []  # a component's subdirectories are not components
+        rel = os.path.relpath(dirpath, components_root).replace(os.sep, "/")
+        components.append(_describe(rel, os.path.basename(dirpath),
+                                    os.path.join(dirpath, "manifest.json")))
 
-        for component_name in os.listdir(layer_path):
-            component_path = os.path.join(layer_path, component_name)
-            manifest_path = os.path.join(component_path, "manifest.json")
-
-            if os.path.isfile(manifest_path):
-                try:
-                    manifest = Manifest.load(manifest_path)
-                    components.append({
-                        "path": f"{layer_dir}/{component_name}",
-                        "name": manifest.name,
-                        "version": manifest.version,
-                        "layer": manifest.layer,
-                        "certified": manifest.certified,
-                        "certification": manifest.certification.to_dict()
-                    })
-                except Exception as e:
-                    components.append({
-                        "path": f"{layer_dir}/{component_name}",
-                        "name": component_name,
-                        "error": str(e)
-                    })
-
-    # Also list levels from project_root/levels/
     project_root = os.path.dirname(components_root)
     levels_path = os.path.join(project_root, "levels")
     if os.path.isdir(levels_path):
-        for level_name in os.listdir(levels_path):
-            level_path = os.path.join(levels_path, level_name)
-            manifest_path = os.path.join(level_path, "manifest.json")
-
+        for level_name in sorted(os.listdir(levels_path)):
+            manifest_path = os.path.join(levels_path, level_name, "manifest.json")
             if os.path.isfile(manifest_path):
-                try:
-                    manifest = Manifest.load(manifest_path)
-                    components.append({
-                        "path": f"levels/{level_name}",
-                        "name": manifest.name,
-                        "version": manifest.version,
-                        "layer": manifest.layer,
-                        "certified": manifest.certified,
-                        "certification": manifest.certification.to_dict()
-                    })
-                except Exception as e:
-                    components.append({
-                        "path": f"levels/{level_name}",
-                        "name": level_name,
-                        "error": str(e)
-                    })
+                components.append(_describe(f"levels/{level_name}", level_name, manifest_path))
 
     return components

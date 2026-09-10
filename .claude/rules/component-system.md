@@ -249,6 +249,60 @@ suite.assert_plan_matches_any("goal.", [
 suite.assert_plan_complexity("goal.", min_operators=2, max_operators=10)
 ```
 
+## Core Vocabulary (`components/core/*`)
+
+The unified vocabulary for new levels. The older `components/primitives|strategies|goals`
+and `components/gamehack/*` trees stay as they are until migrated.
+
+**World** (`core_world`)
+```prolog
+region(?r).  connected(?a, ?b).          % declared per direction
+lineOfSight(?from, ?to).                 % ranged skills reach ?to from ?from
+regionHas(?r, ?feature).                 % oil | sludge | scorched | water | ...
+at(?entity, ?r).  status(?entity, ?s).   % anchored | snared | dazzled | shielded | dead
+role(?entity, player | companion | enemy).
+```
+
+**Chemistry as facts** (`core_chemistry`) - elements change materials, elements change
+entities, materials never change materials:
+```prolog
+skillElement(ignite, fire).       reacts(fire, oil, scorched).    blast(fire, oil, dead).
+skillElement(freeze, freeze).     reacts(freeze, oil, sludge).    terrain(sludge, snared).
+strike(lightning, dead).          mark(light, dazzled).           immune(?e, ?el).
+```
+Reactions rewrite `regionHas`, so what one fight consumes is gone for the next.
+
+**Paying for casts.** `signature(?a, ?skill)` is unswappable and unlimited; `unlimited(?skill)`
+is free for anyone; everything else is a **token**: `charge(?a, ?skill, ?tok)`, chosen with
+`first(charge(...))` in `if()` and deleted by `opSpendCharge`. No counters.
+
+**Attunement** (`core_attunement`): `prime(?el, ?r)` (a companion applies an element),
+`detonate(?el, ?r)` and `finish(?e)` (**the player only**, `role(?a, player)`), `expose(?e)`.
+The player picks *where* and *with what*, so the guarantee is a decision, not a button.
+
+**Aggro** (`core_aggro`): `lure` (iron only, from range - Magnetize), `push` (flesh only - Gust),
+`taunt` (dash; the player lands in the terrain too), `holdPosition` (`opAnchor`/`opRelease`:
+an anchored Warden neither moves nor pulls until released), `bringTo`.
+
+**Leaf operators - the actor is always the first argument:**
+`opNavigate(?a, ?from, ?to)`, `opSpendCharge(?a, ?skill, ?tok)`,
+`opCastRegion(?a, ?skill, ?r, ?old, ?new)`, `opCastEntity(?a, ?skill, ?e, ?status)`,
+`opStatus(?a, ?e, ?status)`, `opLure/opPush/opTaunt(?a, ?e, ?from, ?to)`, `opAnchor(?a)`,
+`opRelease(?a)`.
+
+### Operator rules (engine facts, learned the hard way)
+
+1. **No arithmetic in operators.** The compiler drops `is()` after `add()`; count with tokens.
+2. **Every `del`/`add` variable must appear in the head.** Substitution uses the head MGU only.
+3. **A fact added twice is a planner error.** Every `allOf` or status-adding method needs a
+   `not(status(...))` guard, and rules used inside `allOf` conditions must be single-clause
+   (see `exposed`, `vulnerable` in `core_chemistry`).
+4. **No `hidden` operators.** They vanish from the plan and desync state replay from
+   `GetSolutionFacts`.
+5. **Actor first.** The metrics (`actor_position: 0`) and the MCP play tools read the actor
+   from the first argument. A level can override per operator with `funActor(opName, index)`
+   and mark bookkeeping with `funNoop(opName)`.
+
 ## Naming Conventions
 
 | Layer | Prefix | Examples |
@@ -275,7 +329,18 @@ suite.assert_plan_complexity("goal.", min_operators=2, max_operators=10)
 - **clear_room**: Defeat all enemies in room (allOf)
 
 ### Levels
-- **puzzle1**: "The Grease Trap" - two guards, theBurn + theSlipstream
+- **puzzle1**: "The Grease Trap" (old vocabulary) - two guards, theBurn + theSlipstream
+
+### Core Components (`core/`) - the unified vocabulary
+
+- **Primitives:** `core_world` (regions, `navigate`, `takeVantage`), `core_chemistry`
+  (`applyToRegion`, `applyToEntity`, `payFor`), `core_attunement` (`prime`, `detonate`,
+  `finish`, `expose`), `core_aggro` (`lure`, `push`, `taunt`, `holdPosition`, `bringTo`)
+- **Strategies:** `the_burn` (bring the enemy onto the oil, the player ignites it),
+  `the_slipstream` (freeze the oil to sludge, cover, bring them in, finish or blast)
+- **Goals:** `defeat_group` (burn or slipstream, both enumerable)
+- **Levels:** `grease_trap` - swarm in the gallery, iron bearer at the exit, pick 2 of 5
+  skills; declares `funChoiceSpace` so F4 is measured
 
 ### GameHack Components (`gamehack/`)
 
