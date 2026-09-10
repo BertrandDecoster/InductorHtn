@@ -1,10 +1,12 @@
-% the_burn - get them onto the oil, the player lights it
+% the_burn - get them onto the oil, someone lights it
 %
 % Needs a region whose feature fire blasts lethally, an enemy that can be
-% brought there, and the player holding a fire skill. Everyone else who can
+% brought there, and a companion holding a fire skill. Everyone else who can
 % be brought in and exposed goes up in the same blast: one match, one fire.
 % The reaction consumes the feature - after the burn there is nothing left
-% to freeze or to burn again.
+% to freeze or to burn again. The oil is the level's own primer, so the burn
+% has one role, pay-off, and anyone with fire may take it; who brings the
+% enemies in is decided by who holds a pull, a push or a dash.
 
 theBurn(?e) :-
     if(role(?e, enemy), not(status(?e, dead)), not(immune(?e, fire)),

@@ -296,21 +296,26 @@ resolution-step counter, which only tracks `PrologQuery`.
 
 ---
 
-### F6 — Player centrality: *agency, not mention*
+### F6 — Player centrality: *cooperation and agency, not identity or mention*
 
-Encodes GDD §2 (*"No single entity can overcome significant challenges alone"*) and §3.6 (*"companions
-should not be able to solo the map"*).
+Encodes GDD §2 (*"No single entity can overcome significant challenges alone"*) and §3.6 (*"no single
+companion can solo the map, whoever controls it"*).
 
-Read literally as "some operator mentions the player", a no-op `opStayInLocation(player)` satisfies
-the pillar, and so does a companion shielding the player. Neither is the player *doing* anything.
-The family therefore uses an **actor convention**: an operator's actor is its first argument
+Two facts about the design shape this family. The player character and the AI companions are
+**interchangeable in ability** - they differ only by who controls them - so no ruleset may reserve
+an ability for the player, and cooperation has to come from *task roles* (the primer may not pay
+off). And read literally as "some operator mentions the player", a no-op `opStayInLocation(player)`
+satisfies the pillar, and so does a companion shielding the player; neither is the player *doing*
+anything. The family therefore uses an **actor convention**: an operator's actor is its first argument
 (`actor_position` in `metrics.json`), or the index a level's `funActor(opName, index)` fact names.
 An operator is **consequential** when it has a non-empty del/add and is not declared
-`funNoop(opName)`. A **player action** is a consequential operator whose actor is the player.
+`funNoop(opName)`. A **player action** is a consequential operator whose actor is the controlled
+companion (`player_atom`).
 
 | Metric | Definition |
 |--------|------------|
-| `soloable_plans` | Plans with no player action. |
+| `single_actor_plans` | Plans whose consequential operators all have the same actor - one companion, whoever controls it, does everything. |
+| `soloable_plans` | Plans with no player action: the AI companions complete the level while the controlled companion stands idle. |
 | `player_load` | Player actions as a fraction of consequential operators, across all plans. |
 | `passive_involvement` | Operators that name the player without the player being the actor (being shielded, being lured to). Reported, not banded. |
 | `teamwork_edge_ratio` | Fraction of causal edges (F3's graph) whose two operators have **different actors** - a companion's move that the player's move depends on, or the reverse. |
@@ -318,8 +323,13 @@ An operator is **consequential** when it has a non-empty del/add and is not decl
 | `player_decision_points` | Nodes of the plan-space **trie** (all plans overlaid as operator prefixes) where at least two distinct next steps exist and at least one is the player's own action. Choosing to act, or to let a companion open instead, is a decision; a fork among companion operators alone is the planner's. |
 | `player_criticality` *(needs `--ablate`)* | Whether removing every fact mentioning the player kills all plans. |
 
-**Bands.** `soloable_plans` == 0 is a **hard fail** otherwise. `player_load` ∈ [0.2, 0.6]: below is a
-spectator, above is micromanagement. `teamwork_edge_ratio` ≥ 0.2. `player_decision_points` ≥ 1.
+**Bands.** `single_actor_plans` == 0 and `soloable_plans` == 0, each a **hard fail** otherwise.
+`player_load` ∈ [0.2, 0.6]: below is a spectator, above is micromanagement. `teamwork_edge_ratio` ≥
+0.2. `player_decision_points` ≥ 1.
+
+The one-companion fixtures (`single_path`, `chore`, `one_shot`, ...) fail F6 on `single_actor_plans`
+by construction; their calibration tests pin that reading and assert the controlled companion is
+never blamed for it.
 
 **Blind spot.** The actor convention is a convention. An operator written target-first
 (`opApplyTag(?tag, ?target)`) has no actor at all unless the level declares `funActor`; such

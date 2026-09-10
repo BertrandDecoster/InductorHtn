@@ -706,20 +706,26 @@ def f6_player(
     convention: Optional[ActorConvention] = None,
     trie: Optional[PlanTrie] = None,
 ) -> FamilyResult:
-    """Agency, not mention.
+    """Cooperation and agency, not identity or mention.
 
-    A player *action* is a consequential operator (it changes the world and
-    is not declared `funNoop`) whose actor is the player (first argument by
-    convention, or the index a `funActor` fact names). Being named as the
-    target of someone else's operator is passive involvement and is reported
-    apart. Teamwork is read off the causal graph as edges between operators
-    of different actors, and the player's decisions are the trie's forks
-    among player actions.
+    The player character and the AI companions are all companions with the
+    same abilities; they differ only by who controls them. So the family
+    asks two things. First, GDD 2: does any plan let **one** companion do
+    everything (`single_actor_plans`)? Second, GDD 3.6: does any plan leave
+    the **controlled** companion idle (`soloable_plans` - the AI companions
+    solo it without the human)? Both are counted over consequential
+    operators only: an operator that changes the world and is not declared
+    `funNoop`, with its actor read from the first argument by convention or
+    the index a `funActor` fact names. Being named as the target of someone
+    else's operator is passive involvement and is reported apart. Teamwork
+    is read off the causal graph as edges between operators of different
+    actors, and the player's decisions are the trie's forks among the
+    controlled companion's actions.
     """
     result = FamilyResult(
         key="f6_player",
-        title="Player centrality - agency, not mention",
-        encodes="GDD 2 + 3.6: companions must not solo the map; the player is a link, not a bystander",
+        title="Player centrality - cooperation and agency, not identity",
+        encodes="GDD 2 + 3.6: no single companion overcomes a challenge alone, and the controlled companion is never idle",
     )
     player = cfg.player_atom
     if not space.plans:
@@ -731,6 +737,7 @@ def f6_player(
     trie = trie or PlanTrie(space, conv)
 
     soloable: List[int] = []
+    single_actor: List[int] = []
     total_ops = 0
     consequential_total = 0
     player_actions = 0
@@ -748,6 +755,9 @@ def f6_player(
         passive += sum(1 for op in ops if conv.is_passive_mention(op))
         if not actions:
             soloable.append(plan.index)
+        actors = {conv.actor_of(op) for op in consequential} - {None}
+        if consequential and len(actors) == 1:
+            single_actor.append(plan.index)
 
         graph = graphs.get(plan.index)
         if graph is None:
@@ -779,6 +789,8 @@ def f6_player(
         "actor_overrides": dict(conv.overrides),
         "noop_operators": sorted(conv.noops),
         "consequential_operators": consequential_total,
+        "single_actor_plans": len(single_actor),
+        "single_actor_plan_indices": single_actor[:20],
         "soloable_plans": len(soloable),
         "soloable_plan_indices": soloable[:20],
         "player_load": round(load, 2),
@@ -788,12 +800,22 @@ def f6_player(
         "player_decision_points": decision_points,
     }
 
+    single_max = cfg.band("f6_player.single_actor_plans_max", 0)
+    if len(single_actor) > single_max:
+        result.flag(
+            FAIL,
+            f"{len(single_actor)} of {space.plan_count} plans are carried by one "
+            f"companion alone - mandatory cooperation (GDD 2) is violated, whoever "
+            f"controls that companion",
+        )
+
     soloable_max = cfg.band("f6_player.soloable_plans_max", 0)
     if len(soloable) > soloable_max:
         result.flag(
             FAIL,
             f"{len(soloable)} of {space.plan_count} plans contain no consequential "
-            f"player action - the companions can solo this, violating a core pillar",
+            f"action by the controlled companion - the AI companions solo this "
+            f"without the human (GDD 3.6)",
         )
 
     low = cfg.band("f6_player.player_load_min", 0.2)

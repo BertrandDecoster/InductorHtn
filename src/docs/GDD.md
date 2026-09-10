@@ -27,7 +27,7 @@ The game's core innovation lies in its AI: a high-level HTN (Hierarchical Task N
 **2. Core Pillars**
 
 - **Strategic Orchestration:** The player is the conductor. Their actions and decisions guide the flow of strategy.
-- **Mandatory Cooperation:** No single entity (player or companion) can overcome significant challenges alone. The Attunement System is central to this.
+- **Mandatory Cooperation:** No single entity (player or companion) can overcome significant challenges alone. The Attunement System is central to this. The player character and the AI companions are **interchangeable in ability**: they differ only by who controls them, never by what they can do. Cooperation is therefore forced by the *shape of a task* - a task can declare roles (Primer, Pay-off, Cover, ...) that must be filled by different companions - and never by an ability that only the player has.
 - **Intelligent & Adaptive Companions:** Companions are not script-followers but proactive contributors, guided by a sophisticated AI planner, with full awareness of the environment.
 - **Multiple Solutions:** Challenges are designed to be solvable in several distinct ways, encouraging experimentation and replayability. This includes manipulating enemy NPC FSMs, interacting with friendly/neutral NPCs, and solving environmental puzzles.
 - **Player Agency in Execution:** While the AI plans, the player is crucial for initiating, enabling, and finalizing key actions, ensuring they are always "in the loop."
@@ -63,6 +63,10 @@ The game's core innovation lies in its AI: a high-level HTN (Hierarchical Task N
 
 **3.3. Player Character & Companions**
 
+- **Same abilities, different controller.** The hero the player controls is a companion like the other two. Every companion has a kit (a signature skill, swappable skills, charges) and any companion can fill any role in an Attunement: Primer, Catalyst or Detonator. Nothing in the rules may say "only the player can do X". What the player brings is control, not power.
+- **Roles force cooperation.** A task may declare roles and require that different roles be filled by different companions (the one who primes may not pay off). Any companion may take any role. This is how "no single entity can overcome a challenge alone" is guaranteed without making the player a mandatory button.
+
+
 - **Player Character:** A highly versatile hero. All skills are swappable and can be learned/equipped.
 - **Companions (2):** Drawn from distinct archetypes (e.g., Warden, Arcanist, Skirmisher, Healer).
     - Has one unswappable skill. Defines the archetype and the personality/inclination
@@ -95,7 +99,8 @@ The game's core innovation lies in its AI: a high-level HTN (Hierarchical Task N
 
 - Always have at least 2 or 3 ways to defeat an enemy.
 - The plans should not be too convoluted (too long, players won’t find them) neither too short (is “I cast fireball and everyone dies” a satisfying plan?)
-- The companions should not be able to solo the map. It’s possible to guarantee it by having the plans need the human player participation
+- No single companion can solo the map, whoever controls it. Guarantee it with task roles that need two different companions, not with abilities reserved for the player: the human-controlled companion is one companion among three, with the same abilities as the others.
+- The AI companions should not complete the map while the human's companion stands idle either; that is a level-design property (which roles the encounter needs, which kit the hero carries), measured by the fun metrics, not a rule of the engine.
 - Always adapt to what the player is doing. A genius plan has no value if the player will not take part in it.
 
 **4. AI System Deep Dive**

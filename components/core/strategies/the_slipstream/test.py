@@ -65,6 +65,28 @@ class TheSlipstreamTest(HtnTestSuite):
     def test_property_p2_nothing_moves_an_unreachable_enemy(self):
         self.assert_no_plan("theSlipstream(swarm).")
 
+    def test_property_p3_the_primer_never_pays_off(self):
+        """Give the Arcanist the only lethal element: she primed, so nobody
+        can finish, and the strategy has no plan. Give it to the Warden too
+        and every pay-off is his."""
+        import json
+        self.set_state(["hasSkill(player, gust)", "unlimited(gust)"])
+        self.set_state(["hasSkill(arcanist, lightning)", "charge(arcanist, lightning, a1)"])
+        error, result = self._planner.FindAllPlansCustomVariables("theSlipstream(swarm).")
+        assert error is None, error
+        plans = json.loads(result)
+        plans = [] if (not plans or (isinstance(plans[0], dict) and "false" in plans[0])) else plans
+        payoffs = set()
+        for plan in plans:
+            for op in plan:
+                name = list(op.keys())[0]
+                if name in ("opCastEntity",) or (name == "opCastRegion" and
+                                                 list(op[name][1].keys())[0] == "lightning"):
+                    payoffs.add(list(op[name][0].keys())[0])
+        assert "arcanist" not in payoffs, f"the primer paid off: {payoffs}"
+        assert payoffs == {"player"}, payoffs
+        self._record(True, "P3: the primer never pays off")
+
 
 def run_tests():
     suite = TheSlipstreamTest()

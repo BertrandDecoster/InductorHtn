@@ -1,11 +1,14 @@
 % core_aggro - moving enemies, holding ground
 %
-% lure:         a companion with a pull skill drags a *metal* enemy one
+% lure:         whoever holds a pull skill drags a *metal* enemy one
 %               region over, from a vantage. Magnetize does not move flesh.
-% push:         the player shoves a *flesh* enemy one region over from a
-%               vantage. A gust does not move iron.
-% taunt:        the player dashes through an enemy and it follows - both end
-%               up in the next region, and both take its terrain.
+% push:         whoever holds a push skill shoves a *flesh* enemy one region
+%               over from a vantage. A gust does not move iron.
+% taunt:        whoever holds a dash goes through an enemy and it follows -
+%               both end up in the next region, and both take its terrain.
+%
+% Any companion may do any of these; what they hold decides. The player
+% character is a companion like the others.
 % holdPosition: the Warden's shield commitment. Anchored means cover for the
 %               others and no moving or pulling until released. Releasing to
 %               pull again is a visible step with a visible cost.
@@ -28,7 +31,7 @@ opRelease(?a) :- del(status(?a, anchored)), add().
 
 % === Rules ===
 
-canPull(?a) :- role(?a, companion), hasSkill(?a, ?skill), skillElement(?skill, pull).
+canPull(?a) :- canAct(?a), hasSkill(?a, ?skill), skillElement(?skill, pull).
 
 % === Methods ===
 
@@ -46,18 +49,18 @@ lure(?e, ?to) :-
     do(opRelease(?a), takeVantage(?a, ?from), opLure(?a, ?e, ?from, ?to),
        try(sufferTerrain(?a, ?e, ?to))).
 
-% Push: the player, from somewhere that can target the enemy's region. Iron
-% is too heavy for a gust; that is what Magnetize is for.
+% Push: whoever holds a push skill, from somewhere that can target the
+% enemy's region. Iron is too heavy for a gust; that is what Magnetize is for.
 push(?e, ?to) :-
-    if(role(?a, player), canMove(?a), not(metal(?e)),
+    if(canAct(?a), canMove(?a), not(metal(?e)),
        first(and(hasSkill(?a, ?skill), skillElement(?skill, push), canPay(?a, ?skill))),
        at(?e, ?from), connected(?from, ?to)),
     do(takeVantage(?a, ?from), payFor(?a, ?skill), opPush(?a, ?e, ?from, ?to),
        try(sufferTerrain(?a, ?e, ?to))).
 
-% Taunt: the player dashes through the enemy and it follows.
+% Taunt: whoever holds a dash goes through the enemy and it follows.
 taunt(?e, ?to) :-
-    if(role(?a, player), canMove(?a),
+    if(canAct(?a), canMove(?a),
        first(and(hasSkill(?a, ?skill), skillElement(?skill, dash), canPay(?a, ?skill))),
        at(?e, ?from), connected(?from, ?to)),
     do(navigate(?a, ?from), payFor(?a, ?skill), opTaunt(?a, ?e, ?from, ?to),

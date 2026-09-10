@@ -43,18 +43,23 @@ class CoreAttunementTest(HtnTestSuite):
         self.assert_plan("prime(freeze, pit).",
                          contains=["opCastRegion(arcanist, freeze, pit, oil, sludge)"])
 
-    def test_example_2_only_the_player_detonates(self):
-        self.set_state(["hasSkill(arcanist, ignite)", "charge(arcanist, ignite, a1)",
-                        "hasSkill(player, ignite)", "charge(player, ignite, p1)"])
-        plans = self._all_plans("detonate(fire, pit).")
-        assert plans, "the player can detonate"
+    def _actors(self, plans, op_name):
+        out = set()
         for plan in plans:
             for op in plan:
                 name = list(op.keys())[0]
-                if name == "opCastRegion":
-                    actor = list(op[name][0].keys())[0]
-                    assert actor == "player", f"companion detonated: {op}"
-        self._record(True, "Example 2: only the player detonates")
+                if name == op_name:
+                    out.add(list(op[name][0].keys())[0])
+        return out
+
+    def test_example_2_anyone_detonates_but_the_primer(self):
+        self.set_state(["hasSkill(arcanist, ignite)", "charge(arcanist, ignite, a1)",
+                        "hasSkill(player, ignite)", "charge(player, ignite, p1)"])
+        actors = self._actors(self._all_plans("detonate(fire, pit)."), "opCastRegion")
+        assert actors == {"player", "arcanist"}, f"any companion may detonate: {actors}"
+        excluded = self._actors(self._all_plans("detonate(fire, pit, arcanist)."), "opCastRegion")
+        assert excluded == {"player"}, f"the primer may not pay off: {excluded}"
+        self._record(True, "Example 2: anyone detonates but the primer")
 
     def test_example_3_finish_a_snared_enemy(self):
         self.set_state(["status(gob, snared)", "hasSkill(player, lightning)",
@@ -63,9 +68,12 @@ class CoreAttunementTest(HtnTestSuite):
 
     # -------------------------------------------------------------- properties
 
-    def test_property_p1_no_player_skill_no_detonation(self):
+    def test_property_p1_two_roles_two_companions(self):
+        """With one fire holder, that holder cannot both prime and pay off."""
         self.set_state(["hasSkill(arcanist, ignite)", "charge(arcanist, ignite, a1)"])
-        self.assert_no_plan("detonate(fire, pit).")
+        self.assert_plan("detonate(fire, pit).",
+                         contains=["opCastRegion(arcanist, ignite, pit, oil, scorched)"])
+        self.assert_no_plan("detonate(fire, pit, arcanist).")
 
     def test_property_p2_immunity_is_respected(self):
         self.set_state(["status(gob, snared)", "immune(gob, fire)",

@@ -50,8 +50,12 @@ def test_freeze_then_snare_then_strike_is_a_chain():
 
 
 def test_the_player_is_required_and_decides():
+    """Two companions in every plan, the controlled one among them - by the
+    level's role structure (primer and pay-off differ), not by any rule
+    that names the player."""
     _space, profile = _profile()
     f6 = family(profile, "f6_player")
+    assert f6.metrics["single_actor_plans"] == 0
     assert f6.metrics["soloable_plans"] == 0
     assert f6.metrics["player_decision_points"] >= 1
     assert f6.metrics["teamwork_edge_ratio"] >= 0.3

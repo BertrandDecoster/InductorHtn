@@ -7,8 +7,8 @@ enemies, two strategies, and a kit of two skills chosen from five. It exists
 to show, in one level, the things the fun metrics were built to see: a
 choice space whose picks matter across both fights, terrain that one fight
 consumes and the other reuses, a companion commitment with a visible cost,
-and a player who is required by construction and still has decisions to
-make.
+and a role structure that puts two companions in every plan - the
+controlled one among them - while leaving the team decisions to make.
 
 ## Layer
 
@@ -42,8 +42,9 @@ Measured by `python -m htn_components fun grease_trap --ablate --loadouts`:
 - F3: median plan length 6 to 12; causal depth at least 3.
 - F4: encounter feasibility between 0.2 and 0.4; no mandatory pick; one
   herring dead; near misses exist.
-- F6: no soloable plan; at least two player decision points; teamwork edge
-  ratio above 0.3.
+- F6: no single-actor plan and no plan that idles the controlled
+  companion; at least two player decision points; teamwork edge ratio
+  above 0.3.
 
 ## Examples
 
@@ -75,6 +76,6 @@ Measured by `python -m htn_components fun grease_trap --ablate --loadouts`:
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | The player is a link in every plan | Every plan for `clearGreaseTrap` contains an operator whose actor is `player`. |
+| P1 | No companion carries a plan alone | Every plan for `clearGreaseTrap` has operators by at least two companions, and the controlled companion (`player`) is one of them. |
 | P2 | A gust does not move iron | `push(bearer, corridor)` has no plan; the bearer is the Warden's problem. |
 | P3 | Burned oil cannot be frozen | After `theBurn(swarm)`, `theSlipstream(bearer)` has no plan when no sludge exists. |

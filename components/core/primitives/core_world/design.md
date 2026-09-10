@@ -45,7 +45,7 @@ None (foundational component)
 | `lineOfSight(?from, ?to)` | Ranged reach between regions |
 | `at(?e, ?r)` | Where an entity is |
 | `status(?e, ?s)` | `anchored`, `snared`, ... |
-| `role(?e, ?kind)` | `player`, `companion`, `enemy` |
+| `role(?e, ?kind)` | `player`, `companion`, `enemy`. `player` and `companion` are both companions and differ only by who controls them; no rule may gate an ability on `role(?a, player)`. |
 
 ## Examples
 

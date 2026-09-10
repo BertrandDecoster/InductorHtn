@@ -137,3 +137,20 @@ decomposition tree could record `conditionBindings` for allOf nodes (the
 Python pattern-match workaround would then be unnecessary); F5 decision
 breadth counts single-method primitives, which is by design and drags the
 mean down.
+
+## Corrections (2026-09-10, after the slice)
+
+Two design laws from the user override parts of the record above:
+
+1. **Companions are interchangeable.** The player character and the AI
+   companions have the same abilities and differ only by who controls them.
+   The slice had made the player the only detonator (role(?a, player) in
+   core_attunement); that is gone. Cooperation is forced by task roles
+   (primer and pay-off must be different companions), which anyone may fill.
+   F6 now fails on single_actor_plans (one companion does everything) as
+   well as on soloable_plans (the controlled companion is idle). Recorded in
+   src/docs/GDD.md sections 2, 3.3 and 3.6.
+2. **Rulesets are top-down.** Methods are named after the need they satisfy
+   and bind actors, skills and regions at the leaves as the answer to how
+   can I get X. The bottom-up applyToRegion(?a, ?el, ?r) shape was replaced.
+   Recorded in .claude/rules/crafting-rulesets.md and component-system.md.

@@ -52,6 +52,8 @@
       "red_herring_ratio_max": 0.6
     },
     "f6_player": {
+      "_roles_note": "The player character and the AI companions are interchangeable in ability. single_actor_plans: one companion does everything (GDD 2). soloable_plans: the controlled companion does nothing (GDD 3.6).",
+      "single_actor_plans_max": 0,
       "soloable_plans_max": 0,
       "player_load_min": 0.2,
       "player_load_max": 0.6,

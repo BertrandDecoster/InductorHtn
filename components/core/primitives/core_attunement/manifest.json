@@ -12,14 +12,19 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T11:08:32.860701"
+    "last_checked": "2026-09-10T15:34:11.356896"
   },
   "provides": [
     "detonate/2",
+    "detonate/3",
     "detonateLethal/1",
+    "detonateLethal/2",
     "expose/1",
     "finish/1",
-    "prime/2"
+    "finish/2",
+    "prime/2",
+    "prime/3",
+    "primer/2"
   ],
   "requires": [
     "applyToEntity/3",

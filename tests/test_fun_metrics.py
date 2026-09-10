@@ -111,21 +111,34 @@ def assert_not_pass(profile, key):
 # F1 - Multiplicity
 # ==========================================================================
 
+def assert_single_actor_only(profile):
+    """A fixture that is one companion by construction fails F6 on
+    `single_actor_plans` (GDD 2: no single entity overcomes a challenge alone)
+    and on nothing that concerns the controlled companion: it is never idle.
+    That keeps the fixture about what it was built for."""
+    f6 = family(profile, "f6_player")
+    assert f6.metrics["single_actor_plans"] > 0, f6.metrics
+    assert f6.metrics["soloable_plans"] == 0, f6.metrics
+    return f6
+
+
 def test_single_path_trips_f1_one_idea():
     """One route, one plan: F1 must fail on strategy_classes."""
     profile = profile_for("single_path")
     result = assert_fails(profile, "f1_multiplicity")
     assert result.metrics["strategy_classes"] == 1
     assert result.metrics["plan_count"] == 1
-    assert_clean(profile, "f2_distinctness", "f6_player")
+    assert_clean(profile, "f2_distinctness")
+    assert_single_actor_only(profile)
 
 
 def test_fake_multiplicity_trips_f1_redundancy_and_f2_distance():
     """Two named strategies, one idea, many bindings.
 
     F1 must see the redundancy and F2 must see that the two classes are the
-    same plan. Crucially F6 must stay clean - the fixture is not about the
-    player - which is what distinguishes this from a level that is merely bad.
+    same plan. F6 must not blame the controlled companion - the fixture is
+    not about the player - which is what distinguishes this from a level that
+    is merely bad; its single-ally plans do trip the cooperation pillar.
     """
     profile = profile_for("fake_multiplicity")
     f1 = assert_not_pass(profile, "f1_multiplicity")
@@ -136,7 +149,7 @@ def test_fake_multiplicity_trips_f1_redundancy_and_f2_distance():
     assert f2.metrics["min_pairwise_distance"] == 0.0, (
         "the two 'strategies' run identical operators"
     )
-    assert_clean(profile, "f6_player")
+    assert_single_actor_only(profile)
 
 
 # ==========================================================================
@@ -195,7 +208,8 @@ def test_chore_trips_f3_interlock_despite_good_length():
     assert result.metrics["plan_length"]["median"] == 8, "length is acceptable"
     assert result.metrics["interlock"]["mean"] == 0.0, "nothing enables anything"
     assert result.metrics["causal_depth"]["best_class"] == 1
-    assert_clean(profile, "f1_multiplicity", "f2_distinctness", "f6_player")
+    assert_clean(profile, "f1_multiplicity", "f2_distinctness")
+    assert_single_actor_only(profile)
 
 
 # ==========================================================================

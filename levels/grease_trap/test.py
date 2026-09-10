@@ -49,13 +49,18 @@ class GreaseTrapTest(HtnTestSuite):
 
     # -------------------------------------------------------------- properties
 
-    def test_property_p1_the_player_is_a_link_in_every_plan(self):
+    def test_property_p1_no_companion_carries_a_plan_alone(self):
+        """Every plan needs at least two companions, and the controlled one
+        is among them - by the level's role structure, not by any rule that
+        names the player."""
         plans = self._all_plans("clearGreaseTrap.")
         assert plans, "the encounter must be solvable"
         for plan in plans:
-            actors = [list(op[list(op.keys())[0]][0].keys())[0] for op in plan]
-            assert "player" in actors, f"a plan without the player: {plan}"
-        self._record(True, "P1: the player is a link in every plan")
+            actors = {list(op[list(op.keys())[0]][0].keys())[0] for op in plan}
+            allies = actors & {"player", "warden", "arcanist"}
+            assert len(allies) >= 2, f"one companion carries this plan alone: {plan}"
+            assert "player" in allies, f"the controlled companion is idle: {plan}"
+        self._record(True, "P1: no companion carries a plan alone")
 
     def test_property_p2_a_gust_does_not_move_iron(self):
         """The bearer is the Warden's problem: no push plan for it."""

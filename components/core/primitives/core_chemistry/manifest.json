@@ -11,7 +11,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T11:08:32.543133"
+    "last_checked": "2026-09-10T15:34:11.035381"
   },
   "provides": [
     "applyToEntity/3",

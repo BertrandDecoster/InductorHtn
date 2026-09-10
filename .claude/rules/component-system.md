@@ -276,9 +276,16 @@ Reactions rewrite `regionHas`, so what one fight consumes is gone for the next.
 is free for anyone; everything else is a **token**: `charge(?a, ?skill, ?tok)`, chosen with
 `first(charge(...))` in `if()` and deleted by `opSpendCharge`. No counters.
 
-**Attunement** (`core_attunement`): `prime(?el, ?r)` (a companion applies an element),
-`detonate(?el, ?r)` and `finish(?e)` (**the player only**, `role(?a, player)`), `expose(?e)`.
-The player picks *where* and *with what*, so the guarantee is a decision, not a button.
+**Companions are interchangeable.** `role(?e, player)` and `role(?e, companion)` are both
+companions; they differ only by who controls them. Abilities live on the character (`hasSkill`,
+`signature`, `charge`). **Never gate an ability on `role(?a, player)`.** Cooperation comes from
+**task roles**: `core_attunement` declares primer and pay-off, and the pay-off may not be the
+primer (`detonate(?el, ?r, ?not)`, `finish(?e, ?not)`, `detonateLethal(?r, ?not)`); anyone may
+fill either role.
+
+**Attunement** (`core_attunement`): `primer(?el, ?a)` (rule: first companion who can put the
+element down), `prime(?el, ?r[, ?a])`, `detonate(?el, ?r[, ?not])`, `finish(?e[, ?not])`,
+`expose(?e)`.
 
 **Aggro** (`core_aggro`): `lure` (iron only, from range - Magnetize), `push` (flesh only - Gust),
 `taunt` (dash; the player lands in the terrain too), `holdPosition` (`opAnchor`/`opRelease`:
@@ -289,6 +296,17 @@ an anchored Warden neither moves nor pulls until released), `bringTo`.
 `opCastRegion(?a, ?skill, ?r, ?old, ?new)`, `opCastEntity(?a, ?skill, ?e, ?status)`,
 `opStatus(?a, ?e, ?status)`, `opLure/opPush/opTaunt(?a, ?e, ?from, ?to)`, `opAnchor(?a)`,
 `opRelease(?a)`.
+
+### Rulesets are top-down
+
+A ruleset decomposes from the **need**, never from an actor and its inventory. The goal asks
+for a neutralized enemy; a method for that asks for a lethal blast; that asks for an element
+on a feature; only then does the planner ask *who holds the element* and *which region has
+the feature*. Name methods after the need they satisfy (`neutralize`, `blastDead`,
+`obtainFeature`, `castElement`, `haveElement`); put the "what would work" lookup
+(`blast(?el, ?feat, dead)`, `reacts(?el2, ?old, ?feat)`) in the `if()`; acquire each
+ingredient as a subtask. A method shaped "I am `?a`, I hold `?el`, there is `?r`, let us see
+what happens" is a bottom-up simulation, not a plan - see `.claude/rules/crafting-rulesets.md`.
 
 ### Operator rules (engine facts, learned the hard way)
 

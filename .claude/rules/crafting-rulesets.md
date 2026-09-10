@@ -395,6 +395,27 @@ Patterns marked `[VALIDATED]` were tested by measuring Prolog resolution steps. 
 
 # Writing rulesets
 
+**HTN plans are top-down.** Start from what must be true to win, and let every method
+say what it needs and how each need can be met:
+
+```prolog
+% the need                              the ways to meet it
+neutralize(?e)          :- ... do(blastDead(?e)).            % or strikeDead(?e), or ...
+blastDead(?e)           :- if(blast(?el, ?feat, dead)),       % what would work: fire on oil
+                           do(obtainFeature(?r, ?feat), bringTo(?e, ?r), castElement(?el, ?r)).
+obtainFeature(?r, ?feat):- if(regionHas(?r, ?feat)), do().    % already there
+obtainFeature(?r, ?feat):- if(reacts(?el2, ?old, ?feat), regionHas(?r, ?old)),
+                           do(castElement(?el2, ?r)).         % or make it
+castElement(?el, ?r)    :- if(haveElement(?el, ?a)),           % who holds it - bound at the leaf
+                           do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastRegion(...)).
+```
+
+Actors, skills and regions are bound at the leaves as the answer to "how can I get X".
+A method shaped "I am `?a`, I hold `?el`, there is a region `?r`, let us see what happens"
+is bottom-up: it simulates an inventory instead of planning toward a goal, and its plan
+space is whatever falls out rather than what the level needs. Roles that force cooperation
+(the primer may not pay off) are constraints threaded down from the need.
+
 0. Understand the philosophy of a level, the ways to solve it and translate it to facts, operators and methods
 1. Write ruleset that combine the  facts, operators and methods
 2. Fix syntax errors

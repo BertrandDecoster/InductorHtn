@@ -10,6 +10,13 @@
 %   status(?entity, ?s)        anchored, snared, dead, shielded, ...
 %   role(?entity, ?kind)       player | companion | enemy
 %
+% `player` and `companion` are both companions. They differ only by who
+% controls them - a human or the AI - never by what they can do. Nothing in
+% the rules may gate an ability on role(?a, player); abilities live on the
+% character (hasSkill, signature, charge). Cooperation is forced with task
+% roles (see core_attunement: primer and pay-off must be different
+% companions), which anyone can fill.
+%
 % Operators are RL-delegated leaves: the engine moves the agent, the HTN
 % tracks the abstract state. The actor is always the first argument.
 
@@ -20,6 +27,7 @@ opNavigate(?a, ?from, ?to) :-
 
 % === Rules ===
 
+% Any companion, whoever controls it.
 canAct(?a) :- role(?a, player).
 canAct(?a) :- role(?a, companion).
 

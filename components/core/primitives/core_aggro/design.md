@@ -3,10 +3,10 @@
 ## Purpose
 
 Moving enemies and holding ground. Three ways to bring an enemy somewhere,
-each with its own cost: the Warden's Magnetize drags iron only, from range;
-the player's Gust pushes anything, from range; the player's Dash taunts
-anything into following, and lands the player in the same region, terrain
-and all. Holding a position (the Warden's shield) is a commitment: an
+each with its own cost: a Magnetize drags iron only, from range; a Gust
+pushes flesh only, from range; a Dash taunts anything into following, and
+lands the dasher in the same region, terrain and all. Any companion may do
+any of them; what they hold decides. Holding a position (the Warden's shield) is a commitment: an
 anchored agent neither moves nor pulls until it is released, and releasing
 is a visible step.
 
@@ -33,8 +33,8 @@ primitive
 | Method | Description |
 |--------|-------------|
 | `lure(?e, ?to)` | First free puller, from a vantage, drags a `metal` enemy one edge; an anchored puller is released first. The enemy suffers the terrain. |
-| `push(?e, ?to)` | The player, from a vantage, pushes a non-iron enemy one edge; it suffers the terrain. |
-| `taunt(?e, ?to)` | The player goes to the enemy and dashes on; both suffer the terrain. |
+| `push(?e, ?to)` | Whoever holds a push skill, from a vantage, pushes a non-iron enemy one edge; it suffers the terrain. |
+| `taunt(?e, ?to)` | Whoever holds a dash goes to the enemy and dashes on; both suffer the terrain. |
 | `holdPosition(?a, ?r)` | Anchor at `?r` (re-anchor if anchored elsewhere). |
 | `bringTo(?e, ?r)` | No-op if the enemy is at `?r`, else lure, push or taunt - alternatives, not fallbacks. |
 

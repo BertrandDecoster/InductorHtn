@@ -75,7 +75,8 @@ def render_terminal(profile: FunProfile, verbose: bool = False) -> str:
                 continue
             if not verbose and key in ("class_sizes", "per_class", "red_herrings",
                                        "insight_depth_per_class", "critical_facts",
-                                       "soloable_plan_indices"):
+                                       "soloable_plan_indices",
+                                       "single_actor_plan_indices"):
                 continue
             lines.append(f"        {key:<26} {_fmt(value)}")
         for finding in family.findings:
