@@ -1,0 +1,29 @@
+% FIXTURE: one_shot
+% Failure mode: a single operator wins.
+% Must be flagged by: F3 (plan_length below the minimum; causal_depth 1).
+%
+% "Is 'I cast fireball and everyone dies' a satisfying plan?" - GDD 3.6.
+% Three different fireballs do not fix it: each route is still one button, so
+% F1 and F2 are satisfied while the thing the player actually does is trivial.
+
+% === World ===
+enemy(gob).
+ally(player).
+at(player, hall).
+at(gob, hall).
+
+hasSkill(player, fireball).
+hasSkill(player, lightning).
+hasSkill(player, meteor).
+
+% === Operators ===
+opFireball(?a, ?t) :- del(), add(hasTag(?t, burned)).
+opLightning(?a, ?t) :- del(), add(hasTag(?t, shocked)).
+opMeteor(?a, ?t) :- del(), add(hasTag(?t, crushed)).
+
+% === Three routes, one operator each ===
+defeat(?t) :- if(enemy(?t), ally(?a), hasSkill(?a, fireball)), do(opFireball(?a, ?t)).
+defeat(?t) :- if(enemy(?t), ally(?a), hasSkill(?a, lightning)), do(opLightning(?a, ?t)).
+defeat(?t) :- if(enemy(?t), ally(?a), hasSkill(?a, meteor)), do(opMeteor(?a, ?t)).
+
+goals(defeat(gob)).

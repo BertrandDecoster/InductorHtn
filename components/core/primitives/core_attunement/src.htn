@@ -1,0 +1,48 @@
+% core_attunement - Primer -> Detonator, and the player is the link
+%
+% GDD 3.2: the player must be involved in nearly every significant
+% Attunement. Here that is structural. `prime` can be done by whoever holds
+% the element, a companion first; `detonate`, `finish` and `expose` bind ?a
+% to the player and nobody else. A strategy that ends in a detonation
+% therefore cannot be run by the companions alone - and the player still
+% chooses where and with what, because the region and the skill are free.
+
+% Prime: a companion with the element prepares the region; failing that,
+% the player does.
+prime(?el, ?r) :-
+    if(first(and(role(?a, companion), hasSkill(?a, ?skill),
+                 skillElement(?skill, ?el), canPay(?a, ?skill)))),
+    do(applyToRegion(?a, ?el, ?r)).
+prime(?el, ?r) :-
+    else, if(role(?a, player)),
+    do(applyToRegion(?a, ?el, ?r)).
+
+% Detonate: the player triggers the payoff on a region.
+detonate(?el, ?r) :-
+    if(role(?a, player)),
+    do(applyToRegion(?a, ?el, ?r)).
+
+% Detonate with whatever lethal element the player has for this terrain:
+% a blast that kills the exposed enemies standing in ?r.
+detonateLethal(?r) :-
+    if(role(?a, player), regionHas(?r, ?feat),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el),
+                 blast(?el, ?feat, dead), reacts(?el, ?feat, ?new), canPay(?a, ?skill)))),
+    do(applyToRegion(?a, ?el, ?r)).
+
+% Finish: the player strikes a vulnerable enemy with the first lethal
+% element they can afford and the enemy is not immune to.
+finish(?e) :-
+    if(role(?a, player), vulnerable(?e),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el),
+                 strike(?el, ?status), not(immune(?e, ?el)), canPay(?a, ?skill)))),
+    do(applyToEntity(?a, ?el, ?e)).
+
+% Expose: make an enemy take blasts. Already exposed: nothing to do; else the
+% player marks it (a flare in the eyes drops the shield).
+expose(?e) :- if(exposed(?e)), do().
+expose(?e) :-
+    else, if(role(?a, player),
+             first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el),
+                       mark(?el, ?status), not(immune(?e, ?el)), canPay(?a, ?skill)))),
+    do(markEntity(?a, ?el, ?e)).

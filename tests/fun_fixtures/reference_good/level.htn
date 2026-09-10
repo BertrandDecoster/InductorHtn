@@ -1,0 +1,213 @@
+% FIXTURE: reference_good - "The Vault Run"
+% The positive exemplar. Must PASS every family, and doubles as the documented
+% target pattern for future levels.
+%
+% One coherent encounter: the crew picks two tools, breaches three layers of
+% security with them, then runs the vault one of two ways. The choice lattice
+% and the routes are the same level, not two levels side by side.
+%
+% What it is built to demonstrate:
+%
+%   F1  Two named routes - quiet and loud - and not one more, so the plan
+%       count stays close to the number of ideas.
+%   F2  The routes share no operator and no world fact of their own. Cutting
+%       the power is nothing like blowing the door, and ablation confirms it:
+%       kill hasCutter(player) and only the quiet route dies. Both routes do
+%       pass through the breach - that is a shared *gate*, reported as
+%       infrastructure, not a linchpin.
+%   F3  Each route is a chain: breach -> cut power -> slip in -> open from
+%       within -> haul. Every operator feeds the next, and the first move only
+%       pays off two steps later.
+%   F4  Pick 2 of 6 tools against 3 blockers, where the good tools each cover
+%       two blockers. Several different pairs clear the encounter; several
+%       near-miss pairs cover two of three; two tools are red herrings. The
+%       encounter and the per-blocker answers agree: nothing is consumed.
+%   F5  Every phase has a real alternative, and part of the world is scenery.
+%   F6  The player cuts the power and carries the loot in the quiet route,
+%       sets and triggers the charge in the loud one. No plan runs without
+%       them, and no plan is only them.
+
+% === Cast ===
+ally(player).
+ally(companionA).
+ally(companionB).
+companion(companionA).
+companion(companionB).
+
+% === The objective ===
+vaultSite(vault).
+alarmed(vault).
+blocker(door).
+blocker(guard).
+blocker(alarm).
+
+% === Scenery: named, inspectable, and used by nothing. A level with no
+% === scenery gives the player nothing to rule out.
+prop(fountain).
+prop(newsstand).
+prop(awning).
+
+% === Route equipment. Deliberately disjoint between routes so that no single
+% === fact is load-bearing for both.
+hasCutter(player).
+hasRope(companionA).
+hasCharge(player).
+hasHammer(companionB).
+
+% === Tools of the declared choice space, and what each can defeat ===
+defeats(emp, alarm).
+defeats(emp, guard).
+defeats(prybar, door).
+defeats(prybar, guard).
+defeats(thermite, door).
+defeats(thermite, alarm).
+defeats(keycard, door).
+defeats(keycard, alarm).
+% flare and ladder defeat nothing - red herrings.
+
+% === Default kit: a winning pair, so the level itself is solvable. F4 strips
+% === every declared choice fact and re-adds only the selected picks.
+carrying(player, emp).
+carrying(player, prybar).
+
+% ==========================================================================
+% Operators
+% ==========================================================================
+
+% -- breach --
+opClear(?a, ?tool, ?b) :- del(), add(cleared(?b)).
+
+% -- quiet route --
+% opStashBag is the setup move: nothing needs the bag until the very last
+% step, so a greedy player never thinks to do it first. This is what
+% F5's insight_depth is looking for.
+opStashBag(?a) :- del(), add(bagReady(?a)).
+opCutPower(?a) :- del(), add(powerOff).
+opSlipInside(?a) :- del(), add(inside(?a)).
+opOpenFromWithin(?a) :- del(), add(doorOpen).
+opHaul(?a) :- del(), add(loot(?a)).
+
+% -- loud route --
+% opScoutExit is this route's setup move, mirroring opStashBag: the escape
+% route only matters at the very end. insight_depth is a *minimum* over
+% classes, so every route needs one - one non-greedy route does not make the
+% level non-greedy.
+opScoutExit(?a) :- del(), add(exitScouted(?a)).
+opSetCharge(?a) :- del(), add(chargeSet).
+opBlow(?a) :- del(), add(breach).
+opStormIn(?a) :- del(), add(stormed(?a)).
+opSmashVault(?a) :- del(), add(vaultOpen).
+opGrab(?a) :- del(), add(loot(?a)).
+
+% ==========================================================================
+% The heist: breach the security, then run the vault one of two ways
+% ==========================================================================
+
+runHeist(?v) :- if(vaultSite(?v)), do(breachSecurity(?v), theQuietRun(?v)).
+runHeist(?v) :- if(vaultSite(?v)), do(breachSecurity(?v), theLoudRun(?v)).
+
+% The breach is one phase of the plan, so its internal choices sit below the
+% fingerprint depth: which tool cleared the alarm is not a different idea.
+% An unalarmed vault needs one clear fewer. Not `else`: an else branch would
+% fire whenever the alarm could not be cleared, quietly making it optional.
+breachSecurity(?v) :- if(alarmed(?v)), do(clear(door), clear(guard), clear(alarm)).
+breachSecurity(?v) :- if(not(alarmed(?v))), do(clear(door), clear(guard)).
+
+% A companion uses whichever carried tool defeats the blocker. `first` on
+% both bindings keeps the plan count honest - two carried tools that both
+% work are one clear, not two plans. With no companion around, the player
+% does it.
+usable(?tool, ?b) :- carrying(player, ?tool), defeats(?tool, ?b).
+clear(?b) :-
+    if(first(usable(?tool, ?b)), first(companion(?c))),
+    do(opClear(?c, ?tool, ?b)).
+clear(?b) :-
+    else, if(first(usable(?tool, ?b))),
+    do(opClear(player, ?tool, ?b)).
+
+% -- Quiet: needs the alarm down. The player kills the lights, a companion
+% -- gets in and opens up, the player carries it out. Each condition reads
+% -- what the step before produced, and openInside reads powerOff two steps
+% -- back.
+theQuietRun(?v) :-
+    if(hasCutter(player), cleared(alarm)),
+    do(prepBag(?v), killLights(?v), getInside(?v), openUp(?v), carryOut(?v)).
+
+prepBag(?v) :- if(hasCutter(player)), do(opStashBag(player)).
+prepBag(?v) :- if(hasRope(companionA)), do(opStashBag(companionA)).
+
+% Deliberately does NOT read bagReady: the bag is not needed yet, which is
+% exactly why stashing it first is a non-obvious move.
+killLights(?v) :- if(hasCutter(player)), do(opCutPower(player)).
+killLights(?v) :- if(hasCutter(companionA)), do(opCutPower(companionA)).
+
+getInside(?v) :- if(powerOff, cleared(door), hasRope(companionA)), do(opSlipInside(companionA)).
+getInside(?v) :- if(powerOff, cleared(door), hasRope(companionB)), do(opSlipInside(companionB)).
+
+openUp(?v) :- if(powerOff, inside(companionA)), do(opOpenFromWithin(companionA)).
+openUp(?v) :- if(powerOff, inside(companionB)), do(opOpenFromWithin(companionB)).
+
+% The stashed bag only matters here, four steps after it was prepared.
+carryOut(?v) :- if(doorOpen, bagReady(player)), do(opHaul(player)).
+carryOut(?v) :- if(doorOpen, bagReady(companionA)), do(opHaul(player)).
+carryOut(?v) :- if(doorOpen, bagReady(companionA), inside(companionA)),
+    do(opHaul(companionA)).
+
+% -- Loud: needs the guard gone. The player sets and triggers the charge, a
+% -- companion storms the breach and smashes the vault, the player grabs the
+% -- take.
+theLoudRun(?v) :-
+    if(hasCharge(player), cleared(guard)),
+    do(scoutExit(?v), placeCharge(?v), detonate(?v), stormBreach(?v),
+       crackVault(?v), takeLoot(?v)).
+
+scoutExit(?v) :- if(hasCharge(player)), do(opScoutExit(player)).
+scoutExit(?v) :- if(hasHammer(companionB)), do(opScoutExit(companionB)).
+
+placeCharge(?v) :- if(hasCharge(player)), do(opSetCharge(player)).
+placeCharge(?v) :- if(hasCharge(companionB)), do(opSetCharge(companionB)).
+placeCharge(?v) :- if(hasHammer(companionB)), do(opSetCharge(companionB)).
+
+% Triggering the charge is the player's job - GDD 2: "the player is crucial
+% for initiating, enabling, and finalizing key actions".
+detonate(?v) :- if(chargeSet), do(opBlow(player)).
+detonate(?v) :- if(chargeSet, hasHammer(companionB)), do(opBlow(player)).
+
+stormBreach(?v) :- if(breach, cleared(door), hasHammer(companionB)), do(opStormIn(companionB)).
+stormBreach(?v) :- if(breach, cleared(door), hasRope(companionA)), do(opStormIn(companionA)).
+
+crackVault(?v) :- if(breach, stormed(companionB)), do(opSmashVault(companionB)).
+crackVault(?v) :- if(breach, stormed(companionA)), do(opSmashVault(companionA)).
+
+% The scouted exit only matters here, five steps after it was scouted.
+takeLoot(?v) :- if(vaultOpen, exitScouted(player)), do(opGrab(player)).
+takeLoot(?v) :- if(vaultOpen, exitScouted(companionB)), do(opGrab(player)).
+
+% ==========================================================================
+% Declared choice space: pick 2 of 6 against 3 blockers, in play order
+% ==========================================================================
+
+funChoiceSpace(kit, 2).
+funChoice(kit, emp).
+funChoice(kit, prybar).
+funChoice(kit, thermite).
+funChoice(kit, keycard).
+funChoice(kit, flare).
+funChoice(kit, ladder).
+
+funChoiceFact(emp, carrying(player, emp)).
+funChoiceFact(prybar, carrying(player, prybar)).
+funChoiceFact(thermite, carrying(player, thermite)).
+funChoiceFact(keycard, carrying(player, keycard)).
+funChoiceFact(flare, carrying(player, flare)).
+funChoiceFact(ladder, carrying(player, ladder)).
+
+funBlocker(door).
+funBlocker(guard).
+funBlocker(alarm).
+
+funBlockerGoal(door, clear(door)).
+funBlockerGoal(guard, clear(guard)).
+funBlockerGoal(alarm, clear(alarm)).
+
+goals(runHeist(vault)).

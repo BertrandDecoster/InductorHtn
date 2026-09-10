@@ -1,0 +1,29 @@
+{
+  "name": "core_attunement",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Primer -> Detonator with the player as the required link",
+  "dependencies": [
+    "core/primitives/core_world",
+    "core/primitives/core_chemistry"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T11:08:32.860701"
+  },
+  "provides": [
+    "detonate/2",
+    "detonateLethal/1",
+    "expose/1",
+    "finish/1",
+    "prime/2"
+  ],
+  "requires": [
+    "applyToEntity/3",
+    "applyToRegion/3",
+    "markEntity/3"
+  ]
+}

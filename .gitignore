@@ -8,3 +8,9 @@ __pycache__/
 *.dll
 .claude/settings.local.json
 *.dylib
+
+# Fun-metrics counterfactual cache (regenerable)
+.htn_metrics_cache/
+
+# Recorded MCP playthroughs (data for later metrics; not source)
+.playthroughs/

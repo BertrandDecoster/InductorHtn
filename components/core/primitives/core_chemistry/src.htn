@@ -1,0 +1,98 @@
+% core_chemistry - elements change materials, elements change entities,
+% materials never change materials
+%
+% The three rules of the chemistry engine, as facts a level declares:
+%   skillElement(?skill, ?element)      ignite -> fire, freeze -> freeze, ...
+%   reacts(?element, ?feature, ?new)    fire + oil -> scorched; freeze + oil -> sludge
+%   blast(?element, ?feature, ?status)  what the reaction does to enemies present
+%   terrain(?feature, ?status)          what a feature does to whoever enters it
+%   strike(?element, ?status)           a direct cast on a vulnerable entity
+%   mark(?element, ?status)             a direct cast on any enemy (a flare dazzles)
+%   immune(?entity, ?element)
+% and how casts are paid for:
+%   signature(?agent, ?skill)           unswappable, unlimited
+%   unlimited(?skill)                   no charges needed
+%   charge(?agent, ?skill, ?token)      one token per use; the cast deletes it
+%
+% Reactions rewrite `regionHas`, so what one fight consumes is gone for the
+% next. That persistence is the point.
+
+% === Operators ===
+
+opSpendCharge(?a, ?skill, ?tok) :-
+    del(charge(?a, ?skill, ?tok)), add().
+
+opCastRegion(?a, ?skill, ?r, ?old, ?new) :-
+    del(regionHas(?r, ?old)), add(regionHas(?r, ?new)).
+
+opCastEntity(?a, ?skill, ?e, ?status) :-
+    del(), add(status(?e, ?status)).
+
+opStatus(?a, ?e, ?status) :-
+    del(), add(status(?e, ?status)).
+
+% === Rules ===
+
+free(?a, ?skill) :- signature(?a, ?skill).
+free(?a, ?skill) :- unlimited(?skill).
+canPay(?a, ?skill) :- free(?a, ?skill).
+canPay(?a, ?skill) :- charge(?a, ?skill, ?tok).
+
+% A shield turns blasts; a snared or dazzled enemy has dropped its guard.
+% One clause, so an `allOf` over exposed enemies binds each of them once.
+guarded(?e) :- status(?e, shielded), not(status(?e, snared)), not(status(?e, dazzled)).
+exposed(?e) :- not(guarded(?e)).
+% Only a snared or dazzled enemy can be struck directly. One clause, so an
+% `allOf` binds each vulnerable enemy once.
+open(?e) :- status(?e, snared).
+open(?e) :- status(?e, dazzled).
+vulnerable(?e) :- first(open(?e)).
+
+% === Methods ===
+
+% Pay for a cast. Signature and unlimited skills are free; anything else
+% spends one token.
+payFor(?a, ?skill) :- if(free(?a, ?skill)), do().
+payFor(?a, ?skill) :-
+    else, if(first(charge(?a, ?skill, ?tok))),
+    do(opSpendCharge(?a, ?skill, ?tok)).
+
+% Put an element on a region. The feature there reacts; the blast hits the
+% exposed enemies present; the new terrain settles on whoever stands in it.
+applyToRegion(?a, ?el, ?r) :-
+    if(canAct(?a),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill))),
+       regionHas(?r, ?feat), reacts(?el, ?feat, ?new)),
+    do(takeVantage(?a, ?r), payFor(?a, ?skill),
+       opCastRegion(?a, ?skill, ?r, ?feat, ?new),
+       try(blastEntities(?a, ?el, ?feat, ?r)),
+       try(settleTerrain(?a, ?r))).
+
+blastEntities(?a, ?el, ?feat, ?r) :-
+    allOf, if(blast(?el, ?feat, ?status), at(?e, ?r), role(?e, enemy),
+              exposed(?e), not(immune(?e, ?el)), not(status(?e, ?status))),
+    do(opStatus(?a, ?e, ?status)).
+
+settleTerrain(?a, ?r) :-
+    allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), at(?e, ?r),
+              not(status(?e, ?status))),
+    do(opStatus(?a, ?e, ?status)).
+
+% Whoever arrives in a region takes what its terrain does.
+sufferTerrain(?a, ?e, ?r) :-
+    allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), not(status(?e, ?status))),
+    do(opStatus(?a, ?e, ?status)).
+
+% Put an element on an entity directly. Only a vulnerable target takes a
+% strike; any enemy takes a mark.
+applyToEntity(?a, ?el, ?e) :-
+    if(canAct(?a), vulnerable(?e), not(immune(?e, ?el)), strike(?el, ?status),
+       not(status(?e, ?status)), at(?e, ?r),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
+    do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastEntity(?a, ?skill, ?e, ?status)).
+
+markEntity(?a, ?el, ?e) :-
+    if(canAct(?a), role(?e, enemy), not(immune(?e, ?el)), mark(?el, ?status),
+       not(status(?e, ?status)), at(?e, ?r),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
+    do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastEntity(?a, ?skill, ?e, ?status)).

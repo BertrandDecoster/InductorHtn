@@ -1,0 +1,17 @@
+% the_burn - get them onto the oil, the player lights it
+%
+% Needs a region whose feature fire blasts lethally, an enemy that can be
+% brought there, and the player holding a fire skill. Everyone else who can
+% be brought in and exposed goes up in the same blast: one match, one fire.
+% The reaction consumes the feature - after the burn there is nothing left
+% to freeze or to burn again.
+
+theBurn(?e) :-
+    if(role(?e, enemy), not(status(?e, dead)), not(immune(?e, fire)),
+       regionHas(?r, ?feat), reacts(fire, ?feat, ?new), blast(fire, ?feat, dead)),
+    do(bringTo(?e, ?r), expose(?e), try(gatherOthers(?e, ?r)), detonate(fire, ?r)).
+
+% Every other living enemy that can be brought in and exposed, is.
+gatherOthers(?e, ?r) :-
+    allOf, if(role(?o, enemy), \==(?o, ?e), not(status(?o, dead)), not(at(?o, ?r))),
+    do(bringTo(?o, ?r), expose(?o)).

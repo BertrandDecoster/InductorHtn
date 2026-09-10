@@ -1,0 +1,10 @@
+{
+  "name": "fixture_actor_override",
+  "version": "1.0.0",
+  "layer": "level",
+  "description": "Calibration fixture: funActor/2 and funNoop/1 declarations override the actor-first convention. See docs/FUN_METRICS.md section 6.",
+  "dependencies": [],
+  "certified": false,
+  "provides": [],
+  "requires": []
+}

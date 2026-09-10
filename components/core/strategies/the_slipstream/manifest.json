@@ -1,0 +1,32 @@
+{
+  "name": "the_slipstream",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Freeze the oil into sludge, get them stuck, finish them",
+  "dependencies": [
+    "core/primitives/core_aggro",
+    "core/primitives/core_attunement"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T11:08:33.909280"
+  },
+  "provides": [
+    "coverAt/1",
+    "ensureTrap/1",
+    "finishTrap/2",
+    "gatherIntoTrap/2",
+    "sludgeable/1",
+    "theSlipstream/1"
+  ],
+  "requires": [
+    "bringTo/2",
+    "detonateLethal/1",
+    "finish/1",
+    "holdPosition/2",
+    "prime/2"
+  ]
+}

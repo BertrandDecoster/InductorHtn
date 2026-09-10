@@ -1,0 +1,23 @@
+{
+  "name": "core_world",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Unified vocabulary: regions, navigation, line of sight, roles",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T11:08:32.243814"
+  },
+  "provides": [
+    "canAct/1",
+    "canMove/1",
+    "canTarget/2",
+    "navigate/2",
+    "opNavigate/3",
+    "takeVantage/2"
+  ],
+  "requires": []
+}

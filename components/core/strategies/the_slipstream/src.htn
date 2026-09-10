@@ -1,0 +1,35 @@
+% the_slipstream - freeze the oil into sludge, get them stuck, finish them
+%
+% The Arcanist primes the oil into sludge (or the sludge from an earlier
+% fight is reused). The Warden plants the shield at the edge as cover - a
+% commitment. The enemy is brought in - pushed by the player, dragged by a
+% puller, or taunted into following - and whoever else can be brought in
+% joins it. Snared, they are vulnerable: the player either strikes the one,
+% or detonates a lethal element on the sludge and takes everything in it.
+
+theSlipstream(?e) :-
+    if(role(?e, enemy), not(status(?e, dead)), first(sludgeable(?r))),
+    do(ensureTrap(?r), coverAt(?r), bringTo(?e, ?r), try(gatherIntoTrap(?e, ?r)),
+       finishTrap(?e, ?r)).
+
+% A region that is, or can be frozen into, snaring terrain.
+sludgeable(?r) :- regionHas(?r, ?trap), terrain(?trap, snared).
+sludgeable(?r) :- regionHas(?r, ?feat), reacts(freeze, ?feat, ?trap), terrain(?trap, snared).
+
+ensureTrap(?r) :- if(regionHas(?r, ?trap), terrain(?trap, snared)), do().
+ensureTrap(?r) :- else, if(), do(prime(freeze, ?r)).
+
+% The shield-bearer holds the first region adjoining the trap.
+coverAt(?r) :-
+    if(first(and(role(?a, companion), signature(?a, shield))), first(connected(?edge, ?r))),
+    do(holdPosition(?a, ?edge)).
+coverAt(?r) :- else, if(), do().
+
+% Every other living enemy that can be brought into the trap, is.
+gatherIntoTrap(?e, ?r) :-
+    allOf, if(role(?o, enemy), \==(?o, ?e), not(status(?o, dead)), not(at(?o, ?r))),
+    do(bringTo(?o, ?r)).
+
+% Finish the one, or blast the lot. Alternatives, not fallbacks.
+finishTrap(?e, ?r) :- if(status(?e, snared)), do(finish(?e)).
+finishTrap(?e, ?r) :- if(status(?e, snared)), do(detonateLethal(?r)).
