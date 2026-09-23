@@ -1,0 +1,40 @@
+{
+  "level": "level.htn",
+  "memoryBudgetBytes": 268435456,
+  "choice": {
+    "kind": "pair-loadout",
+    "poolQuery": "equippableSkill(?s).",
+    "slots": 2,
+    "injectFacts": ["equipped(player, {0})", "equipped(companion, {1})"]
+  },
+  "goals": {
+    "challenges": [
+      {"name": "enterFortress", "goal": "enterFortress()."},
+      {"name": "secureWorkshop", "goal": "secureWorkshop()."},
+      {"name": "defeatVaultBrute", "goal": "defeatVaultBrute()."}
+    ],
+    "full": "solveLevel().",
+    "playRoot": "playLevel()."
+  },
+  "metadata": {
+    "challengeAtoms": "challengeAtom(?c, ?a).",
+    "atomMethods": "atomMethod(?a, ?m).",
+    "resolveMarker": "opResolveAtom",
+    "markerRequiredFor": ["secureWorkshop", "defeatVaultBrute"]
+  },
+  "properties": {
+    "P1_choke": {"severity": "error", "minLoadoutsPerChallenge": 6},
+    "P2_decision": {"severity": "error"},
+    "P3_deadSkill": {"severity": "error"},
+    "P4_deadAtom": {"severity": "error"},
+    "P5_methodDrift": {"severity": "error"},
+    "P6_comboGated": {"severity": "error"},
+    "playRootCrossCheck": {"severity": "error"},
+    "depth": {"severity": "warn", "min": 3, "max": 5},
+    "diversity": {"severity": "warn", "minClusters": 2},
+    "minPlanLength": {"severity": "warn", "min": 3},
+    "dominance": {"severity": "warn"},
+    "generativity": {"severity": "warn"},
+    "everyPlanUses": {"severity": "off"}
+  }
+}

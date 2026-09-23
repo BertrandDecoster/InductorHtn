@@ -34,8 +34,9 @@ indhtn_lint         "<file source>"                # expect 0 errors
 
 ## Benign lint codes these carry
 
-Trust the engine over the linter when they disagree (see
-`../ruleset-iterating.md`). The warnings below are expected and **not** bugs:
+The canonical benign-lint list lives in `../ruleset-policies.md` (POL-7) --
+that table is the authority when this section and it disagree. The specific
+codes these exemplar files carry, and why:
 
 - **`HTN005`** -- empty `do()`. The intended base case of a recursive / make-ready
   method (`clearBlock`, `goTo`, `ensureEmptyStore`, `moveTruck`, ...).

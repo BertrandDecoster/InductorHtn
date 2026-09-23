@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """decision-dag spike driver.
 
+NOTE (2026-07-02): frozen as a dated spike record — its outputs are cited in
+README.md and docs/game-design/pcg-puzzles-and-fun.md. The fairness check
+(C10, gated edge without a clue) lives on as the ``fairness`` property of the
+shared harness (``mcp-server/indhtn_quality/properties.py``); use that for
+new levels.
+
 Sweeps every decision-set (subset of the level's capability tokens) and, for
 each, asks the planner: is the level solvable, in how many distinct ways, and is
 every winning path FAIR (each gated edge it uses has a discoverable clue)?

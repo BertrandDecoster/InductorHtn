@@ -18,6 +18,7 @@ and authoring heuristics; follow them over anything you recall:
 @docs/reference/ruleset-writing.md
 @docs/upgrades/ruleset-keywords.md
 @docs/reference/ruleset-iterating.md
+@docs/reference/ruleset-policies.md
 
 Key invariants from the project (also in CLAUDE.md): variables are `?prefixed`;
 methods are `task() :- if(...), do(...).`; operators are `op() :- del(...), add(...).`;
@@ -57,8 +58,10 @@ Restate, in one or two sentences, the change you understand you are making.
 - `indhtn_introspect` on its source: confirm methods/operators/facts parsed as you
   expect.
 - `indhtn_lint` on its source: record existing diagnostics (so you can tell what your
-  edit introduces vs. what was already there). Ignore the benign codes (`HTN005`,
-  `SEM002`, `SEM004/005/006`, `SYN012` on `hidden`/`parallel`); `TYP010` is real.
+  edit introduces vs. what was already there). Accept only what the canonical
+  benign-lint list allows (POL-7 in the included `ruleset-policies.md`; note
+  `SEM004/005` are benign only for POL-1 declared latents and alternate-entry
+  tasks); `VAR003` and `TYP010` are real.
 - `indhtn_create_session` + `indhtn_load_files` on the file, then `indhtn_find_plans`
   on each goal from its `goals(...)` directive (`indhtn_list_goals` if unsure).
   Record the plan **count and shapes** -- this is your before/after anchor.
@@ -93,6 +96,13 @@ vocabulary briefly.
 - If you get fewer plans than expected, run `indhtn_method_failures` to localize which
   gate or subtask blocked, fix, and re-run. Do not hand-wave -- let the tools say
   what's wrong.
+- If the change alters **how a challenge is solved** (new mechanic, new/removed
+  method or operator chain -- not a pure fact tweak), run the DAG tool before and
+  after and report the causal depth delta:
+  `source .venv/bin/activate && PYTHONPATH=mcp-server python -m indhtn_quality.dag
+  <level> --goal "<challenge>()." --facts <loadout facts> --format summary`.
+  Depth should stay in (or move toward) the 3-5 band; a drop toward 1 means the
+  new path is a shortcut montage (see `ruleset-creating.md`).
 - `indhtn_end_session` when done.
 
 ## 7. Report
@@ -100,6 +110,7 @@ vocabulary briefly.
 Summarize: the file changed and the one-line intent; what you added (facts, methods,
 operators); baseline vs. new plan counts with the evidence (the `find_plans` output
 for the new-mechanic scenario, both the firing and the blocked case); lint status; and
-any follow-ups. If the target is the fortress level, suggest running
-`prototypes/fortress-loadout/sweep.py` to confirm the loadout matrix still holds.
+any follow-ups. If the target has a `quality.json` (the fortress level does), suggest
+running the harness to confirm the loadout matrix and property gates still hold:
+`PYTHONPATH=mcp-server python -m indhtn_quality.harness <dir>/quality.json`.
 **Never claim success without showing the lint + find_plans output.**

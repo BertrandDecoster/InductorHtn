@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """loadout-decision spike driver.
 
+NOTE (2026-07-02): frozen as a dated spike record — its outputs are cited in
+README.md. The dominance-as-proper-subset check lives on as the ``dominance``
+property of the shared harness (``mcp-server/indhtn_quality/properties.py``);
+use that for new levels.
+
 The companion model from `prototypes/decision-dag/` was tautological: decisions
 were free, independent capability tokens swept by Python. Here the decision is a
 *constrained loadout* (one skill per companion, distinct skills) and it is chosen

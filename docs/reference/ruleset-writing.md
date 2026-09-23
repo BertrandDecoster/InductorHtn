@@ -145,6 +145,9 @@ Proven by `prototypes/optimization-proofs/measure.py` (each pattern is a slow/fa
 - `ruleset-htn-syntax.md` -- keyword/construct reference (`else`, `anyOf`/`allOf`,
   `first`, `not`, `try`, numeric fluents).
 - `ruleset-iterating.md` -- interact with, debug, analyze, and improve a ruleset.
+- `ruleset-creating.md` -- the end-to-end creation workflow with the fun gates
+  (causal depth, diversity, dominance); `ruleset-policies.md` -- recorded design
+  rulings (combos, latents, the canonical benign-lint list).
 - Worked example: Challenge 1 of `prototypes/fortress-loadout/level.htn`
   (the data-plus-verbs model).
 

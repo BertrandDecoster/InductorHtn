@@ -490,8 +490,9 @@ class HtnLinter:
 
     def _add_call(self, caller: str, task: Term):
         """Add a call relationship to the call graph"""
-        # Handle try() and other wrappers
-        if task.name in ('try', 'first', 'and'):
+        # Handle try()/parallel() and other wrappers: the wrapped tasks are
+        # the real callees (parallel is an engine keyword, not a task).
+        if task.name in ('try', 'first', 'and', 'parallel'):
             for arg in task.args:
                 self._add_call(caller, arg)
             return
@@ -616,7 +617,7 @@ class HtnLinter:
 
     def _check_task_defined(self, task: Term, defined: Set[str]):
         """Check if a task is defined"""
-        if task.name in ('try', 'first', 'and'):
+        if task.name in ('try', 'first', 'and', 'parallel'):
             for arg in task.args:
                 self._check_task_defined(arg, defined)
             return

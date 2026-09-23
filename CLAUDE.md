@@ -34,6 +34,7 @@ docs/                    # All documentation (see map below)
 All docs live under `docs/`. Start at `docs/README.md`.
 
 - **Writing rulesets** → `docs/reference/ruleset-writing.md` (heuristics, examples, validated optimizations; worked example: `Examples/TrunkThumper.htn`)
+- **Creating levels + quality gates** → `docs/reference/ruleset-creating.md` (brief-to-verified workflow: causal-depth 3-5 DAG gate via `python -m indhtn_quality.dag`, loadout-sweep harness via `python -m indhtn_quality.harness`; commands `/htn-create`, `/htn-audit`). Design rulings + canonical benign-lint list: `docs/reference/ruleset-policies.md`.
 - **Exemplars to copy** → `docs/reference/exemplars/` (Blocks World, Logistics, Barman, Rover translated to InductorHTN syntax, one per design pattern). Improving a ruleset from an instruction? Use the `/htn-improve` command (`.claude/commands/htn-improve.md`).
 - **Iterating on rulesets** (debug/analyze/improve) → `docs/reference/ruleset-iterating.md`
 - **Syntax & Prolog reference** → `docs/reference/ruleset-htn-syntax.md`, `docs/reference/prolog-reference.md`

@@ -208,13 +208,33 @@ atomMethod(bypassBrute, slowAndOutrun).
 % =====================================================================
 % Shared engines
 % =====================================================================
+% State-threading pass (2026-07-02): combos CONSUME their input tags and
+% finishers consume the combo result; area/hold/slow effects gate later
+% steps via helper-method if() preconditions. Every strategy is a causal
+% unlock chain (depth 3-5), not a flat montage -- see
+% docs/reference/ruleset-creating.md ("causal depth"). Strategy gates are
+% untouched, so which loadouts solve what is unchanged.
 
 % --- Skill use and combo bookkeeping ---
 opUseSkill(?w, ?s, ?e, ?t) :- del(), add(hasTag(?t, ?e)).
-opCombo(?e1, ?e2, ?r, ?t) :- del(), add(hasTag(?t, ?r)).
+% A combo reaction consumes its two element tags and produces the result.
+opCombo(?e1, ?e2, ?r, ?t) :- del(hasTag(?t, ?e1), hasTag(?t, ?e2)), add(hasTag(?t, ?r)).
 opAreaApplies(?a, ?e, ?t) :- del(), add(hasTag(?t, ?e)).
 % Terminal marker: which atom got resolved, by which authored method.
 opResolveAtom(?atom, ?how) :- del(), add(resolved(?atom)).
+
+% --- applyAreaEffect(?t, ?a): the area's element lands on whoever is in it.
+% Gated on inArea/2 (produced by a shove), so the soak causally depends on
+% getting the target there first.
+applyAreaEffect(?t, ?a) :-
+    if(inArea(?t, ?a), elementAreaAt(?a, ?e)),
+    do(opAreaApplies(?a, ?e, ?t)).
+
+% --- exposedToArea(?t, ?a, ?h): a target held (?h) inside a harmful element
+% area succumbs to it. Gated on both the shove result and the hold tag.
+exposedToArea(?t, ?a, ?h) :-
+    if(inArea(?t, ?a), hasTag(?t, ?h)),
+    do(opExposure(?t, ?a)).
 
 % --- shoveIntoArea(?t, ?a): get target ?t into area ?a ---
 % Solo: target already stands at the edge; one shove is enough.
@@ -222,14 +242,17 @@ shoveIntoArea(?t, ?a) :-
     if(adjacentArea(?t, ?a), equipped(?w, ?s), skillGrants(?s, forcedMovement, target)),
     do(opShove(?w, ?s, ?t, ?a)).
 % Co-op: one companion lures the target to the edge while the other shoves.
+% The lured shove CONSUMES the taunt (the target lunged at the bait and the
+% shove redirects it), so the shove causally depends on the lure.
 shoveIntoArea(?t, ?a) :-
     if(lureSpot(?t, ?a),
        equipped(?w1, ?s1), skillGrants(?s1, taunted, target),
        equipped(?w2, ?s2), skillGrants(?s2, forcedMovement, target), \==(?w1, ?w2)),
-    do(parallel(opLureToEdge(?w1, ?t, ?a), opShove(?w2, ?s2, ?t, ?a))).
+    do(parallel(opLureToEdge(?w1, ?t, ?a), opShoveLured(?w2, ?s2, ?t, ?a))).
 
 opLureToEdge(?w, ?t, ?a) :- del(), add(hasTag(?t, taunted)).
 opShove(?w, ?s, ?t, ?a) :- del(), add(inArea(?t, ?a)).
+opShoveLured(?w, ?s, ?t, ?a) :- del(hasTag(?t, taunted)), add(inArea(?t, ?a)).
 
 % --- disableEnemy(?e): one abstraction, many interchangeable ways ---
 % Baseline: just fight. Always available against normal enemies.
@@ -395,31 +418,39 @@ secureWorkshop() :- if(), do(overloadCore()).
 secureWorkshop() :- if(), do(crushUnderPress()).
 secureWorkshop() :- if(), do(attackBackWhileDistracted()).
 
-% Atom: overloadCore. Wet + electrified at the same time.
+% Atom: overloadCore. Wet + electrified at the same time; the combo consumes
+% both tags, and discharging the overload (opFinishOff) consumes the combo:
+% useSkill x2 -> combo -> finish is a 3-deep causal chain.
 overloadCore() :-
     if(equipped(?w1, ?s1), skillGrants(?s1, wet, target),
        equipped(?w2, ?s2), skillGrants(?s2, electrified, target), \==(?w1, ?w2)),
     do(parallel(opUseSkill(?w1, ?s1, wet, sentinel),
                 opUseSkill(?w2, ?s2, electrified, sentinel)),
        opCombo(wet, electrified, overloaded, sentinel),
+       opFinishOff(sentinel, overloaded),
        opResolveAtom(overloadCore, skillCombo)).
-% Or dunk it: lure-and-shove it into the quench pool, then electrify.
+% Or dunk it: shove it into the quench pool (the pool soaks whoever is IN it
+% -- applyAreaEffect gates on the shove's inArea), then electrify:
+% shove -> soak -> combo -> finish, 4 causal layers.
 overloadCore() :-
     if(elementAreaAt(quenchPool, wet),
        equipped(?w, ?s), skillGrants(?s, electrified, target)),
     do(shoveIntoArea(sentinel, quenchPool),
-       opAreaApplies(quenchPool, wet, sentinel),
+       applyAreaEffect(sentinel, quenchPool),
        opUseSkill(?w, ?s, electrified, sentinel),
        opCombo(wet, electrified, overloaded, sentinel),
+       opFinishOff(sentinel, overloaded),
        opResolveAtom(overloadCore, poolDunk)).
 
 % Atom: crushUnderPress. Hold it under the forge press while the partner
-% pulls the lever. Pulling a lever needs no skill; holding does.
+% pulls the lever. Pulling a lever needs no skill; holding does. The crush
+% CONSUMES both the pulled lever and the hold (the press lands on a target
+% that is held in place at that moment).
 crushUnderPress() :-
     if(ally(?w1), ally(?w2), \==(?w1, ?w2),
        holdsInPlace(?h), canApply(?w1, ?h, sentinel)),
     do(parallel(opHoldUnder(?w1, ?h, sentinel), opPullLever(?w2)),
-       opCrush(sentinel),
+       opCrush(sentinel, ?h),
        opResolveAtom(crushUnderPress, holdAndCrush)).
 
 % Atom: attackBackWhileDistracted. One distracts, the other reaches the
@@ -434,7 +465,7 @@ attackBackWhileDistracted() :-
 
 opHoldUnder(?w, ?h, ?t) :- del(), add(hasTag(?t, ?h)).
 opPullLever(?w) :- del(), add(leverPulled).
-opCrush(?t) :- del(), add(neutralized(?t)).
+opCrush(?t, ?h) :- del(leverPulled, hasTag(?t, ?h)), add(neutralized(?t)).
 opDistract(?w, ?d, ?t) :- del(), add(hasTag(?t, ?d)).
 opSlipBehind(?w, ?m, ?t) :- del(), add(behind(?w, ?t)).
 opStrikeCore(?w, ?t) :- del(behind(?w, ?t)), add(neutralized(?t)).
@@ -467,13 +498,14 @@ environmentKill() :-
     do(shoveIntoArea(brute, chasm),
        opFallsInto(brute, chasm),
        opResolveAtom(environmentKill, chasmDrop)).
-% ...or shove it into the electric fence and hold it there...
+% ...or shove it into the electric fence and hold it there (the exposure
+% gates on BOTH the shove's inArea and the hold tag: lure -> shove -> fry)...
 environmentKill() :-
     if(elementAreaAt(electricFence, electrified),
        hardHold(?h), canApply(?w, ?h, brute)),
     do(shoveIntoArea(brute, electricFence),
        opHoldWith(?w, ?h, brute),
-       opExposure(brute, electricFence),
+       exposedToArea(brute, electricFence, ?h),
        opResolveAtom(environmentKill, fenceFry)).
 % ...or drown the fire elemental: soak it and stun it at the same moment,
 % so it cannot flash-steam the water off.
@@ -486,7 +518,15 @@ environmentKill() :-
        opDouse(brute),
        opResolveAtom(environmentKill, drowned)).
 
-% Atom: bypassBrute. Slow it and simply outrun it.
+% Atom: bypassBrute. Slow it and simply outrun it: outrunning gates on the
+% slow tag, and sealing the vault door gates on both companions having
+% escaped (slow -> outrun -> seal, 3 causal layers).
+outrunSlowed(?w, ?t) :-
+    if(hasTag(?t, slowed)),
+    do(opOutrun(?w, ?t)).
+sealVaultBehind() :-
+    if(escaped(player), escaped(companion)),
+    do(opShutVaultDoor()).
 % kiteAndSlip commented out (2026-06-10) to break shadowStep+warHorn
 % dominance -- taunt-kite + slip-past cleared the challenge with no
 % elemental investment (see README, observed matrix):
@@ -500,20 +540,23 @@ environmentKill() :-
 bypassBrute() :-
     if(equipped(?w, ?s), skillGrants(?s, slowed, target)),
     do(opUseSkill(?w, ?s, slowed, brute),
-       opOutrun(player, brute),
-       opOutrun(companion, brute),
-       opShutVaultDoor(),
+       outrunSlowed(player, brute),
+       outrunSlowed(companion, brute),
+       sealVaultBehind(),
        opResolveAtom(bypassBrute, slowAndOutrun)).
 
 opHoldWith(?w, ?h, ?t) :- del(), add(hasTag(?t, ?h)).
 opExposure(?t, ?a) :- del(), add(neutralized(?t)).
-opDouse(?t) :- del(), add(neutralized(?t)).
-opFinishOff(?t, ?r) :- del(), add(neutralized(?t)).
+% Drowning consumes the simultaneous soak + stun (the water only takes if
+% the elemental cannot flash-steam it off).
+opDouse(?t) :- del(hasTag(?t, wet), hasTag(?t, stunned)), add(neutralized(?t)).
+% Finishing off consumes the lethal combo tag (the discharge IS the kill).
+opFinishOff(?t, ?r) :- del(hasTag(?t, ?r)), add(neutralized(?t)).
 opKiteAway(?w, ?t) :- del(), add(hasTag(?t, taunted)).
 opSlipPast(?w, ?m, ?t) :- del(), add(behind(?w, ?t)).
 opOpenVault(?w) :- del(), add(vaultOpen).
 opOutrun(?w, ?t) :- del(), add(escaped(?w)).
-opShutVaultDoor() :- del(), add(vaultOpen).
+opShutVaultDoor() :- del(), add(vaultSealed).
 
 % =====================================================================
 % Level roots
