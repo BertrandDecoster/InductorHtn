@@ -324,17 +324,16 @@ class TestVerifierCatchesUndefined:
         sem002_errors = [d for d in diags if d["code"] == "SEM002" and d["severity"] == "error"]
         assert sem002_errors == []
 
-    def test_typ001_surfaces_through_assembler(self):
-        # signature(moveTo, [agent, cell]) declares that moveTo expects an
-        # agent in position 1 and a cell in position 2. The call
-        # moveTo(c5, player) swaps them -- c5 is a cell, player is an agent.
-        # The TYP001 rule (layer 2 of the verifier) must catch this and
-        # surface it as a warning (not an error) so opt-in adoption does not
-        # hard-fail assembly.
+    def test_typ010_surfaces_through_assembler(self):
+        # Types are inferred from unary facts: player is an agent, c5 a cell.
+        # The %:: directive pins moveTo's contract to (agent, cell). The call
+        # moveTo(c5, player) swaps them. The TYP010 rule (layer 2 of the
+        # verifier) must catch this and surface it as a warning (not an
+        # error) so type checking never hard-fails assembly.
         content = (
-            "type(agent, player).\n"
-            "type(cell, c5).\n"
-            "signature(moveTo, [agent, cell]).\n"
+            "agent(player).\n"
+            "cell(c5).\n"
+            "%:: moveTo(?a: agent, ?b: cell)\n"
             "moveTo(?a, ?b) :- if(), do().\n"
             "goalA :- if(), do(moveTo(c5, player)).\n"
             "goals(goalA).\n"
@@ -342,15 +341,13 @@ class TestVerifierCatchesUndefined:
         errors, warnings, diags = verify_assembled(
             content, verbose=False, skip_compile=True,
         )
-        typ001 = [d for d in diags if d["code"] == "TYP001"]
-        assert typ001, f"Expected TYP001 WARN for type mismatch. Diags: {diags}"
-        assert all(d["severity"] == "warning" for d in typ001), (
-            f"TYP001 must be severity=warning. Got: {typ001}"
-        )
-        # TYP001 is a soft signal — it must NOT contribute to the error count.
+        typ010 = [d for d in diags if d["code"] == "TYP010"]
+        assert typ010, f"Expected TYP010 WARN for type mismatch. Diags: {diags}"
+        # TYP010 is a soft signal — it must NOT contribute to the error count.
         # CI can promote warnings to errors for strict adoption.
-        typ001_errors = [d for d in diags if d["code"] == "TYP001" and d["severity"] == "error"]
-        assert typ001_errors == []
+        assert all(d["severity"] == "warning" for d in typ010), (
+            f"TYP010 must be severity=warning. Got: {typ010}"
+        )
 
 
 # ---------------------------------------------------------------------------
