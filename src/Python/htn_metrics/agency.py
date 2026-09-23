@@ -1,9 +1,11 @@
 """Who did it: actor provenance for operators.
 
-The GDD's pillar is "the companions must not solo the map". Read literally
-as "some operator mentions the player", a no-op `opWait(player)` satisfies
-it, and so does a companion shielding the player. Neither is the player
-*doing* anything. This module gives the metrics the stronger reading:
+The GDD's pillar is "no single companion can solo the map, whoever controls
+it"; what the controlled companion does is a seat diagnostic beside it. Read
+literally as "some operator mentions the player", a no-op `opWait(player)`
+would count as the player acting, and so would a companion shielding the
+player. Neither is the player *doing* anything. This module gives the
+metrics the stronger reading:
 
   - an operator's **actor** is the argument the actor convention names -
     the first argument by default (`actor_position` in metrics.json), or

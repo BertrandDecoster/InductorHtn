@@ -25,7 +25,7 @@ experience you want and the numbers you expect to move:
 
 > Two ideas; median plan 6-12 operators; encounter feasibility 0.2-0.4 with
 > no mandatory pick; at least two player decision points; teamwork edges
-> above 0.3; nobody solos.
+> above 0.3; no single companion carries a plan alone.
 
 A hypothesis without a number is a wish. A number without an experience is a
 target to game.
@@ -98,7 +98,10 @@ PYTHONPATH=src/Python python -m htn_components fun-compare <before> <after>
 ```
 
 Read the families, not the composite. The composite is a diagnostic and is
-never a target.
+never a target. In F6, `single_actor_plans` is the pillar (one companion
+carried a plan alone: a fail). `soloable_plans`, `player_load` and the
+decision points describe the seat you gave the human; they are warnings,
+and the numbers to move when that seat feels idle, never violations.
 
 ### 6. Compare with the hypothesis
 

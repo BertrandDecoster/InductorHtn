@@ -19,7 +19,7 @@
 %
 % Hypothesis (design.md): two ideas; median plan 6-12 operators; encounter
 % feasibility 0.2-0.4 with no mandatory pick; at least two player decision
-% points; teamwork edges above 0.3; nobody solos.
+% points; teamwork edges above 0.3; no single companion carries a plan alone.
 
 % === Regions ===
 region(entry).

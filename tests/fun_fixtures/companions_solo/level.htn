@@ -1,12 +1,14 @@
 % FIXTURE: companions_solo
-% Failure mode: the companions can win without the player.
-% Must be flagged by: F6 (soloable_plans > 0) - a hard fail.
+% Seat finding: the AI companions can win while the controlled one stands idle.
+% Must be flagged by: F6 (soloable_plans > 0) - a WARN, not a fail.
 %
 % Two genuinely distinct routes of reasonable length, so F1, F2 and F3 are
-% satisfied. The problem is who does the work: every operator can bind to a
-% companion, so most plans never involve the player at all. That breaks the
-% "companions should not be able to solo the map" principle (GDD 3.6) and the
-% "player is the conductor" pillar with it.
+% satisfied. Every operator can bind to a companion, so most plans never
+% involve the controlled companion at all. That is acceptable by design as
+% long as two companions had to cooperate (GDD 3.6): single_actor_plans stays
+% 0 here, so the pillar holds and the family warns about the seat instead of
+% failing. The warning tells a designer to hand the human another companion,
+% or to give the encounter a role this seat's kit fills.
 
 % === World ===
 enemy(gob).

@@ -1,14 +1,17 @@
 """Tests for what F6 calls player participation, and for the plan trie.
 
-The GDD's pillar is "the companions must not solo the map". A metric that
-counts every operator whose arguments mention the player satisfies that
-pillar with a no-op. These tests pin down the stronger reading:
+The GDD's pillar is "no single companion can solo the map, whoever controls
+it"; how much the controlled companion does is a seat diagnostic beside it.
+A metric that counts every operator whose arguments mention the player would
+read the seat off a no-op. These tests pin down the stronger reading:
 
   - an operator is the player's when the player is its *actor* (first
     argument by convention, or the argument a `funActor/2` fact names), and
     it is *consequential* when it changes the world and is not declared a
     `funNoop/1`;
-  - a plan is soloable when it has no consequential player-actor operator;
+  - a plan is soloable when it has no consequential player-actor operator
+    (a seat finding, a warning), and single-actor when one companion's
+    operators are all of it (the pillar, a fail);
   - teamwork is visible in the causal graph as edges between operators of
     different actors;
   - the player has a decision when the plan trie forks on player operators.

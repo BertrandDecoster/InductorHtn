@@ -20,8 +20,8 @@ in prose:
   ways"*; *"No single entity can overcome significant challenges alone"*; *"the player is crucial for
   initiating, enabling, and finalizing key actions."*
 - `src/docs/GDD.md` §3.6 Core Gameplay Principles — 2-3 ways per enemy; plans neither too long nor too
-  short (*"is 'I cast fireball and everyone dies' a satisfying plan?"*); companions must not solo the
-  map; the plan must involve the player.
+  short (*"is 'I cast fireball and everyone dies' a satisfying plan?"*); no single companion can solo
+  the map, whoever controls it. The human's companion standing idle is a lesser, seat-level concern.
 - `src/docs/PUZZLE_IDEAS.md` — complexity comes from **depth** (combining existing rules), not
   **width** (adding new rules); no ambiguity; no frustration mechanics.
 
@@ -296,10 +296,19 @@ resolution-step counter, which only tracks `PrologQuery`.
 
 ---
 
-### F6 — Player centrality: *cooperation and agency, not identity or mention*
+### F6 — Cooperation: *does any one companion carry the plan alone?*
 
 Encodes GDD §2 (*"No single entity can overcome significant challenges alone"*) and §3.6 (*"no single
 companion can solo the map, whoever controls it"*).
+
+**The pillar is cooperation, not human presence.** A plan that two companions complete together is
+fine whether or not the human-controlled companion is one of them. What may never happen is one
+companion doing everything: that is `single_actor_plans`, and it is the family's real hard fail. The
+seat metrics (`soloable_plans`, `player_load`, `player_decision_points`, `player_causal_out`) describe
+how much the controlled companion has to do and decide *in the seat the level gives it*. They are
+level-design diagnostics, useful for choosing which companion the human should be, not proxies for
+the pillar. The scorecard reports `soloable_plans` above `soloable_plans_max` as a **warn**, never a
+fail; a level whose hypothesis wants the seat busy (`grease_trap`) pins that in its own tests.
 
 Two facts about the design shape this family. The player character and the AI companions are
 **interchangeable in ability** - they differ only by who controls them - so no ruleset may reserve
@@ -323,9 +332,16 @@ companion (`player_atom`).
 | `player_decision_points` | Nodes of the plan-space **trie** (all plans overlaid as operator prefixes) where at least two distinct next steps exist and at least one is the player's own action. Choosing to act, or to let a companion open instead, is a decision; a fork among companion operators alone is the planner's. |
 | `player_criticality` *(needs `--ablate`)* | Whether removing every fact mentioning the player kills all plans. |
 
-**Bands.** `single_actor_plans` == 0 and `soloable_plans` == 0, each a **hard fail** otherwise.
-`player_load` ∈ [0.2, 0.6]: below is a spectator, above is micromanagement. `teamwork_edge_ratio` ≥
-0.2. `player_decision_points` ≥ 1.
+**Bands.** `single_actor_plans` == 0 is the family's only **hard fail**: one companion carried a plan
+alone. Everything else is a **warn** about the seat: `soloable_plans` == 0; `player_load` ∈ [0.2, 0.6]
+(below is a spectator, above is micromanagement); `teamwork_edge_ratio` ≥ 0.2;
+`player_decision_points` ≥ 1.
+
+**How a ruleset guarantees the pillar.** Not with an ability only the player has, but with task
+roles that consume state: a primer role and a pay-off role that the same companion cannot fill
+(`core_attunement`'s `?not` arguments, or a `free(?slot)` token deleted when a role is taken). The
+test is structural: with a single companion the level must have **no plan**, and removing the role
+exclusivity must be what brings a single-actor plan back.
 
 The one-companion fixtures (`single_path`, `chore`, `one_shot`, ...) fail F6 on `single_actor_plans`
 by construction; their calibration tests pin that reading and assert the controlled companion is
@@ -333,7 +349,11 @@ never blamed for it.
 
 **Blind spot.** The actor convention is a convention. An operator written target-first
 (`opApplyTag(?tag, ?target)`) has no actor at all unless the level declares `funActor`; such
-operators count as nobody's, which understates load but never invents agency.
+operators count as nobody's, which understates load but never invents agency. The reverse also
+happens: an operator whose first argument is not a companion (`opBreak(golem)`, an enemy;
+`opFollow(?e, ...)`) is credited to that atom, so a plan where one companion does everything plus
+one enemy-actor operator reads as *two* actors and slips past `single_actor_plans`. Give such
+operators the acting companion first, or declare `funActor`/`funNoop` for them.
 
 ## 5. The composite score is a diagnostic
 
@@ -376,7 +396,7 @@ against a ranking of levels nobody likes.
 | `chore` — causally independent operators | F3 `interlock` |
 | `any_loadout_wins` — every X-of-Y works | F4 `loadout_feasibility` ≈ 1 |
 | `one_to_one` — each pick solves exactly one blocker | F4 `multi_use_factor` ≈ 1 |
-| `companions_solo` — no player operator required | F6 `soloable_plans` (hard fail) |
+| `companions_solo` — two companions win while the controlled one is idle | F6 `soloable_plans` > 0 as a **warn**, with `single_actor_plans` == 0: the pillar holds, the seat is the finding |
 | `shared_consumable` — one token, two blockers | F4: `loadout_feasibility_independent` > `loadout_feasibility`; the level has 0 plans under a loadout that wins each fight |
 | `nominal_player` — the player is only ever mentioned, never the actor | F6 `player_load` 0, `passive_involvement` > 0 |
 | `actor_override` — operators written target-first, `funActor` declared | F6 reads the declared index |
@@ -408,11 +428,13 @@ a positive exemplar yet, which is the expected starting point.
 
 Three findings worth acting on, in priority order:
 
-1. **The companions can solo every gamehack combat level.** 66 of 116 plans in `multipath`, 35 of 67
-   in `gh4`, 10 of 21 in `gh7` contain no player-bound operator, and in `multipath` removing every
-   fact that mentions the player still leaves plans. This is a direct violation of a core pillar and
-   was invisible before. It is a ruleset problem, not a level problem: nothing in the gamehack
-   components requires the player specifically.
+1. **The controlled companion is idle in most gamehack plans.** 66 of 116 plans in `multipath`, 35
+   of 67 in `gh4`, 10 of 21 in `gh7` contain no player-bound operator, and in `multipath` removing
+   every fact that mentions the player still leaves plans. When this baseline was recorded the
+   scorecard read that as a pillar violation; under the clarified pillar it is a seat finding
+   (`soloable_plans`), and whether one companion carried a plan alone (`single_actor_plans`) was not
+   measured yet. Still worth acting on, as a ruleset property: nothing in the gamehack components
+   gives the controlled seat a role.
 2. **`multipath`'s three strategies are real but shallow-looking.** Ablation confirms all three class
    pairs have disjoint critical fact sets — `stunAndSlowSkill` needs
    `canGetSkillAtLocation(glacier,iceBlastSkill)`, `wetAndElectrocute` needs
@@ -436,7 +458,8 @@ the corridor, pick 2 of 5 player skills. `fun grease_trap --ablate --loadouts`:
 | 2 | 2 (`theBurn`, `theSlipstream`) | pass | warn | pass | pass | warn | pass | 0.85 |
 
 F4: encounter feasibility 0.4 (= independent: nothing consumed across fights *with these picks*),
-4 winners, no mandatory pick, `flare` dead, 3 near misses. F6: nobody solos, load 0.58, teamwork
+4 winners, no mandatory pick, `flare` dead, 3 near misses. F6: no single-actor plan and no idle
+seat, load 0.58, teamwork
 0.58, 1 decision point. F2 warns on operator-name distance (0.33; both routes end in `opStatus` and
 `opCastRegion`) while ablation shows 1 independent pair and 18 shared gates (the corridor, the oil,
 the cast) - surface similarity, not a duplicate. F5 warns on decision breadth (1.73): single-method

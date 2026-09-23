@@ -251,14 +251,20 @@ def test_undeclared_choice_space_is_skipped_not_zeroed():
 
 
 # ==========================================================================
-# F6 - Player centrality
+# F6 - Cooperation
 # ==========================================================================
 
-def test_companions_solo_trips_f6_hard():
-    """Plans that need no player operator are a hard fail."""
+def test_companions_solo_is_a_seat_warning_not_a_pillar_failure():
+    """Two companions finishing while the controlled one stands idle is
+    acceptable by design (GDD 3.6). The plans are `soloable`, a seat
+    diagnostic reported as a warning; none is carried by one companion
+    alone, so the family must not fail."""
     profile = profile_for("companions_solo")
-    result = assert_fails(profile, "f6_player")
+    result = family(profile, "f6_player")
     assert result.metrics["soloable_plans"] > 0
+    assert result.metrics["single_actor_plans"] == 0
+    assert result.verdict == "warn", (result.verdict, result.findings)
+    assert any("seat" in finding for finding in result.findings), result.findings
     assert_clean(profile, "f1_multiplicity", "f2_distinctness")
 
 

@@ -351,7 +351,9 @@ companions; they differ only by who controls them. Abilities live on the charact
 `signature`, `charge`). **Never gate an ability on `role(?a, player)`.** Cooperation comes from
 **task roles**: `core_attunement` declares primer and pay-off, and the pay-off may not be the
 primer (`detonate(?el, ?r, ?not)`, `finish(?e, ?not)`, `detonateLethal(?r, ?not)`); anyone may
-fill either role.
+fill either role. The rule is that **no single companion can carry a plan alone**; two companions
+finishing the fight while the human's companion stands idle is acceptable, and how busy the human's
+seat is stays a per-level design knob (F6 in `docs/FUN_METRICS.md`).
 
 **Chemistry as needs** (`core_chemistry`): `castElement(?el, ?r[, ?not])` (element on region:
 who holds it is bound at the leaf), `castElementAs(?a, ?el, ?r)`, `obtainFeature(?r, ?feat)`

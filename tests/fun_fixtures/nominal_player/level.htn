@@ -3,7 +3,8 @@
 % and a companion shields them (they are the target). Neither is an action
 % the player takes that changes the world. Counting argument mentions would
 % give the player a 67% load; counting consequential player-actor operators
-% gives 0%, and the plan is soloable.
+% gives 0%: the plan is soloable (the seat is idle, a warning) and single-actor
+% (companionA does everything), and the second is the pillar failure.
 
 ally(player).
 ally(companionA).

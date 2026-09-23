@@ -695,7 +695,7 @@ def _top_level_args(inner: str) -> List[str]:
 
 
 # ==========================================================================
-# F6 - Player centrality
+# F6 - Cooperation: does any one companion carry the plan alone?
 # ==========================================================================
 
 def f6_player(
@@ -706,14 +706,17 @@ def f6_player(
     convention: Optional[ActorConvention] = None,
     trie: Optional[PlanTrie] = None,
 ) -> FamilyResult:
-    """Cooperation and agency, not identity or mention.
+    """Cooperation, not human presence.
 
     The player character and the AI companions are all companions with the
-    same abilities; they differ only by who controls them. So the family
-    asks two things. First, GDD 2: does any plan let **one** companion do
-    everything (`single_actor_plans`)? Second, GDD 3.6: does any plan leave
-    the **controlled** companion idle (`soloable_plans` - the AI companions
-    solo it without the human)? Both are counted over consequential
+    same abilities; they differ only by who controls them. The pillar (GDD 2
+    and 3.6) is that no single companion carries a plan alone, whoever
+    controls it: `single_actor_plans`, the family's only hard fail. Two
+    companions finishing a plan while the controlled companion stands idle
+    is acceptable by design; `soloable_plans`, `player_load` and the
+    decision points describe that seat and are warnings at most. They say
+    which companion the human should be, or that the seat needs a role,
+    never that cooperation failed. Both counts are taken over consequential
     operators only: an operator that changes the world and is not declared
     `funNoop`, with its actor read from the first argument by convention or
     the index a `funActor` fact names. Being named as the target of someone
@@ -724,8 +727,8 @@ def f6_player(
     """
     result = FamilyResult(
         key="f6_player",
-        title="Player centrality - cooperation and agency, not identity",
-        encodes="GDD 2 + 3.6: no single companion overcomes a challenge alone, and the controlled companion is never idle",
+        title="Cooperation - does any one companion carry the plan alone?",
+        encodes="GDD 2 + 3.6: no single companion carries a plan alone, whoever controls it; the seat metrics describe the controlled companion's part",
     )
     player = cfg.player_atom
     if not space.plans:
@@ -812,10 +815,12 @@ def f6_player(
     soloable_max = cfg.band("f6_player.soloable_plans_max", 0)
     if len(soloable) > soloable_max:
         result.flag(
-            FAIL,
+            WARN,
             f"{len(soloable)} of {space.plan_count} plans contain no consequential "
-            f"action by the controlled companion - the AI companions solo this "
-            f"without the human (GDD 3.6)",
+            f"action by the controlled companion - the other companions finish those "
+            f"while the human's seat is idle; a seat diagnostic (hand the human another "
+            f"companion, or give the encounter a role this kit fills), not a "
+            f"cooperation failure",
         )
 
     low = cfg.band("f6_player.player_load_min", 0.2)
@@ -860,7 +865,8 @@ def f6_player(
             result.flag(
                 WARN,
                 "removing every fact that mentions the player still leaves plans - "
-                "the player is not structurally required",
+                "the controlled companion's seat is not structurally required "
+                "(a seat diagnostic, not the pillar)",
             )
     return result
 

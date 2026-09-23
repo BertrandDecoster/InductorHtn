@@ -154,3 +154,11 @@ Two design laws from the user override parts of the record above:
    and bind actors, skills and regions at the leaves as the answer to how
    can I get X. The bottom-up applyToRegion(?a, ?el, ?r) shape was replaced.
    Recorded in .claude/rules/crafting-rulesets.md and component-system.md.
+3. **The pillar is cooperation, not human presence** (2026-09-11). "No single
+   companion can solo the map, whoever controls it" is the rule; two
+   companions finishing while the human's companion stands idle is
+   acceptable. So F6 hard-fails only on single_actor_plans; soloable_plans,
+   player_load and the decision points are seat diagnostics reported as
+   warnings. The sentence "F6 now fails on ... soloable_plans" in item 1 is
+   superseded. Recorded in docs/FUN_METRICS.md F6, src/docs/GDD.md sections
+   2, 3.2 and 3.6, and in the F6 code and tests.

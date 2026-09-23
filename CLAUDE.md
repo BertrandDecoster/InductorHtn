@@ -70,8 +70,9 @@ fun-compare <a> <b>              # Side-by-side profile diff
 ## Fun Metrics
 
 `fun` scores the *shape of a level's solution space* — how many genuinely different
-ways exist, how deep they are, whether the player is required, and which of the
-declared X-of-Y choices work. It never claims a level is fun.
+ways exist, how deep they are, whether any one companion can carry a plan alone (the
+human's seat being idle is only a warning), and which of the declared X-of-Y choices
+work. It never claims a level is fun.
 
 Full definition, bands, and known blind spots: **`docs/FUN_METRICS.md`**.
 Calibration fixtures: `tests/fun_fixtures/`; tests: `python -m pytest tests/test_fun_metrics.py`.
