@@ -287,7 +287,7 @@ opFallsInto(?e, ?h) :- del(inArea(?e, ?h)), add(neutralized(?e)).
 % anyone can cross. Whoever reaches area1 presses button1 (key1), opening the plain
 % path to area2 for the partner; the partner presses button2 (key2), whose
 % single key opens BOTH inner doors (area1->end and area2->end) via allOf;
-% both walk to the end.
+% both walk to the end. 
 % =====================================================================
 
 % --- Challenge 1 world, as data ---
