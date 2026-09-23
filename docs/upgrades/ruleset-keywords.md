@@ -2,7 +2,7 @@
 
 Ruleset-language capabilities this fork added over upstream InductorHtn. Full
 syntax for these (and all other keywords) is in
-[`../reference/htn-syntax.md`](../reference/htn-syntax.md); the component-system
+[`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md); the component-system
 type rules are in [`../reference/component-system.md`](../reference/component-system.md).
 
 ## `parallel()` — parallel execution
@@ -52,22 +52,16 @@ opSwap(?a, ?b) :- decrease(mana(?a), 10), increase(mana(?b), 10).
 
 The delta expression uses the same arithmetic engine as `is/2`. Effect ordering
 within one operator: all `del()` removals, then all `increase`/`decrease`, then
-all `add()` additions. See [`../reference/htn-syntax.md`](../reference/htn-syntax.md)
+all `add()` additions. See [`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md)
 for full semantics and failure modes.
 
 ## Typed parameters
 
-Components and levels may opt into argument type-checking by declaring two
-conventional facts:
-
-```prolog
-type(typeName, instance).
-signature(predName, [argType1, argType2, ...]).
-```
-
-The engine treats both as ordinary facts and never queries them at planning
-time — they exist purely for the linter (`TYP001`/`TYP002` diagnostics). The
-rule is fully opt-in: rulesets with no `signature/2` declarations get no `TYP*`
-diagnostics. Numeric literals satisfy the built-in `int`/`float`/`number` types
-interchangeably. See [`../reference/component-system.md`](../reference/component-system.md)
-for the full type-checking rules and namespace caveats.
+The linter infers argument types from the **unary facts** a ruleset already
+declares (`skill(frostNova).` ⇒ `frostNova : skill`) and emits `TYP010` when an
+argument's type is provably disjoint from its position — including variables.
+An optional `%:: pred(?v: type, ...)` comment directive above a rule pins a
+contract the engine ignores. The old `type/2`/`signature/2` facts are no longer
+read. See [`../reference/component-system.md`](../reference/component-system.md)
+and [`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md)
+("Types") for the full rules.

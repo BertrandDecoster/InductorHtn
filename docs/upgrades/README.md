@@ -10,4 +10,4 @@ ruleset-language capabilities and new planner-algorithm instrumentation.
 | Method-failure tracking | [`method-failure-tracking.md`](method-failure-tracking.md) | Planner — per-method failure histogram (where each method's decomposition blocks) |
 
 For the full syntax of all keywords (including upstream ones), see
-[`../reference/htn-syntax.md`](../reference/htn-syntax.md).
+[`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md).

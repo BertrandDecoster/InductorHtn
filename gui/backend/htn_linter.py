@@ -3,6 +3,7 @@ HTN Linter - Syntax and Semantic Checks
 Analyzes parsed HTN rules for common errors and warnings.
 """
 
+import re
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
@@ -79,14 +80,10 @@ class SymbolInfo:
     callers: List[str] = field(default_factory=list)
 
 
-# Built-in primitive types recognized at signature/2 positions without
-# requiring a user-declared type/2 fact. Numeric literals (ints, floats,
-# negatives) at these positions are accepted by the TYP001 check.
-PRIMITIVE_TYPES = {'int', 'float', 'number'}
-
-
 def _is_numeric_literal(name: str) -> bool:
-    """True if name parses as a number (handles ints, floats, negatives)."""
+    """True if name parses as a number (handles ints, floats, negatives).
+
+    Numeric literals never carry a sort, so they are never type-checked."""
     if not name:
         return False
     try:
@@ -96,73 +93,276 @@ def _is_numeric_literal(name: str) -> bool:
         return False
 
 
-@dataclass
-class TypeRegistry:
-    """Collects type/2 and signature/2 declarations from a parsed ruleset.
+def _is_plain_constant(term: Term) -> bool:
+    """A bare atom/constant: not a variable, not a compound, not a list."""
+    return (not term.is_variable) and (not term.args) and (not term.is_list)
 
-    Conventions (recognized only by the linter; engine treats as ordinary facts):
-      - type(typeName, instance).
-      - signature(predName, [argType1, argType2, ...]).
+
+# Fact predicates that are NOT type declarations even at arity 1.
+_NON_TYPE_FACT_PREDICATES = {'goals'}
+
+# Term names that wrap goals rather than being calls themselves. Type
+# inference and flagging descend THROUGH these to reach the real calls.
+_GOAL_WRAPPERS = {
+    'try', 'first', 'and', 'parallel', 'forall',
+    'else', 'anyOf', 'allOf', 'not', '\\+',
+}
+
+
+def _is_builtin_call(name: str, arity: int) -> bool:
+    """True if name/arity is a Prolog/HTN built-in (skipped by inference)."""
+    return f"{name}/{arity}" in BUILTIN_PREDICATES
+
+
+@dataclass
+class TypeInference:
+    """Whole-program type inference for the HTN linter.
+
+    Types come from unary ground facts: `skill(frostNova).` means
+    `frostNova : skill`. A constant carries the SET of every unary-fact
+    predicate it appears under. Predicate-argument positions get inferred
+    type sets to a fixpoint (see `run_fixpoint`); arguments are later flagged
+    only when provably disjoint from a well-determined position type.
     """
-    types: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
-    signatures: Dict[str, List[str]] = field(default_factory=dict)
-    # Duplicate signature/2 declarations: (predName/arity, line, col) of the
-    # redundant fact. The first declaration wins; later ones are recorded here
-    # so the linter can emit TYP002 diagnostics.
-    duplicate_signatures: List[Tuple[str, int, int]] = field(default_factory=list)
+    # constant -> set of types (unary-fact predicate names)
+    const_types: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
+    # the universe of type names == unary-fact predicate names (the sorts)
+    type_universe: Set[str] = field(default_factory=set)
+    # sort -> every sort that co-occurs with it on some instance (incl. itself).
+    # Two sorts are "compatible" (not disjoint) if any constant has both, so
+    # `agent`+`enemy` are compatible when some instance is both an agent and an
+    # enemy, even though the names differ.
+    cooccur: Dict[str, Set[str]] = field(default_factory=lambda: defaultdict(set))
+    # (pred/arity, position-index) -> inferred type set. Empty = unknown.
+    pos_types: Dict[Tuple[str, int], Set[str]] = field(default_factory=dict)
+    # anchors from signature/2 facts and %:: directives: position -> type set
+    overrides: Dict[Tuple[str, int], Set[str]] = field(default_factory=dict)
+    # %:: directive head-var bindings: id(rule) -> {varname -> type set}
+    directive_var_types: Dict[int, Dict[str, Set[str]]] = field(default_factory=dict)
+    # final per-position contributor type-sets (for leave-one-out flagging)
+    contributors: Dict[Tuple[str, int], List[Set[str]]] = field(default_factory=dict)
+
+    MAX_ITERS = 10
 
     @classmethod
-    def from_source(cls, source: str) -> 'TypeRegistry':
-        """Convenience: parse `source` then delegate to `from_rules`.
-
-        Note: parser diagnostics are silently discarded. For diagnostic-aware
-        workflows (e.g. `HtnLinter`), parse externally and use `from_rules` so
-        parse errors surface to the caller.
-        """
+    def from_source(cls, source: str) -> 'TypeInference':
         rules, _ = parse_htn(source)
         return cls.from_rules(rules)
 
     @classmethod
-    def from_rules(cls, rules: List[Rule]) -> 'TypeRegistry':
-        reg = cls()
+    def from_rules(cls, rules: List[Rule], overrides: Optional[Dict] = None,
+                   directive_var_types: Optional[Dict] = None) -> 'TypeInference':
+        ti = cls()
+        if overrides:
+            ti.overrides = dict(overrides)
+        if directive_var_types:
+            ti.directive_var_types = dict(directive_var_types)
+        ti._seed_from_facts(rules)
+        ti._build_cooccurrence()
+        ti.run_fixpoint(rules)
+        return ti
+
+    def _build_cooccurrence(self) -> None:
+        for sorts in self.const_types.values():
+            for a in sorts:
+                self.cooccur[a].update(sorts)
+
+    def sorts_disjoint(self, a: Set[str], b: Set[str]) -> bool:
+        """True iff NO sort in `a` is compatible with any sort in `b` — i.e.
+        no instance is ever known to be both. Subsumes set-intersection
+        (a shared sort co-occurs with itself)."""
+        for s in a:
+            if self.cooccur.get(s, {s}) & b:
+                return False
+        return True
+
+    def _seed_from_facts(self, rules: List[Rule]) -> None:
+        """Phase A: every unary ground fact `T(c).` declares `c : T` — EXCEPT
+        unary predicates that operators add/delete, which are transient state
+        (e.g. `at/1` in `del(at(?h)), add(at(?t))`), not a stable sort."""
+        mutable = self._mutable_unary_predicates(rules)
         for rule in rules:
-            head = rule.head
-            # Only facts (no body)
             if rule.body:
                 continue
-            if head.name == 'type' and len(head.args) == 2:
-                # Skip compound terms and lists — only atomic type names and
-                # instances are allowed. `type(agent, [])` must not register
-                # '[]' as an agent instance.
-                if (head.args[0].args or head.args[0].is_list
-                        or head.args[1].args or head.args[1].is_list):
-                    continue
-                if not head.args[0].is_variable and not head.args[1].is_variable:
-                    type_name = head.args[0].name
-                    instance = head.args[1].name
-                    reg.types[type_name].add(instance)
-            elif head.name == 'signature' and len(head.args) == 2:
-                # Skip compound predicate names — only atomic names allowed
-                if head.args[0].args:
-                    continue
-                pred_name = head.args[0].name
-                arg_list = head.args[1]
-                if arg_list.is_list:
-                    types = [t.name for t in arg_list.args if not t.is_variable]
-                    if len(types) == len(arg_list.args):  # all concrete
-                        key = f"{pred_name}/{len(types)}"
-                        if key in reg.signatures:
-                            # First declaration wins; record the duplicate for
-                            # diagnostic emission (TYP002).
-                            reg.duplicate_signatures.append(
-                                (key, head.args[0].line, head.args[0].col)
-                            )
-                        else:
-                            reg.signatures[key] = types
-        return reg
+            head = rule.head
+            if head.name in _NON_TYPE_FACT_PREDICATES or head.name in mutable:
+                continue
+            if len(head.args) != 1:
+                continue
+            arg = head.args[0]
+            if not _is_plain_constant(arg) or _is_numeric_literal(arg.name):
+                continue
+            self.type_universe.add(head.name)
+            self.const_types[arg.name].add(head.name)
 
-    def type_of(self, instance: str) -> Set[str]:
-        return {t for t, members in self.types.items() if instance in members}
+    @staticmethod
+    def _mutable_unary_predicates(rules: List[Rule]) -> Set[str]:
+        """Names of unary predicates that appear in any operator's del()/add()
+        (directly or inside increase/decrease) — i.e. state, not a sort."""
+        mut: Set[str] = set()
+
+        def scan(term: Term) -> None:
+            if term.is_variable or term.is_list:
+                return
+            if term.name in ('increase', 'decrease') and term.args:
+                scan(term.args[0])
+                return
+            if len(term.args) == 1:
+                mut.add(term.name)
+
+        for rule in rules:
+            for clause in (rule.del_clause, rule.add_clause):
+                if clause:
+                    for t in clause.args:
+                        scan(t)
+        return mut
+
+    # --- goal collection (recurses through wrappers) --------------------
+
+    def _iter_goal_terms(self, term: Term):
+        """Yield real call terms, descending through goal wrappers."""
+        if term.is_variable or term.is_list:
+            return
+        if term.name in _GOAL_WRAPPERS:
+            for a in term.args:
+                yield from self._iter_goal_terms(a)
+            return
+        yield term
+
+    def _clause_top_terms(self, rule: Rule) -> List[Term]:
+        """The top-level terms of a rule's clauses (if/do/del/add or body),
+        before wrapper unwrapping."""
+        out: List[Term] = []
+        if rule.is_method:
+            if rule.if_clause:
+                out += rule.if_clause.args
+            if rule.do_clause:
+                out += rule.do_clause.args
+        elif rule.is_operator:
+            if rule.del_clause:
+                out += rule.del_clause.args
+            if rule.add_clause:
+                out += rule.add_clause.args
+        else:
+            out += rule.body or []
+        return out
+
+    def _collect_goal_terms(self, rule: Rule) -> List[Term]:
+        out: List[Term] = []
+        for term in self._clause_top_terms(rule):
+            out.extend(self._iter_goal_terms(term))
+        return out
+
+    def _guard_clause_terms(self, rule: Rule) -> List[Term]:
+        """Terms that act as preconditions: a method's `if`, a plain rule's
+        body. Operators have no preconditions (their `del`/`add` are effects)."""
+        if rule.is_method:
+            return rule.if_clause.args if rule.if_clause else []
+        if rule.is_operator:
+            return []
+        return rule.body or []
+
+    def positive_unary_guards(self, rule: Rule) -> Dict[str, Set[str]]:
+        """Map each variable to the unary type-predicates that DEFINITELY guard
+        it in the precondition — `enemy(?e)` gives `?e: {enemy}`. Only direct
+        conjuncts count: we descend plain `and(...)` but not `not`/`try`/
+        `first`/`forall`/etc., where a goal is negated, optional, or binds a
+        quantifier-local variable rather than the head's. Only sorts (in
+        `type_universe`) count. This is the basis for treating a rule head
+        parameter as an authored type contract."""
+        guards: Dict[str, Set[str]] = defaultdict(set)
+
+        def walk(term: Term) -> None:
+            if term.is_variable or term.is_list:
+                return
+            if term.name == 'and':  # plain conjunction preserves the binding
+                for a in term.args:
+                    walk(a)
+                return
+            if (len(term.args) == 1 and term.name in self.type_universe
+                    and term.args[0].is_variable):
+                guards[term.args[0].name].add(term.name)
+
+        for term in self._guard_clause_terms(rule):
+            walk(term)
+        return guards
+
+    # --- fixpoint -------------------------------------------------------
+
+    @staticmethod
+    def _fold_var(acc: Optional[Set[str]], t: Set[str]) -> Optional[Set[str]]:
+        """Fold a variable's type across the positions it occupies: genuine
+        intersection, but an unknown (empty) position contributes nothing."""
+        if not t:
+            return acc
+        if acc is None:
+            return set(t)
+        return acc & t
+
+    def _pos_type(self, pos: Tuple[str, int]) -> Set[str]:
+        """Purely inferred type of a position. Overrides deliberately do NOT
+        participate in propagation — they would flow backward through a wrong
+        argument and erase the very conflict we want to flag. Overrides are
+        applied only as the authoritative EXPECTED type at flagging time."""
+        return self.pos_types.get(pos, set())
+
+    def _arg_type(self, arg: Term, var_types: Dict[str, Optional[Set[str]]]) -> Set[str]:
+        """The inferred type set of a single argument occurrence."""
+        if arg.is_variable:
+            return var_types.get(arg.name) or set()
+        if _is_plain_constant(arg) and not _is_numeric_literal(arg.name):
+            return self.const_types.get(arg.name, set())
+        return set()
+
+    def _pass1_var_types(self, rule: Rule):
+        """Type each variable in `rule` by folding the positions it occupies
+        (genuine intersection, unknown positions skipped). Returns the var
+        map and the term list (head + goals) so callers avoid recomputing."""
+        var_types: Dict[str, Optional[Set[str]]] = {}
+        for v, t in self.directive_var_types.get(id(rule), {}).items():
+            var_types[v] = set(t)
+        terms = [rule.head] + self._collect_goal_terms(rule)
+        for term in terms:
+            arity = len(term.args)
+            if _is_builtin_call(term.name, arity):
+                continue
+            key = f"{term.name}/{arity}"
+            for i, arg in enumerate(term.args):
+                if arg.is_variable:
+                    var_types[arg.name] = self._fold_var(
+                        var_types.get(arg.name), self._pos_type((key, i)))
+        return var_types, terms
+
+    def _recompute_positions(self, contributors):
+        """A position's type is the shared core (intersection) of its
+        contributors when one exists, else their union (a polymorphic
+        position; the union keeps propagation permissive)."""
+        new_pos: Dict[Tuple[str, int], Set[str]] = {}
+        for pos, sets in contributors.items():
+            core = set.intersection(*sets)
+            new_pos[pos] = core if core else set().union(*sets)
+        return new_pos
+
+    def run_fixpoint(self, rules: List[Rule]) -> None:
+        for _ in range(self.MAX_ITERS):
+            contributors: Dict[Tuple[str, int], List[Set[str]]] = defaultdict(list)
+            for rule in rules:
+                var_types, terms = self._pass1_var_types(rule)
+                for term in terms:
+                    arity = len(term.args)
+                    if _is_builtin_call(term.name, arity):
+                        continue
+                    key = f"{term.name}/{arity}"
+                    for i, arg in enumerate(term.args):
+                        c = self._arg_type(arg, var_types)
+                        if c:
+                            contributors[(key, i)].append(set(c))
+
+            new_pos = self._recompute_positions(contributors)
+            self.contributors = contributors
+            if new_pos == self.pos_types:
+                break
+            self.pos_types = new_pos
 
 
 class HtnLinter:
@@ -216,7 +416,7 @@ class HtnLinter:
         self._check_else_usage()
         self._check_empty_clauses()
         self._check_singleton_variables()
-        self._check_typed_parameters()
+        self._check_type_inference()
 
         return self.diagnostics
 
@@ -290,8 +490,9 @@ class HtnLinter:
 
     def _add_call(self, caller: str, task: Term):
         """Add a call relationship to the call graph"""
-        # Handle try() and other wrappers
-        if task.name in ('try', 'first', 'and'):
+        # Handle try()/parallel() and other wrappers: the wrapped tasks are
+        # the real callees (parallel is an engine keyword, not a task).
+        if task.name in ('try', 'first', 'and', 'parallel'):
             for arg in task.args:
                 self._add_call(caller, arg)
             return
@@ -416,7 +617,7 @@ class HtnLinter:
 
     def _check_task_defined(self, task: Term, defined: Set[str]):
         """Check if a task is defined"""
-        if task.name in ('try', 'first', 'and'):
+        if task.name in ('try', 'first', 'and', 'parallel'):
             for arg in task.args:
                 self._check_task_defined(arg, defined)
             return
@@ -714,86 +915,177 @@ class HtnLinter:
                         'VAR003'
                     ))
 
-    def _check_typed_parameters(self) -> None:
-        """TYP001: constant argument violates declared signature type.
+    _DIRECTIVE_RE = re.compile(r'^\s*%::\s*(\w+)\s*\(([^)]*)\)\s*$')
 
-        Activates only when signature/2 facts are declared. Variables and
-        compound terms are skipped. Untyped constants (no type/2 fact) at
-        a typed position are flagged.
+    def _collect_overrides_and_directives(self):
+        """Optional type contracts via `%:: pred(?v: type, ...)` comment
+        directives placed directly above a rule (the engine ignores comments).
+        A directive anchors each position's expected type AND binds the named
+        head variables. Returns (overrides, directive_var_types).
 
-        MVP also does NOT recurse into wrappers: a call nested inside try(),
-        first(), and(), parallel(), forall(), etc. is not type-checked. Only
-        calls directly in if/do/del/add/body are inspected. Future TYP00x.
+        (`signature/2` and `type/2` facts are NOT read — types come from unary
+        facts; the directive is the one optional override mechanism.)
         """
-        registry = TypeRegistry.from_rules(self.rules)
-        # Emit TYP002 for any duplicate signature/2 declarations. This fires
-        # regardless of whether any TYP001 checks actually run — the
-        # redeclaration itself is suspect.
-        for (key, line, col) in registry.duplicate_signatures:
-            pred_name = key.split('/')[0]
-            self.diagnostics.append(Diagnostic(
-                line=line,
-                col=col,
-                length=len(pred_name),
-                severity='warning',
-                code='TYP002',
-                message=f"Duplicate signature/2 declaration for '{key}' — first one wins",
-            ))
-        if not registry.signatures:
-            return
+        overrides: Dict[Tuple[str, int], Set[str]] = {}
+        directive_var_types: Dict[int, Dict[str, Set[str]]] = defaultdict(dict)
+
+        # %:: directives: regex pre-pass (the lexer discards comments).
+        directives = {}
+        for idx, raw in enumerate(self.source.splitlines(), start=1):
+            m = self._DIRECTIVE_RE.match(raw)
+            if not m:
+                continue
+            entries = []
+            for part in m.group(2).split(','):
+                part = part.strip()
+                if not part:
+                    continue
+                if ':' in part:
+                    var, typ = part.split(':', 1)
+                    entries.append((var.strip(), typ.strip()))
+                else:
+                    entries.append((None, part))
+            directives[idx] = (m.group(1), entries)
+
+        if directives:
+            rules_by_line = sorted(self.rules, key=lambda r: r.line)
+            for dline, (pred, entries) in directives.items():
+                arity = len(entries)
+                key = f"{pred}/{arity}"
+                target = next(
+                    (r for r in rules_by_line
+                     if r.line > dline and r.head.name == pred
+                     and len(r.head.args) == arity), None)
+                for i, (var, typ) in enumerate(entries):
+                    overrides[(key, i)] = {typ}
+                    if var and target is not None:
+                        directive_var_types[id(target)][var] = {typ}
+        return overrides, directive_var_types
+
+    def _check_type_inference(self) -> None:
+        """TYP010: flag a call-site argument whose inferred type is provably
+        disjoint from a well-determined position type. High-signal:
+
+          * A position's EXPECTED type is taken from its *definitions* — rule
+            heads whose variable the body constrains (1 is enough; an authored
+            contract), or >=2 facts that agree. Conflicting definitions mean
+            the position is polymorphic and are silenced.
+          * If a position has no definitional type (e.g. an operator that never
+            touches the argument), fall back to the consensus of >=2 call sites.
+          * Every occurrence is typed EXCLUDING its own position, so a wrong
+            call cannot poison the type it is being checked against.
+        """
+        overrides, directive_var_types = self._collect_overrides_and_directives()
+        ti = TypeInference.from_rules(
+            self.rules, overrides=overrides,
+            directive_var_types=directive_var_types)
+
+        def outside_type(arg, pos, var_positions, dvt):
+            """Type of an argument occurrence, excluding this position."""
+            if not arg.is_variable:
+                return ti._arg_type(arg, {})
+            acc = set(dvt[arg.name]) if arg.name in dvt else None
+            poslist = list(var_positions.get(arg.name, []))
+            if pos in poslist:
+                poslist.remove(pos)
+            for p in poslist:
+                acc = ti._fold_var(acc, ti._pos_type(p))
+            return acc or set()
+
+        rule_def: Dict[Tuple[str, int], List[Set[str]]] = defaultdict(list)
+        fact_def: Dict[Tuple[str, int], List[Set[str]]] = defaultdict(list)
+        use_occs: Dict[Tuple[str, int], List[Tuple[Term, Set[str]]]] = defaultdict(list)
 
         for rule in self.rules:
-            for clause_terms in self._all_call_clauses(rule):
-                for call_term in clause_terms:
-                    self._check_call_against_signature(call_term, registry)
+            dvt = ti.directive_var_types.get(id(rule), {})
+            goals = ti._collect_goal_terms(rule)
+            guards = ti.positive_unary_guards(rule)  # var -> type-guard sorts
+            # variable -> positions it occupies (head + goals), for folding
+            var_positions: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
+            terms = [(rule.head, True)] + [(g, False) for g in goals]
+            for term, _is_head in terms:
+                arity = len(term.args)
+                if _is_builtin_call(term.name, arity):
+                    continue
+                key = f"{term.name}/{arity}"
+                for i, arg in enumerate(term.args):
+                    if arg.is_variable:
+                        var_positions[arg.name].append((key, i))
+            for term, is_head in terms:
+                arity = len(term.args)
+                if _is_builtin_call(term.name, arity):
+                    continue
+                key = f"{term.name}/{arity}"
+                for i, arg in enumerate(term.args):
+                    pos = (key, i)
+                    if is_head:
+                        if rule.is_fact:
+                            # facts define a position by their ground data
+                            t = outside_type(arg, pos, var_positions, dvt)
+                            if t:
+                                fact_def[pos].append(t)
+                        elif arg.is_variable:
+                            # A rule head parameter is an authored contract ONLY
+                            # when a positive unary type-guard binds it (the
+                            # `disableEnemy(?e):-if(enemy(?e))` case). A param
+                            # bound only by a polymorphic relation (e.g.
+                            # `at(?a,?l)`) is NOT a contract — skip it.
+                            t = guards.get(arg.name)
+                            if t:
+                                rule_def[pos].append(set(t))
+                        else:  # constant in a rule head
+                            t = ti._arg_type(arg, {})
+                            if t:
+                                rule_def[pos].append(t)
+                    else:
+                        t = outside_type(arg, pos, var_positions, dvt)
+                        use_occs[pos].append((arg, t))
 
-    def _all_call_clauses(self, rule: Rule):
-        """Yield iterables of call terms from a rule's if/do/del/add/body."""
-        if rule.is_method:
-            yield rule.if_clause.args if rule.if_clause else []
-            yield rule.do_clause.args if rule.do_clause else []
-        elif rule.is_operator:
-            yield rule.del_clause.args if rule.del_clause else []
-            yield rule.add_clause.args if rule.add_clause else []
-        else:
-            yield rule.body or []
+        for pos, occs in use_occs.items():
+            # Only flag against an AUTHORITATIVE expected type (>=2 agreeing
+            # facts, a type-guarded rule parameter, or a %:: directive). We do
+            # NOT flag on mere call-site consensus: a predicate applied to two
+            # rooms and one enemy is usually legitimately polymorphic, not a
+            # bug — flagging the minority there is a false positive.
+            expected = self._expected_position_type(pos, ti, rule_def, fact_def)
+            if expected:  # authoritative, non-empty
+                for arg, t in occs:
+                    if t and ti.sorts_disjoint(t, expected):
+                        self._emit_typ010(arg, pos, t, expected,
+                                          f"declared {{{', '.join(sorted(expected))}}}")
 
-    def _check_call_against_signature(self, call: Term, registry: TypeRegistry) -> None:
-        if call.is_variable:
-            return
-        sig_key = f"{call.name}/{len(call.args)}"
-        expected_types = registry.signatures.get(sig_key)
-        if expected_types is None:
-            return
-        for i, (arg, expected) in enumerate(zip(call.args, expected_types)):
-            if arg.is_variable:
-                continue
-            if arg.args or arg.is_list:  # compound term or list, skip in MVP
-                continue
-            # Primitive-type carve-out: numeric literals satisfy int/float/number.
-            # Treat the three primitives interchangeably for now (future TYPxx
-            # may distinguish int from float strictness).
-            if expected in PRIMITIVE_TYPES and _is_numeric_literal(arg.name):
-                continue
-            actual_types = registry.type_of(arg.name)
-            if expected in actual_types:
-                continue
-            if not actual_types:
-                msg = (f"Argument {i+1} of '{call.name}/{len(call.args)}' expects "
-                       f"type '{expected}', got constant '{arg.name}' "
-                       f"(no type/2 declaration found)")
-            else:
-                msg = (f"Argument {i+1} of '{call.name}/{len(call.args)}' expects "
-                       f"type '{expected}', got constant '{arg.name}' "
-                       f"(declared as type '{', '.join(sorted(actual_types))}')")
-            self.diagnostics.append(Diagnostic(
-                line=arg.line,
-                col=arg.col,
-                length=len(arg.name),
-                severity='warning',
-                code='TYP001',
-                message=msg,
-            ))
+    def _expected_position_type(self, pos, ti, rule_def, fact_def):
+        """Authoritative type for a position, or None if it must fall back to
+        call-site consensus. An empty set means 'silenced' (polymorphic)."""
+        if pos in ti.overrides:
+            # An override only bites on types that actually have instances. A
+            # phantom type (no constant is known to be one — e.g. a stale
+            # `signature(at,[actor])` whose `actor` sort was never migrated to
+            # unary facts) gives no basis to call anything "not an actor", so
+            # we drop it and fall through to inference instead of false-flagging.
+            real = {t for t in ti.overrides[pos] if t in ti.type_universe}
+            if real:
+                return real
+        defs = rule_def.get(pos)
+        if defs:
+            return set.intersection(*defs)  # empty => conflicting => silence
+        facts = fact_def.get(pos)
+        if facts and len(facts) >= 2:
+            return set.intersection(*facts)
+        return None  # no usable definition => use consensus
+
+    def _emit_typ010(self, arg, pos, actual, expected, why):
+        key, i = pos
+        kind = 'variable' if arg.is_variable else 'constant'
+        self.diagnostics.append(Diagnostic(
+            line=arg.line,
+            col=arg.col,
+            length=len(arg.name),
+            severity='warning',
+            code='TYP010',
+            message=(f"Argument {i+1} of '{key}': {kind} '{arg.name}' has type "
+                     f"{{{', '.join(sorted(actual))}}}, but this position is {why}"),
+        ))
 
 
 def lint_htn(source: str) -> List[Dict]:

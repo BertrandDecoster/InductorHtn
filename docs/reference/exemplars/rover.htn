@@ -1,0 +1,77 @@
+% Rover -- translated to InductorHTN syntax (reduced core).
+%
+% Source domain: the IPC "Rover" domain -- a planetary rover navigates between
+% waypoints, samples soil and rock, takes images, and communicates results
+% back to a lander. This core keeps soil + rock sampling and communication
+% (no cameras/calibration) so the file stays a teaching example.
+%
+% Pattern it teaches: MULTI-GOAL DECOMPOSITION + anyOf OVER REACHABLE TARGETS.
+% The mission task fans out into independent objectives (collect soil, collect
+% rock); each objective uses anyOf to act on every deposit it can reach and
+% succeed if at least one works. A single-slot "store" must be emptied between
+% samples -- a recurring "make ready, then act" sub-pattern.
+%
+% Idioms on show:
+%   - anyOf: act on every binding of a target, partial success is fine
+%   - a top task that sequences several sub-objectives (multi-goal)
+%   - make-ready helpers with a no-op base case (goTo, ensureEmptyStore)
+%   - navigation as data: goTo hops over connected/2 edges (single hop here;
+%     multi-hop would be the recursive pattern shown in blocksworld.htn)
+%
+% Run it:  goals(surveyMission(rover1)).  -- sample + transmit soil and rock.
+
+/* ---------- Operators ---------- */
+
+opNavigate(?r, ?from, ?to) :- del(at(?r, ?from)), add(at(?r, ?to)).
+opSampleSoil(?r, ?wp)      :- del(storeEmpty(?r), soilAt(?wp)), add(storeFull(?r), haveSoil(?r, ?wp)).
+opSampleRock(?r, ?wp)      :- del(storeEmpty(?r), rockAt(?wp)), add(storeFull(?r), haveRock(?r, ?wp)).
+opDropStore(?r)            :- del(storeFull(?r)), add(storeEmpty(?r)).
+opCommunicateSoil(?r, ?wp) :- del(haveSoil(?r, ?wp)), add(communicatedSoil(?wp)).
+opCommunicateRock(?r, ?wp) :- del(haveRock(?r, ?wp)), add(communicatedRock(?wp)).
+
+/* ---------- Methods ---------- */
+
+% Top mission: gather and report whatever samples we can reach.
+surveyMission(?r) :- if(), do(collectSoil(?r), collectRock(?r)).
+
+% anyOf: report each reachable soil deposit, succeed if at least one works.
+collectSoil(?r) :- anyOf, if(soilAt(?wp)), do(reportSoil(?r, ?wp)).
+collectRock(?r) :- anyOf, if(rockAt(?wp)), do(reportRock(?r, ?wp)).
+
+% Go to the deposit, free the store, sample, return to the lander, transmit.
+reportSoil(?r, ?wp) :-
+    if(landerAt(?lwp)),
+    do(goTo(?r, ?wp), ensureEmptyStore(?r), opSampleSoil(?r, ?wp),
+       goTo(?r, ?lwp), opCommunicateSoil(?r, ?wp)).
+
+reportRock(?r, ?wp) :-
+    if(landerAt(?lwp)),
+    do(goTo(?r, ?wp), ensureEmptyStore(?r), opSampleRock(?r, ?wp),
+       goTo(?r, ?lwp), opCommunicateRock(?r, ?wp)).
+
+% Make-ready helpers: no-op base case, else one corrective step.
+goTo(?r, ?to) :- if(at(?r, ?to)), do().
+goTo(?r, ?to) :- if(at(?r, ?from), connected(?from, ?to)), do(opNavigate(?r, ?from, ?to)).
+
+ensureEmptyStore(?r) :- if(storeEmpty(?r)), do().
+ensureEmptyStore(?r) :- if(storeFull(?r)), do(opDropStore(?r)).
+
+/* ---------- World state ---------- */
+
+% Types (unary facts -> linter sorts).
+rover(rover1).
+waypoint(wp0).  waypoint(wp1).  waypoint(wp2).
+
+% Map (connectivity is data; edges given both directions). The lander sits at
+% wp0; the rover uplinks results from there.
+connected(wp0, wp1).  connected(wp1, wp0).
+connected(wp0, wp2).  connected(wp2, wp0).
+landerAt(wp0).
+
+% Initial state and what is out there to sample.
+at(rover1, wp0).
+storeEmpty(rover1).
+soilAt(wp1).
+rockAt(wp2).
+
+goals(surveyMission(rover1)).

@@ -28,4 +28,4 @@ Quick interactive exploration of a ruleset.
 | AI-driven stepping | MCP server — see [`mcp-server.md`](mcp-server.md) |
 
 For the full crafting/understanding workflow see
-[`../reference/authoring-rulesets.md`](../reference/authoring-rulesets.md).
+[`../reference/ruleset-writing.md`](../reference/ruleset-writing.md).

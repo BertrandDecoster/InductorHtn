@@ -33,8 +33,11 @@ docs/                    # All documentation (see map below)
 
 All docs live under `docs/`. Start at `docs/README.md`.
 
-- **Authoring rulesets** → `docs/reference/authoring-rulesets.md` (worked example: `Examples/TrunkThumper.htn`)
-- **Syntax & Prolog reference** → `docs/reference/htn-syntax.md`, `docs/reference/prolog-reference.md`
+- **Writing rulesets** → `docs/reference/ruleset-writing.md` (heuristics, examples, validated optimizations; worked example: `Examples/TrunkThumper.htn`)
+- **Creating levels + quality gates** → `docs/reference/ruleset-creating.md` (brief-to-verified workflow: causal-depth 3-5 DAG gate via `python -m indhtn_quality.dag`, loadout-sweep harness via `python -m indhtn_quality.harness`; commands `/htn-create`, `/htn-audit`). Design rulings + canonical benign-lint list: `docs/reference/ruleset-policies.md`.
+- **Exemplars to copy** → `docs/reference/exemplars/` (Blocks World, Logistics, Barman, Rover translated to InductorHTN syntax, one per design pattern). Improving a ruleset from an instruction? Use the `/htn-improve` command (`.claude/commands/htn-improve.md`).
+- **Iterating on rulesets** (debug/analyze/improve) → `docs/reference/ruleset-iterating.md`
+- **Syntax & Prolog reference** → `docs/reference/ruleset-htn-syntax.md`, `docs/reference/prolog-reference.md`
 - **Planner internals** → `docs/reference/planner-internals.md`
 - **Component system** → `docs/reference/component-system.md` (core vocabulary, operator rules)
 - **Level design loop** → `docs/reference/level-design-loop.md`
@@ -125,7 +128,7 @@ travel(?from, ?to) :- if(at(?from)), do(walk(?from, ?to)).
 ### HTN Syntax
 - **Methods**: `task() :- if(conditions), do(subtasks).`
 - **Operators**: `action() :- del(remove), add(insert).`
-- **Numeric effects**: `increase(pred(args), delta)` / `decrease(pred(args), delta)` — see `docs/reference/htn-syntax.md`
+- **Numeric effects**: `increase(pred(args), delta)` / `decrease(pred(args), delta)` — see `docs/reference/ruleset-htn-syntax.md`
 - **Modifiers**: `else`, `anyOf`, `allOf`, `hidden`
 - **Parallel**: `parallel(taskA, taskB, ...)` marks tasks for parallel execution — see `docs/upgrades/ruleset-keywords.md`
 

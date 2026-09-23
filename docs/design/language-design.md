@@ -4,7 +4,7 @@
 >
 > This page should capture *why* the ruleset language looks the way it does.
 > The codebase shows *what* the language is (see
-> [`../reference/htn-syntax.md`](../reference/htn-syntax.md) and
+> [`../reference/ruleset-htn-syntax.md`](../reference/ruleset-htn-syntax.md) and
 > [`../reference/prolog-reference.md`](../reference/prolog-reference.md)) — but
 > the rationale below lives only in the author's head and must not be invented.
 

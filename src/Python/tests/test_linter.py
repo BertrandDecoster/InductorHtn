@@ -328,21 +328,19 @@ def run_htn_specific_tests(suite: LinterTestSuite):
 
 
 def run_typed_parameter_tests(suite: LinterTestSuite):
-    """Test typed-parameter (TYP001) error detection"""
-    print("\n--- Typed Parameter Tests ---")
+    """Test type-inference (TYP010) error detection.
+
+    Note: the linter no longer flags merely *untyped* constants — that was
+    low-signal. It flags only arguments whose inferred type is provably
+    disjoint from a well-determined position type.
+    """
+    print("\n--- Type Inference Tests ---")
 
     suite.assert_detects_error(
         'typed_arg_swapped.htn',
-        expected_code='TYP001',
+        expected_code='TYP010',
         expected_severity='warning',
         msg="Should detect swapped agent/cell args in moveTo call"
-    )
-
-    suite.assert_detects_error(
-        'typed_arg_untyped_constant.htn',
-        expected_code='TYP001',
-        expected_severity='warning',
-        msg="Should detect constant with no type/2 declaration in typed position"
     )
 
 

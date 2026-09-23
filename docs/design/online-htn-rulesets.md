@@ -23,4 +23,4 @@
 ## See also
 
 - [`hddl.md`](hddl.md) — the HDDL standard and what was taken from it
-- [`../reference/authoring-rulesets.md`](../reference/authoring-rulesets.md) — the resulting authoring guidance
+- [`../reference/ruleset-writing.md`](../reference/ruleset-writing.md) — the resulting authoring guidance

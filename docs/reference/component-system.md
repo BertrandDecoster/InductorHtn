@@ -128,49 +128,53 @@ gitignored — committed goldens live under `tests/fixtures/assembled/<level>.ht
 Codes `ASM003`/`ASM998`/`ASM999` are infrastructure warnings (binding missing,
 linter import or runtime failure).
 
-### Typed parameters (TYP001)
+### Typed parameters (TYP010)
 
-Components and levels may opt into argument type-checking by declaring two
-conventional facts:
+Types are **inferred from unary facts** — `skill(frostNova).` means
+`frostNova : skill`. A constant carries the set of every unary-fact predicate
+it appears under (so `enemy(gob).` + `agent(gob).` makes `gob` both). The
+linter then infers a type for each predicate-argument position (from the
+facts, the rule bodies, and how variables flow between goals) and flags
+arguments that cannot belong there.
+
+`TYP010` (warning) fires when an argument's inferred type is **provably
+disjoint** from a well-determined position type — i.e. no instance in the
+ruleset is ever both. It deliberately stays silent on anything uncertain
+(near-zero false positives):
+
+- A position's expected type comes from an **authoritative** source: ≥2
+  agreeing facts, a rule parameter pinned by a positive unary type-guard
+  (`disableEnemy(?e) :- if(enemy(?e), ...)` ⇒ `?e : enemy`), or a `%::`
+  directive. Conflicting or absent definitions silence the position.
+- Two sorts are disjoint only if **no instance is ever both** — `agent` and
+  `enemy` are compatible when some instance is both, so passing an enemy
+  where an agent is expected is not flagged.
+- Variables are checked too (multi-hop): `do(disableEnemy(?w))` is flagged
+  when `?w` was bound by `ally(?w)` but `disableEnemy` expects an `enemy`.
+- Mutable unary predicates (those an operator `del`/`add`s, e.g. `at/1`) are
+  treated as state, not sorts.
+
+**Optional override:** a `%::` comment directive directly above a rule pins a
+contract the engine ignores (it's a comment):
 
 ```prolog
-type(typeName, instance).
-signature(predName, [argType1, argType2, ...]).
+%:: disableEnemy(?e: enemy)
+disableEnemy(?e) :- if(...), do(...).
 ```
 
-The engine treats both as ordinary facts and never queries them at planning
-time — they exist purely for the linter to read.
+This documents intent, binds the named head variables, and makes the position
+authoritative even when inference alone couldn't determine it. See
+`docs/reference/ruleset-htn-syntax.md`.
 
-`TYP001` (warning) fires when a *constant* argument at a typed call site is
-declared as a different type, or has no `type/2` declaration at all.
-Variables and compound terms are not yet checked. Calls nested inside
-wrappers (`try()`, `first()`, `and()`, `parallel()`, `forall()`) are also
-not recursed into in the MVP — only calls directly in `if`/`do`/`del`/`add`
-clauses are inspected. Rulesets with no `signature/2` declarations get no
-TYP* diagnostics — the rule is fully opt-in.
+**Legacy:** the old `type/2` and `signature/2` facts are no longer read by the
+linter (the engine never queried them either). Convert `type(skill, frostNova).`
+to the unary fact `skill(frostNova).`; replace `signature/2` with a `%::`
+directive where an explicit contract is wanted.
 
-`TYP002` (warning) fires when the same `predName/arity` appears in two
-`signature/2` facts. The first declaration wins; the rest are reported as
-redundant.
+Numeric literals (`5`, `-3`, `2.5`) carry no sort and are never type-checked.
 
-Numeric literals (integers and floats, including negatives) satisfy the
-three built-in primitive types `int`, `float`, and `number`
-interchangeably — no `type(int, 5)` fact required. User-declared types
-layer on top: declaring `type(int, myConstant)` still works for non-numeric
-constants.
-
-The puzzle1 path (`components/primitives/`, `components/strategies/`,
-`components/goals/`) and the gamehack path (`components/gamehack/`) are
-**separate type namespaces** by design. Both declare `signature(opMoveTo,
-...)` with different argument types (`entity`/`room` vs `agent`/`location`)
-to match their respective domain shapes. They are not meant to co-assemble
-into a single level; if a future level depends on both, rename the
-gamehack operator first to avoid the duplicate-signature collision.
-
-Example fixtures live under `Examples/ErrorTests/typed_arg_swapped.htn` and
-`Examples/ErrorTests/typed_arg_untyped_constant.htn`. Example annotations
-live in `components/primitives/*/src.htn` (signatures) and
-`levels/puzzle1/level.htn` (type instances).
+Example fixture: `Examples/ErrorTests/typed_arg_swapped.htn`. The worked
+ruleset `prototypes/fortress-loadout/level.htn` lints clean under inference.
 
 ### Test Naming Convention
 
@@ -383,7 +387,7 @@ the feature*. Name methods after the need they satisfy (`neutralize`, `blastDead
 `obtainFeature`, `castElement`, `haveElement`); put the "what would work" lookup
 (`blast(?el, ?feat, dead)`, `reacts(?el2, ?old, ?feat)`) in the `if()`; acquire each
 ingredient as a subtask. A method shaped "I am `?a`, I hold `?el`, there is `?r`, let us see
-what happens" is a bottom-up simulation, not a plan - see `docs/reference/authoring-rulesets.md`.
+what happens" is a bottom-up simulation, not a plan - see `docs/reference/ruleset-writing.md (Top-down)`.
 
 ### Operator rules (engine facts, learned the hard way)
 
