@@ -1,0 +1,34 @@
+% clear_area - Challenge: Remove all blockers (enemies/obstacles) from a zone
+% Pressure-class challenge: agent must navigate to and eliminate every blocker
+% Depends on: challenges/nav_obstacle for navigateTo
+
+% === Signatures (for TYP001 linter) ===
+signature(opEliminate, [entity, zone]).
+signature(removeBlocker, [entity]).
+signature(clearZone, [zone]).
+
+% === Operators ===
+
+% Eliminate a blocker entity from its zone
+opEliminate(?entity, ?zone) :-
+    del(blocker(?entity, ?zone)),
+    add(cleared(?entity)).
+
+% === Methods ===
+
+% Remove a single blocker: navigate to zone entry, then eliminate
+removeBlocker(?entity) :-
+    if(blocker(?entity, ?zone),
+       zoneEntry(?zone, ?entry)),
+    do(navigateTo(agent, ?entry),
+       opEliminate(?entity, ?zone)).
+
+% Clear all blockers in a zone (allOf applies to every blocker in the zone)
+clearZone(?zone) :-
+    allOf, if(blocker(?entity, ?zone)),
+    do(removeBlocker(?entity)).
+
+% Zone already clear - succeed with empty plan
+clearZone(?zone) :-
+    else, if(not(blocker(?entity, ?zone))),
+    do().

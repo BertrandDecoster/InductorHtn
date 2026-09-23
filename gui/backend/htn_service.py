@@ -240,7 +240,10 @@ class HtnService:
             'children': [
                 {
                     'id': f'solution-{i}',
-                    'name': f'Solution {i + 1}',
+                    # Show the instantiated (ground) query — e.g. "at(thumper, bridge1)."
+                    # — which is far more informative than a bare "Solution N" + unifier.
+                    # The variable bindings are still surfaced via 'bindings' below.
+                    'name': self._instantiate_query(query, solution),
                     'status': 'success',
                     'bindings': solution
                 }

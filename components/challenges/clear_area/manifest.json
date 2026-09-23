@@ -1,0 +1,30 @@
+{
+  "name": "clear_area",
+  "version": "1.0.0",
+  "layer": "challenges",
+  "description": "Remove all blockers from a zone",
+  "dependencies": [
+    "challenges/nav_obstacle"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-06-04T19:59:11.860119"
+  },
+  "provides": [],
+  "requires": [],
+  "challenge": {
+    "class": "P",
+    "behavioral_axes": [
+      "plan_length",
+      "blocker_count"
+    ],
+    "expected": {
+      "min_plans": 1,
+      "max_plans": 5,
+      "min_distinct_methods": 1
+    }
+  }
+}

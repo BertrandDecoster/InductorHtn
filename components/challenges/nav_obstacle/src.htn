@@ -1,0 +1,38 @@
+% nav_obstacle - Challenge: Navigate from A to B around blocking hazards
+% Domain-agnostic navigation with obstacle avoidance at the HTN level
+% Supports direct path and single-intermediate-hop path around blockers
+
+% === Signatures (for TYP001 linter) ===
+signature(opMoveTo, [agent, location, location]).
+signature(navigateTo, [agent, location]).
+
+% === Operators ===
+
+% Core movement operator: changes agent location
+opMoveTo(?agent, ?from, ?to) :-
+    del(at(?agent, ?from)),
+    add(at(?agent, ?to)).
+
+% === Methods ===
+
+% Already at destination - no-op
+navigateTo(?agent, ?dest) :-
+    if(at(?agent, ?dest)),
+    do().
+
+% Direct path: destination is connected and not blocked
+navigateTo(?agent, ?dest) :-
+    else, if(at(?agent, ?cur),
+             connected(?cur, ?dest),
+             not(blocked(?dest))),
+    do(opMoveTo(?agent, ?cur, ?dest)).
+
+% Two-hop path: go through a safe intermediate location
+navigateTo(?agent, ?dest) :-
+    else, if(at(?agent, ?cur),
+             connected(?cur, ?via),
+             not(blocked(?via)),
+             connected(?via, ?dest),
+             not(blocked(?dest))),
+    do(opMoveTo(?agent, ?cur, ?via),
+       opMoveTo(?agent, ?via, ?dest)).

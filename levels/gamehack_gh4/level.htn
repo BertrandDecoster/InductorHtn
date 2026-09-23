@@ -2,6 +2,38 @@
 % Two allies with direct skills (companionE: lightning, companionW: water)
 % Only wetAndElectrocute strategy viable (no stun/slow skills)
 
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (characters: player, allies, enemies)
+type(agent, player).
+type(agent, companionE).
+type(agent, companionW).
+type(agent, gob).
+type(agent, mimic).
+type(agent, electricityElemental).
+type(agent, teslaTower).
+
+% Locations (named positions in the world)
+type(location, room).
+type(location, inn).
+type(location, hut).
+type(location, mountain).
+type(location, lake).
+type(location, sea).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrocute).
+type(tag, clean).
+type(tag, ice).
+type(tag, fire).
+type(tag, stun).
+type(tag, slow).
+
+% Skills (abilities)
+type(skill, lightningSkill).
+type(skill, waterSkill).
+
 % === Agents ===
 agent(player).
 agent(companionE).

@@ -1,0 +1,822 @@
+//
+//  HtnNumericFluentTests.cpp
+//  TestLib
+//
+//  Tests for numeric-fluents support: parser recognition of
+//  increase()/decrease() effect clauses on operators.
+//
+//  Task 1 only verifies that the compiler PARSES these clauses
+//  and stores them on HtnOperator. Engine ignores them at apply time;
+//  Task 2 will give them runtime semantics.
+//
+
+#include "FXPlatform/FailFast.h"
+#include "FXPlatform/NanoTrace.h"  // pulls in `using namespace std` used throughout the project
+#include "FXPlatform/Prolog/HtnGoalResolver.h"
+#include "FXPlatform/Prolog/HtnRuleSet.h"
+#include "FXPlatform/Prolog/HtnTerm.h"
+#include "FXPlatform/Prolog/HtnTermFactory.h"
+#include "FXPlatform/Htn/HtnOperator.h"
+#include "FXPlatform/Htn/HtnPlanner.h"
+#include "FXPlatform/Htn/HtnCompiler.h"
+#include "UnitTest++/UnitTest++.h"
+
+SUITE(HtnNumericFluentTests)
+{
+    // Helper that pulls a specific operator out of a planner via AllOperators().
+    // Returns nullptr if no operator matches the given name+arity.
+    static HtnOperator *FindOperatorByNameArity(HtnPlanner *planner, const std::string &name, int arity)
+    {
+        HtnOperator *result = nullptr;
+        planner->AllOperators([&](HtnOperator *op)
+        {
+            if (op->head()->name() == name && op->head()->arity() == arity)
+            {
+                result = op;
+                return false; // stop iteration
+            }
+            return true;
+        });
+        return result;
+    }
+
+    // Convenience: does any term in the vector match the given functor/arity
+    // and have a specific first-argument name (matched by ToString comparison)?
+    static bool ContainsTermWithName(const std::vector<std::shared_ptr<HtnTerm>> &terms, const std::string &name)
+    {
+        for (auto t : terms)
+        {
+            if (t->name() == name)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    TEST(IncreaseDecreaseClauses_ParsedAndStoredOnOperator)
+    {
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+
+        compiler->ClearWithNewRuleSet();
+
+        // opGain has a single increase() effect; opLose has a single decrease() effect.
+        // Neither has add() or del() effects.
+        string program =
+            "opGain(?n) :- increase(score(player), ?n). "
+            "opLose(?n) :- decrease(score(player), ?n). ";
+
+        CHECK(compiler->Compile(program));
+
+        HtnOperator *opGain = FindOperatorByNameArity(planner.get(), "opGain", 1);
+        CHECK(opGain != nullptr);
+        if (opGain != nullptr)
+        {
+            CHECK_EQUAL(1, (int)opGain->increases().size());
+            CHECK_EQUAL(0, (int)opGain->decreases().size());
+            CHECK_EQUAL(0, (int)opGain->additions().size());
+            CHECK_EQUAL(0, (int)opGain->deletions().size());
+
+            // M2: verify the stored term is the whole increase(...) clause with arity 2
+            // (one entry per clause, holding both target and delta).
+            CHECK_EQUAL("increase", opGain->increases()[0]->name());
+            CHECK_EQUAL(2, opGain->increases()[0]->arity());
+        }
+
+        HtnOperator *opLose = FindOperatorByNameArity(planner.get(), "opLose", 1);
+        CHECK(opLose != nullptr);
+        if (opLose != nullptr)
+        {
+            CHECK_EQUAL(0, (int)opLose->increases().size());
+            CHECK_EQUAL(1, (int)opLose->decreases().size());
+            CHECK_EQUAL(0, (int)opLose->additions().size());
+            CHECK_EQUAL(0, (int)opLose->deletions().size());
+
+            CHECK_EQUAL("decrease", opLose->decreases()[0]->name());
+            CHECK_EQUAL(2, opLose->decreases()[0]->arity());
+        }
+    }
+
+    // M1: an operator can mix increase() and decrease() in the same body, no
+    // del/add required. Each kind ends up in its own bucket.
+    TEST(MultiEffectOperator_DecreaseAndIncrease)
+    {
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+
+        compiler->ClearWithNewRuleSet();
+
+        string program =
+            "opSwap(?a, ?b) :- decrease(mana(?a), 10), increase(mana(?b), 10). ";
+
+        CHECK(compiler->Compile(program));
+
+        HtnOperator *opSwap = FindOperatorByNameArity(planner.get(), "opSwap", 2);
+        CHECK(opSwap != nullptr);
+        if (opSwap != nullptr)
+        {
+            CHECK_EQUAL(1, (int)opSwap->increases().size());
+            CHECK_EQUAL(1, (int)opSwap->decreases().size());
+            CHECK_EQUAL(0, (int)opSwap->additions().size());
+            CHECK_EQUAL(0, (int)opSwap->deletions().size());
+        }
+    }
+
+    // Two of the same kind: both clauses are preserved in declaration order.
+    TEST(MultipleIncreaseClauses_BothStored)
+    {
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+
+        compiler->ClearWithNewRuleSet();
+
+        string program =
+            "opDouble() :- increase(a, 1), increase(b, 1). ";
+
+        CHECK(compiler->Compile(program));
+
+        HtnOperator *opDouble = FindOperatorByNameArity(planner.get(), "opDouble", 0);
+        CHECK(opDouble != nullptr);
+        if (opDouble != nullptr)
+        {
+            CHECK_EQUAL(2, (int)opDouble->increases().size());
+            CHECK_EQUAL(0, (int)opDouble->decreases().size());
+            // First-arg names are "a" then "b" in declaration order.
+            CHECK_EQUAL("a", opDouble->increases()[0]->arguments()[0]->name());
+            CHECK_EQUAL("b", opDouble->increases()[1]->arguments()[0]->name());
+        }
+    }
+
+    // C1 regression: del() must not be silently dropped when add() is absent.
+    // Previously the parse loop only registered the operator inside the add()
+    // branch (or in the increase/decrease tail), so `del + increase + no add`
+    // lost the del entirely.
+    TEST(DelPlusIncrease_NoAdd_KeepsDel)
+    {
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+
+        compiler->ClearWithNewRuleSet();
+
+        string program =
+            "opDelInc() :- del(foo), increase(score(player), 5). ";
+
+        CHECK(compiler->Compile(program));
+
+        HtnOperator *opDelInc = FindOperatorByNameArity(planner.get(), "opDelInc", 0);
+        CHECK(opDelInc != nullptr);
+        if (opDelInc != nullptr)
+        {
+            CHECK_EQUAL(1, (int)opDelInc->deletions().size());
+            CHECK_EQUAL(0, (int)opDelInc->additions().size());
+            CHECK_EQUAL(1, (int)opDelInc->increases().size());
+            CHECK(ContainsTermWithName(opDelInc->deletions(), "foo"));
+            CHECK_EQUAL("increase", opDelInc->increases()[0]->name());
+        }
+    }
+
+    // C2 regression: decrease() followed by add() (no preceding del) used to
+    // trip the `del != nullptr` assertion in the add() branch. It must now
+    // compile cleanly and preserve both effects.
+    TEST(DecreasePlusAdd_NoDel_Compiles)
+    {
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+
+        compiler->ClearWithNewRuleSet();
+
+        // The plan's headline example: spend mana, set "spent" flag, no del.
+        string program =
+            "opSpendMana(?cost) :- decrease(mana(player), ?cost), add(spent(true)). ";
+
+        CHECK(compiler->Compile(program));
+
+        HtnOperator *opSpendMana = FindOperatorByNameArity(planner.get(), "opSpendMana", 1);
+        CHECK(opSpendMana != nullptr);
+        if (opSpendMana != nullptr)
+        {
+            CHECK_EQUAL(0, (int)opSpendMana->deletions().size());
+            CHECK_EQUAL(1, (int)opSpendMana->additions().size());
+            CHECK_EQUAL(0, (int)opSpendMana->increases().size());
+            CHECK_EQUAL(1, (int)opSpendMana->decreases().size());
+            CHECK(ContainsTermWithName(opSpendMana->additions(), "spent"));
+        }
+    }
+
+    // I4 regression: increase() listed AFTER add() used to be silently dropped
+    // because the add() branch returned early from the parse loop. All three
+    // clauses must now be preserved.
+    TEST(DelAddIncrease_TrailingIncreasePreserved)
+    {
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+
+        compiler->ClearWithNewRuleSet();
+
+        string program =
+            "opTrail() :- del(a), add(b), increase(c, 1). ";
+
+        CHECK(compiler->Compile(program));
+
+        HtnOperator *opTrail = FindOperatorByNameArity(planner.get(), "opTrail", 0);
+        CHECK(opTrail != nullptr);
+        if (opTrail != nullptr)
+        {
+            CHECK_EQUAL(1, (int)opTrail->deletions().size());
+            CHECK_EQUAL(1, (int)opTrail->additions().size());
+            CHECK_EQUAL(1, (int)opTrail->increases().size());
+            CHECK(ContainsTermWithName(opTrail->deletions(), "a"));
+            CHECK(ContainsTermWithName(opTrail->additions(), "b"));
+            CHECK_EQUAL("c", opTrail->increases()[0]->arguments()[0]->name());
+        }
+    }
+
+    // I3 regression: increase()/decrease() must have exactly arity 2.
+    // The compiler enforces this via FailFastAssertDesc; we route the assert
+    // through an exception (TreatFailFastAsException) so the test runner
+    // can observe the failure rather than the process aborting.
+    // RAII guard: enables FailFast-as-exception for the scope of the test,
+    // and restores the runner's default (true, set in TestsMain.cpp) on
+    // destruction so any exception path still leaves the flag correct.
+    struct FailFastAsExceptionGuard
+    {
+        FailFastAsExceptionGuard() { TreatFailFastAsException(true); }
+        ~FailFastAsExceptionGuard() { TreatFailFastAsException(true); }
+    };
+
+    TEST(IncreaseWithWrongArity_FailsToCompile_Arity1)
+    {
+        FailFastAsExceptionGuard failFastGuard;
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+        compiler->ClearWithNewRuleSet();
+
+        // arity 1 -- missing delta expression
+        string program = "opBadArity() :- increase(only_one_arg). ";
+
+        bool threw = false;
+        try
+        {
+            compiler->Compile(program);
+        }
+        catch (const std::runtime_error &)
+        {
+            threw = true;
+        }
+        CHECK(threw);
+    }
+
+    TEST(DecreaseWithWrongArity_FailsToCompile_Arity3)
+    {
+        FailFastAsExceptionGuard failFastGuard;
+        shared_ptr<HtnTermFactory> factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+        shared_ptr<HtnRuleSet> state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+        shared_ptr<HtnPlanner> planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+        shared_ptr<HtnCompiler> compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+        compiler->ClearWithNewRuleSet();
+
+        // arity 3 -- one too many arguments
+        string program = "opBadArity() :- decrease(a, b, c). ";
+
+        bool threw = false;
+        try
+        {
+            compiler->Compile(program);
+        }
+        catch (const std::runtime_error &)
+        {
+            threw = true;
+        }
+        CHECK(threw);
+    }
+
+    // ============================================================
+    // Task 2: Engine application of increase/decrease
+    // ============================================================
+    //
+    // These tests exercise runtime semantics: when the planner applies an
+    // operator with increase/decrease effects, the fluent fact in state
+    // should be removed and re-added with the new numeric value.
+    //
+    // A small fixture wraps compile + plan + apply + state inspection so
+    // the individual tests stay readable.
+
+    class HtnFluentHelper
+    {
+    public:
+        HtnFluentHelper()
+        {
+            factory = shared_ptr<HtnTermFactory>(new HtnTermFactory());
+            state = shared_ptr<HtnRuleSet>(new HtnRuleSet());
+            planner = shared_ptr<HtnPlanner>(new HtnPlanner());
+            compiler = shared_ptr<HtnCompiler>(new HtnCompiler(factory.get(), state.get(), planner.get()));
+            compiler->ClearWithNewRuleSet();
+        }
+
+        // Compile + plan. Returns true if at least one solution found.
+        // Captures the first solution's final state for inspection.
+        bool PlanAndApply(const string &program)
+        {
+            CHECK(compiler->Compile(program));
+            auto solutions = planner->FindAllPlans(factory.get(), compiler->compilerOwnedRuleSet(), compiler->goals());
+            if (solutions == nullptr || solutions->empty())
+            {
+                lastFinalState.reset();
+                return false;
+            }
+            lastFinalState = (*solutions)[0]->finalState();
+            return true;
+        }
+
+        // True if `fact` (a head term written textually as it would render
+        // via HtnTerm::ToString) exists in the post-apply state. The state
+        // is rendered via ToStringFactsProlog which uses Prolog syntax
+        // ("head(..) :- true.") for each fact.
+        bool HasFact(const string &fact)
+        {
+            if (lastFinalState == nullptr)
+            {
+                return false;
+            }
+            string serialized = lastFinalState->ToStringFactsProlog();
+            // Look for "fact :-" — guards against accidental substring
+            // matches between similar-looking facts.
+            return serialized.find(fact + " :-") != string::npos;
+        }
+
+        shared_ptr<HtnTermFactory> factory;
+        shared_ptr<HtnRuleSet> state;
+        shared_ptr<HtnPlanner> planner;
+        shared_ptr<HtnCompiler> compiler;
+        shared_ptr<HtnRuleSet> lastFinalState;
+    };
+
+    // 1. Plain increase by a literal int delta.
+    //    score(player, 10) + opGain(5) => score(player, 15), no leftover 10.
+    TEST(IncreaseUpdatesFact)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,15)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // 2. Symmetric for decrease.
+    TEST(DecreaseUpdatesFact)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opLose(?n) :- decrease(score(player), ?n). "
+            "goals(opLose(3)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,7)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // 3. No matching fact => operator application fails => planning fails.
+    TEST(NoMatchingFactFails)
+    {
+        HtnFluentHelper h;
+        string program =
+            // no score(player, _) fact at all
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        // The planner should not return a successful solution.
+        CHECK(!h.PlanAndApply(program));
+    }
+
+    // 4. Multiple matching facts => ambiguous => fail.
+    TEST(MultipleMatchesFails)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "score(player, 20). "
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        CHECK(!h.PlanAndApply(program));
+    }
+
+    // 5. The fact's trailing arg is not numeric => fail.
+    TEST(NonNumericValueFails)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, foo). "
+            "opGain(?n) :- increase(score(player), ?n). "
+            "goals(opGain(5)). ";
+
+        CHECK(!h.PlanAndApply(program));
+    }
+
+    // 6. Effect ordering: del() removals, then increase, then add() additions
+    //    all happen in one application; final state reflects all three.
+    TEST(MixedDelIncreaseAdd)
+    {
+        HtnFluentHelper h;
+        string program =
+            "flag(a). "
+            "score(player, 10). "
+            "opComplex() :- del(flag(a)), increase(score(player), 1), add(flag(b)). "
+            "goals(opComplex()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(!h.HasFact("flag(a)"));
+        CHECK(h.HasFact("flag(b)"));
+        CHECK(h.HasFact("score(player,11)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // 7. Two increase effects in one operator both mutate their fluents.
+    TEST(MultipleIncreasesInOneOperator)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 5). "
+            "mana(player, 7). "
+            "opDouble() :- increase(score(player), 1), increase(mana(player), 2). "
+            "goals(opDouble()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,6)"));
+        CHECK(h.HasFact("mana(player,9)"));
+        CHECK(!h.HasFact("score(player,5)"));
+        CHECK(!h.HasFact("mana(player,7)"));
+    }
+
+    // ============================================================
+    // Task 3: Arithmetic expressions as fluent deltas
+    // ============================================================
+    //
+    // The delta argument of increase/decrease is routed through
+    // HtnTerm::Eval(factory) — the same arithmetic evaluator that backs is/2.
+    // These tests pin that compound expressions (multiplication, addition,
+    // subtraction, variables bound via earlier preconditions) are evaluated
+    // correctly before being applied to the fluent.
+
+    // increase(score(player), *(?base, ?mult)) with ?base=3, ?mult=4
+    // should add 12 to score(player, 10), yielding score(player, 22).
+    TEST(IncreaseAcceptsArithmeticExpression)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opAddBonus(?base, ?mult) :- increase(score(player), *(?base, ?mult)). "
+            "goals(opAddBonus(3, 4)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,22)"));
+        CHECK(!h.HasFact("score(player,10)"));
+    }
+
+    // Symmetric for decrease: 100 - 5*4 = 80.
+    TEST(DecreaseAcceptsArithmeticExpression)
+    {
+        HtnFluentHelper h;
+        string program =
+            "energy(player, 100). "
+            "opStrenuous(?base, ?factor) :- decrease(energy(player), *(?base, ?factor)). "
+            "goals(opStrenuous(5, 4)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("energy(player,80)"));
+        CHECK(!h.HasFact("energy(player,100)"));
+    }
+
+    // A method binds ?r via if(rate(?r)) then passes it into an operator that
+    // uses ?r inside an arithmetic expression in increase(). Verifies that
+    // variable bindings flowing from a method precondition reach the fluent
+    // effect's eval correctly. 0 + 7*3 = 21.
+    TEST(FluentDeltaWithBoundVariableFromMethod)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 0). "
+            "rate(7). "
+            "gainBonus() :- if(rate(?r)), do(opGain(?r, 3)). "
+            "opGain(?base, ?mult) :- increase(score(player), *(?base, ?mult)). "
+            "goals(gainBonus()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,21)"));
+        CHECK(!h.HasFact("score(player,0)"));
+    }
+
+    // Composite expression with both subtraction and a positive net delta:
+    // gold(player, 50) + (20 - 5) = gold(player, 65).
+    TEST(FluentDeltaWithSubtractionAndAddition)
+    {
+        HtnFluentHelper h;
+        string program =
+            "gold(player, 50). "
+            "opTransact(?in, ?out) :- increase(gold(player), -(?in, ?out)). "
+            "goals(opTransact(20, 5)). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("gold(player,65)"));
+        CHECK(!h.HasFact("gold(player,50)"));
+    }
+
+    // ============================================================
+    // Task 4: Equivalence with verbose del/add pattern
+    // ============================================================
+    //
+    // The user's #2 acceptance criterion: a ruleset using increase/decrease
+    // produces observably identical final state to an equivalent ruleset
+    // using the verbose del/add/is pattern. The engine routes deltas
+    // through HtnTerm::Eval(factory) — the same arithmetic engine that
+    // backs is/2 — so the two paths should converge byte-for-byte on
+    // state.
+    //
+    // Each test compiles both forms, runs the same goal sequence on each,
+    // and asserts the resulting fact sets (filtered to the predicates
+    // under test) are identical. Operator names in the plan trace are
+    // intentionally NOT compared — only state.
+
+    // Collect all facts whose head functor name matches one of the
+    // `predicateNames`, as their Prolog-syntax string ("head(..) :- true.").
+    // Wrapped in a set so we can compare by value-equality across the
+    // two helpers' final states.
+    static std::set<std::string> FactsOfPredicates(
+        const std::shared_ptr<HtnRuleSet> &state,
+        const std::set<std::string> &predicateNames)
+    {
+        std::set<std::string> result;
+        if (state == nullptr)
+        {
+            return result;
+        }
+        state->AllRules([&](const HtnRule &rule)
+        {
+            if (rule.IsFact() && predicateNames.count(rule.head()->name()) > 0)
+            {
+                result.insert(rule.ToStringProlog());
+            }
+            return true;
+        });
+        return result;
+    }
+
+    // 4.1 Headline equivalence: a basic spend/gain sequence threaded
+    // through an unique numeric fluent. Verbose form uses is/2 in the
+    // method precondition and a plain del/add operator. Concise form
+    // collapses that into a decrease/increase effect inside the operator.
+    // After applying solution 0, the mana/xp facts must be identical.
+    TEST(FluentEquivalentToDelAdd_BasicSpendAndGain)
+    {
+        string verboseProgram =
+            "mana(player, 50). "
+            "xp(player, 0). "
+            "spend(?c) :- if(mana(player, ?o), is(?n, -(?o, ?c))), "
+            "             do(opVerboseSpend(?o, ?n)). "
+            "opVerboseSpend(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)). "
+            "gain(?a) :- if(xp(player, ?o), is(?n, +(?o, ?a))), "
+            "            do(opVerboseGain(?o, ?n)). "
+            "opVerboseGain(?o, ?n) :- del(xp(player, ?o)), add(xp(player, ?n)). "
+            "goals(spend(15), gain(7), spend(5)). ";
+
+        string conciseProgram =
+            "mana(player, 50). "
+            "xp(player, 0). "
+            "spend(?c) :- if(), do(opConciseSpend(?c)). "
+            "opConciseSpend(?c) :- decrease(mana(player), ?c). "
+            "gain(?a) :- if(), do(opConciseGain(?a)). "
+            "opConciseGain(?a) :- increase(xp(player), ?a). "
+            "goals(spend(15), gain(7), spend(5)). ";
+
+        HtnFluentHelper hVerbose;
+        CHECK(hVerbose.PlanAndApply(verboseProgram));
+
+        HtnFluentHelper hConcise;
+        CHECK(hConcise.PlanAndApply(conciseProgram));
+
+        std::set<std::string> preds{"mana", "xp"};
+        auto verboseFacts = FactsOfPredicates(hVerbose.lastFinalState, preds);
+        auto conciseFacts = FactsOfPredicates(hConcise.lastFinalState, preds);
+
+        CHECK(verboseFacts == conciseFacts);
+        // And belt-and-braces: both arrived at the expected final values.
+        // 50 - 15 - 5 = 30, 0 + 7 = 7.
+        CHECK(hVerbose.HasFact("mana(player,30)"));
+        CHECK(hVerbose.HasFact("xp(player,7)"));
+        CHECK(hConcise.HasFact("mana(player,30)"));
+        CHECK(hConcise.HasFact("xp(player,7)"));
+    }
+
+    // 4.2 Repeated alternating calls (25 spend(1) + 25 gain(2), interleaved)
+    // exercise the rebind-fluent cycle 50 times in a single plan. Verifies
+    // that there is no accumulating asymmetry between the two forms over
+    // many applications.
+    TEST(FluentEquivalentUnderRepeatedCalls)
+    {
+        // Build "spend(1), gain(2)" repeated 25 times, comma-separated.
+        std::stringstream goals;
+        goals << "goals(";
+        for (int i = 0; i < 25; i++)
+        {
+            if (i > 0)
+            {
+                goals << ", ";
+            }
+            goals << "spend(1), gain(2)";
+        }
+        goals << "). ";
+        string goalsString = goals.str();
+
+        string verboseProgram =
+            "mana(player, 100). "
+            "xp(player, 0). "
+            "spend(?c) :- if(mana(player, ?o), is(?n, -(?o, ?c))), "
+            "             do(opVerboseSpend(?o, ?n)). "
+            "opVerboseSpend(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)). "
+            "gain(?a) :- if(xp(player, ?o), is(?n, +(?o, ?a))), "
+            "            do(opVerboseGain(?o, ?n)). "
+            "opVerboseGain(?o, ?n) :- del(xp(player, ?o)), add(xp(player, ?n)). "
+            + goalsString;
+
+        string conciseProgram =
+            "mana(player, 100). "
+            "xp(player, 0). "
+            "spend(?c) :- if(), do(opConciseSpend(?c)). "
+            "opConciseSpend(?c) :- decrease(mana(player), ?c). "
+            "gain(?a) :- if(), do(opConciseGain(?a)). "
+            "opConciseGain(?a) :- increase(xp(player), ?a). "
+            + goalsString;
+
+        HtnFluentHelper hVerbose;
+        CHECK(hVerbose.PlanAndApply(verboseProgram));
+
+        HtnFluentHelper hConcise;
+        CHECK(hConcise.PlanAndApply(conciseProgram));
+
+        std::set<std::string> preds{"mana", "xp"};
+        auto verboseFacts = FactsOfPredicates(hVerbose.lastFinalState, preds);
+        auto conciseFacts = FactsOfPredicates(hConcise.lastFinalState, preds);
+
+        CHECK(verboseFacts == conciseFacts);
+        // 100 - 25*1 = 75 mana, 0 + 25*2 = 50 xp.
+        CHECK(hVerbose.HasFact("mana(player,75)"));
+        CHECK(hVerbose.HasFact("xp(player,50)"));
+        CHECK(hConcise.HasFact("mana(player,75)"));
+        CHECK(hConcise.HasFact("xp(player,50)"));
+    }
+
+    // 4.3 Branching method selection: the planner picks among method
+    // alternatives based on the current fluent value. Both forms share
+    // the same method-level branching (with else); only the OPERATOR
+    // effects differ. With mana=25, the bigCast branch fails its
+    // precondition (>=(?m, 30)) and the else branch fires in BOTH
+    // rulesets, ending with mana = 25 - 10 = 15.
+    //
+    // This pins that branch selection is identical even when the
+    // operator-level mechanism (verbose del/add vs concise decrease)
+    // differs. If the branch chosen had differed, the asserted final
+    // state would differ too.
+    TEST(FluentEquivalentWithBranchingMethods)
+    {
+        string verboseProgram =
+            "mana(player, 25). "
+            // Method-level branching: same in both rulesets.
+            "cast :- if(mana(player, ?m), >=(?m, 30)), do(bigCastVerbose). "
+            "cast :- else, if(), do(smallCastVerbose). "
+            // Verbose path: wrapping methods bind via is/2, then call a
+            // plain del/add operator.
+            "bigCastVerbose :- if(mana(player, ?o), is(?n, -(?o, 30))), "
+            "                  do(opVerboseSpend(?o, ?n)). "
+            "smallCastVerbose :- if(mana(player, ?o), is(?n, -(?o, 10))), "
+            "                    do(opVerboseSpend(?o, ?n)). "
+            "opVerboseSpend(?o, ?n) :- del(mana(player, ?o)), add(mana(player, ?n)). "
+            "goals(cast). ";
+
+        string conciseProgram =
+            "mana(player, 25). "
+            // Identical method-level branching.
+            "cast :- if(mana(player, ?m), >=(?m, 30)), do(opBigCastConcise). "
+            "cast :- else, if(), do(opSmallCastConcise). "
+            // Concise path: operators use decrease() directly, no wrapper.
+            "opBigCastConcise :- decrease(mana(player), 30). "
+            "opSmallCastConcise :- decrease(mana(player), 10). "
+            "goals(cast). ";
+
+        HtnFluentHelper hVerbose;
+        CHECK(hVerbose.PlanAndApply(verboseProgram));
+
+        HtnFluentHelper hConcise;
+        CHECK(hConcise.PlanAndApply(conciseProgram));
+
+        std::set<std::string> preds{"mana"};
+        auto verboseFacts = FactsOfPredicates(hVerbose.lastFinalState, preds);
+        auto conciseFacts = FactsOfPredicates(hConcise.lastFinalState, preds);
+
+        CHECK(verboseFacts == conciseFacts);
+        // The else branch must have fired in BOTH (mana started at 25,
+        // so >= 30 is false). 25 - 10 = 15.
+        CHECK(hVerbose.HasFact("mana(player,15)"));
+        CHECK(hConcise.HasFact("mana(player,15)"));
+    }
+
+    // ============================================================
+    // Task 7: Sequential application of fluent ops on the same fluent
+    // ============================================================
+    //
+    // When multiple increase/decrease effects target the same fluent in a
+    // single operator, each effect must read the value produced by the
+    // previous effect (not the original pre-operator value). This pins:
+    //   - same-fluent ops do not duplicate the removal of the original fact
+    //     (which would crash HtnRuleSet::Update);
+    //   - the accumulated final value matches what sequential application
+    //     would produce.
+
+    // Two increases on the same fluent should accumulate.
+    // score(0) + 1 + 2 = score(3).
+    TEST(MultipleIncreasesOnSameFluent_Accumulate)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 0). "
+            "opAccum() :- increase(score(player), 1), increase(score(player), 2). "
+            "goals(opAccum()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,3)"));
+        CHECK(!h.HasFact("score(player,0)"));
+        CHECK(!h.HasFact("score(player,1)"));   // no intermediate value leaks
+    }
+
+    // Two decreases on the same fluent should accumulate.
+    // score(10) - 1 - 2 = score(7).
+    TEST(MultipleDecreasesOnSameFluent_Accumulate)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 10). "
+            "opDrain() :- decrease(score(player), 1), decrease(score(player), 2). "
+            "goals(opDrain()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,7)"));
+        CHECK(!h.HasFact("score(player,10)"));
+        CHECK(!h.HasFact("score(player,9)"));
+    }
+
+    // Mixed increase + decrease on the same fluent should compose:
+    // mana(50) + 5 - 10 = mana(45). Verifies that the shared working
+    // state spans both the increase and decrease passes.
+    TEST(MixedIncreaseDecreaseOnSameFluent_Composes)
+    {
+        HtnFluentHelper h;
+        string program =
+            "mana(player, 50). "
+            "opMix() :- increase(mana(player), 5), decrease(mana(player), 10). "
+            "goals(opMix()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("mana(player,45)"));
+        CHECK(!h.HasFact("mana(player,50)"));
+        CHECK(!h.HasFact("mana(player,55)"));
+    }
+
+    // Combining same-fluent and different-fluent ops in one operator:
+    // - score gets +1 +2 = +3 (two passes on same fluent)
+    // - mana gets +10 (single pass on a different fluent)
+    // Both must apply correctly without interfering.
+    TEST(SameFluentAndOtherFluent_BothApplyCorrectly)
+    {
+        HtnFluentHelper h;
+        string program =
+            "score(player, 0). "
+            "mana(player, 100). "
+            "opMulti() :- increase(score(player), 1), increase(mana(player), 10), increase(score(player), 2). "
+            "goals(opMulti()). ";
+
+        CHECK(h.PlanAndApply(program));
+        CHECK(h.HasFact("score(player,3)"));
+        CHECK(h.HasFact("mana(player,110)"));
+        CHECK(!h.HasFact("score(player,0)"));
+        CHECK(!h.HasFact("mana(player,100)"));
+    }
+}

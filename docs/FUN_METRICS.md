@@ -476,7 +476,7 @@ invalidates the cache.
 
 From an AI assistant, the same scorecard is `indhtn_fun(level, ablate, loadouts)` on the MCP server,
 and the level is *played* rather than scored with `indhtn_load_level` → `indhtn_observe` →
-`indhtn_actions` → `indhtn_act` → `indhtn_explain`. See `.claude/rules/level-design-loop.md`.
+`indhtn_actions` → `indhtn_act` → `indhtn_explain`. See `docs/reference/level-design-loop.md`.
 
 ## 9. Deliberately out of scope (v1)
 

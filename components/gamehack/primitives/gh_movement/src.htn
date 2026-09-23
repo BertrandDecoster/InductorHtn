@@ -2,6 +2,13 @@
 % Direct location-to-location movement (no room connections needed)
 % Handles goToLocation, goToSameLocation, and static entity checks
 
+% === Signatures (for TYP001 linter) ===
+signature(opMoveTo, [agent, location, location]).
+signature(opAggroMoveTo, [agent, location, location]).
+signature(opStayInLocation, [agent]).
+signature(goToLocation, [agent, location]).
+signature(goToSameLocation, [agent, agent]).
+
 % === Operators ===
 
 opMoveTo(?a, ?oldLocation, ?newLocation) :-

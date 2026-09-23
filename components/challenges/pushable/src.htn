@@ -1,0 +1,44 @@
+% pushable - Challenge: Push an object to a target position (Sokoban-style)
+% Agent must position behind the object and push it to its target location
+% Depends on: challenges/nav_obstacle for navigateTo
+
+% === Signatures (for TYP001 linter) ===
+signature(opPush, [object, location, location]).
+signature(pushToTarget, [object]).
+signature(pushStep, [object, location, location]).
+
+% === Operators ===
+
+% Push an object from one location to another.
+% Agent must already be at pushFrom (opposite side) before this executes.
+% The object moves from objLoc to target; the agent also moves to objLoc.
+opPush(?obj, ?objLoc, ?target) :-
+    del(objectAt(?obj, ?objLoc)),
+    add(objectAt(?obj, ?target)).
+
+% === Methods ===
+
+% Push object to its target in one move (direct connection, agent gets behind it)
+pushToTarget(?obj) :-
+    if(objectAt(?obj, ?objLoc),
+       targetFor(?obj, ?target),
+       connected(?pushFrom, ?objLoc),
+       connected(?objLoc, ?target),
+       not(=(?pushFrom, ?target))),
+    do(navigateTo(agent, ?pushFrom),
+       opPush(?obj, ?objLoc, ?target)).
+
+% Push object to target via intermediate (two-push sequence)
+pushToTarget(?obj) :-
+    else, if(objectAt(?obj, ?objLoc),
+             targetFor(?obj, ?target),
+             connected(?pushFrom1, ?objLoc),
+             connected(?objLoc, ?via),
+             not(=(?via, ?target)),
+             connected(?pushFrom2, ?via),
+             connected(?via, ?target),
+             not(=(?pushFrom2, ?target))),
+    do(navigateTo(agent, ?pushFrom1),
+       opPush(?obj, ?objLoc, ?via),
+       navigateTo(agent, ?pushFrom2),
+       opPush(?obj, ?via, ?target)).

@@ -1,0 +1,32 @@
+{
+  "name": "nav_obstacle",
+  "version": "1.0.0",
+  "layer": "challenges",
+  "description": "Navigate from A to B around blocking hazards",
+  "dependencies": [],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-06-04T19:53:37.118995"
+  },
+  "provides": [
+    "navigateTo/2",
+    "opMoveTo/3",
+    "signature/2"
+  ],
+  "requires": [],
+  "challenge": {
+    "class": "S",
+    "behavioral_axes": [
+      "plan_length",
+      "blocked_count"
+    ],
+    "expected": {
+      "min_plans": 1,
+      "max_plans": 5,
+      "min_distinct_methods": 1
+    }
+  }
+}

@@ -14,7 +14,7 @@ Usage:
 
 __version__ = "0.1.0"
 
-from .manifest import Manifest, ManifestValidationError
+from .manifest import Manifest, ManifestValidationError, ChallengeBlock, ChallengeExpected
 from .cli import main
 
-__all__ = ["Manifest", "ManifestValidationError", "main"]
+__all__ = ["Manifest", "ManifestValidationError", "ChallengeBlock", "ChallengeExpected", "main"]

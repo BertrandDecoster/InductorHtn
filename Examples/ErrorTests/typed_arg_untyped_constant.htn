@@ -1,0 +1,6 @@
+% TYP001 — 'wat' has no type/2 declaration but moveTo expects an agent
+type(agent, player).
+type(cell, c5).
+signature(moveTo, [agent, cell]).
+
+goalA :- if(), do(moveTo(wat, c5)).

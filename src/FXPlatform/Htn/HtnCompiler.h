@@ -93,7 +93,17 @@ public:
         bool isDefault = false;
         bool isOperatorHidden = false;
         shared_ptr<HtnTerm> constraint = nullptr;
-        shared_ptr<HtnTerm> del = nullptr;
+        // Operator effect accumulators. We collect all four kinds in a single
+        // pass over the rule body (no early return), then register the
+        // operator exactly once after the loop. This lets the parser support
+        // every combination: del only, add only, del+add, del+increase,
+        // decrease+add, add+increase, etc.
+        bool sawDel = false;
+        bool sawAdd = false;
+        vector<shared_ptr<HtnTerm>> delArgs;
+        vector<shared_ptr<HtnTerm>> addArgs;
+        vector<shared_ptr<HtnTerm>> increases;
+        vector<shared_ptr<HtnTerm>> decreases;
         for(auto item : list)
         {
             if(item->isConstant() && item->name() == "else")
@@ -125,19 +135,50 @@ public:
             }
             else if(item->name() == "del")
             {
-                FailFastAssertDesc(del == nullptr && isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
+                FailFastAssertDesc(!sawDel && isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
                     "Improper del() statement.");
-                del = item;
+                delArgs = item->arguments();
+                sawDel = true;
             }
             else if(item->name() == "add")
             {
-                FailFastAssertDesc(del != nullptr && isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
+                // Note: add() no longer requires a preceding del(). An operator
+                // can legitimately be add-only, or pair add() with
+                // increase()/decrease() instead of del().
+                FailFastAssertDesc(!sawAdd && isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
                     "Improper add() statement");
-                m_domain->AddOperator(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), item->arguments(), del->arguments(), isOperatorHidden);
-                return;
+                addArgs = item->arguments();
+                sawAdd = true;
+            }
+            else if(item->name() == "increase")
+            {
+                // Each increase() clause is one numeric-fluent effect of the form
+                // increase(fluent, expression). The whole increase(...) term is
+                // stored so downstream consumers can pull fluent + expression.
+                FailFastAssertDesc(isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
+                    "Improper increase() statement.");
+                FailFastAssertDesc(item->arity() == 2,
+                    "increase(...) requires exactly 2 arguments: target fluent and delta expression.");
+                increases.push_back(item);
+            }
+            else if(item->name() == "decrease")
+            {
+                FailFastAssertDesc(isSetOf == HtnMethodType::Normal && isDefault == false && constraint == nullptr,
+                    "Improper decrease() statement.");
+                FailFastAssertDesc(item->arity() == 2,
+                    "decrease(...) requires exactly 2 arguments: target fluent and delta expression.");
+                decreases.push_back(item);
             }
         }
-        
+
+        // Operator: any effect clause (del/add/increase/decrease) triggers a
+        // single AddOperator call with whatever effects were collected.
+        if(sawDel || sawAdd || !increases.empty() || !decreases.empty())
+        {
+            m_domain->AddOperator(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), addArgs, delArgs, isOperatorHidden, increases, decreases);
+            return;
+        }
+
         PrologCompilerBase<VariableRule>::m_state->AddRule(PrologCompilerBase<VariableRule>::CreateTermFromFunctor(PrologCompilerBase<VariableRule>::m_termFactory, head), list);
     }
     

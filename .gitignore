@@ -14,3 +14,10 @@ __pycache__/
 
 # Recorded MCP playthroughs (data for later metrics; not source)
 .playthroughs/
+
+# Default output of `htn_components assemble` (goldens live under tests/fixtures/).
+/assembled/
+
+# GUI: persisted source-folder choice + its change log (runtime, machine-local).
+gui/backend/htn_folder.json
+gui/backend/htn_folder.log

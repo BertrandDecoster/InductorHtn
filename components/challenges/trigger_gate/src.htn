@@ -1,0 +1,41 @@
+% trigger_gate - Challenge: Activate a switch to open a blocked path, then proceed
+% Multi-step sequence: reach switch, activate, gate opens, reach destination
+% Depends on: challenges/nav_obstacle for navigateTo
+
+% === Signatures (for TYP001 linter) ===
+signature(opActivateSwitch, [switch]).
+signature(opOpenGate, [gate, location]).
+signature(reachThroughGate, [agent, location]).
+
+% === Operators ===
+
+% Activate a switch (changes its state to triggered)
+opActivateSwitch(?switch) :-
+    del(switchIdle(?switch)),
+    add(switchTriggered(?switch)).
+
+% Open a gate (removes the blocking fact for the destination)
+% ?dest must be passed explicitly so the del() clause is fully ground
+opOpenGate(?gate, ?dest) :-
+    del(gateBlocking(?gate, ?dest)),
+    add(gateOpen(?gate, ?dest)).
+
+% === Methods ===
+
+% Route through a gate: find the switch controlling the blocking gate, activate it, proceed
+reachThroughGate(?agent, ?dest) :-
+    if(at(?agent, ?cur),
+       gateBlocking(?gate, ?dest),
+       switchControls(?switch, ?gate),
+       switchAt(?switch, ?swLoc),
+       switchIdle(?switch)),
+    do(navigateTo(?agent, ?swLoc),
+       opActivateSwitch(?switch),
+       opOpenGate(?gate, ?dest),
+       navigateTo(?agent, ?dest)).
+
+% Gate already open - just navigate directly
+reachThroughGate(?agent, ?dest) :-
+    else, if(at(?agent, ?cur),
+             gateOpen(?gate, ?dest)),
+    do(navigateTo(?agent, ?dest)).

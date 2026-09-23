@@ -22,7 +22,12 @@ class HtnDomain
 public:
     virtual ~HtnDomain() {};
     virtual HtnMethod * AddMethod(shared_ptr<HtnTerm> head, const vector<shared_ptr<HtnTerm>> &condition, const vector<shared_ptr<HtnTerm>> &tasks, HtnMethodType methodType, bool isDefault) = 0;
-    virtual HtnOperator *AddOperator(shared_ptr<HtnTerm> head, const vector<shared_ptr<HtnTerm>> &addList, const vector<shared_ptr<HtnTerm>> &deleteList, bool hidden = false) = 0;
+    virtual HtnOperator *AddOperator(shared_ptr<HtnTerm> head,
+                                     const vector<shared_ptr<HtnTerm>> &addList,
+                                     const vector<shared_ptr<HtnTerm>> &deleteList,
+                                     bool hidden = false,
+                                     const vector<shared_ptr<HtnTerm>> &increaseList = vector<shared_ptr<HtnTerm>>(),
+                                     const vector<shared_ptr<HtnTerm>> &decreaseList = vector<shared_ptr<HtnTerm>>()) = 0;
     
     virtual void AllMethods(std::function<bool(HtnMethod *)> handler) = 0;
     virtual void AllOperators(std::function<bool(HtnOperator *)> handler) = 0;

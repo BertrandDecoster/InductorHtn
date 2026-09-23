@@ -1,0 +1,41 @@
+% escort - Challenge: Bring an NPC from their location to a destination safely
+% Agent navigates to NPC, then escorts them through safe locations to destination
+% Depends on: challenges/nav_obstacle for navigateTo
+
+% === Signatures (for TYP001 linter) ===
+signature(opEscort, [npc, location, location]).
+signature(escortTo, [npc, location]).
+
+% === Operators ===
+
+% Move an NPC from one location to another (agent must be co-located first)
+opEscort(?npc, ?from, ?to) :-
+    del(npcAt(?npc, ?from)),
+    add(npcAt(?npc, ?to)).
+
+% === Methods ===
+
+% NPC already at destination - no-op
+escortTo(?npc, ?dest) :-
+    if(npcAt(?npc, ?dest)),
+    do().
+
+% Single-hop escort: navigate to NPC, escort directly to destination
+escortTo(?npc, ?dest) :-
+    else, if(npcAt(?npc, ?npcLoc),
+             safeFor(?npc, ?dest),
+             connected(?npcLoc, ?dest)),
+    do(navigateTo(agent, ?npcLoc),
+       opEscort(?npc, ?npcLoc, ?dest)).
+
+% Two-hop escort: navigate to NPC, escort through safe intermediate
+escortTo(?npc, ?dest) :-
+    else, if(npcAt(?npc, ?npcLoc),
+             connected(?npcLoc, ?via),
+             safeFor(?npc, ?via),
+             connected(?via, ?dest),
+             safeFor(?npc, ?dest)),
+    do(navigateTo(agent, ?npcLoc),
+       opEscort(?npc, ?npcLoc, ?via),
+       navigateTo(agent, ?via),
+       opEscort(?npc, ?via, ?dest)).

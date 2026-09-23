@@ -3,6 +3,40 @@
 % multiple dispatcher paths exercised for the same tag (ally skill, location,
 % and non-ally mob skill). `planToDamage(gob)` returns many distinct plans.
 
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (characters: player, allies, enemies)
+type(agent, player).
+type(agent, companionA).
+type(agent, companionB).
+type(agent, companionC).
+type(agent, gob).
+type(agent, teslaTower).
+type(agent, iceElemental).
+
+% Locations (named positions in the world)
+type(location, arena).
+type(location, forge).
+type(location, glacier).
+type(location, lakeShore).
+type(location, sea).
+type(location, volcano).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrocute).
+type(tag, clean).
+type(tag, ice).
+type(tag, fire).
+type(tag, stun).
+type(tag, slow).
+
+% Skills (abilities)
+type(skill, waterSkill).
+type(skill, fireballSkill).
+type(skill, lightningSkill).
+type(skill, iceBlastSkill).
+
 % === Agents ===
 agent(player).
 agent(companionA).

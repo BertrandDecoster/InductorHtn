@@ -1,5 +1,12 @@
 # Test Review: MCP Server Tests
 
+> **HISTORICAL — do not act on the tool names below.** This document was
+> written against an earlier subprocess-driven MCP draft whose tools
+> (`indhtn_start_session`, `indhtn_reset`, `indhtn_toggle_trace`,
+> `indhtn_state_diff`, `indhtn_step`) no longer exist. The current
+> surface is documented in `mcp-server/README.md` and
+> `.claude/rules/mcp-server.md`. Kept in-repo for archaeology only.
+
 ## Summary
 - Tests analyzed: 4 test files
 - Files reviewed: 6 (4 test files + 2 source files)

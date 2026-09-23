@@ -2,6 +2,37 @@
 % An introductory puzzle demonstrating theBurn and theSlipstream strategies
 % Depends on: locomotion, tags, aggro, the_burn, the_slipstream, defeat_enemy, clear_room
 
+% === Type Declarations (for TYP001 linter) ===
+
+% Entities (characters: player, allies, enemies)
+type(entity, player).
+type(entity, warden).
+type(entity, arcanist).
+type(entity, guard1).
+type(entity, guard2).
+
+% Rooms (locations in the level)
+type(room, main).
+type(room, storage).
+type(room, generator).
+type(room, corridor).
+type(room, exit).
+
+% Tags (status effects applied to entities/rooms)
+type(tag, burning).
+type(tag, frozen).
+type(tag, wet).
+type(tag, electrified).
+type(tag, oil).
+type(tag, electricity).
+
+% Hazards (environmental hazard types; dual-typed with tag where they coincide)
+type(hazard, oil).
+type(hazard, electricity).
+type(hazard, fire).
+type(hazard, spikes).
+type(hazard, acid).
+
 % === Level-specific Goal ===
 
 % Complete the puzzle: defeat all enemies and reach exit

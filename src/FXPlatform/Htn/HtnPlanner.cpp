@@ -12,6 +12,7 @@
 #include "HtnMethod.h"
 #include "HtnOperator.h"
 #include "HtnPlanner.h"
+#include "HtnRule.h"
 #include "HtnRuleSet.h"
 #include "HtnTerm.h"
 #include "HtnTermFactory.h"
@@ -429,6 +430,25 @@ PlanState::PlanState(HtnTermFactory *factoryArg, shared_ptr<HtnRuleSet> initialS
     treeNodeIDToTreeIndex[rootTreeNode.treeNodeID] = 0;
     nodeIDToLastTreeNodeID[rootTreeNode.nodeID] = rootTreeNode.treeNodeID;
     decompositionTree.push_back(rootTreeNode);
+
+#ifdef INDHTN_CHOICE_TRACKING
+    // Tag the top-level goals so their decomposition attributes to a synthetic
+    // "goal" clause (-1). parentNodeID == -1 keeps these out of any grounding
+    // partition (no PlanNode has id -1).
+    for(size_t i = 0; i < initialGoals.size(); i++)
+    {
+        if(initialGoals[i])
+        {
+            // Key on the arithmetic-resolved goal: NextTask resolves the goal task
+            // before csRecordTested reads this tag, which would otherwise change the
+            // pointer for any goal carrying an arithmetic subterm (see csTagBody).
+            std::shared_ptr<HtnTerm> keyTerm = initialGoals[i]->ResolveArithmeticTerms(factory);
+            if(keyTerm == nullptr) { keyTerm = initialGoals[i]; }
+            // The map entry holds keyTerm's strong ref, keeping the interned ptr alive.
+            csTermOrigin[keyTerm.get()] = std::make_pair(ChoiceOrigin{ -1, (int)i, -1 }, keyTerm);
+        }
+    }
+#endif
 }
 
 void PlanState::CheckHighestMemory(int64_t currentMemory, string extra1Name, int64_t extra1Size)
@@ -458,7 +478,42 @@ int64_t PlanState::dynamicSize()
         furthestCriteriaFailureContext.size() * sizeof(std::shared_ptr<HtnTerm>) +
         // memory used by everything on the stack
         stack->size() * sizeof(shared_ptr<PlanNode>) + stackSize;
-    
+
+#ifdef INDHTN_CHOICE_TRACKING
+    {
+        int64_t choiceDataSize = (int64_t)(choiceData.capacity() * sizeof(ChoiceRecord));
+        for(auto& r : choiceData) {
+            choiceDataSize += (int64_t)(r.taskFull.size() + r.taskFunctor.size());
+            for(auto& s : r.unifyingMethods) choiceDataSize += (int64_t)s.size();
+            for(auto& s : r.viableMethods) choiceDataSize += (int64_t)s.size();
+        }
+        choiceDataSize += (int64_t)(treeNodeIDToChoiceIndex.size() * (sizeof(int) + sizeof(size_t)));
+        currentMemory += choiceDataSize;
+
+        // Cross-search choice-count tracking structures
+        int64_t csSize = 0;
+        for(auto& kv : atomStatsByFunctor) {
+            csSize += (int64_t)(kv.first.size() + sizeof(AtomStats) + kv.second.atomFunctor.size());
+            for(auto& c : kv.second.clears) csSize += (int64_t)(sizeof(AtomMethodClear) + c.methodSignature.size());
+        }
+        for(auto& kv : methodStatsByClause) {
+            csSize += (int64_t)(sizeof(MethodClauseStats) + kv.second.clauseSignature.size() + kv.second.methodType.size());
+            csSize += (int64_t)(kv.second.furthestCompleted.capacity() * sizeof(int));
+            for(auto& p : kv.second.positions) {
+                csSize += (int64_t)(sizeof(MethodPositionStats) + p.atomFunctor.size());
+                for(auto& c : p.clears) csSize += (int64_t)(sizeof(AtomMethodClear) + c.methodSignature.size());
+            }
+        }
+        // Each csTermOrigin entry carries the key ptr, the ChoiceOrigin, and a strong
+        // ref to the interned term (the term's own memory is counted by the factory).
+        csSize += (int64_t)(csTermOrigin.size() * (sizeof(const HtnTerm*) + sizeof(ChoiceOrigin) + sizeof(std::shared_ptr<HtnTerm>)));
+        csSize += (int64_t)(csGroundingDeepestPos.size() * (sizeof(int) * 2));
+        csSize += (int64_t)(csGroundingBodyDone.size() * (sizeof(int) + sizeof(bool)));
+        for(auto& kv : csClearedCounted) csSize += (int64_t)(sizeof(int) + kv.second.size() * sizeof(int));
+        currentMemory += csSize;
+    }
+#endif
+
     FailFastAssertDesc(currentMemory >= 0, "Internal Error");
     CheckHighestMemory(currentMemory, "stackSize", stackSize);
     
@@ -505,13 +560,222 @@ HtnMethod *HtnPlanner::AddMethod(shared_ptr<HtnTerm> head, const vector<shared_p
     return method;
 }
 
-HtnOperator *HtnPlanner::AddOperator(shared_ptr<HtnTerm> head, const vector<shared_ptr<HtnTerm>> &addList, const vector<shared_ptr<HtnTerm>> &deleteList, bool hidden)
+HtnOperator *HtnPlanner::AddOperator(shared_ptr<HtnTerm> head,
+                                     const vector<shared_ptr<HtnTerm>> &addList,
+                                     const vector<shared_ptr<HtnTerm>> &deleteList,
+                                     bool hidden,
+                                     const vector<shared_ptr<HtnTerm>> &increaseList,
+                                     const vector<shared_ptr<HtnTerm>> &decreaseList)
 {
     // operators are owned by the Htn planner and deleted in the destructor. Since they are immutable, we can just record it now
-    HtnOperator *op = new HtnOperator(head, addList, deleteList, hidden);
+    HtnOperator *op = new HtnOperator(head, addList, deleteList, hidden, increaseList, decreaseList);
     m_dynamicSize += op->dynamicSize();
     m_operators.insert(pair<string, HtnOperator *>(head->name(), op));
     return op;
+}
+
+// Numeric-fluent helper: translate one operator's increase/decrease effects
+// into additional entries on the existing removals/additions lists.
+//
+// Each `fluentEffect` is a HtnTerm of the form `increase(head, expr)` or
+// `decrease(head, expr)` (arity already enforced by the compiler).
+//   `head` is the fluent's "shape": e.g. score(player) for the fluent
+//        score(player, N). Looking up the current value means querying the
+//        state for the unique fact head/(arity+1) whose leading args match
+//        head and whose trailing arg is the numeric current value.
+//   `expr` is an arithmetic expression yielding the delta. We re-use the
+//        existing HtnTerm::Eval entry point (the same one HtnGoalResolver
+//        invokes from RuleIs) so any expression Eval supports here also
+//        works for is(?x, expr).
+//
+// `sign` is +1 for increase, -1 for decrease.
+//
+// Returns false if any effect cannot be applied (no matching fact / multiple
+// matches / non-numeric current value / delta won't evaluate); the planner
+// treats that as an operator-application failure and backtracks.
+//
+// Note: the fluentEffects passed in are assumed to be ALREADY substituted
+// with the operator's MGU (we substitute the full effect term up front so
+// both head and expr see operator parameter bindings in one pass).
+// Per-fluent working state used while sequentially applying same-fluent
+// increase/decrease effects. Tracks the original fact (to remove once at
+// the end) and the running value (which subsequent ops on the same fluent
+// read from instead of rescanning the unchanged state).
+struct PendingFluent
+{
+    std::shared_ptr<HtnTerm> originalFact;
+    std::vector<std::shared_ptr<HtnTerm>> headArgs;
+    std::string targetName;
+    bool isFloat;
+    int64_t intValue;
+    double_t floatValue;
+};
+
+// Apply all increase + decrease effects of an operator. Effects targeting
+// the same fluent (same head pattern after MGU substitution) are composed
+// sequentially: each subsequent effect reads the value produced by the
+// previous one, not the original pre-operator state. This prevents the
+// duplicate-removal crash that the naive "scan state once per effect"
+// approach would cause, and produces the accumulated final value.
+//
+// Returns false (operator inapplicable, planner backtracks) on: 0 or >1
+// matching facts in state for any first-encountered fluent, a matched
+// fact with a non-numeric trailing arg, or a delta expression that
+// doesn't evaluate to a number.
+//
+// Note: the effects are assumed to be ALREADY substituted with the
+// operator's MGU (the caller substitutes whole effect terms up front so
+// head and expr both see operator parameter bindings).
+static bool ApplyFluentDeltas(
+    HtnTermFactory *factory,
+    HtnRuleSet *state,
+    const std::vector<std::shared_ptr<HtnTerm>> &increases,
+    const std::vector<std::shared_ptr<HtnTerm>> &decreases,
+    std::vector<std::shared_ptr<HtnTerm>> &finalRemovals,
+    std::vector<std::shared_ptr<HtnTerm>> &finalAdditions)
+{
+    // Working table: one entry per distinct fluent touched by this op.
+    // Key is the head's ToString() — uniquely identifies the fluent after
+    // MGU substitution (e.g. "score(player)" or "mana(gob1)").
+    std::map<std::string, PendingFluent> pending;
+
+    // Apply all increases first (sign=+1), then all decreases (sign=-1).
+    // The two passes share `pending`, so e.g. an increase followed by a
+    // decrease on the same fluent composes correctly.
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        const std::vector<std::shared_ptr<HtnTerm>> &effects = (pass == 0) ? increases : decreases;
+        int sign = (pass == 0) ? +1 : -1;
+
+        for (const std::shared_ptr<HtnTerm> &effect : effects)
+        {
+            // The compiler guarantees arity 2; defensively bail if not.
+            if (effect->arity() != 2)
+            {
+                return false;
+            }
+            std::shared_ptr<HtnTerm> head = effect->arguments()[0];
+            std::shared_ptr<HtnTerm> delta = effect->arguments()[1];
+
+            // Evaluate the delta first. Must be ground numeric.
+            std::shared_ptr<HtnTerm> deltaValue = delta->Eval(factory);
+            if (deltaValue == nullptr)
+            {
+                return false;
+            }
+            HtnTermType deltaType = deltaValue->GetTermType();
+            if (deltaType != HtnTermType::IntType && deltaType != HtnTermType::FloatType)
+            {
+                return false;
+            }
+
+            std::string key = head->ToString();
+            auto existing = pending.find(key);
+            if (existing != pending.end())
+            {
+                // Same fluent already touched by an earlier effect: apply
+                // this delta to the running working value, no state scan.
+                PendingFluent &p = existing->second;
+                if (!p.isFloat && deltaType == HtnTermType::FloatType)
+                {
+                    // Promote int-track to float-track.
+                    p.floatValue = (double_t)p.intValue;
+                    p.isFloat = true;
+                }
+                if (p.isFloat)
+                {
+                    p.floatValue += sign * deltaValue->GetDouble();
+                }
+                else
+                {
+                    p.intValue += sign * deltaValue->GetInt();
+                }
+                continue;
+            }
+
+            // First time touching this fluent: scan state for the unique
+            // matching fact.
+            std::shared_ptr<HtnTerm> match;
+            int matchCount = 0;
+            const std::vector<std::shared_ptr<HtnTerm>> &headArgs = head->arguments();
+            std::string targetName = head->name();
+            int targetFactArity = (int)headArgs.size() + 1;
+
+            state->AllRules([&](const HtnRule &rule) -> bool
+            {
+                if (!rule.IsFact())
+                {
+                    return true;
+                }
+                const std::shared_ptr<HtnTerm> &factHead = rule.head();
+                if (factHead->name() != targetName || factHead->arity() != targetFactArity)
+                {
+                    return true;
+                }
+                for (size_t i = 0; i < headArgs.size(); ++i)
+                {
+                    if (factHead->arguments()[i]->TermCompare(*headArgs[i]) != 0)
+                    {
+                        return true;
+                    }
+                }
+                match = factHead;
+                ++matchCount;
+                return true;
+            });
+
+            if (matchCount != 1)
+            {
+                return false;
+            }
+
+            std::shared_ptr<HtnTerm> currentValueTerm = match->arguments().back();
+            HtnTermType currentType = currentValueTerm->GetTermType();
+            if (currentType != HtnTermType::IntType && currentType != HtnTermType::FloatType)
+            {
+                return false;
+            }
+
+            PendingFluent p;
+            p.originalFact = match;
+            p.headArgs = headArgs;
+            p.targetName = targetName;
+            p.isFloat = (currentType == HtnTermType::FloatType) || (deltaType == HtnTermType::FloatType);
+            if (p.isFloat)
+            {
+                p.floatValue = currentValueTerm->GetDouble() + sign * deltaValue->GetDouble();
+                p.intValue = 0;
+            }
+            else
+            {
+                p.intValue = currentValueTerm->GetInt() + sign * deltaValue->GetInt();
+                p.floatValue = 0.0;
+            }
+            pending[key] = p;
+        }
+    }
+
+    // Emit one removal + one addition per touched fluent. Each fluent's
+    // original fact is removed exactly once (no duplicate-removal crash),
+    // and the final fact carries the fully-composed value.
+    for (const auto &entry : pending)
+    {
+        const PendingFluent &p = entry.second;
+        std::shared_ptr<HtnTerm> newValueTerm;
+        if (p.isFloat)
+        {
+            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(p.floatValue));
+        }
+        else
+        {
+            newValueTerm = factory->CreateConstant(lexical_cast<std::string>(p.intValue));
+        }
+        std::vector<std::shared_ptr<HtnTerm>> newFactArgs = p.headArgs;
+        newFactArgs.push_back(newValueTerm);
+        finalRemovals.push_back(p.originalFact);
+        finalAdditions.push_back(factory->CreateFunctor(p.targetName, newFactArgs));
+    }
+    return true;
 }
 
 bool HtnPlanner::CheckForOperator(PlanState *planState)
@@ -519,39 +783,74 @@ bool HtnPlanner::CheckForOperator(PlanState *planState)
     // Make the code more readable and get rid of one pointer dereference
     HtnTermFactory *factory = planState->factory;
     shared_ptr<vector<shared_ptr<PlanNode>>> stack = planState->stack;
-    
+
     shared_ptr<PlanNode> node = stack->back();
-    
+
     // Is it an operator?
     OperatorsType::iterator foundOperator = m_operators.find(node->task->name());
     if(foundOperator != m_operators.end())
     {
         HtnOperator *op = (*foundOperator).second;
-        
+
         // Get the "Most General Unifier" for the operator and the task and make sure it is ground (otherwise it is invalid)
         shared_ptr<UnifierType> mgu = HtnGoalResolver::Unify(factory, node->task, op->head());
         if(mgu != nullptr && HtnGoalResolver::IsGround(mgu.get()))
         {
             // Substitute the MGU into any variables in the operator
             shared_ptr<HtnTerm> operatorSubstituted = HtnGoalResolver::SubstituteUnifiers(factory, *mgu.get(), op->head());
-            
+
             // And into the adds and deletes
             shared_ptr<vector<shared_ptr<HtnTerm>>> finalRemovals = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->deletions());
             shared_ptr<vector<shared_ptr<HtnTerm>>> finalAdditions = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->additions());
-            
+
+            // Numeric fluent effects: substitute the MGU into each whole
+            // increase(...)/decrease(...) term up front, then translate into
+            // additional removals + additions. This preserves the documented
+            // ordering: del() removals (already in finalRemovals), then
+            // fluent del/add pairs, then add() additions.
+            shared_ptr<vector<shared_ptr<HtnTerm>>> substitutedIncreases = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->increases());
+            shared_ptr<vector<shared_ptr<HtnTerm>>> substitutedDecreases = HtnGoalResolver::SubstituteUnifiers(factory, *mgu, op->decreases());
+
+            // Build a working pair of removals/additions so the fluent step
+            // can append in source order. We rebuild the add list as
+            // [del-deletions] then [fluent-removals] for removals, and
+            // [fluent-additions] then [op-additions] for additions, to
+            // preserve the spec'd ordering of effects.
+            vector<shared_ptr<HtnTerm>> workingRemovals = *finalRemovals;
+            vector<shared_ptr<HtnTerm>> fluentAdditions;
+            bool fluentOk = ApplyFluentDeltas(factory, node->state.get(),
+                                              *substitutedIncreases, *substitutedDecreases,
+                                              workingRemovals, fluentAdditions);
+
+            if (!fluentOk)
+            {
+                Trace2("FAIL       ", "nodeID:{0} Operator '{1}' fluent effect failed (no/multi match or non-numeric)", stack->size(), node->nodeID(), op->head()->ToString());
+
+                string failReason = "Operator fluent effect failed: " + op->head()->ToString();
+                MarkNodeFailed(planState, node->nodeID(), failReason);
+
+                Return(planState, false);
+                return true;
+            }
+
+            // Final additions: fluent-additions first (logically applied
+            // between del and add), then the operator's own add() list.
+            vector<shared_ptr<HtnTerm>> mergedAdditions = fluentAdditions;
+            mergedAdditions.insert(mergedAdditions.end(), finalAdditions->begin(), finalAdditions->end());
+
             // We don't have alternatives to try from this node if the branch fails, so we don't need to make a copy of the state so we can try alternatives
             // So, just update the state directly
-            node->state->Update(factory, *finalRemovals, *finalAdditions);
-            
+            node->state->Update(factory, workingRemovals, mergedAdditions);
+
             if(!op->isHidden())
             {
                 // Add the operator to the current list
                 node->AddToOperators(operatorSubstituted);
             }
-            
+
             // Continue recursion: No additional tasks since this is an operator, don't make a copy of the state since we don't need to try alternatives when backtracking
             Trace3("OPERATOR   ", "nodeID:{0} Operator '{1}' unifies with '{2}'", stack->size(), node->nodeID(), op->head()->ToString(), node->task->ToString());
-            Trace3("           ", "isHidden: {0}, deletes:'{1}', adds:'{2}'", stack->size(), op->isHidden(), HtnTerm::ToString(*finalRemovals), HtnTerm::ToString(*finalAdditions));
+            Trace3("           ", "isHidden: {0}, deletes:'{1}', adds:'{2}'", stack->size(), op->isHidden(), HtnTerm::ToString(workingRemovals), HtnTerm::ToString(mergedAdditions));
 
             // Record operator in decomposition tree
             RecordOperator(planState, node->nodeID(), op, *mgu);
@@ -902,9 +1201,341 @@ shared_ptr<HtnPlanner::SolutionsType> HtnPlanner::FindAllPlans(HtnTermFactory *f
         }
     }
     
+#ifdef INDHTN_CHOICE_TRACKING
+    // Retain the choice-tracking results on the planner before planState is destroyed,
+    // so callers can read them via GetLast* (no out-params on this signature).
+    m_lastChoiceData = planState->choiceData;
+    m_lastMethodStats.clear();
+    for(auto& kv : planState->methodStatsByClause) {
+        m_lastMethodStats.push_back(kv.second);
+    }
+    m_lastAtomStats.clear();
+    for(auto& kv : planState->atomStatsByFunctor) {
+        m_lastAtomStats.push_back(kv.second);
+    }
+#endif
+
     Trace3("ALL END    ", "Solution:'{0}', Budget:{1}, HighestMemory:{2}", 0, HtnPlanner::ToStringSolutions(finalSolutions), memoryBudget, planState->highestMemoryUsed);
     return finalSolutions;
 }
+
+#ifdef INDHTN_CHOICE_TRACKING
+// ---------------------------------------------------------------------------
+// Cross-search choice-count tracking helpers. See struct comments in
+// HtnPlanner.h for the counting model. All of this is compiled out unless
+// INDHTN_CHOICE_TRACKING is defined.
+// ---------------------------------------------------------------------------
+
+static std::string csMethodTypeStr(HtnMethod* m)
+{
+    switch(m->methodType())
+    {
+        case HtnMethodType::AllSetOf: return "allOf";
+        case HtnMethodType::AnySetOf: return "anyOf";
+        default:                      return "normal";
+    }
+}
+
+bool HtnPlanner::csIsBookkeeping(const std::string& name)
+{
+    // Synthetic/scope tasks that are not real atoms (must not be counted, and
+    // occupy no subtask position). Mirrors CreateTreeNodeForTask's skip list,
+    // plus the special tasks handled in CheckForSpecialTask.
+    return name == "try" || name == "tryEnd" || name == "methodScopeEnd" ||
+           name == "countAnyOf" || name == "failIfNoneOf" ||
+           name == "beginParallel" || name == "endParallel" || name == "parallel";
+}
+
+bool HtnPlanner::csIsOperatorTask(const std::string& name)
+{
+    return m_operators.find(name) != m_operators.end();
+}
+
+MethodClauseStats& HtnPlanner::csClause(PlanState* planState, int docOrder, const std::string& sig, const std::string& methodType)
+{
+    auto it = planState->methodStatsByClause.find(docOrder);
+    if(it == planState->methodStatsByClause.end())
+    {
+        MethodClauseStats s;
+        s.clauseDocOrder = docOrder;
+        s.clauseSignature = sig;
+        s.methodType = methodType;
+        s.subtaskCount = 0;
+        s.groundingsN = 0;
+        s.successS = 0;
+        s.gateFailCount = 0;
+        it = planState->methodStatsByClause.insert(std::make_pair(docOrder, s)).first;
+    }
+    else
+    {
+        if(it->second.clauseSignature.empty() && !sig.empty()) { it->second.clauseSignature = sig; }
+        // Upgrade a stub/normal type to a more specific one when we learn it.
+        if(!methodType.empty() && methodType != "normal" &&
+           (it->second.methodType.empty() || it->second.methodType == "normal"))
+        {
+            it->second.methodType = methodType;
+        }
+        else if(it->second.methodType.empty())
+        {
+            it->second.methodType = methodType;
+        }
+    }
+    return it->second;
+}
+
+MethodPositionStats& HtnPlanner::csPosition(MethodClauseStats& clause, int slot, const std::string& atomFunctor)
+{
+    for(auto& p : clause.positions)
+    {
+        if(p.positionIndex == slot)
+        {
+            if(p.atomFunctor.empty() && !atomFunctor.empty()) { p.atomFunctor = atomFunctor; }
+            return p;
+        }
+    }
+    MethodPositionStats p;
+    p.positionIndex = slot;
+    p.atomFunctor = atomFunctor;
+    p.testedCount = 0;
+    p.failCount = 0;
+    clause.positions.push_back(p);
+    return clause.positions.back();
+}
+
+AtomStats& HtnPlanner::csAtom(PlanState* planState, const std::string& functor, bool isOperator)
+{
+    auto it = planState->atomStatsByFunctor.find(functor);
+    if(it == planState->atomStatsByFunctor.end())
+    {
+        AtomStats s;
+        s.atomFunctor = functor;
+        s.isOperator = isOperator;
+        s.testedCount = 0;
+        s.failCount = 0;
+        it = planState->atomStatsByFunctor.insert(std::make_pair(functor, s)).first;
+    }
+    else if(isOperator)
+    {
+        it->second.isOperator = true;
+    }
+    return it->second;
+}
+
+void HtnPlanner::csBumpClear(std::vector<AtomMethodClear>& clears, const std::string& sig, int docOrder)
+{
+    for(auto& c : clears)
+    {
+        if(c.methodDocOrder == docOrder) { c.clearCount++; return; }
+    }
+    AtomMethodClear c;
+    c.methodSignature = sig;
+    c.methodDocOrder = docOrder;
+    c.clearCount = 1;
+    clears.push_back(c);
+}
+
+void HtnPlanner::csTagBody(PlanState* planState, int clauseDocOrder, const std::string& clauseSig, int parentNodeID,
+                           const std::string& methodType, const std::vector<std::shared_ptr<HtnTerm>>& boundSubtasks)
+{
+    // Register the parent clause (records its type/signature) and pre-create its
+    // subtask positions so they carry atomFunctor labels even if never reached.
+    MethodClauseStats& clause = csClause(planState, clauseDocOrder, clauseSig, methodType);
+    int slot = 0;
+    for(auto& term : boundSubtasks)
+    {
+        // Bookkeeping wrappers occupy no position. NOTE: this also means parallel()
+        // (and try()) are NOT analyzed by the by-method histogram — their inner tasks
+        // are never tagged, get no position attribution, and don't count toward
+        // subtaskCount. Same limitation as anyOf/allOf; see docs/method-failure-analysis.md.
+        if(csIsBookkeeping(term->name())) { continue; }
+        // Key the origin tag on the ARITHMETIC-RESOLVED term: NextTask runs
+        // term->ResolveArithmeticTerms() (which re-interns e.g. opGain(+(2,3)) as
+        // opGain(5), changing the HtnTerm* pointer) BEFORE csRecordTested looks the
+        // tag up. Resolving here too — it is idempotent and produces the same
+        // interned pointer NextTask will — keeps the lookup hitting for subtasks
+        // that carry arithmetic arguments.
+        std::shared_ptr<HtnTerm> keyTerm = term->ResolveArithmeticTerms(planState->factory);
+        if(keyTerm == nullptr) { keyTerm = term; }
+        // The map entry holds keyTerm's strong ref, keeping the interned ptr alive.
+        // Re-tagging the same interned pointer overwrites this entry in place.
+        planState->csTermOrigin[keyTerm.get()] = std::make_pair(ChoiceOrigin{ clauseDocOrder, slot, parentNodeID }, keyTerm);
+        csPosition(clause, slot, term->name());
+        slot++;
+    }
+    // N == number of real body subtasks; size the furthest-completed histogram to N+1.
+    clause.subtaskCount = slot;
+    if((int)clause.furthestCompleted.size() < slot + 1)
+    {
+        clause.furthestCompleted.resize(slot + 1, 0);
+    }
+}
+
+void HtnPlanner::csRecordTested(PlanState* planState, PlanNode* node)
+{
+    if(node->task == nullptr) { return; }
+    std::string functor = node->task->name();
+
+    // methodScopeEnd(parentNodeID) marks that the parent method's body completed
+    // locally (we got past its last subtask, before any continuation). This is the
+    // signal that distinguishes "M's own body fully completed" from a downstream
+    // sibling failing. Its argument is the parent PlanNode's nodeID.
+    if(functor == "methodScopeEnd")
+    {
+        if(node->task->arguments().size() == 1)
+        {
+            try {
+                int parentNodeID = lexical_cast<int>(node->task->arguments()[0]->name());
+                planState->csGroundingBodyDone[parentNodeID] = true;
+            } catch(...) { /* malformed marker — ignore */ }
+        }
+        return;
+    }
+
+    if(csIsBookkeeping(functor)) { return; }
+
+    bool isOp = csIsOperatorTask(functor);
+    csAtom(planState, functor, isOp).testedCount++;
+
+    // Reset the per-invocation clear-dedup set for this node's current task.
+    planState->csClearedCounted[node->nodeID()].clear();
+
+    // Attribute to the emitting parent clause/position when tagged.
+    auto oit = planState->csTermOrigin.find(node->task.get());
+    if(oit != planState->csTermOrigin.end())
+    {
+        const ChoiceOrigin origin = oit->second.first;
+        std::string clauseSig = (origin.clauseDocOrder == -1) ? std::string("goal") : std::string();
+        std::string clauseType = (origin.clauseDocOrder == -1) ? std::string("goal") : std::string("normal");
+        MethodClauseStats& clause = csClause(planState, origin.clauseDocOrder, clauseSig, clauseType);
+        csPosition(clause, origin.slot, functor).testedCount++;
+
+        int& deepest = planState->csGroundingDeepestPos[origin.parentNodeID];
+        if(origin.slot > deepest) { deepest = origin.slot; }
+    }
+}
+
+void HtnPlanner::csRecordClear(PlanState* planState, PlanNode* node)
+{
+    if(node->task == nullptr || node->method.first == nullptr) { return; }
+    int resolvingDocOrder = node->method.first->documentOrder();
+
+    // Count each resolving method at most once per atom invocation.
+    std::set<int>& counted = planState->csClearedCounted[node->nodeID()];
+    if(counted.find(resolvingDocOrder) != counted.end()) { return; }
+    counted.insert(resolvingDocOrder);
+
+    std::string resolvingSig = node->method.first->ToString();
+    std::string functor = node->task->name();
+
+    // by-atom
+    csBumpClear(csAtom(planState, functor, false).clears, resolvingSig, resolvingDocOrder);
+
+    // by-method (parent clause + position of this atom occurrence)
+    auto oit = planState->csTermOrigin.find(node->task.get());
+    if(oit != planState->csTermOrigin.end())
+    {
+        const ChoiceOrigin origin = oit->second.first;
+        auto cit = planState->methodStatsByClause.find(origin.clauseDocOrder);
+        if(cit != planState->methodStatsByClause.end())
+        {
+            MethodPositionStats& p = csPosition(cit->second, origin.slot, functor);
+            csBumpClear(p.clears, resolvingSig, resolvingDocOrder);
+        }
+    }
+}
+
+void HtnPlanner::csRecordGrounding(PlanState* planState, PlanNode* node, bool returnValue)
+{
+    if(node->method.first == nullptr) { return; }
+    int docOrder = node->method.first->documentOrder();
+    int parentNodeID = node->nodeID();
+    MethodClauseStats& clause = csClause(planState, docOrder, node->method.first->ToString(), "normal");
+    int N = clause.subtaskCount;
+
+    // The body completed LOCALLY iff we reached its methodScopeEnd marker (set in
+    // csRecordTested). Fall back to returnValue for the cases where no marker is
+    // emitted: an empty body (N==0), or M being the last task (no continuation, so
+    // returnValue is itself uncontaminated). Either way returnValue==true implies a
+    // plan was found, which requires the body to have completed.
+    //
+    // TODO (parallel() / all-wrapper bodies not covered): N counts only the tagged,
+    // non-bookkeeping subtasks (see csTagBody). A method whose entire do() is a single
+    // parallel(...) — or any body made up solely of wrapper terms — has N==0, so this
+    // forces bodyDone=true and the grounding is recorded as a full success EVEN IF the
+    // inner parallel work failed (parallel() does not absorb failure the way try()
+    // does). This is the same "wrappers aren't analyzed" gap noted for anyOf/allOf in
+    // docs/method-failure-analysis.md; diagnose such inner tasks via their own by-method
+    // entries. Fix when parallel() inner tasks become first-class tagged subtasks.
+    auto bdIt = planState->csGroundingBodyDone.find(parentNodeID);
+    bool bodyDone = (N == 0) || (bdIt != planState->csGroundingBodyDone.end() && bdIt->second) || returnValue;
+
+    int idx;
+    if(bodyDone)
+    {
+        idx = N;  // whole body completed
+    }
+    else
+    {
+        // Failed before completing the body: blame the furthest subtask REACHED
+        // (subtasks before it completed, since position k+1 is only reached after
+        // position k's subtree fully succeeds).
+        auto dit = planState->csGroundingDeepestPos.find(parentNodeID);
+        int reached = (dit != planState->csGroundingDeepestPos.end()) ? dit->second : -1;
+
+        // Expected invariant: a body that did NOT complete (N>=1 here, since N==0 sets
+        // bodyDone above) should have reached a real subtask slot in [0, N-1] — slot 0
+        // is always tested before this grounding returns, and slot k+1 is only reached
+        // after k's subtree completes.
+        //
+        // It can nonetheless land outside [0,N) when a subtask's origin tag is lost or
+        // unattributable. Today that happens for the body subtasks we deliberately do
+        // NOT tag: those inside parallel()/try()/anyOf/allOf wrappers (see csTagBody and
+        // csIsBookkeeping). When a method's real work lives entirely inside such a
+        // wrapper, N counts no tagged slots yet the grounding can still fail, leaving
+        // `reached == -1`. We clamp into range so the count degrades gracefully rather
+        // than aborting the planner — this is a debug/eval-only feature.
+        //
+        // TODO: once EVERY wrapper keyword is fully tagged (parallel(), try(), anyOf,
+        // allOf — see docs/method-failure-analysis.md "Semantics caveats"), an
+        // out-of-range `reached` would genuinely mean a lost tag (arithmetic re-interning
+        // or term-pointer reuse) and attribution would be unreliable. At that point
+        // restore the hard FailFastAssertDesc here instead of clamping.
+        if(reached < 0)        { reached = 0; }
+        else if(reached >= N)  { reached = N - 1; }
+        idx = reached;
+    }
+
+    if((int)clause.furthestCompleted.size() < N + 1)
+    {
+        clause.furthestCompleted.resize(N + 1, 0);
+    }
+    clause.furthestCompleted[idx]++;
+    clause.groundingsN++;
+
+    if(idx >= N)
+    {
+        clause.successS++;
+    }
+    else
+    {
+        // Backward-compatible per-position fail count, plus the by-atom local
+        // "this subtask was the blocker" count.
+        MethodPositionStats& p = csPosition(clause, idx, "");
+        p.failCount++;
+        if(!p.atomFunctor.empty())
+        {
+            csAtom(planState, p.atomFunctor, csIsOperatorTask(p.atomFunctor)).failCount++;
+        }
+    }
+}
+
+void HtnPlanner::csRecordGateFail(PlanState* planState, PlanNode* node)
+{
+    if(node->method.first == nullptr) { return; }
+    csClause(planState, node->method.first->documentOrder(),
+             node->method.first->ToString(), csMethodTypeStr(node->method.first)).gateFailCount++;
+}
+#endif // INDHTN_CHOICE_TRACKING
 
 // Finds the next solution to the planning problem represented by planState and returns it (or null if there are none)
 // Updates planState so it can be called over and over to get more solutions
@@ -988,6 +1619,12 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     // Create tree node at task resolution time - sibling scope is now correct
                     CreateTreeNodeForTask(planState, node.get());
 
+#ifdef INDHTN_CHOICE_TRACKING
+                    // Hook A: record this atom invocation ("tested"); covers operators
+                    // and method-resolved atoms, skips bookkeeping tasks internally.
+                    csRecordTested(planState, node.get());
+#endif
+
                     Trace3("SOLVE      ", "nodeID:{0} task:'{1}' remaining:'{2}'", stack->size(), node->nodeID(), node->task->ToString(), HtnTerm::ToString(*node->tasks));
 
                     // Is it an operator?
@@ -1012,6 +1649,26 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                         else
                         {
                             Trace3("           ", "nodeID:{0} {1} methods unify with '{2}'", stack->size(), node->nodeID(), node->unifiedMethods->size(), node->task->ToString());
+
+#ifdef INDHTN_CHOICE_TRACKING
+                            {
+                                // Use treeNodeID as key (unique per task, handles try() same-PlanNode reuse).
+                                // Guard with find() — operator[] would insert a default 0 entry if the
+                                // tree node hasn't been created yet, wrongly attributing the record to root.
+                                auto treeIt = planState->nodeIDToLastTreeNodeID.find(node->nodeID());
+                                if(treeIt != planState->nodeIDToLastTreeNodeID.end()) {
+                                    ChoiceRecord record;
+                                    record.taskFull = node->task->ToString();
+                                    record.taskFunctor = node->task->name();
+                                    record.depth = (int)stack->size();
+                                    for(auto& m : *node->unifiedMethods) {
+                                        record.unifyingMethods.push_back(m.first->ToString());
+                                    }
+                                    planState->treeNodeIDToChoiceIndex[treeIt->second] = planState->choiceData.size();
+                                    planState->choiceData.push_back(record);
+                                }
+                            }
+#endif
 
                             // Each method that unifies represents a branch of the tree that could be an alternative solution
                             // So we iterate through them
@@ -1091,6 +1748,10 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     
                     if(node->conditionResolutions == nullptr)
                     {
+#ifdef INDHTN_CHOICE_TRACKING
+                        // Precondition gate failed (N == 0 groundings) for this method.
+                        csRecordGateFail(planState, node.get());
+#endif
                         // Constraints are not met for this method, try the next one
                         Trace2("FAIL       ", "nodeID:{0} 0 condition alternatives for method '{1}'", stack->size(), node->nodeID(), node->method.first->ToString());
                         Trace1("           ", "substituted condition '{0}'", stack->size(), HtnTerm::ToString(*substitutedCondition));
@@ -1112,6 +1773,29 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     else
                     {
                         Trace2("           ", "{0} condition alternatives for method '{1}'", stack->size(), node->conditionResolutions->size(), node->method.first->ToString());
+
+#ifdef INDHTN_CHOICE_TRACKING
+                        // Preconditions satisfied — record as viable (dedup: method may be
+                        // re-evaluated after else-skip resets methodHadSolution).
+                        // Guard with find() — operator[] would insert a default 0 entry if
+                        // this nodeID has no tree node yet, wrongly attributing the viable
+                        // method to the root goal (treeNodeID 0).
+                        auto treeIt = planState->nodeIDToLastTreeNodeID.find(node->nodeID());
+                        if(treeIt != planState->nodeIDToLastTreeNodeID.end()) {
+                            auto it = planState->treeNodeIDToChoiceIndex.find(treeIt->second);
+                            if(it != planState->treeNodeIDToChoiceIndex.end()) {
+                                auto& viable = planState->choiceData[it->second].viableMethods;
+                                std::string methodStr = node->method.first->ToString();
+                                if(std::find(viable.begin(), viable.end(), methodStr) == viable.end()) {
+                                    viable.push_back(methodStr);
+                                }
+                            }
+                        }
+                        // Hook B: this resolving method's precondition cleared for the
+                        // current atom invocation (deduped per invocation internally).
+                        csRecordClear(planState, node.get());
+#endif
+
                         if(node->method.first->methodType() == HtnMethodType::Normal)
                         {
                             // Every resolution is treated as a potential separate solution
@@ -1166,6 +1850,15 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                     // Then bind the variables from the condition to the subtasks
                     shared_ptr<vector<shared_ptr<HtnTerm>>> boundSubtasks = HtnGoalResolver::SubstituteUnifiers(factory, *condition, *headBoundSubtasks);
 
+#ifdef INDHTN_CHOICE_TRACKING
+                    // Tag each body subtask with its emitting clause/position, and reset
+                    // the deepest-position tracker for this fresh grounding attempt.
+                    csTagBody(planState, node->method.first->documentOrder(), node->method.first->ToString(),
+                              node->nodeID(), "normal", *boundSubtasks);
+                    planState->csGroundingDeepestPos[node->nodeID()] = -1;
+                    planState->csGroundingBodyDone[node->nodeID()] = false;
+#endif
+
                     // Create a node by adding the subtasks from this method/condition combination and recurse
                     // Make it backtrackable so we can try alternatives without the state being changed by other solutions
                     shared_ptr<HtnRuleSet> stateCopy = node->state->CreateCopy();
@@ -1177,12 +1870,18 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::FindNextPlan(PlanState *planSta
                 
             case PlanNodeContinuePoint::ReturnFromNextNormalMethodCondition:
             {
+#ifdef INDHTN_CHOICE_TRACKING
+                // Hook C/D: one grounding of this (normal) method just finished.
+                // returnValue tells whether it produced >=1 complete plan; if not,
+                // attribute the failure to its deepest-reached subtask position.
+                csRecordGrounding(planState, node.get(), returnValue);
+#endif
                 if(returnValue == true)
                 {
                     // Found a solution!
                     node->methodHadSolution = true;
                 }
-                
+
                 // Try the next condition
                 node->continuePoint = PlanNodeContinuePoint::NextNormalMethodCondition;
                 continue;
@@ -1297,6 +1996,13 @@ void HtnPlanner::HandleAllOf(PlanState *planState)
     // Nothing special needs to be done to track success here because the default behavior of our depth first search is that all tasks in the list
     // must find a solution or the branch fails, which is the behavior that we want.
     
+#ifdef INDHTN_CHOICE_TRACKING
+    // allOf is excluded from the success/fail partition (groundings are merged),
+    // but we still record its clause type and tag subtasks for tested/clear counts.
+    csTagBody(planState, node->method.first->documentOrder(), node->method.first->ToString(),
+              node->nodeID(), "allOf", *combinedSubtasks);
+#endif
+
     // Finally Create a node by adding the subtasks from all of the conditions at once and recurse using a copy of current state so we can backtrack
     Trace1("ALLOF      ", "Treat ALL method condition alternatives as new tasks", stack->size(), HtnTerm::ToString(*combinedSubtasks));
     node->SearchNextNodeBacktrackable(planState, *combinedSubtasks, PlanNodeContinuePoint::ReturnFromSetOfConditions);
@@ -1336,7 +2042,15 @@ void HtnPlanner::HandleAnyOf(PlanState *planState)
     
     // Then add a final check at the end to make sure at least one of the try() blocks worked
     combinedSubtasks->push_back(factory->CreateFunctor("failIfNoneOf", { factory->CreateConstant(lexical_cast<string>(anyOfNodeID)) }));
-    
+
+#ifdef INDHTN_CHOICE_TRACKING
+    // anyOf is excluded from the partition. Its subtasks are wrapped in try()
+    // (bookkeeping) so none are tagged here, but we still register the clause type
+    // so the report can label it.
+    csTagBody(planState, node->method.first->documentOrder(), node->method.first->ToString(),
+              node->nodeID(), "anyOf", *combinedSubtasks);
+#endif
+
     // Here is where we track how many succeeded
     node->tryAnyOfSuccessCount = 0;
     
