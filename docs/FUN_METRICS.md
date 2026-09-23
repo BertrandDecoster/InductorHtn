@@ -143,11 +143,16 @@ Probes are cached by an identity that covers the level source, **the sources of 
 the fingerprint configuration, and the extractor version. Editing a strategy component invalidates
 the level's cache.
 
-## 4. The six metric families
+## 4. The metric families
 
 Each family reports a verdict: **pass**, **warn**, or **fail**, with the offending numbers. Bands live
 in `src/Python/htn_metrics/metrics.json` — iterating on calibration means editing that file, not the
 code.
+
+F1–F6 grade the solution space. F7 is different: it checks the level against its author's declared
+intent, fails outright, and carries no composite weight. The literature behind the metrics added on
+2026-09-23 (uniqueness, landmarks, world chains, solution information, F7, `funExpect`) is in
+[`research/fun-cross-reference.md`](research/fun-cross-reference.md).
 
 ---
 
@@ -160,11 +165,15 @@ Encodes GDD §3.6 "always have at least 2 or 3 ways to defeat an enemy."
 | `plan_count` | Number of plans returned. Carries a `truncated` flag. |
 | `strategy_classes` | Number of distinct strategy fingerprints. |
 | `redundancy` | `plan_count / strategy_classes`. |
+| `plan_uniqueness` | Fraction of plans whose ground-operator multiset does **not** strictly contain another plan's (diverse-planning *uniqueness*). A plan that is another plan plus a detour inflates every count without adding an idea. Re-binding variants are not supersets and stay unique. Exact up to 1500 distinct multisets, then a prefix sample (`plan_uniqueness_sampled`). |
+| `padded_classes` | `(padded, base)` class pairs: the padded class's representative runs every **ground** operator of the base's, and more — the base idea plus a garnish. Ground terms, not names: freezing oil into sludge and then igniting the sludge is not the burn route plus a detour. |
 
 **Bands.** `strategy_classes` ∈ [2, 5] passes. Below 2 → **fail** (one idea). Above 5 → **warn** (an
 author cannot hold that many distinct intents; usually the fingerprint layer is picking up noise).
 `redundancy` > 10 → **warn**: the plan space is mostly re-binding noise, which inflates `plan_count`
-without giving the player anything new to find.
+without giving the player anything new to find. `plan_uniqueness` < 0.5 → **warn**; any
+`padded_classes` → **warn**. These two are the defence against an agent raising multiplicity with
+detour methods (fixture `padded_variants`).
 
 When the planner runs out of memory the family says so ("planner ran out of memory") rather than
 reporting "unsolvable". With `--loadouts`, `strategy_classes_across_loadouts` counts the classes that
@@ -190,12 +199,13 @@ at risk of.
 | `goal_target_linchpins` *(needs `--ablate`)* | Linchpins that name an atom from the goal itself — `enemy(gob)` for the goal `planToDamage(gob)`. Tracked but never counted as a flaw: delete the target and there is nothing to plan against, which is true of every level and says nothing about its design. They are also excluded when comparing classes, since a shared target is shared by definition and would otherwise mask genuine independence. |
 | `shared_gates` *(needs `--ablate`)* | Facts every route needs **because a declared blocker needs them** — removing the fact also kills a `funBlockerGoal`. A corridor both routes walk through, or the Warden both routes rely on, is infrastructure the encounter passes through, not one idea under several names. Gates are reported as a note and excluded from independence. Cast facts (`role/2`, `signature/2`) are never linchpin candidates. |
 | `ablation_conclusive`, `ablation_unknown_probes` | Whether every ablation probe finished. When any did not, linchpin and independence claims are withheld. |
+| `landmark_facts`, `landmark_operators`, `landmark_ratio` | **Landmarks** (Hoffmann, Porteous & Sebastia 2004) over the enumerated set: facts every plan adds, operator names every plan uses, and landmark facts as a share of the mean facts a plan achieves. The goal's own effects are always landmarks; what else is there is the bottleneck every route must pass through. Reported, not banded. Cheap and observational, unlike `shared_linchpin`. |
 
 **Bands.** `min_pairwise_distance` ≥ 0.4 passes; below `0.4 × severe_distance_factor` (0.2) is
-*severe*. At least one class pair with disjoint critical sets passes. A non-goal-target, non-gate
-`shared_linchpin` → **warn**, and **fail** only when the distance is also severe: shared
-infrastructure is a smell, not proof of a duplicate idea. Sampled ablation (`max_ablation_facts`) is
-reported and downgrades a fail to a warn.
+*severe* → **fail** unless ablation proves the classes independent. At least one class pair with
+disjoint critical sets passes. A non-goal-target, non-gate `shared_linchpin` → **fail**: once gates
+and goal targets are set aside, one fact that kills every route means the routes were never
+independent (fixture `shared_linchpin`). Sampled or inconclusive ablation is reported as a **warn**.
 
 **Ablation outranks distance.** When ablation confirms the classes depend on disjoint facts, a
 syntactic-distance shortfall is downgraded from fail to warn — the classes are surface-similar but
@@ -219,6 +229,7 @@ Encodes GDD §3.6 — *"is 'I cast fireball and everyone dies' a satisfying plan
 | `causal_depth` | Longest path in the plan's **causal DAG**, in operators. Three edge kinds, in decreasing strength of evidence: **consumes** (`i` adds a fact `j` deletes); **enables** (`i` adds a fact a method ancestor of `j` consumed, evaluated *after* `i` ran); **provides** (`i` is the first producer of a fact not true initially that a method ancestor of `j` consumed — see §3a). This is the Primer → Catalyst → Detonator depth. |
 | `interlock` | Fraction of operators participating in at least one causal edge. A chore of independent actions scores 0; a true chain scores 1. |
 | `decomposition_depth` | Maximum tree depth of the decomposition. |
+| `world_chain_ratio` | Share of causal edges whose linking fact names no actor — `wet(goblin)` enabling an electrocution, not `inside(companionA)` enabling a door. Breath of the Wild's "multiplicative" design: the world does the work. Reported, not banded; `null` when no plan has an edge. Inherits the actor convention's blind spot (an enemy-first operator makes the enemy an "actor"). |
 
 **Bands.** `plan_length` ∈ [3, 12] (configurable). Best class `causal_depth` ≥ 3. `interlock` ≥ 0.5.
 
@@ -271,11 +282,17 @@ Read its numbers as conversation starters.
 | `search_cost` | Planner resolution steps divided by median plan length. Reported as `unavailable` when the build does not surface a step count. |
 | `insight_depth` | Minimum over classes of the number of operators whose added facts are first consumed **≥ 2 operators later** — a setup move you have to plan ahead for, rather than a greedy next step. |
 | `red_herring_ratio` | Fraction of world entities (atoms appearing in level facts) that appear in no plan. |
+| `solution_information_bits` | **Solution information** (Chen, White & Sturtevant, AIIDE 2023): `−log₂ P(solve)` for a player who, at each task on the way, picks uniformly among the rules that define it (the same static `k` as `decision_breadth` — Pelánek's "alternatives to refute"). Plans are merged into a trie of (task, method) decisions; at each node every distinct winning method contributes `P(child)/k`, and binding variants (the same choices landing on different ground tasks) count by their best, not their sum. |
+| `easiest_plan_bits` | The MSI analogue (Shen & Sturtevant 2024): min over plans of `Σ log₂ k` along that plan's decisions — the fewest bits that specify one solution. Always ≥ `solution_information_bits`. |
+| `solution_information_per_class` | The easiest plan's bits within each strategy class. |
 
 Two further numbers are reported but not banded, because it is not yet clear what a good value is:
 `planner_dead_ends` and `planner_nodes_explored`.
 
-**Bands.** `decision_breadth` ≥ 2. `insight_depth` ≥ 1 — at least one non-greedy move must be
+**Bands.** `decision_breadth` ≥ 2. `solution_information_bits` ≥ 1 — below one bit a player picking
+methods at random solves the level more often than not. There is deliberately **no upper band** yet:
+the only evidence for what "too hard" means comes from human ratings (`fun-calibrate`, §8).
+`insight_depth` ≥ 1 — at least one non-greedy move must be
 required. Note this is a **minimum over classes**: one route that demands foresight does not make the
 level non-greedy if another route can be played straight through. `red_herring_ratio` ≤ 0.6 and **no
 minimum** - unused scenery is a tool the author may use, not something the scorecard rewards -
@@ -292,7 +309,15 @@ observation.
 
 **Blind spot.** `search_cost` measures the **planner's** difficulty, which correlates with but is not
 the player's. On this build it is usually `unavailable`: `FindAllPlans` does not update the Prolog
-resolution-step counter, which only tracks `PrologQuery`.
+resolution-step counter, which only tracks `PrologQuery`. The literature agrees this is the wrong
+target: in Pelánek's Sudoku study raw backtracking correlated r = .25 with human solve time, a
+human-search model r = .95. That is why solution information models the *player's* choice, and why
+the planner-effort counts stay unbanded.
+
+`solution_information_bits` has its own blind spots. Its player is a novice: a skilled player
+dismisses a method whose `if()` is visibly false, so the bits overstate difficulty wherever
+conditions are obvious. And choices that are bindings rather than methods (which companion, which
+tool under `first`) are invisible to it.
 
 ---
 
@@ -355,15 +380,48 @@ happens: an operator whose first argument is not a companion (`opBreak(golem)`, 
 one enemy-actor operator reads as *two* actors and slips past `single_actor_plans`. Give such
 operators the acting companion first, or declare `funActor`/`funNoop` for them.
 
+---
+
+### F7 — Intent: *does every solution use the idea?*
+
+Encodes Smith, Butler & Popović, *Quantifying over Play* (FDG 2013): puzzle quality depends heavily
+on the **absence of unwanted solutions**. An enumerating planner can check "no plan avoids the
+intended concept" exactly. A second route the author never meant looks like good design to F1–F6,
+since it adds a class, stays distant, and has its own chain (fixture `shortcut`). Only a
+declaration can catch it.
+
+```prolog
+funIntended(combo, opElectrocute).   % group `combo`: every plan uses at least one member
+funIntended(combo, opIgnite).
+funIntended(opClear).                % one-member group named after its member
+funForbidden(opBribe).               % no plan may use this
+```
+
+A member matches a plan when an operator has that name, or the plan uses the component
+(mechanism) of that name.
+
+| Metric | Definition |
+|--------|------------|
+| `declared`, `intended_groups`, `forbidden` | What the level declared. |
+| `shortcut_plans` | Per group, the plans that use none of its members. |
+| `forbidden_plans` | Per forbidden member, the plans that use it. |
+
+**Verdicts.** Undeclared → **skip**. Any shortcut or forbidden use → **fail**, with the first
+offending plan quoted. Composite weight is **0**: a shortcut is a defect, not a low grade, and must
+not be averaged away. `fun` exits 2 on an F7 fail, and `verify` fails the level.
+
+**Blind spot.** It checks names, not meaning. An operator renamed to dodge the check dodges it, and
+an intended group that is too broad (a primitive every route uses) passes vacuously.
+
 ## 5. The composite score is a diagnostic
 
 A single weighted `fun_score` ∈ [0, 1] is emitted as a convenience for later automated level
 generation, computed from explicit per-family weights in `metrics.json`. It is rendered as
 "diagnostic composite", it is **never a target**, it is never wired into `certify`, and the `fun`
-command's exit code does not depend on it (exit 2 only when the level is unsolvable or the plan
-space was truncated).
+command's exit code does not depend on it. `fun` exits 2 when the plan set is unusable (truncated,
+or F1 fails: unsolvable or a single idea) or the level breaks its declared intent (F7 fails).
 
-**It is the least trustworthy output in this document.** It collapses six independent judgments into
+**It is the least trustworthy output in this document.** It collapses six independent judgments (F7 carries no weight) into
 one number and thereby hides exactly the information an author needs. Use the per-family profile.
 The composite exists so that a fitness function can be derived from the same extraction layer later,
 not because a level's fun is one-dimensional.
@@ -400,12 +458,15 @@ against a ranking of levels nobody likes.
 | `shared_consumable` — one token, two blockers | F4: `loadout_feasibility_independent` > `loadout_feasibility`; the level has 0 plans under a loadout that wins each fight |
 | `nominal_player` — the player is only ever mentioned, never the actor | F6 `player_load` 0, `passive_involvement` > 0 |
 | `actor_override` — operators written target-first, `funActor` declared | F6 reads the declared index |
+| `shortcut` — a pit trap wins a level declared to be about soak → conduct → shock | F7 `shortcut_plans`; F1–F3 and F6 stay clean, which is the point |
+| `padded_variants` — two extra "strategies" that are the real plan plus a stroll | F1 `plan_uniqueness` 1/3, `padded_classes` |
 | `reference_good` — one coherent encounter: breach three blockers with the chosen tools, then run the vault one of two ways | passes all families, under encounter feasibility |
 
 `tests/test_fun_metrics.py` asserts each fixture trips its intended family **and that the families it
 is not about stay clean** — that second half is what makes these calibration tests rather than smoke
 tests. A metric that flags everything is as useless as one that flags nothing. `reference_good`
-doubles as the documented target pattern for future levels and passes all six families; its
+doubles as the documented target pattern for future levels, passes every family (F7 skips: it
+declares no intent), and carries its hypothesis as `funExpect` facts that must all hold; its
 `runHeist` requires the blockers cleared, so the 19 plans are one encounter, not a heist beside a
 lattice.
 
@@ -484,10 +545,42 @@ PYTHONPATH=src/Python python -m htn_components fun levels/gamehack_multipath --a
 PYTHONPATH=src/Python python -m htn_components fun levels/gamehack_multipath --json --md report.md
 PYTHONPATH=src/Python python -m htn_components fun-all
 PYTHONPATH=src/Python python -m htn_components fun-compare gamehack_mvp gamehack_multipath
+
+# expressive range across levels (Smith & Whitehead): are the levels spread out, or one level many times?
+PYTHONPATH=src/Python python -m htn_components fun-all --range solution_information_bits teamwork_edge_ratio
+
+# held-out human signal: record ratings, then see which metrics track them
+PYTHONPATH=src/Python python -m htn_components fun-rate grease_trap --rating 4 --rater alice --note "slipstream felt clever"
+PYTHONPATH=src/Python python -m htn_components fun-calibrate
 ```
 
+**Declared expectations.** A level's hypothesis can be kept as a regression test:
+
+```prolog
+funExpect(strategy_classes, atLeast, 2).                  % any family; refused if ambiguous
+funExpect(f6_player, player_decision_points, atLeast, 2). % named family
+funExpect(plan_length_median, atMost, 8).                 % nested metrics flatten with _
+funExpect(f7_intent, verdict, pass).                      % shorthand for verdict equals
+```
+
+Operators are `atLeast`, `atMost` and `equals`. `fun` prints each expectation as ok or MISS.
+`verify` **fails the level** on any miss, and on an F7 fail. These are the only two parts of the
+scorecard that gate, because both are the author's own declarations, not the metrics' opinion.
+Expectations can only name metrics that a plain run measures. `verify` runs neither `--ablate` nor
+`--loadouts`, so metrics that need either one read as "no such metric".
+
+**The rating log.** `fun-rate` appends one JSON line to `levels/fun_ratings.jsonl` holding:
+- the human's 1–5 rating and a note;
+- the level's source hash;
+- every numeric scorecard metric at that moment. Metrics keyed by a level's own labels (class
+  names, fact names) are left out.
+
+`fun-calibrate` ranks every metric, and the composite, by Spearman correlation with the ratings once
+there are at least 5. Keep the ratings away from the agent that iterates on a level. If the visible
+metrics rise while ratings fall, the metrics are being gamed.
+
 ```bash
-PYTHONPATH=src/Python python -m htn_components verify grease_trap             # ends with the scorecard, non-gating
+PYTHONPATH=src/Python python -m htn_components verify grease_trap             # ends with the scorecard; gates only on funExpect + F7
 PYTHONPATH=src/Python python -m htn_components play grease_trap --class theSlipstream
 PYTHONPATH=src/Python python -m htn_components play grease_trap --solution 1 -i
 ```
@@ -520,12 +613,15 @@ rather than reimplements: `ComponentLoader` (dependency-ordered assembly, `opera
 | `canonical.py` | Canonicalization, strategy fingerprinting, equivalence classes, pairwise distance (F1, F2). |
 | `causal.py` | Per-plan causal graph from operator del/add; `causal_depth`, `interlock`, `insight_depth`, intermediate-state reconstruction (F3, F5). |
 | `counterfactual.py` | The shared perturbation harness: single-fact **ablation** (F2) and **X-of-Y loadout enumeration** (F4), over one disk cache. |
-| `metrics.py` | The six families as pure functions over `PlanSpace`. |
+| `metrics.py` | The seven families as pure functions over `PlanSpace`. |
+| `structure.py` | For-all plan-set properties: intent (F7), uniqueness and padding (F1), landmarks (F2), world chains (F3), solution information (F5). |
+| `expect.py` | `funExpect` declarations checked against a flattened scorecard. |
+| `calibration.py` | The human rating log and Spearman correlation (`fun-rate`, `fun-calibrate`). |
 | `config.py` + `metrics.json` | Bands, weights, caps — the iteration surface. |
 | `agency.py` | `ActorConvention`: who performed an operator, whether it is consequential (F6, trie, MCP play). |
 | `trie.py` | `PlanTrie`: the plan space as operator prefixes; player decision points; companion auto-advance (F6, MCP play). |
 | `narrate.py` | Operators, companion intentions and facts as sentences (`play`, MCP play). |
-| `profile.py` / `report.py` | `profile_level` (plan + counterfactuals + verdicts, harness closed in `finally`); terminal scorecard, `--json`, `--md`. |
+| `profile.py` / `report.py` | `profile_level` (plan + counterfactuals + verdicts + expectations, harness closed in `finally`); terminal scorecard, `--json`, `--md`, the `fun-all` table and `--range` grid. |
 
 Two small additions were made outside the package, both additive:
 
@@ -540,15 +636,18 @@ Two small additions were made outside the package, both additive:
 
 ## 11. Status
 
-Implemented: the six families, the counterfactual harness with tri-state probes and
+Implemented: the seven families (F7 and the plan-set structure metrics added 2026-09-23 from
+`research/fun-cross-reference.md`), `funExpect`, the rating log, the counterfactual harness with tri-state probes and
 dependency-aware caching, encounter feasibility, the agency metrics, the plan trie, narration,
 the `core/*` ruleset with `levels/grease_trap`, and the player-perspective MCP loop.
 `python -m pytest tests/test_fun_metrics.py tests/test_fun_counterfactual.py tests/test_fun_agency.py
 tests/test_replay_sources.py tests/test_core_level.py tests/test_narrate.py
-mcp-server/tests/test_level_tools.py` — 50 passed.
+mcp-server/tests/test_level_tools.py` — 61 passed.
 
 Not done, deliberately: the metrics are not wired into `certify` as a gate; there is no GUI panel;
-no C++ was changed. Backlog: telegraphed enemy intent (`intends/3`), a cost model (`funCost/2`) for
+no C++ was changed. Backlog, ranked by evidence × computability in
+`research/fun-cross-reference.md` §5.5: the catch (tempting dead-end prefixes, from method-failure
+tracking), campaign novelty and difficulty steps, noisy-policy leniency, persona spread; also telegraphed enemy intent (`intends/3`), a cost model (`funCost/2`) for
 nondominated approaches across time/risk/resources, companion inclinations, migrating the two older
 component trees to the core vocabulary, `toy_two_step`, and playthrough-derived metrics (observed
 decision breadth, recovery after a mistake) once `.playthroughs/` holds data.

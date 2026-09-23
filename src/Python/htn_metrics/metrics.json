@@ -20,7 +20,9 @@
     "f1_multiplicity": {
       "strategy_classes_min": 2,
       "strategy_classes_max": 5,
-      "redundancy_warn_above": 10.0
+      "redundancy_warn_above": 10.0,
+      "_plan_uniqueness_note": "Share of plans whose operator multiset is not another plan plus a detour (diverse-planning uniqueness). Guards the counts against padding.",
+      "plan_uniqueness_min": 0.5
     },
     "f2_distinctness": {
       "min_pairwise_distance_min": 0.4,
@@ -47,6 +49,8 @@
     },
     "f5_discovery": {
       "decision_breadth_min": 2.0,
+      "_solution_information_note": "Bits a player choosing uniformly among method alternatives must be told to solve the level (Chen, White and Sturtevant 2023). Below 1 bit random play solves it more often than not. No upper band until human ratings exist - see fun-calibrate.",
+      "solution_information_bits_min": 1.0,
       "insight_depth_min": 1,
       "_red_herring_note": "No minimum: unused scenery is a tool the author may use, not something the scorecard rewards.",
       "red_herring_ratio_max": 0.6
@@ -68,7 +72,9 @@
     "f3_depth": 0.2,
     "f4_choice": 0.2,
     "f5_discovery": 0.1,
-    "f6_player": 0.1
+    "f6_player": 0.1,
+    "_f7_intent_note": "Zero on purpose: F7 is a gate, not a grade. A shortcut plan is a defect and fails the family; it must not be averaged away.",
+    "f7_intent": 0.0
   },
 
   "verdict_scores": {

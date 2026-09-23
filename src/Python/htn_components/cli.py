@@ -1945,13 +1945,29 @@ def cmd_verify(args) -> int:
     # Step 4: the fun scorecard. A diagnostic, never a gate: verify says
     # whether the level works, the scorecard says what its solution space
     # looks like, and only a designer can say whether that shape is right.
-    print("\n[4/4] Fun scorecard (diagnostic, non-gating)...")
+    print("\n[4/4] Fun scorecard (diagnostic; only funExpect and F7 intent gate)...")
     try:
         from htn_metrics.extract import ExtractError
         from htn_metrics.profile import profile_level
         from htn_metrics.report import render_terminal
         profile = profile_level(full_path)
         print(render_terminal(profile, verbose=args.verbose))
+        # The scorecard does not gate; the author's own declarations do.
+        # funExpect is the level's hypothesis kept as a regression test, and
+        # funIntended/funForbidden (F7) is its intent. Either failing means
+        # the level no longer is what its author said it is.
+        missed = [e for e in profile.expectations if not e["ok"]]
+        if missed:
+            print(f"  Expectations: FAIL ({len(missed)} of "
+                  f"{len(profile.expectations)} funExpect not met)")
+            all_passed = False
+        elif profile.expectations:
+            print(f"  Expectations: PASS ({len(profile.expectations)} funExpect)")
+        intent = next((f for f in profile.families if f.key == "f7_intent"), None)
+        if intent is not None and intent.verdict == "fail":
+            print("  Intent (F7): FAIL - a plan avoids the intended idea "
+                  "or uses a forbidden one")
+            all_passed = False
     except ExtractError as exc:
         print(f"  scorecard unavailable: {exc}")
     except Exception as exc:  # the scorecard must never break verify
@@ -2599,12 +2615,14 @@ def cmd_fun(args) -> int:
             f.write(render_markdown(profile))
         print(f"Markdown report written to {md_path}")
 
-    # The scorecard is a diagnostic, not a gate. The exit code says only
-    # whether there was a plan set to measure at all.
-    unsolvable = profile.truncated or any(
-        f.key == "f1_multiplicity" and f.verdict == "fail" for f in profile.families
+    # The scorecard is a diagnostic, not a gate. Exit 2 means the plan set
+    # is unusable (truncated, unsolvable or a single idea - an F1 fail) or
+    # the level breaks its own declared intent (an F7 fail).
+    blocking = profile.truncated or any(
+        f.key in ("f1_multiplicity", "f7_intent") and f.verdict == "fail"
+        for f in profile.families
     )
-    return 2 if unsolvable else 0
+    return 2 if blocking else 0
 
 
 def _discover_levels() -> List[str]:
@@ -2648,6 +2666,12 @@ def cmd_fun_all(args) -> int:
         print()
         print(render_comparison(profiles))
         print()
+        if getattr(args, "range", None):
+            from htn_metrics.report import render_range
+            x_metric, y_metric = args.range
+            print(render_range(profiles, x_metric, y_metric,
+                               bins=getattr(args, "bins", 4)))
+            print()
     return 0
 
 
@@ -2670,6 +2694,55 @@ def cmd_fun_compare(args) -> int:
     return 0
 
 
+def cmd_fun_rate(args) -> int:
+    """Record a human rating of a level next to its scorecard."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_metrics.calibration import append_rating, default_log_path, rating_record
+    from htn_metrics.extract import ExtractError, load_level_spec
+
+    if not 1 <= args.rating <= 5:
+        print("Error: --rating must be 1..5")
+        return 1
+    try:
+        profile = _fun_profile(args.level, False, False)
+        source_hash = load_level_spec(args.level).source_hash()
+    except ExtractError as exc:
+        print(f"Error: {exc}")
+        return 1
+    record = rating_record(profile, args.rating, rater=args.rater or "",
+                           note=args.note or "", source_hash=source_hash)
+    path = args.log or default_log_path(PROJECT_ROOT)
+    append_rating(path, record)
+    print(f"Rated {profile.level_id} {args.rating}/5 "
+          f"({len(record['metrics'])} metrics recorded) -> {path}")
+    return 0
+
+
+def cmd_fun_calibrate(args) -> int:
+    """Correlate recorded human ratings with every numeric metric."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_metrics.calibration import (
+        MIN_RATINGS, correlate, default_log_path, load_ratings,
+    )
+
+    path = args.log or default_log_path(PROJECT_ROOT)
+    records = load_ratings(path)
+    if len(records) < MIN_RATINGS:
+        print(f"{len(records)} rating(s) in {path}; need at least {MIN_RATINGS} "
+              f"before a correlation means anything. Rate levels with fun-rate.")
+        return 1
+    rows = correlate(records)
+    levels = len({r["level"] for r in records})
+    print(f"Spearman rank correlation with human rating: {len(records)} ratings "
+          f"of {levels} level(s)\n")
+    print(f"  {'metric':<56} {'rho':>6}  n")
+    for name, rho, n in rows[: args.top]:
+        print(f"  {name:<56} {rho:>+6.2f}  {n}")
+    print("\nA strong |rho| is a lead for recalibrating metrics.json, not proof;"
+          " with few levels, one level rated many times dominates.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="HTN Component Management Tool",
@@ -2687,6 +2760,8 @@ Commands:
   fun               Score a level's solution-space shape (docs/FUN_METRICS.md)
   fun-all           Fun comparison table across levels
   fun-compare       Side-by-side fun profile diff
+  fun-rate          Record a human rating next to a level's scorecard
+  fun-calibrate     Correlate human ratings with every metric
 
 Examples:
   python -m htn_components new primitives/tags
@@ -2800,6 +2875,12 @@ Examples:
     fun_all_parser.add_argument("--ablate", action="store_true")
     fun_all_parser.add_argument("--loadouts", action="store_true")
     fun_all_parser.add_argument("--json", action="store_true", help="Emit JSON")
+    fun_all_parser.add_argument(
+        "--range", nargs=2, metavar=("X", "Y"),
+        help="Expressive-range grid over two scorecard metrics "
+             "(flattened names, e.g. solution_information_bits teamwork_edge_ratio)")
+    fun_all_parser.add_argument("--bins", type=int, default=4,
+                                help="Grid cells per axis for --range (default 4)")
     fun_all_parser.set_defaults(func=cmd_fun_all)
 
     # fun-compare command
@@ -2810,6 +2891,23 @@ Examples:
     fun_compare_parser.add_argument("--ablate", action="store_true")
     fun_compare_parser.add_argument("--loadouts", action="store_true")
     fun_compare_parser.set_defaults(func=cmd_fun_compare)
+
+    # fun-rate command
+    fun_rate_parser = subparsers.add_parser(
+        "fun-rate", help="Record a human rating (1-5) next to the level's scorecard")
+    fun_rate_parser.add_argument("level", help="Level path")
+    fun_rate_parser.add_argument("--rating", type=int, required=True, help="1 (dull) .. 5 (great)")
+    fun_rate_parser.add_argument("--rater", help="Who played it")
+    fun_rate_parser.add_argument("--note", help="One line on why")
+    fun_rate_parser.add_argument("--log", help="Ratings file (default levels/fun_ratings.jsonl)")
+    fun_rate_parser.set_defaults(func=cmd_fun_rate)
+
+    # fun-calibrate command
+    fun_cal_parser = subparsers.add_parser(
+        "fun-calibrate", help="Correlate human ratings with every metric")
+    fun_cal_parser.add_argument("--log", help="Ratings file (default levels/fun_ratings.jsonl)")
+    fun_cal_parser.add_argument("--top", type=int, default=25, help="Rows to show")
+    fun_cal_parser.set_defaults(func=cmd_fun_calibrate)
 
     # evaluate command
     evaluate_parser = subparsers.add_parser(

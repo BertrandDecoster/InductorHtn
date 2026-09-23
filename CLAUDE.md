@@ -63,8 +63,10 @@ trace <level> [--goal GOAL]      # Decomposition tree visualization
 verify <level>                   # deps + tests + plan + fun scorecard (non-gating)
 
 fun <level> [--ablate] [--loadouts] [--json] [--md FILE]   # Fun scorecard
-fun-all                          # Comparison table across levels
+fun-all [--range X Y]            # Comparison table; --range = expressive-range grid
 fun-compare <a> <b>              # Side-by-side profile diff
+fun-rate <level> --rating 1..5   # Held-out human rating -> levels/fun_ratings.jsonl
+fun-calibrate                    # Which metrics track the ratings (Spearman)
 ```
 
 ## Fun Metrics
@@ -74,7 +76,8 @@ ways exist, how deep they are, whether any one companion can carry a plan alone 
 human's seat being idle is only a warning), and which of the declared X-of-Y choices
 work. It never claims a level is fun.
 
-Full definition, bands, and known blind spots: **`docs/FUN_METRICS.md`**.
+Full definition, bands, and known blind spots: **`docs/FUN_METRICS.md`**. The literature
+behind them (design theory, planning, generation workflows): `docs/research/fun-cross-reference.md`.
 Calibration fixtures: `tests/fun_fixtures/`; tests: `python -m pytest tests/test_fun_metrics.py`.
 
 Bands and weights are data, in `src/Python/htn_metrics/metrics.json` — calibrate there, not in code.
@@ -86,6 +89,13 @@ funChoice(kit, emp).                          % ... from these
 funChoiceFact(emp, carrying(player, emp)).    % how a pick alters the world
 funBlocker(door).                             % must be solved
 funBlockerGoal(door, clear(door)).            % optional; else derived from goals()
+```
+A level can also declare its intent and keep its hypothesis as a regression test. `verify` fails
+on either one; nothing else in the scorecard gates:
+```prolog
+funIntended(combo, opCastRegion).             % F7: every plan uses a member of `combo`
+funForbidden(opBribe).                        % F7: no plan uses this
+funExpect(player_decision_points, atLeast, 2). % checked by fun and verify
 ```
 `--ablate` and `--loadouts` re-plan many times; results are disk-cached in
 `.htn_metrics_cache/`, so a second run over an unchanged level is fast.

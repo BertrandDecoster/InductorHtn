@@ -19,13 +19,16 @@ play <level> [--solution N | --class LABEL] [-i]   # Plan narrative (grounded ef
 trace <level> [--goal GOAL]      # Decomposition tree visualization
 
 test-all [--layer <layer>]       # Run all component tests
-verify <level>                   # deps + tests + plan + fun scorecard (non-gating)
+verify <level>                   # deps + tests + plan + fun scorecard (gates on funExpect + F7 only)
 evaluate <level>                 # Plan-space richness (solvability, difficulty, operator variety)
 library-coverage [--layer <l>]   # Aggregate plan-space metrics across all levels
 
 fun <level> [--ablate] [--loadouts] [--json] [--md FILE]   # Fun scorecard (docs/FUN_METRICS.md)
 fun-all [levels...]              # Comparison table across levels
 fun-compare <a> <b>              # Side-by-side profile diff
+fun-all --range X Y [--bins N]   # Expressive-range grid over two metrics
+fun-rate <level> --rating 1..5   # Record a human rating next to the scorecard
+fun-calibrate                    # Spearman: which metrics track the ratings
 
 assemble <level> [-o <path>]     # Assemble level + deps into a single .htn
   [--no-verify]                  #   write output without running the verifier

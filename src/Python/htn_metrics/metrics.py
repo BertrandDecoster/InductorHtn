@@ -1,4 +1,4 @@
-"""The six metric families, as pure functions over a `PlanSpace`.
+"""The metric families, as pure functions over a `PlanSpace`.
 
 Each function returns a `FamilyResult`: the numbers, a verdict against the
 bands in `metrics.json`, and plain-language findings naming what tripped.
@@ -23,6 +23,16 @@ from .agency import ActorConvention
 from .causal import CausalGraph, build_causal_graph, decomposition_depth
 from .config import Config
 from .extract import PlanSpace
+from .structure import (
+    intent_violations,
+    landmarks,
+    method_alternatives,
+    padded_classes,
+    plan_uniqueness,
+    read_intent,
+    solution_information,
+    world_chain_ratio,
+)
 from .trie import PlanTrie
 
 PASS, WARN, FAIL, SKIP = "pass", "warn", "fail", "skip"
@@ -72,6 +82,8 @@ def f1_multiplicity(
     class_count = len(classes)
     redundancy = (plan_count / class_count) if class_count else 0.0
     across = (lattice or {}).get("strategy_classes_across_loadouts")
+    uniqueness, uniqueness_sampled = plan_uniqueness(space)
+    padded = padded_classes(classes)
 
     result.metrics = {
         "plan_count": plan_count,
@@ -80,6 +92,9 @@ def f1_multiplicity(
         "strategy_classes_across_loadouts": across,
         "redundancy": round(redundancy, 2),
         "class_sizes": {c.label: c.size for c in classes},
+        "plan_uniqueness": round(uniqueness, 3),
+        "plan_uniqueness_sampled": uniqueness_sampled,
+        "padded_classes": [list(pair) for pair in padded],
     }
 
     if space.truncated and "memory" in space.truncation_reason.lower():
@@ -124,6 +139,20 @@ def f1_multiplicity(
             f"redundancy {redundancy:.1f} plans per idea (> {redundancy_cap}) - "
             f"the plan space is mostly re-binding noise",
         )
+
+    uniqueness_floor = cfg.band("f1_multiplicity.plan_uniqueness_min", 0.5)
+    if uniqueness < uniqueness_floor:
+        result.flag(
+            WARN,
+            f"plan uniqueness {uniqueness:.0%} (want >= {uniqueness_floor:.0%}) - most "
+            f"plans are another plan plus a detour, so the count is padded",
+        )
+    if padded:
+        result.flag(
+            WARN,
+            f"class '{padded[0][0]}' runs every operator of '{padded[0][1]}' and more "
+            f"({len(padded)} such class(es)) - one idea plus a garnish, not two ideas",
+        )
     return result
 
 
@@ -156,6 +185,7 @@ def f2_distinctness(
             list(min(distances, key=lambda d: d[2])[:2]) if distances else None
         ),
     }
+    result.metrics.update(landmarks(space))
 
     if not values:
         result.flag(SKIP, "fewer than two strategy classes - nothing to compare")
@@ -271,6 +301,7 @@ def causal_graphs(space: PlanSpace) -> Dict[int, CausalGraph]:
 def f3_depth(
     space: PlanSpace, classes: Sequence[StrategyClass], cfg: Config,
     graphs: Optional[Dict[int, CausalGraph]] = None,
+    convention: Optional[ActorConvention] = None,
 ) -> FamilyResult:
     result = FamilyResult(
         key="f3_depth",
@@ -319,6 +350,7 @@ def f3_depth(
         },
         "decomposition_depth": {"min": min(decomps), "max": max(decomps)},
         "per_class": per_class,
+        "world_chain_ratio": world_chain_ratio(graphs, _actors(space, convention, cfg)),
     }
 
     length_min = cfg.band("f3_depth.plan_length_min", 3)
@@ -354,6 +386,15 @@ def f3_depth(
             f"operators are causally independent, so the plan reads as a chore",
         )
     return result
+
+
+def _actors(
+    space: PlanSpace, convention: Optional[ActorConvention], cfg: Config
+) -> Set[str]:
+    """Every atom that acts in some plan, by the actor convention."""
+    conv = convention or ActorConvention.from_space(space, cfg)
+    actors = {conv.actor_of(op) for p in space.plans for op in p.operators}
+    return {a for a in actors if a}
 
 
 # ==========================================================================
@@ -534,7 +575,9 @@ def f5_discovery(
         title="Discovery difficulty - is it a puzzle to find?",
         encodes="fun to solve (weakest family - proxies, expect to iterate)",
     )
-    breadth = decision_breadth(space)
+    alternatives = method_alternatives(space)
+    breadth = decision_breadth(space, alternatives)
+    information = solution_information(space, classes, alternatives)
     herrings, entities = red_herrings(space)
     graphs = graphs if graphs is not None else causal_graphs(space)
 
@@ -554,6 +597,9 @@ def f5_discovery(
 
     result.metrics = {
         "decision_breadth": round(breadth, 2),
+        "solution_information_bits": information["solution_information_bits"],
+        "easiest_plan_bits": information["easiest_plan_bits"],
+        "solution_information_per_class": information["solution_information_per_class"],
         "insight_depth": insight,
         "insight_depth_per_class": class_insight,
         "search_cost": search_cost if search_cost is not None else "unavailable",
@@ -571,6 +617,16 @@ def f5_discovery(
             WARN,
             f"decision breadth {breadth:.2f} (want >= {want_breadth}) - most tasks "
             f"have a single applicable method, so there is nothing to choose between",
+        )
+
+    bits = information["solution_information_bits"]
+    want_bits = cfg.band("f5_discovery.solution_information_bits_min", 1.0)
+    if bits is not None and bits < want_bits:
+        result.flag(
+            WARN,
+            f"solution information {bits:.2f} bits (want >= {want_bits}) - a player "
+            f"picking methods at random solves this more often than not, so there "
+            f"is little to find",
         )
 
     want_insight = cfg.band("f5_discovery.insight_depth_min", 1)
@@ -599,7 +655,9 @@ def f5_discovery(
     return result
 
 
-def decision_breadth(space: PlanSpace) -> float:
+def decision_breadth(
+    space: PlanSpace, alternatives: Optional[Dict[str, int]] = None
+) -> float:
     """Mean method alternatives per task actually encountered in plans.
 
     Static: counts how many rules define each task signature, averaged over
@@ -607,17 +665,8 @@ def decision_breadth(space: PlanSpace) -> float:
     to encountered tasks avoids rewarding a library full of methods the level
     never reaches.
     """
-    from .extract import _import_parse_htn
-
-    parse_htn = _import_parse_htn()
-    alternatives: Dict[str, int] = {}
-    for _component, text in space.sources:
-        rules, _diags = parse_htn(text)
-        for rule in rules:
-            if not rule.is_method or rule.head is None:
-                continue
-            sig = f"{rule.head.name}/{len(rule.head.args)}"
-            alternatives[sig] = alternatives.get(sig, 0) + 1
+    if alternatives is None:
+        alternatives = method_alternatives(space)
 
     encountered: Set[str] = set()
     for plan in space.plans:
@@ -871,6 +920,58 @@ def f6_player(
     return result
 
 
+# ==========================================================================
+# F7 - Intent: does every solution use the idea the level is about?
+# ==========================================================================
+
+def f7_intent(space: PlanSpace, cfg: Config) -> FamilyResult:
+    """A gate, not a grade (Smith, Butler & Popovic 2013).
+
+    The author names the mechanic the level is about with `funIntended` and
+    what must never win with `funForbidden`. One plan that skips the idea is
+    a shortcut, and a shortcut is a defect however good the other numbers
+    look - so this family fails outright and carries no composite weight.
+    """
+    result = FamilyResult(
+        key="f7_intent",
+        title="Intent - does every solution use the idea?",
+        encodes="quantifying over play: no solution may avoid the intended mechanic",
+    )
+    decl = read_intent(space.facts_used)
+    result.metrics = {
+        "declared": decl.declared,
+        "intended_groups": dict(decl.groups),
+        "forbidden": list(decl.forbidden),
+    }
+    if not decl.declared:
+        result.verdict = SKIP
+        result.findings.append("intent not declared (funIntended / funForbidden)")
+        return result
+    if not space.plans:
+        result.flag(FAIL, "no plans to check")
+        return result
+
+    by_index = {p.index: p for p in space.plans}
+    found = intent_violations(space, decl)
+    shortcuts, forbidden = found["shortcuts"], found["forbidden"]
+    result.metrics["shortcut_plans"] = {g: v[:20] for g, v in shortcuts.items()}
+    result.metrics["forbidden_plans"] = {m: v[:20] for m, v in forbidden.items()}
+    for group, plans in shortcuts.items():
+        example = by_index[plans[0]]
+        result.flag(
+            FAIL,
+            f"{len(plans)} of {space.plan_count} plans never use '{group}' "
+            f"({', '.join(decl.groups[group])}) - a shortcut around the intended "
+            f"idea, e.g. " + ", ".join(op.text for op in example.operators[:6]),
+        )
+    for member, plans in forbidden.items():
+        result.flag(
+            FAIL,
+            f"{len(plans)} of {space.plan_count} plans use forbidden '{member}'",
+        )
+    return result
+
+
 def compute_all(
     space: PlanSpace,
     cfg: Config,
@@ -886,8 +987,9 @@ def compute_all(
     return [
         f1_multiplicity(space, classes, cfg, lattice),
         f2_distinctness(space, classes, cfg, ablation),
-        f3_depth(space, classes, cfg, graphs),
+        f3_depth(space, classes, cfg, graphs, convention),
         f4_choice(space, cfg, lattice),
         f5_discovery(space, classes, cfg, graphs),
         f6_player(space, cfg, ablation, graphs, convention, trie),
+        f7_intent(space, cfg),
     ]

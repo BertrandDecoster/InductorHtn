@@ -14,6 +14,7 @@ All documentation lives here. Root keeps only `CLAUDE.md` (AI core rules) and
 | **Legacy** | [`legacy/`](legacy/) | ⚠️ Original upstream InductorHtn docs — superseded, kept for history |
 | **Game design** | [`game-design/`](game-design/) | Product/game design drafts for "The Companions" |
 | **Plans** | [`plans/`](plans/) | Dated design and review records |
+| **Research** | [`research/`](research/) | Literature cross-references behind the fun metrics and the design loop |
 
 ## Quick links
 

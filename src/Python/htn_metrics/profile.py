@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .canonical import classify
 from .config import Config
+from .expect import check_expectations, read_expectations
 from .extract import PlanSpace, extract_plan_space, load_level_spec
 from .metrics import FAIL, PASS, SKIP, WARN, FamilyResult, compute_all
 
@@ -27,6 +28,12 @@ class FunProfile:
     notes: List[str] = field(default_factory=list)
     fun_score: Optional[float] = None
     score_withheld_reason: str = ""
+    expectations: List[Dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def expectations_met(self) -> bool:
+        """True when every declared `funExpect` holds (vacuously with none)."""
+        return all(e.get("ok") for e in self.expectations)
 
     @property
     def overall(self) -> str:
@@ -51,6 +58,7 @@ class FunProfile:
             "fun_score": self.fun_score,
             "score_withheld_reason": self.score_withheld_reason,
             "families": [f.to_dict() for f in self.families],
+            "expectations": self.expectations,
             "strategy_classes": self.strategy_classes,
             "notes": self.notes,
         }
@@ -107,6 +115,9 @@ def build_profile(
         truncated=space.truncated,
         truncation_reason=space.truncation_reason,
         notes=list(space.notes),
+        expectations=check_expectations(
+            read_expectations(space.facts_used), families
+        ),
     )
 
     if space.truncated:

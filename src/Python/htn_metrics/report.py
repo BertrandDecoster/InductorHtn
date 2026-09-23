@@ -83,6 +83,14 @@ def render_terminal(profile: FunProfile, verbose: bool = False) -> str:
             lines.append(f"     -> {finding}")
         lines.append("")
 
+    if profile.expectations:
+        lines.append("Expectations (funExpect)")
+        for exp in profile.expectations:
+            mark = "ok  " if exp["ok"] else "MISS"
+            detail = f" - {exp['reason']}" if exp["reason"] else ""
+            lines.append(f"  [{mark}] {exp['source']}{detail}")
+        lines.append("")
+
     lines.append("-" * 60)
     if profile.fun_score is None:
         lines.append(f"composite  : withheld ({profile.score_withheld_reason})")
@@ -165,8 +173,8 @@ def render_markdown(profile: FunProfile) -> str:
 def render_comparison(profiles: Sequence[FunProfile]) -> str:
     """A one-row-per-level table for `fun-all`."""
     families = ["f1_multiplicity", "f2_distinctness", "f3_depth",
-                "f4_choice", "f5_discovery", "f6_player"]
-    headers = ["level", "plans", "classes", "F1", "F2", "F3", "F4", "F5", "F6",
+                "f4_choice", "f5_discovery", "f6_player", "f7_intent"]
+    headers = ["level", "plans", "classes", "F1", "F2", "F3", "F4", "F5", "F6", "F7",
                "score", "overall"]
 
     rows: List[List[str]] = []
@@ -254,4 +262,78 @@ def render_diff(a: FunProfile, b: FunProfile) -> str:
     score_b = f"{b.fun_score:.2f}" if b.fun_score is not None else "withheld"
     lines.append(f"{'composite':<34}{score_a:<22}{score_b}")
     lines.append("")
+    return "\n".join(lines)
+
+
+def render_range(
+    profiles: Sequence[FunProfile], x: str, y: str, bins: int = 4
+) -> str:
+    """Expressive range (Smith & Whitehead 2010) of a set of levels.
+
+    Each level is placed on two flattened scorecard metrics and the plane is
+    binned. The point is the *distribution*: a set of levels that all land in
+    one cell is one level made several times, however good that cell is.
+    """
+    from .expect import flatten_metrics
+
+    points = []
+    missing = []
+    for profile in profiles:
+        flat = flatten_metrics(profile.families)
+        def pick(name):
+            values = [v for (_f, n), v in flat.items()
+                      if n == name and isinstance(v, (int, float))
+                      and not isinstance(v, bool)]
+            return values[0] if len(values) == 1 else None
+        vx, vy = pick(x), pick(y)
+        if vx is None or vy is None:
+            missing.append(profile.level_id)
+        else:
+            points.append((profile.level_id, float(vx), float(vy)))
+
+    lines = [f"Expressive range: x = {x}, y = {y}  (axis labels are cell lower edges)", ""]
+    if not points:
+        lines.append("  no level has both metrics as single numbers")
+        return "\n".join(lines)
+
+    def edges(values):
+        lo, hi = min(values), max(values)
+        if hi == lo:
+            hi = lo + 1.0
+        step = (hi - lo) / bins
+        return lo, step
+
+    x_lo, x_step = edges([p[1] for p in points])
+    y_lo, y_step = edges([p[2] for p in points])
+
+    def cell(v, lo, step):
+        # The epsilon keeps a value sitting exactly on an edge in the upper
+        # cell despite float division (0.43 / 0.145 -> 2.9999...).
+        return min(bins - 1, int((v - lo) / step + 1e-9))
+
+    grid = [[0] * bins for _ in range(bins)]
+    for _name, vx, vy in points:
+        grid[cell(vy, y_lo, y_step)][cell(vx, x_lo, x_step)] += 1
+
+    width = 6
+    for row in range(bins - 1, -1, -1):
+        label = f"{y_lo + row * y_step:>8.2f}"
+        cells = "".join(
+            (str(grid[row][col]) if grid[row][col] else ".").center(width)
+            for col in range(bins)
+        )
+        lines.append(f"{label} |{cells}")
+    lines.append(" " * 9 + "+" + "-" * (width * bins))
+    lines.append(" " * 10 + "".join(
+        f"{x_lo + col * x_step:.2f}".center(width) for col in range(bins)
+    ))
+    occupied = sum(1 for row in grid for v in row if v)
+    lines.append("")
+    lines.append(f"  {len(points)} level(s) in {occupied} of {bins * bins} cells")
+    lines.append("")
+    for name, vx, vy in sorted(points, key=lambda p: (p[1], p[2])):
+        lines.append(f"  {name:<28} {x}={vx:g}  {y}={vy:g}")
+    if missing:
+        lines.append("")
+        lines.append("  not placed (metric missing or ambiguous): " + ", ".join(missing))
     return "\n".join(lines)

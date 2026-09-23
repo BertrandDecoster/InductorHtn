@@ -269,6 +269,152 @@ def test_companions_solo_is_a_seat_warning_not_a_pillar_failure():
 
 
 # ==========================================================================
+# F7 - Intent, and the plan-set structure metrics
+# (docs/research/fun-cross-reference.md section 5)
+# ==========================================================================
+
+def test_shortcut_trips_f7_and_nothing_else_sees_it():
+    """A second route the author never intended looks like good design to
+    every other family. Only the declaration catches it, and it must fail
+    outright rather than lower a grade."""
+    profile = profile_for("shortcut")
+    f7 = assert_fails(profile, "f7_intent")
+    assert f7.metrics["shortcut_plans"] == {"combo": [1]}, f7.metrics
+    assert any("opLure(companionA, golem)" in f for f in f7.findings), f7.findings
+    assert_clean(profile, "f1_multiplicity", "f2_distinctness", "f3_depth",
+                 "f6_player")
+    assert family(profile, "f1_multiplicity").verdict == "pass"
+
+
+def test_f7_is_skipped_when_undeclared_and_carries_no_weight():
+    profile = profile_for("reference_good")
+    f7 = family(profile, "f7_intent")
+    assert f7.verdict == "skip"
+    assert f7.metrics["declared"] is False
+    assert Config.load().weight("f7_intent") == 0.0
+
+
+def test_padded_variants_trip_f1_uniqueness():
+    """Two extra 'strategies' that are the real plan plus a stroll. Every
+    count goes up; uniqueness is what reads the set for what it is."""
+    profile = profile_for("padded_variants")
+    f1 = assert_not_pass(profile, "f1_multiplicity")
+    assert f1.metrics["strategy_classes"] == 3
+    assert f1.metrics["plan_uniqueness"] == pytest.approx(1 / 3, abs=0.01)
+    bases = {base for _padded, base in f1.metrics["padded_classes"]}
+    assert bases == {"defeat > soak > shock"}, f1.metrics["padded_classes"]
+    assert_clean(profile, "f2_distinctness", "f3_depth", "f6_player")
+
+
+def test_rebinding_variants_are_not_padding():
+    """reference_good has many re-bindings of two routes; none is a superset
+    of another, so uniqueness must stay at 1 and no class reads as padded."""
+    f1 = family(profile_for("reference_good"), "f1_multiplicity")
+    assert f1.metrics["plan_uniqueness"] == 1.0
+    assert f1.metrics["padded_classes"] == []
+
+
+def test_solution_information_separates_a_puzzle_from_a_menu():
+    """The exemplar needs several bits to solve at random; a fixture whose
+    every method choice wins needs none."""
+    good = family(profile_for("reference_good"), "f5_discovery").metrics
+    assert good["solution_information_bits"] >= 1.0
+    assert good["easiest_plan_bits"] >= good["solution_information_bits"], (
+        "one plan cannot be easier to hit than hitting any plan"
+    )
+    assert set(good["solution_information_per_class"]) == {
+        c["label"] for c in profile_for("reference_good").strategy_classes
+    }
+    menu = family(profile_for("one_shot"), "f5_discovery").metrics
+    assert menu["solution_information_bits"] == 0.0
+
+
+def test_success_probability_counts_methods_and_maxes_bindings():
+    """Pure check of the trie arithmetic.
+
+    Task t has 4 methods and 2 of them win: P = 2/4. Two sequences that
+    differ only in which ground task follows (a binding variant) must not
+    add up as if the policy chose between them.
+    """
+    from htn_metrics.structure import _success_probability
+
+    two_of_four = [(("t/0", 1, 4),), (("t/0", 2, 4),)]
+    assert _success_probability(two_of_four) == pytest.approx(0.5)
+
+    binding_variants = [
+        (("t/0", 1, 2), ("u/1", 7, 2)),
+        (("t/0", 1, 2), ("v/1", 9, 2)),
+    ]
+    assert _success_probability(binding_variants) == pytest.approx(0.25)
+
+
+def test_landmarks_and_world_chains_are_reported():
+    profile = profile_for("reference_good")
+    f2 = family(profile, "f2_distinctness").metrics
+    assert "cleared(door)" in f2["landmark_facts"], "every route breaches the door"
+    assert 0.0 < f2["landmark_ratio"] < 1.0
+    f3 = family(profile, "f3_depth").metrics
+    assert 0.0 <= f3["world_chain_ratio"] <= 1.0
+
+
+# ==========================================================================
+# Workflow: funExpect regressions and the rating log
+# ==========================================================================
+
+def test_reference_good_meets_its_declared_expectations():
+    profile = profile_for("reference_good")
+    assert len(profile.expectations) == 6
+    missed = [e for e in profile.expectations if not e["ok"]]
+    assert not missed, missed
+    assert profile.expectations_met
+
+
+def test_expectations_report_misses_ambiguity_and_typos():
+    from htn_metrics.expect import Expectation, check_expectations
+
+    families = profile_for("reference_good").families
+    results = check_expectations([
+        Expectation(None, "strategy_classes", "atLeast", 9, "too many"),
+        Expectation(None, "verdict", "equals", "pass", "ambiguous"),
+        Expectation(None, "no_such_metric", "atLeast", 1, "typo"),
+        Expectation(None, "strategy_classes", "over", 1, "bad op"),
+        Expectation("f1_multiplicity", "verdict", "equals", "pass", "ok"),
+    ], families)
+    by_source = {r["source"]: r for r in results}
+    assert not by_source["too many"]["ok"] and by_source["too many"]["actual"] == 2
+    assert "ambiguous" in by_source["ambiguous"]["reason"]
+    assert "no such metric" in by_source["typo"]["reason"]
+    assert "unknown operator" in by_source["bad op"]["reason"]
+    assert by_source["ok"]["ok"]
+
+
+def test_expectation_shorthand_for_family_verdict():
+    from htn_metrics.expect import read_expectations
+
+    [exp] = read_expectations(["funExpect(f7_intent, verdict, pass)"])
+    assert (exp.family, exp.metric, exp.op, exp.expected) == (
+        "f7_intent", "verdict", "equals", "pass")
+
+
+def test_spearman_and_rating_records():
+    from htn_metrics.calibration import correlate, rating_record, spearman
+
+    assert spearman([1, 2, 3, 4], [10, 20, 30, 40]) == pytest.approx(1.0)
+    assert spearman([1, 2, 3, 4], [4, 3, 2, 1]) == pytest.approx(-1.0)
+    assert spearman([1, 1, 1], [1, 2, 3]) is None
+
+    record = rating_record(profile_for("reference_good"), 4, rater="t")
+    assert record["rating"] == 4
+    assert "f5_discovery.solution_information_bits" in record["metrics"]
+    assert not any("class_sizes" in k for k in record["metrics"]), (
+        "per-level labelled metrics must not be logged"
+    )
+    records = [dict(record, rating=r, metrics={"m.x": float(r)}) for r in range(1, 7)]
+    [(name, rho, n)] = [row for row in correlate(records) if row[0] == "m.x"]
+    assert rho == pytest.approx(1.0) and n == 6
+
+
+# ==========================================================================
 # The positive exemplar
 # ==========================================================================
 

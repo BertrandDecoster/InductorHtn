@@ -9,14 +9,22 @@ it is good at, and ends with a human.
 ## The loop
 
 ```
-state one hypothesis
+state one hypothesis            (numbers kept as funExpect; the idea as funIntended)
    -> change ONE rule (a fact, a method, a component)
-   -> certify (bottom-up)
+   -> certify (bottom-up); verify gates on funExpect + F7 intent
    -> play it through the MCP level tools, as the player
    -> explain + fun (afterwards, the planner's view)
    -> compare metrics and recorded decisions with the hypothesis
-   -> a human tries the promising version before it is kept
+   -> a human tries the promising version and records a rating (fun-rate)
 ```
+
+The shape matches what the literature on generation loops converges on (see
+`docs/research/fun-cross-reference.md` §4):
+- The agent proposes and symbolic checks certify (ChatHTN; LLM-built PDDL).
+- Hard gates are kept apart from soft signals.
+- The agent reads per-family findings, never one scalar (Eureka's reflection).
+- One change at a time serves as attribution.
+- A human signal is held back from the agent so gaming shows up.
 
 ### 1. State one hypothesis
 
@@ -29,6 +37,26 @@ experience you want and the numbers you expect to move:
 
 A hypothesis without a number is a wish. A number without an experience is a
 target to game.
+
+Keep the numbers in `level.htn` as well, so the hypothesis outlives this
+iteration and `verify` re-checks it whenever a shared component changes:
+
+```prolog
+funExpect(strategy_classes, atLeast, 2).
+funExpect(f6_player, player_decision_points, atLeast, 2).
+funExpect(plan_length_median, atMost, 12).
+```
+
+Name the idea the level is *about*, and anything that must never win:
+
+```prolog
+funIntended(combo, opCastRegion).     % every plan must use a member of `combo`
+funForbidden(opBribe).
+```
+
+This is "quantifying over play" (Smith et al. 2013). F7 fails any plan that
+skips the idea, and nothing else in the scorecard can see a well-built
+shortcut.
 
 ### 2. Change one rule
 
@@ -49,8 +77,10 @@ PYTHONPATH=src/Python python -m htn_components verify <level>     # deps + tests
 ```
 
 The linter only knows a dependency's `provides` after that dependency is
-certified, so order matters. `verify` ends with the fun scorecard; it is
-printed, never gating.
+certified, so order matters. `verify` ends with the fun scorecard. The
+scorecard does not gate, with two exceptions, both of them the author's own
+declarations: a missed `funExpect` fails `verify`, and so does an F7 intent
+fail. A gate failure rejects the change; it is not traded against score.
 
 ### 4. Play it as the player
 
@@ -98,8 +128,15 @@ PYTHONPATH=src/Python python -m htn_components fun-compare <before> <after>
 ```
 
 Read the families, not the composite. The composite is a diagnostic and is
-never a target. In F6, `single_actor_plans` is the pillar (one companion
-carried a plan alone: a fail). `soloable_plans`, `player_load` and the
+never a target. Three readings guard against gaming:
+- **Plan count up, `plan_uniqueness` down:** the new plans are padding (a
+  detour added to an existing plan).
+- **`solution_information_bits` near zero:** random method choice solves the
+  level, so there is nothing to find.
+- **`landmark_ratio` near 1:** every route shares most of its causal work.
+
+In F6, `single_actor_plans` is the pillar (one companion carried a plan
+alone: a fail). `soloable_plans`, `player_load` and the
 decision points describe the seat you gave the human; they are warnings,
 and the numbers to move when that seat feels idle, never violations.
 
@@ -118,6 +155,28 @@ Before a version is kept, someone who did not write it plays it (the GUI, the
 REPL, or the MCP tools with the rules above). Structural analysis needs
 qualitative playtesting beside it; telemetry alone is how levels get worse
 while their numbers get better.
+
+Record the verdict:
+
+```bash
+PYTHONPATH=src/Python python -m htn_components fun-rate <level> --rating 1..5 --rater <who> --note "<why>"
+```
+
+The rating goes to `levels/fun_ratings.jsonl` next to the level's scorecard
+and source hash. It is held out: the agent iterating on a level does not
+read it. Once enough ratings exist, `fun-calibrate` shows which metrics
+track human judgement. That is the evidence for moving a band in
+`metrics.json`, and for adding the upper band F5 deliberately lacks.
+
+### 8. Across levels
+
+```bash
+PYTHONPATH=src/Python python -m htn_components fun-all --range solution_information_bits teamwork_edge_ratio
+```
+
+This is expressive range analysis (Smith & Whitehead 2010). If every level
+lands in one cell, the loop is making one level repeatedly, however good
+that cell is. Pick the next hypothesis to reach an empty cell.
 
 ## What the tools cannot see
 
@@ -138,3 +197,5 @@ while their numbers get better.
 | Core vocabulary and operator rules | `docs/reference/component-system.md` |
 | MCP tools | `docs/tools/mcp-server.md`, `mcp-server/indhtn_mcp/level_tools.py` |
 | Playthrough records | `.playthroughs/` (gitignored) |
+| Human ratings (held out) | `levels/fun_ratings.jsonl` |
+| Why the loop and metrics look like this | `docs/research/fun-cross-reference.md` |

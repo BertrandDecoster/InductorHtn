@@ -210,4 +210,15 @@ funBlockerGoal(door, clear(door)).
 funBlockerGoal(guard, clear(guard)).
 funBlockerGoal(alarm, clear(alarm)).
 
+% ==========================================================================
+% The design hypothesis, kept as a regression test (verify checks these)
+% ==========================================================================
+
+funExpect(strategy_classes, atLeast, 2).
+funExpect(f6_player, player_decision_points, atLeast, 1).
+funExpect(solution_information_bits, atLeast, 1).
+funExpect(plan_length_median, atMost, 12).
+funExpect(f2_distinctness, verdict, pass).
+funExpect(f7_intent, verdict, equals, skip).
+
 goals(runHeist(vault)).
