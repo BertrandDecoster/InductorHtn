@@ -1,0 +1,62 @@
+% core_world - regions, movement, and who is who
+%
+% The unified vocabulary (see .claude/rules/component-system.md, "Core
+% vocabulary"). Levels declare:
+%   region(?r)                 a named region of the navigation graph
+%   connected(?a, ?b)          a traversable edge, declared per direction
+%   lineOfSight(?from, ?to)    ranged skills can reach ?to from ?from
+%   regionHas(?r, ?feature)    oil, water, sludge, ice, scorched, ...
+%   at(?entity, ?r)
+%   status(?entity, ?s)        anchored, snared, dead, shielded, ...
+%   role(?entity, ?kind)       player | companion | enemy
+%
+% `player` and `companion` are both companions. They differ only by who
+% controls them - a human or the AI - never by what they can do. Nothing in
+% the rules may gate an ability on role(?a, player); abilities live on the
+% character (hasSkill, signature, charge). Cooperation is forced with task
+% roles (see core_attunement: primer and pay-off must be different
+% companions), which anyone can fill.
+%
+% Operators are RL-delegated leaves: the engine moves the agent, the HTN
+% tracks the abstract state. The actor is always the first argument.
+
+% === Operators ===
+
+opNavigate(?a, ?from, ?to) :-
+    del(at(?a, ?from)), add(at(?a, ?to)).
+
+% === Rules ===
+
+% Any companion, whoever controls it.
+canAct(?a) :- role(?a, player).
+canAct(?a) :- role(?a, companion).
+
+% A region can target itself; otherwise a declared line of sight is needed.
+canTarget(?from, ?to) :- =(?from, ?to).
+canTarget(?from, ?to) :- lineOfSight(?from, ?to).
+
+% Anchored (holding a shield) or snared: not going anywhere.
+canMove(?a) :- not(status(?a, anchored)), not(status(?a, snared)).
+
+% === Methods ===
+
+% Already there: nothing to do.
+navigate(?a, ?to) :- if(at(?a, ?to)), do().
+
+% One hop.
+navigate(?a, ?to) :-
+    else, if(canMove(?a), at(?a, ?from), connected(?from, ?to)),
+    do(opNavigate(?a, ?from, ?to)).
+
+% Two hops through the first intermediate region that works.
+navigate(?a, ?to) :-
+    else, if(canMove(?a), at(?a, ?from),
+             first(and(connected(?from, ?via), connected(?via, ?to), \==(?via, ?to)))),
+    do(opNavigate(?a, ?from, ?via), opNavigate(?a, ?via, ?to)).
+
+% Get somewhere ?r can be targeted from: stay if the current region already
+% can, else go to the first region that has line of sight.
+takeVantage(?a, ?r) :- if(at(?a, ?from), canTarget(?from, ?r)), do().
+takeVantage(?a, ?r) :-
+    else, if(first(and(region(?v), canTarget(?v, ?r)))),
+    do(navigate(?a, ?v)).

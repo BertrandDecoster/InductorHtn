@@ -1,0 +1,123 @@
+% core_chemistry - how an element gets onto a region or an entity
+%
+% Top-down: a caller needs "fire on this region" or "lightning on that
+% enemy"; this component answers *how*. Who holds the element is bound at
+% the leaf, as the answer to that question - never as the premise.
+%
+% The three rules of the chemistry engine, as facts a level declares:
+%   skillElement(?skill, ?element)      ignite -> fire, freeze -> freeze, ...
+%   reacts(?element, ?feature, ?new)    fire + oil -> scorched; freeze + oil -> sludge
+%   blast(?element, ?feature, ?status)  what the reaction does to enemies present
+%   terrain(?feature, ?status)          what a feature does to whoever enters it
+%   strike(?element, ?status)           a direct cast on a vulnerable entity
+%   mark(?element, ?status)             a direct cast on any enemy (a flare dazzles)
+%   immune(?entity, ?element)
+% and how casts are paid for:
+%   signature(?agent, ?skill)           unswappable, unlimited
+%   unlimited(?skill)                   no charges needed
+%   charge(?agent, ?skill, ?token)      one token per use; the cast deletes it
+%
+% Reactions rewrite `regionHas`, so what one fight consumes is gone for the
+% next. That persistence is the point.
+
+% === Operators ===
+
+opSpendCharge(?a, ?skill, ?tok) :-
+    del(charge(?a, ?skill, ?tok)), add().
+
+opCastRegion(?a, ?skill, ?r, ?old, ?new) :-
+    del(regionHas(?r, ?old)), add(regionHas(?r, ?new)).
+
+opCastEntity(?a, ?skill, ?e, ?status) :-
+    del(), add(status(?e, ?status)).
+
+opStatus(?a, ?e, ?status) :-
+    del(), add(status(?e, ?status)).
+
+% === Rules ===
+
+free(?a, ?skill) :- signature(?a, ?skill).
+free(?a, ?skill) :- unlimited(?skill).
+canPay(?a, ?skill) :- free(?a, ?skill).
+canPay(?a, ?skill) :- not(free(?a, ?skill)), first(charge(?a, ?skill, ?tok)).
+
+% Who can put ?el down: one answer per companion, whatever they control.
+holder(?el, ?a) :-
+    canAct(?a),
+    first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill))).
+
+% A shield turns blasts; a snared or dazzled enemy has dropped its guard.
+% One clause, so an `allOf` over exposed enemies binds each of them once.
+guarded(?e) :- status(?e, shielded), not(status(?e, snared)), not(status(?e, dazzled)).
+exposed(?e) :- not(guarded(?e)).
+% Only a snared or dazzled enemy can be struck directly. One clause, so an
+% `allOf` binds each vulnerable enemy once.
+open(?e) :- status(?e, snared).
+open(?e) :- status(?e, dazzled).
+vulnerable(?e) :- first(open(?e)).
+
+% === Methods ===
+
+% Pay for a cast. Signature and unlimited skills are free; anything else
+% spends one token.
+payFor(?a, ?skill) :- if(free(?a, ?skill)), do().
+payFor(?a, ?skill) :-
+    else, if(first(charge(?a, ?skill, ?tok))),
+    do(opSpendCharge(?a, ?skill, ?tok)).
+
+% The need: element ?el lands on region ?r. Anyone but ?not who holds it
+% casts from a vantage; the feature reacts; the blast hits the exposed
+% enemies present; the new terrain settles on whoever stands in it.
+castElement(?el, ?r) :- if(), do(castElement(?el, ?r, none)).
+castElement(?el, ?r, ?not) :-
+    if(regionHas(?r, ?feat), reacts(?el, ?feat, ?new), holder(?el, ?a), \==(?a, ?not)),
+    do(castElementAs(?a, ?el, ?r)).
+
+% The same need with the caster already chosen (a strategy that assigned
+% the primer role).
+castElementAs(?a, ?el, ?r) :-
+    if(canAct(?a), regionHas(?r, ?feat), reacts(?el, ?feat, ?new),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
+    do(takeVantage(?a, ?r), payFor(?a, ?skill),
+       opCastRegion(?a, ?skill, ?r, ?feat, ?new),
+       try(blastEntities(?a, ?el, ?feat, ?r)),
+       try(settleTerrain(?a, ?r))).
+
+% The need: region ?r has feature ?feat. Already true, or made by a reaction
+% on what is there now.
+obtainFeature(?r, ?feat) :- if(regionHas(?r, ?feat)), do().
+obtainFeature(?r, ?feat) :-
+    else, if(regionHas(?r, ?old), reacts(?el, ?old, ?feat)),
+    do(castElement(?el, ?r)).
+
+blastEntities(?a, ?el, ?feat, ?r) :-
+    allOf, if(blast(?el, ?feat, ?status), at(?e, ?r), role(?e, enemy),
+              exposed(?e), not(immune(?e, ?el)), not(status(?e, ?status))),
+    do(opStatus(?a, ?e, ?status)).
+
+settleTerrain(?a, ?r) :-
+    allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), at(?e, ?r),
+              not(status(?e, ?status))),
+    do(opStatus(?a, ?e, ?status)).
+
+% Whoever arrives in a region takes what its terrain does.
+sufferTerrain(?a, ?e, ?r) :-
+    allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), not(status(?e, ?status))),
+    do(opStatus(?a, ?e, ?status)).
+
+% The need: element ?el strikes entity ?e. Only a vulnerable target takes a
+% strike; anyone but ?not who holds the element does it from a vantage.
+strikeElement(?el, ?e) :- if(), do(strikeElement(?el, ?e, none)).
+strikeElement(?el, ?e, ?not) :-
+    if(vulnerable(?e), not(immune(?e, ?el)), strike(?el, ?status),
+       not(status(?e, ?status)), at(?e, ?r), holder(?el, ?a), \==(?a, ?not),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
+    do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastEntity(?a, ?skill, ?e, ?status)).
+
+% The need: element ?el marks enemy ?e (a flare in the eyes). Any enemy
+% takes a mark.
+markElement(?el, ?e) :-
+    if(role(?e, enemy), not(immune(?e, ?el)), mark(?el, ?status),
+       not(status(?e, ?status)), at(?e, ?r), holder(?el, ?a),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, ?el), canPay(?a, ?skill)))),
+    do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastEntity(?a, ?skill, ?e, ?status)).

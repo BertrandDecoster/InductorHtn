@@ -1,0 +1,9 @@
+% defeat_group - beat one enemy group, one of two ways
+%
+% Both strategies stay enumerable (no `else`): which one the team takes is
+% the decision the level is about. An enemy that is already dead needs
+% nothing.
+
+defeatGroup(?e) :- if(role(?e, enemy), not(status(?e, dead))), do(theBurn(?e)).
+defeatGroup(?e) :- if(role(?e, enemy), not(status(?e, dead))), do(theSlipstream(?e)).
+defeatGroup(?e) :- if(status(?e, dead)), do().

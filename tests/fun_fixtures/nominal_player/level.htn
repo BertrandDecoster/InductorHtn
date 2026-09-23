@@ -1,0 +1,23 @@
+% FIXTURE: nominal_player - the player is named, never acts
+% The player "participates" in two of three operators: they wait (a no-op),
+% and a companion shields them (they are the target). Neither is an action
+% the player takes that changes the world. Counting argument mentions would
+% give the player a 67% load; counting consequential player-actor operators
+% gives 0%: the plan is soloable (the seat is idle, a warning) and single-actor
+% (companionA does everything), and the second is the pillar failure.
+
+ally(player).
+ally(companionA).
+role(player, player).
+role(companionA, companion).
+enemy(gob).
+
+opWait(?a) :- del(), add().
+opShield(?a, ?target) :- del(), add(shielded(?target)).
+opStrike(?a, ?t) :- del(), add(hasTag(?t, beaten)).
+
+defeat(?t) :-
+    if(enemy(?t)),
+    do(opWait(player), opShield(companionA, player), opStrike(companionA, ?t)).
+
+goals(defeat(gob)).

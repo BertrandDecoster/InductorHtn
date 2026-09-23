@@ -1,0 +1,44 @@
+{
+  "name": "grease_trap",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Grease Trap on the core vocabulary: one oil corridor, two enemies, two strategies, pick 2 of 5 skills",
+  "dependencies": [
+    "core/goals/defeat_group"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T15:41:29.190011"
+  },
+  "provides": [
+    "at/2",
+    "blast/3",
+    "charge/3",
+    "clearGreaseTrap/0",
+    "connected/2",
+    "funBlocker/1",
+    "funBlockerGoal/2",
+    "funChoice/2",
+    "funChoiceFact/2",
+    "funChoiceSpace/2",
+    "hasSkill/2",
+    "lineOfSight/2",
+    "mark/2",
+    "metal/1",
+    "reacts/3",
+    "region/1",
+    "regionHas/2",
+    "role/2",
+    "signature/2",
+    "skillElement/2",
+    "strike/2",
+    "terrain/2",
+    "unlimited/1"
+  ],
+  "requires": [
+    "defeatGroup/1"
+  ]
+}

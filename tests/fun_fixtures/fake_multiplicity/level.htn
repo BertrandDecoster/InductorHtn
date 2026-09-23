@@ -1,0 +1,45 @@
+% FIXTURE: fake_multiplicity
+% Failure mode: many plans and two proudly-named strategies, one actual idea.
+% Must be flagged by: F1 (redundancy), F2 (min_pairwise_distance ~ 0).
+%
+% "The Quick Way" and "The Clever Way" are the same three operators in the
+% same order; the only thing that varies across the plan set is which of the
+% twelve allies performs them. A plan count in the dozens looks like a rich
+% level and is not one. This is the failure mode a level like
+% gamehack_multipath is most at risk of.
+
+% === World ===
+enemy(gob).
+at(gob, hall).
+
+ally(a1). ally(a2). ally(a3). ally(a4). ally(a5). ally(a6).
+ally(a7). ally(a8). ally(a9). ally(a10). ally(a11). ally(player).
+at(a1, hall). at(a2, hall). at(a3, hall). at(a4, hall).
+at(a5, hall). at(a6, hall). at(a7, hall). at(a8, hall).
+at(a9, hall). at(a10, hall). at(a11, hall). at(player, hall).
+
+hasSkill(a1, blade). hasSkill(a2, blade). hasSkill(a3, blade).
+hasSkill(a4, blade). hasSkill(a5, blade). hasSkill(a6, blade).
+hasSkill(a7, blade). hasSkill(a8, blade). hasSkill(a9, blade).
+hasSkill(a10, blade). hasSkill(a11, blade). hasSkill(player, blade).
+
+% === Operators ===
+opReady(?a) :- del(), add(readied(?a)).
+opSwing(?a, ?t) :- del(), add(struck(?t, ?a)).
+opFinish(?a, ?t) :- del(), add(hasTag(?t, wounded)).
+
+% === Two names, one idea ===
+defeat(?t) :- if(enemy(?t)), do(theQuickWay(?t)).
+defeat(?t) :- if(enemy(?t)), do(theCleverWay(?t)).
+
+% The player always calls the shot (so F6 stays clean and redundancy is the
+% only thing under test); which ally swings is what varies.
+theQuickWay(?t) :-
+    if(ally(?a), at(?a, ?l), at(?t, ?l), hasSkill(?a, blade)),
+    do(opReady(player), opSwing(?a, ?t), opFinish(?a, ?t)).
+
+theCleverWay(?t) :-
+    if(ally(?a), at(?a, ?l), at(?t, ?l), hasSkill(?a, blade)),
+    do(opReady(player), opSwing(?a, ?t), opFinish(?a, ?t)).
+
+goals(defeat(gob)).

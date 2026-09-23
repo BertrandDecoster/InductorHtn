@@ -1,0 +1,43 @@
+{
+  "name": "core_chemistry",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Elements change materials and entities; charges pay for casts; reactions persist",
+  "dependencies": [
+    "core/primitives/core_world"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T15:43:12.542946"
+  },
+  "provides": [
+    "blastEntities/4",
+    "canPay/2",
+    "castElement/2",
+    "castElement/3",
+    "castElementAs/3",
+    "exposed/1",
+    "free/2",
+    "guarded/1",
+    "holder/2",
+    "markElement/2",
+    "obtainFeature/2",
+    "opCastEntity/4",
+    "opCastRegion/5",
+    "opSpendCharge/3",
+    "opStatus/3",
+    "open/1",
+    "payFor/2",
+    "settleTerrain/2",
+    "strikeElement/2",
+    "strikeElement/3",
+    "sufferTerrain/3",
+    "vulnerable/1"
+  ],
+  "requires": [
+    "takeVantage/2"
+  ]
+}

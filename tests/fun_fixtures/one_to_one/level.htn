@@ -1,0 +1,55 @@
+% FIXTURE: one_to_one - a matching exercise
+% Fire tools beat the goblin, ice tools beat the imp, wind does nothing.
+% Feasibility sits inside its band (four of ten pairs win) and nothing is
+% mandatory, so the counts look healthy. `multi_use_factor` is the only
+% metric that sees each pick solves exactly one blocker: the player is
+% filling in a form, not finding a combination.
+
+enemy(gob).
+enemy(imp).
+at(gob, hall).
+at(imp, vault).
+
+ally(player).
+at(player, hall).
+
+weakTo(gob, fire).
+weakTo(imp, ice).
+
+toolTag(fireSkill, fire).
+toolTag(emberSkill, fire).
+toolTag(iceSkill, ice).
+toolTag(frostSkill, ice).
+toolTag(windSkill, gust).
+
+% Default kit so the level itself is solvable; F4 strips it.
+hasTool(player, fireSkill).
+hasTool(player, iceSkill).
+
+opReady(?a, ?t) :- del(), add(readied(?a, ?t)).
+opStrike(?a, ?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
+
+defeat(?t) :-
+    if(enemy(?t), weakTo(?t, ?tag), ally(?a),
+       hasTool(?a, ?tool), toolTag(?tool, ?tag)),
+    do(opReady(?a, ?t), opStrike(?a, ?tag, ?t)).
+
+clearBoth :- if(), do(defeat(gob), defeat(imp)).
+
+funChoiceSpace(kit, 2).
+funChoice(kit, fireSkill).
+funChoice(kit, emberSkill).
+funChoice(kit, iceSkill).
+funChoice(kit, frostSkill).
+funChoice(kit, windSkill).
+funChoiceFact(fireSkill, hasTool(player, fireSkill)).
+funChoiceFact(emberSkill, hasTool(player, emberSkill)).
+funChoiceFact(iceSkill, hasTool(player, iceSkill)).
+funChoiceFact(frostSkill, hasTool(player, frostSkill)).
+funChoiceFact(windSkill, hasTool(player, windSkill)).
+funBlocker(gob).
+funBlocker(imp).
+funBlockerGoal(gob, defeat(gob)).
+funBlockerGoal(imp, defeat(imp)).
+
+goals(clearBoth).

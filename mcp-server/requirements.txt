@@ -1,4 +1,4 @@
-mcp>=0.1.0
+mcp>=1.2,<2
 asyncio
 pytest>=7.0.0
 pytest-asyncio>=0.23.0

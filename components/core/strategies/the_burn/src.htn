@@ -1,0 +1,20 @@
+% the_burn - blast them dead on ground that burns
+%
+% The need is a dead enemy. This way of meeting it: find ground whose
+% feature reacts lethally with some element (the oil the level laid down is
+% the primer), bring the enemy there, make sure it is exposed, bring
+% whoever else can be brought, and have someone put the element down. One
+% match, one fire. The reaction consumes the feature - after the burn there
+% is nothing left to freeze or to burn again. Who brings them in is decided
+% by who holds a pull, a push or a dash; who lights it by who holds fire.
+
+theBurn(?e) :-
+    if(role(?e, enemy), not(status(?e, dead)),
+       regionHas(?r, ?feat), blast(?el, ?feat, dead), reacts(?el, ?feat, ?new),
+       not(immune(?e, ?el))),
+    do(bringTo(?e, ?r), expose(?e), try(gatherOthers(?e, ?r)), castElement(?el, ?r)).
+
+% Every other living enemy that can be brought in and exposed, is.
+gatherOthers(?e, ?r) :-
+    allOf, if(role(?o, enemy), \==(?o, ?e), not(status(?o, dead)), not(at(?o, ?r))),
+    do(bringTo(?o, ?r), expose(?o)).

@@ -161,6 +161,7 @@ class ComponentLoader:
         self._loaded: Set[str] = set()                # component path strings
         self._operator_owner: Dict[str, str] = {}      # "name/arity" -> component
         self._method_owners: Dict[str, List[str]] = {}  # "name/arity" -> [components]
+        self._sources: List[Tuple[str, str]] = []       # (component, src.htn text), load order
         self._provides: Dict[str, Set[str]] = {}        # component -> sigs
         self._requires: Dict[str, Set[str]] = {}        # component -> sigs
 
@@ -210,9 +211,36 @@ class ComponentLoader:
         with open(level_htn, "r", encoding="utf-8") as f:
             content = f.read()
 
+        # The level's own operators must be groundable too: anything that
+        # replays del/add reads `sources`, so the level goes in beside its
+        # dependencies.
+        level_id = os.path.basename(os.path.normpath(full_path))
+        self._sources.append((f"levels/{level_id}", content))
+
         error = self._planner.HtnCompileCustomVariables(content)
         if error:
             raise LoadError(f"Compile error in {level_htn}: {error}")
+
+    def resolve_sources(self, roots: List[str]) -> List[Tuple[str, str]]:
+        """The (component, src.htn text) of `roots` and their transitive
+        dependencies, in load order, without compiling anything.
+
+        Pure: needs no planner (`ComponentLoader(None, root)` is fine) and
+        touches no loader state. Used to build cache identities that must
+        change whenever a dependency's rules change.
+        """
+        out: List[Tuple[str, str]] = []
+        for component_path in self._plan_load_order(list(roots)):
+            try:
+                full_path = resolve_component_path(component_path, self._components_root)
+            except FileNotFoundError as exc:
+                raise LoadError(str(exc)) from exc
+            src_path = os.path.join(full_path, "src.htn")
+            if not os.path.exists(src_path):
+                continue
+            with open(src_path, "r", encoding="utf-8") as f:
+                out.append((component_path, f.read()))
+        return out
 
     # ------------------------------------------------- topological planning
 
@@ -289,6 +317,7 @@ class ComponentLoader:
                 with open(src_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 self._check_signatures(component_path, content)
+                self._sources.append((component_path, content))
                 error = self._planner.HtnCompileCustomVariables(content)
                 if error:
                     raise LoadError(f"Compile error in {component_path}: {error}")
@@ -412,3 +441,21 @@ class ComponentLoader:
     @property
     def operator_owner(self) -> Dict[str, str]:
         return dict(self._operator_owner)
+
+    @property
+    def method_owners(self) -> Dict[str, List[str]]:
+        """"name/arity" -> components defining a method with that signature.
+
+        HTN allows the same method name across components (alternatives), so
+        this is a list, unlike `operator_owner`.
+        """
+        return {sig: list(owners) for sig, owners in self._method_owners.items()}
+
+    @property
+    def sources(self) -> List[Tuple[str, str]]:
+        """(component, src.htn text) pairs in the order they were compiled.
+
+        Lets callers re-parse exactly what the planner was given without
+        re-walking the dependency graph.
+        """
+        return list(self._sources)

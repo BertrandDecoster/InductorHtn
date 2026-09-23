@@ -1,0 +1,36 @@
+{
+  "name": "core_aggro",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Lure, push, and the shield commitment",
+  "dependencies": [
+    "core/primitives/core_world",
+    "core/primitives/core_chemistry"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T15:41:27.494815"
+  },
+  "provides": [
+    "bringTo/2",
+    "canPull/1",
+    "holdPosition/2",
+    "lure/2",
+    "opAnchor/1",
+    "opLure/4",
+    "opPush/4",
+    "opRelease/1",
+    "opTaunt/4",
+    "push/2",
+    "taunt/2"
+  ],
+  "requires": [
+    "navigate/2",
+    "payFor/2",
+    "sufferTerrain/3",
+    "takeVantage/2"
+  ]
+}

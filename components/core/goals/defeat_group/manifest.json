@@ -1,0 +1,24 @@
+{
+  "name": "defeat_group",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Beat one enemy group by the burn or the slipstream",
+  "dependencies": [
+    "core/strategies/the_burn",
+    "core/strategies/the_slipstream"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T15:41:28.614778"
+  },
+  "provides": [
+    "defeatGroup/1"
+  ],
+  "requires": [
+    "theBurn/1",
+    "theSlipstream/1"
+  ]
+}

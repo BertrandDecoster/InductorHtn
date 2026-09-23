@@ -1,0 +1,83 @@
+% core_aggro - moving enemies, holding ground
+%
+% lure:         whoever holds a pull skill drags a *metal* enemy one
+%               region over, from a vantage. Magnetize does not move flesh.
+% push:         whoever holds a push skill shoves a *flesh* enemy one region
+%               over from a vantage. A gust does not move iron.
+% taunt:        whoever holds a dash goes through an enemy and it follows -
+%               both end up in the next region, and both take its terrain.
+%
+% Any companion may do any of these; what they hold decides. The player
+% character is a companion like the others.
+% holdPosition: the Warden's shield commitment. Anchored means cover for the
+%               others and no moving or pulling until released. Releasing to
+%               pull again is a visible step with a visible cost.
+% bringTo:      the enemy is where it needs to be, or is brought there one of
+%               the three ways. Whoever arrives takes the terrain.
+
+% === Operators ===
+
+opLure(?a, ?e, ?from, ?to) :-
+    del(at(?e, ?from)), add(at(?e, ?to)).
+
+opPush(?a, ?e, ?from, ?to) :-
+    del(at(?e, ?from)), add(at(?e, ?to)).
+
+opTaunt(?a, ?e, ?from, ?to) :-
+    del(at(?a, ?from), at(?e, ?from)), add(at(?a, ?to), at(?e, ?to)).
+
+opAnchor(?a) :- del(), add(status(?a, anchored)).
+opRelease(?a) :- del(status(?a, anchored)), add().
+
+% === Rules ===
+
+canPull(?a) :- canAct(?a), hasSkill(?a, ?skill), skillElement(?skill, pull).
+
+% === Methods ===
+
+% Lure with a free puller, from somewhere the enemy's region can be seen.
+lure(?e, ?to) :-
+    if(metal(?e), at(?e, ?from), connected(?from, ?to),
+       first(and(canPull(?a), canMove(?a)))),
+    do(takeVantage(?a, ?from), opLure(?a, ?e, ?from, ?to),
+       try(sufferTerrain(?a, ?e, ?to))).
+
+% No free puller: release an anchored one first, at the cost of its cover.
+lure(?e, ?to) :-
+    else, if(metal(?e), at(?e, ?from), connected(?from, ?to),
+             first(and(canPull(?a), status(?a, anchored), not(status(?a, snared))))),
+    do(opRelease(?a), takeVantage(?a, ?from), opLure(?a, ?e, ?from, ?to),
+       try(sufferTerrain(?a, ?e, ?to))).
+
+% Push: whoever holds a push skill, from somewhere that can target the
+% enemy's region. Iron is too heavy for a gust; that is what Magnetize is for.
+push(?e, ?to) :-
+    if(canAct(?a), canMove(?a), not(metal(?e)),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, push), canPay(?a, ?skill))),
+       at(?e, ?from), connected(?from, ?to)),
+    do(takeVantage(?a, ?from), payFor(?a, ?skill), opPush(?a, ?e, ?from, ?to),
+       try(sufferTerrain(?a, ?e, ?to))).
+
+% Taunt: whoever holds a dash goes through the enemy and it follows.
+taunt(?e, ?to) :-
+    if(canAct(?a), canMove(?a),
+       first(and(hasSkill(?a, ?skill), skillElement(?skill, dash), canPay(?a, ?skill))),
+       at(?e, ?from), connected(?from, ?to)),
+    do(navigate(?a, ?from), payFor(?a, ?skill), opTaunt(?a, ?e, ?from, ?to),
+       try(sufferTerrain(?a, ?e, ?to)), try(sufferTerrain(?a, ?a, ?to))).
+
+% Hold: plant the shield at ?r.
+holdPosition(?a, ?r) :- if(status(?a, anchored), at(?a, ?r)), do().
+holdPosition(?a, ?r) :-
+    else, if(status(?a, anchored)),
+    do(opRelease(?a), navigate(?a, ?r), opAnchor(?a)).
+holdPosition(?a, ?r) :-
+    else, if(not(status(?a, anchored))),
+    do(navigate(?a, ?r), opAnchor(?a)).
+
+% The enemy is where it needs to be, or is brought there. The three ways are
+% alternatives, not fallbacks: which one is used is part of the plan.
+bringTo(?e, ?r) :- if(at(?e, ?r)), do().
+bringTo(?e, ?r) :- if(not(at(?e, ?r))), do(lure(?e, ?r)).
+bringTo(?e, ?r) :- if(not(at(?e, ?r))), do(push(?e, ?r)).
+bringTo(?e, ?r) :- if(not(at(?e, ?r))), do(taunt(?e, ?r)).

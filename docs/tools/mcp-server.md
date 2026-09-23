@@ -46,7 +46,7 @@ The first location that resolves wins. The server also pre-loads the
 library and augments the OS library search path so subsequent `ctypes.CDLL`
 calls inside `indhtnpy.py` find an already-mapped image.
 
-## Tool surface (29 tools)
+## Tool surface (37 tools: 29 session tools + 8 level-play tools)
 
 ### Session lifecycle
 - `indhtn_create_session(debug?, memoryBudgetBytes?)` → `{sessionId}`
@@ -109,6 +109,38 @@ restore.
 
 Trace state in the C++ engine is process-global. The server enforces "at
 most one session capturing at a time" via a process-wide lock.
+
+## Launching from this repo
+
+`.mcp.json` runs `python mcp-server/launch.py`, which re-executes the server
+with `.venv/Scripts/python.exe` (or `.venv/bin/python`), sets
+`INDHTN_REPO_ROOT` so the bindings are found under `build/`, and joins
+`PYTHONPATH` with `os.pathsep` over `mcp-server`, `gui/backend`, `src/Python`.
+Check it without starting:
+
+```bash
+python mcp-server/launch.py --check
+```
+
+## Level play tools (8 tools)
+
+Player-perspective playtest over a level directory. Each level session owns its
+own planner (`mcp-server/indhtn_mcp/level_tools.py`) and does not use `sessionId`.
+All take `levelSessionId` except `indhtn_load_level` and `indhtn_fun`.
+
+| Tool | What it returns |
+|------|-----------------|
+| `indhtn_load_level(level)` | `levelSessionId`, first observation, first actions. Plans the whole level once. |
+| `indhtn_observe` | The player's view: location, skills, charges, companions with **intentions** ("Warden: I'll drag bearer from exit into corridor"), enemies, region features. No strategy names. |
+| `indhtn_actions` | The player's own legal moves with narration and consequences. Companion-only steps are auto-advanced by planner preference first. `wait` is offered when a companion could act instead. |
+| `indhtn_act(action, force=false)` | Takes the move. Off-plan moves are refused with the legal list, unless `force=true`: then the operator's grounded del/add is applied and the level is **re-planned from the new world**. `plans_remaining` may drop to 0. |
+| `indhtn_undo` | Back to the previous decision. |
+| `indhtn_explain` | Afterwards: class reached, classes missed, and per decision the alternatives and the classes each led to. |
+| `indhtn_state` | Full fact set, operators taken, `plans_remaining`. |
+| `indhtn_fun(level, ablate, loadouts)` | The scorecard JSON (`docs/FUN_METRICS.md`). Ablate/loadouts can take minutes; cached under `.htn_metrics_cache/`. |
+
+Every session writes `.playthroughs/<level>/<timestamp>.json`. See
+`docs/reference/level-design-loop.md` for how to play honestly.
 
 ## Response shape: `ok`, partial failures, and `errors[]`
 
@@ -236,7 +268,7 @@ mcp-server/
 └── setup.py                # Package installation
 ```
 
-## MCP Tools (29 total)
+## MCP Tools (37 total)
 
 Authoritative list lives in `mcp-server/README.md`. The headline tools:
 

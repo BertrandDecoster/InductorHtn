@@ -1,0 +1,26 @@
+{
+  "name": "the_burn",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Lure onto the oil; the player ignites it",
+  "dependencies": [
+    "core/primitives/core_aggro",
+    "core/primitives/core_attunement"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-10T15:41:27.800019"
+  },
+  "provides": [
+    "gatherOthers/2",
+    "theBurn/1"
+  ],
+  "requires": [
+    "bringTo/2",
+    "castElement/2",
+    "expose/1"
+  ]
+}

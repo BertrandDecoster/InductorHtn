@@ -11,6 +11,33 @@ The governing idea: **in an HTN solver the vocabulary is the design** -- the
 fact is a truth about the problem. The planner reads exactly these. Each
 heuristic below has a negative (avoid) and positive (prefer) example.
 
+## Top-down -- decompose from the need
+
+**HTN plans are top-down.** Start from what must be true to win, and let every method
+say what it needs and how each need can be met:
+
+```prolog
+% the need                              the ways to meet it
+neutralize(?e)          :- ... do(blastDead(?e)).            % or strikeDead(?e), or ...
+blastDead(?e)           :- if(blast(?el, ?feat, dead)),       % what would work: fire on oil
+                           do(obtainFeature(?r, ?feat), bringTo(?e, ?r), castElement(?el, ?r)).
+obtainFeature(?r, ?feat):- if(regionHas(?r, ?feat)), do().    % already there
+obtainFeature(?r, ?feat):- if(reacts(?el2, ?old, ?feat), regionHas(?r, ?old)),
+                           do(castElement(?el2, ?r)).         % or make it
+castElement(?el, ?r)    :- if(regionHas(?r, ?feat), reacts(?el, ?feat, ?new), holder(?el, ?a)),
+                           do(takeVantage(?a, ?r), payFor(?a, ?skill), opCastRegion(...)).  % who holds it - bound at the leaf
+```
+
+That is the shape of `components/core`: `defeatGroup` needs a dead enemy; `theBurn` and
+`theSlipstream` are ways; `blastDeadAt` / `strikeDead` say what would work; `castElement` /
+`obtainFeature` / `strikeElement` find the holder and the region; `bringTo` finds the mover.
+
+Actors, skills and regions are bound at the leaves as the answer to "how can I get X".
+A method shaped "I am `?a`, I hold `?el`, there is a region `?r`, let us see what happens"
+is bottom-up: it simulates an inventory instead of planning toward a goal, and its plan
+space is whatever falls out rather than what the level needs. Roles that force cooperation
+(the primer may not pay off) are constraints threaded down from the need.
+
 ## Modeling -- choose the right vocabulary
 
 - **Start from a documented domain, don't invent the shape.** Port a published

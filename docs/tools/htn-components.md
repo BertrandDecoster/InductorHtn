@@ -15,13 +15,17 @@ certify <path> [--dry-run]       # Full certification (linter + tests + design)
 new <path>                       # Create a component from template
 coverage <path>                  # Check design-to-test coverage
 
-play <level>                     # Step-by-step plan narrative
+play <level> [--solution N | --class LABEL] [-i]   # Plan narrative (grounded effects)
 trace <level> [--goal GOAL]      # Decomposition tree visualization
 
 test-all [--layer <layer>]       # Run all component tests
-verify <level>                   # Full level verification (assemble + certify deps + test)
+verify <level>                   # deps + tests + plan + fun scorecard (non-gating)
 evaluate <level>                 # Plan-space richness (solvability, difficulty, operator variety)
 library-coverage [--layer <l>]   # Aggregate plan-space metrics across all levels
+
+fun <level> [--ablate] [--loadouts] [--json] [--md FILE]   # Fun scorecard (docs/FUN_METRICS.md)
+fun-all [levels...]              # Comparison table across levels
+fun-compare <a> <b>              # Side-by-side profile diff
 
 assemble <level> [-o <path>]     # Assemble level + deps into a single .htn
   [--no-verify]                  #   write output without running the verifier

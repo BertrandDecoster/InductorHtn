@@ -1,0 +1,80 @@
+{
+  "_comment": "Bands, weights and caps for the fun metrics. This file is the iteration surface - tune here, not in code. See docs/FUN_METRICS.md for what each number means.",
+
+  "_fingerprint_layers_note": "Layers whose method alternatives count as a different *idea*. Adding 'actions' splits classes by dispatcher path (e.g. which of the three applyTagNotPresent routes was taken); that is finer than most authors mean by 'a way to solve it', so it is off by default.",
+  "fingerprint_layers": ["goals", "strategies", "levels"],
+  "_fingerprint_max_depth_note": "A strategy is a choice made near the top of a plan. Method alternatives deeper than this are implementation detail, not a different idea. Depth 0 is the goal, 1 is the strategy it picks.",
+  "fingerprint_max_depth": 2,
+  "player_atom": "player",
+  "_actor_position_note": "Which operator argument names the actor, by convention. A level overrides per operator with funActor(opName, index) and excludes bookkeeping operators with funNoop(opName).",
+  "actor_position": 0,
+
+  "caps": {
+    "max_plans": 5000,
+    "max_ablation_facts": 120,
+    "max_loadouts": 400,
+    "memory_budget_bytes": 0
+  },
+
+  "bands": {
+    "f1_multiplicity": {
+      "strategy_classes_min": 2,
+      "strategy_classes_max": 5,
+      "redundancy_warn_above": 10.0
+    },
+    "f2_distinctness": {
+      "min_pairwise_distance_min": 0.4,
+      "mean_pairwise_distance_warn_below": 0.5,
+      "_severe_distance_factor_note": "A closest pair below min_pairwise_distance_min * this factor is a FAIL unless ablation proves the classes independent.",
+      "severe_distance_factor": 0.5,
+      "independent_class_pairs_min": 1
+    },
+    "f3_depth": {
+      "plan_length_min": 3,
+      "plan_length_max": 12,
+      "causal_depth_min": 3,
+      "interlock_min": 0.5
+    },
+    "f4_choice": {
+      "loadout_feasibility_min": 0.05,
+      "loadout_feasibility_max": 0.4,
+      "_feasibility_edges_note": "At or above saturated_at almost any pick wins (FAIL); at or below unsatisfiable_below no pick wins (FAIL).",
+      "feasibility_saturated_at": 0.95,
+      "feasibility_unsatisfiable_below": 0.001,
+      "multi_use_factor_min": 1.5,
+      "dead_choice_ratio_max": 0.4,
+      "near_miss_count_min": 1
+    },
+    "f5_discovery": {
+      "decision_breadth_min": 2.0,
+      "insight_depth_min": 1,
+      "_red_herring_note": "No minimum: unused scenery is a tool the author may use, not something the scorecard rewards.",
+      "red_herring_ratio_max": 0.6
+    },
+    "f6_player": {
+      "_roles_note": "The player character and the AI companions are interchangeable in ability. single_actor_plans: one companion does everything (GDD 2 + 3.6) - the pillar, the family's only hard fail. soloable_plans: the controlled companion does nothing - a seat diagnostic reported as a WARN above soloable_plans_max; two companions cooperating without the human is acceptable by design. player_load and player_decision_points describe the same seat.",
+      "single_actor_plans_max": 0,
+      "soloable_plans_max": 0,
+      "player_load_min": 0.2,
+      "player_load_max": 0.6,
+      "teamwork_edge_ratio_min": 0.2,
+      "player_decision_points_min": 1
+    }
+  },
+
+  "weights": {
+    "f1_multiplicity": 0.2,
+    "f2_distinctness": 0.2,
+    "f3_depth": 0.2,
+    "f4_choice": 0.2,
+    "f5_discovery": 0.1,
+    "f6_player": 0.1
+  },
+
+  "verdict_scores": {
+    "pass": 1.0,
+    "warn": 0.5,
+    "fail": 0.0,
+    "skip": null
+  }
+}

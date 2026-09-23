@@ -525,8 +525,8 @@ def cmd_status(args) -> int:
 
     print("HTN Components Status")
     print("=" * 70)
-    print(f"{'Path':<30} {'Version':<10} {'Certified':<12} {'Status'}")
-    print("-" * 70)
+    print(f"{'Path':<42} {'Version':<10} {'Certified':<12} {'Status'}")
+    print("-" * 82)
 
     for comp in components:
         if "error" in comp:
@@ -552,9 +552,9 @@ def cmd_status(args) -> int:
                     pass
 
         version = comp.get("version", "?")
-        print(f"{comp['path']:<30} {version:<10} {certified:<12} {status}")
+        print(f"{comp['path']:<42} {version:<10} {certified:<12} {status}")
 
-    print("-" * 70)
+    print("-" * 82)
     print(f"Total: {len(components)} components")
     certified_count = sum(1 for c in components if c.get("certified", False))
     print(f"Certified: {certified_count}/{len(components)}")
@@ -872,6 +872,41 @@ def cmd_assemble(args) -> int:
     return 0
 
 
+def _pick_solution(full_path: str, solutions: list, args) -> Tuple[int, str]:
+    """Which solution `play` narrates: `--solution N`, or the representative
+    of the strategy class `--class LABEL` names (substring, case-insensitive)."""
+    label = getattr(args, "class_label", None)
+    if label:
+        py_dir = os.path.join(PROJECT_ROOT, "src", "Python")
+        if py_dir not in sys.path:
+            sys.path.insert(0, py_dir)
+        from htn_metrics.canonical import classify
+        from htn_metrics.config import Config
+        from htn_metrics.extract import extract_plan_space, load_level_spec
+
+        cfg = Config.load()
+        space = extract_plan_space(full_path, spec=load_level_spec(full_path),
+                                   max_plans=cfg.cap("max_plans", 5000))
+        classes = classify(space, cfg.fingerprint_layers, cfg.fingerprint_max_depth)
+        wanted = label.lower()
+        matches = [c for c in classes if c.label.lower() == wanted] or \
+                  [c for c in classes if wanted in c.label.lower()]
+        if not matches:
+            names = "\n".join(f"  {c.size:>4}x  {c.label}" for c in classes)
+            raise ValueError(f"no strategy class matches '{label}'. Classes:\n{names}")
+        rep = matches[0].representative
+        index = rep.index if rep is not None else matches[0].plan_indices[0]
+        if index >= len(solutions):
+            raise ValueError(f"class '{matches[0].label}' points at solution {index}, "
+                             f"but only {len(solutions)} were found")
+        return index, matches[0].label
+
+    index = int(getattr(args, "solution", 0) or 0)
+    if not 0 <= index < len(solutions):
+        raise ValueError(f"--solution {index} out of range: {len(solutions)} solutions found")
+    return index, ""
+
+
 def cmd_play(args) -> int:
     """Play through a level with step-by-step narrative output."""
     level_path = args.level
@@ -900,8 +935,12 @@ def cmd_play(args) -> int:
     print("=" * len(level_name))
 
     # Import planner
-    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    py_dir = os.path.join(PROJECT_ROOT, "src", "Python")
+    if py_dir not in sys.path:
+        sys.path.insert(0, py_dir)
     from indhtnpy import HtnPlanner
+    from htn_metrics.extract import ground_solution, normalize_fact
+    from htn_metrics.narrate import narrate_effects, narrate_fact, narrate_operator
 
     planner = HtnPlanner(False)
 
@@ -921,14 +960,7 @@ def cmd_play(args) -> int:
         print(f"Error getting state: {error}")
         return 1
 
-    facts = json.loads(facts_json)
-
-    # Display initial state (filter for interesting facts)
-    print("\nInitial State:")
-    for fact in facts:
-        if fact.startswith("at(") or fact.startswith("isEnemy(") or \
-           fact.startswith("hasTag(") or fact.startswith("roomHasHazard("):
-            print(f"  - {format_fact_narrative(fact)}")
+    facts = [normalize_fact(f) for f in json.loads(facts_json)]
 
     # Query the compiled planner for goals (proper parser, handles nested parens)
     err, compiled_goals = planner.GetGoals()
@@ -953,38 +985,68 @@ def cmd_play(args) -> int:
         print("\nNo solution found!")
         return 1
 
-    # Get operators from first solution
-    operators = solutions[0] if isinstance(solutions[0], list) else []
-    print(f"\nPlan ({len(operators)} operators):")
+    try:
+        index, class_label = _pick_solution(full_path, solutions, args)
+    except ValueError as exc:
+        print(f"\nError: {exc}")
+        return 1
+
+    operators = solutions[index] if isinstance(solutions[index], list) else []
+    grounded = ground_solution(operators, loader.sources, loader.operator_owner)
+
+    # The parts of the world the plan touches: every predicate some operator
+    # deletes or adds, plus where everyone is. That is what the narrative
+    # shows; the rest of the fact base is rules-as-data (chemistry tables,
+    # declared choice spaces) and stays out of the story.
+    touched = {"at"}
+    for op in grounded:
+        for fact in op.dels + op.adds:
+            touched.add(fact.split("(")[0])
+    print("\nInitial State:")
+    for fact in sorted(facts):
+        if fact.split("(")[0] in touched:
+            print(f"  - {narrate_fact(fact)}")
+
+    chosen = f"solution {index + 1}/{len(solutions)}"
+    if class_label:
+        chosen += f", class {class_label}"
+    print(f"\nPlan ({len(operators)} operators, {chosen}):")
     print("-" * 50)
 
     if interactive:
         # Interactive mode with stepping
-        return play_interactive(planner, operators, facts, goal)
+        return play_interactive(planner, operators, facts, goal, loader.sources, index)
     else:
         # Non-interactive: step through each operator
-        for i, op in enumerate(operators):
-            op_str = format_operator(op) if isinstance(op, dict) else str(op)
-            print(f"\nStep {i+1}/{len(operators)}: {op_str}")
-            print(f"  -> {format_operator_narrative(op_str)}")
+        for i, op in enumerate(grounded):
+            print(f"\nStep {i+1}/{len(grounded)}: {op.text}")
+            print(f"  -> {narrate_operator(op.text, dels=op.dels, adds=op.adds)}")
+            for line in narrate_effects(op.dels, op.adds):
+                print(f"     {line}")
+            if not op.effects_resolved:
+                print(f"     (effects of {op.signature} could not be grounded)")
 
         print("-" * 50)
 
         # Apply solution and show final state
-        planner.ApplySolution(0)
+        planner.ApplySolution(index)
         error, final_json = planner.GetStateFacts()
-        final_facts = json.loads(final_json) if not error else []
+        final_facts = {normalize_fact(f) for f in json.loads(final_json)} if not error else set()
+        initial_set = set(facts)
 
-        print("\nFinal State:")
-        for fact in final_facts:
-            if fact.startswith("at(") or fact.startswith("hasTag("):
-                print(f"  - {format_fact_narrative(fact)}")
+        print("\nFinal State (changes from the start):")
+        for fact in sorted(initial_set - final_facts):
+            print(f"  - {narrate_fact(fact)}")
+        for fact in sorted(final_facts - initial_set):
+            print(f"  + {narrate_fact(fact)}")
 
         print("\nCOMPLETE!")
         return 0
 
 
-def play_interactive(planner, operators: list, initial_facts: list, goal: str) -> int:
+def play_interactive(planner, operators: list, initial_facts: list, goal: str,
+                     sources: Optional[List[Tuple[str, str]]] = None,
+                     solution_index: int = 0) -> int:
     """
     Interactive plan stepping mode.
 
@@ -998,38 +1060,64 @@ def play_interactive(planner, operators: list, initial_facts: list, goal: str) -
         d     - Show state diff from initial
         q     - Quit
     """
-    # Build state snapshots for each step
-    # Since we can't incrementally apply operators, we compute initial and final
-    error, final_json = planner.GetSolutionFacts(0)
+    py_dir = os.path.join(PROJECT_ROOT, "src", "Python")
+    if py_dir not in sys.path:
+        sys.path.insert(0, py_dir)
+    from htn_metrics.extract import ground_solution, normalize_fact, replay_with_check
+    from htn_metrics.narrate import narrate_effects, narrate_operator
+
+    error, final_json = planner.GetSolutionFacts(solution_index)
     if error:
         print(f"Error getting solution state: {error}")
         return 1
-    final_facts = set(json.loads(final_json))
-    initial_set = set(initial_facts)
+    final_facts = {normalize_fact(f) for f in json.loads(final_json)}
+    initial_set = {normalize_fact(f) for f in initial_facts}
 
     # Format operators into strings
     op_strs = []
     for op in operators:
         op_strs.append(format_operator(op) if isinstance(op, dict) else str(op))
 
-    # State at each step (for now: initial for steps 0-N-1, final for step N)
-    # In future, we could reconstruct intermediate states from operator del/add
     num_steps = len(operators)
+
+    # Reconstruct the state after every step by replaying each operator's
+    # del/add. The planner exposes only the initial and final fact sets, so
+    # everything in between comes from the operator definitions.
+    states: List[set] = []
+    grounded = []
+    if sources:
+        try:
+            grounded = ground_solution(operators, sources)
+            states, replay_warnings = replay_with_check(
+                sorted(initial_set), grounded, final_facts
+            )
+        except Exception as exc:  # replay is a convenience; say why it is off
+            states = []
+            replay_warnings = [f"state replay unavailable: {exc}"]
+        for warning in replay_warnings:
+            print(f"  [replay] {warning}")
+        if replay_warnings:
+            print("  [replay] intermediate states below may not match the planner")
+
+    def narrate_step(step: int) -> List[str]:
+        if 0 < step <= len(grounded):
+            op = grounded[step - 1]
+            lines = [narrate_operator(op.text, dels=op.dels, adds=op.adds)]
+            lines += ["   " + line for line in narrate_effects(op.dels, op.adds)]
+            return lines
+        return [narrate_operator(op_strs[step - 1])] if 0 < step <= len(op_strs) else []
 
     current_step = 0
     watch_list = []
-    state_history = [initial_set]  # Only have initial state initially
+    state_history = [initial_set]
 
     def get_state_at_step(step: int) -> set:
         """Get state at given step. Step 0 = initial, step N = final."""
+        if states:
+            return states[max(0, min(step, len(states) - 1))]
         if step <= 0:
             return initial_set
-        elif step >= num_steps:
-            return final_facts
-        else:
-            # Intermediate states - return initial with note
-            # TODO: Implement proper intermediate state tracking
-            return initial_set
+        return final_facts
 
     def display_step(step: int, show_diff: bool = True):
         """Display state at a step."""
@@ -1038,7 +1126,8 @@ def play_interactive(planner, operators: list, initial_facts: list, goal: str) -
         else:
             op = op_strs[step - 1] if step <= len(op_strs) else "?"
             print(f"\n--- Step {step}/{num_steps}: {op} ---")
-            print(f"  -> {format_operator_narrative(op)}")
+            for i, line in enumerate(narrate_step(step)):
+                print(f"  -> {line}" if i == 0 else f"     {line.strip()}")
 
         if show_diff and step > 0:
             prev_state = get_state_at_step(step - 1)
@@ -1215,33 +1304,12 @@ def play_interactive(planner, operators: list, initial_facts: list, goal: str) -
 
 
 def format_fact_narrative(fact: str) -> str:
-    """Convert a fact to a readable narrative."""
-    if fact.startswith("at("):
-        # at(entity, location) -> entity at location
-        inner = fact[3:-1]
-        parts = inner.split(",")
-        if len(parts) >= 2:
-            entity = parts[0].strip()
-            location = parts[1].strip()
-            return f"{entity} at {location}"
-    elif fact.startswith("isEnemy("):
-        inner = fact[8:-1]
-        return f"{inner} (enemy)"
-    elif fact.startswith("hasTag("):
-        inner = fact[7:-1]
-        parts = inner.split(",")
-        if len(parts) >= 2:
-            entity = parts[0].strip()
-            tag = parts[1].strip()
-            return f"{entity} has {tag}"
-    elif fact.startswith("roomHasHazard("):
-        inner = fact[14:-1]
-        parts = inner.split(",")
-        if len(parts) >= 2:
-            room = parts[0].strip()
-            hazard = parts[1].strip()
-            return f"{room} has {hazard} hazard"
-    return fact
+    """Convert a fact to a readable narrative (delegates to htn_metrics.narrate)."""
+    py_dir = os.path.join(PROJECT_ROOT, "src", "Python")
+    if py_dir not in sys.path:
+        sys.path.insert(0, py_dir)
+    from htn_metrics.narrate import narrate_fact
+    return narrate_fact(fact)
 
 
 def format_operator(op: dict) -> str:
@@ -1263,41 +1331,12 @@ def format_operator(op: dict) -> str:
 
 
 def format_operator_narrative(op_str: str) -> str:
-    """Convert an operator to a readable narrative."""
-    op_lower = op_str.lower()
-
-    # Extract arguments
-    inner = op_str[op_str.find("(")+1:op_str.rfind(")")]
-    parts = [p.strip() for p in inner.split(",")] if inner else []
-
-    if "opmoveto" in op_lower:
-        if len(parts) >= 3:
-            return f"{parts[0]} moves from {parts[1]} to {parts[2]}"
-    elif "opgetaggro" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[0]} now targets {parts[1]}"
-        elif len(parts) >= 1:
-            return f"{parts[0]} is now aggro'd"
-    elif "oploseaggro" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[0]} loses aggro on {parts[1]}"
-    elif "opapplyroomtag" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[0]} is now {parts[1]}"
-    elif "opapplytag" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[0]} is now {parts[1]}!"
-    elif "opremovetag" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[0]} is no longer {parts[1]}"
-    elif "opconsumehazard" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[1]} hazard in {parts[0]} consumed"
-    elif "opactivatehazard" in op_lower:
-        if len(parts) >= 2:
-            return f"{parts[1]} hazard in {parts[0]} activated"
-
-    return "action completed"
+    """Convert an operator to a readable narrative (delegates to htn_metrics.narrate)."""
+    py_dir = os.path.join(PROJECT_ROOT, "src", "Python")
+    if py_dir not in sys.path:
+        sys.path.insert(0, py_dir)
+    from htn_metrics.narrate import narrate_operator
+    return narrate_operator(op_str)
 
 
 def cmd_trace(args) -> int:
@@ -1765,7 +1804,10 @@ def cmd_test_all(args) -> int:
         }
         target_dir = layer_map.get(layer_filter.lower())
         if target_dir:
-            components = [c for c in components if c['path'].startswith(target_dir)]
+            components = [
+                c for c in components
+                if target_dir in c['path'].replace("\\", "/").split("/")
+            ]
 
     print(f"Running tests for {len(components)} components...")
     print("=" * 60)
@@ -1837,7 +1879,7 @@ def cmd_verify(args) -> int:
     all_passed = True
 
     # Step 1: Check all dependencies are certified
-    print("\n[1/3] Checking dependency certifications...")
+    print("\n[1/4] Checking dependency certifications...")
     dependencies = level_manifest.get("dependencies", [])
 
     for dep in dependencies:
@@ -1855,7 +1897,7 @@ def cmd_verify(args) -> int:
             all_passed = False
 
     # Step 2: Run level tests
-    print("\n[2/3] Running level tests...")
+    print("\n[2/4] Running level tests...")
     test_path = os.path.join(full_path, "test.py")
 
     if os.path.exists(test_path):
@@ -1867,7 +1909,7 @@ def cmd_verify(args) -> int:
         print("  Tests: SKIP (no test.py)")
 
     # Step 3: Verify plan can be found
-    print("\n[3/3] Verifying plan generation...")
+    print("\n[3/4] Verifying plan generation...")
 
     # Import and run a quick plan check
     sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
@@ -1899,6 +1941,21 @@ def cmd_verify(args) -> int:
             all_passed = False
     else:
         print("  Plan: SKIP - no goals() found")
+
+    # Step 4: the fun scorecard. A diagnostic, never a gate: verify says
+    # whether the level works, the scorecard says what its solution space
+    # looks like, and only a designer can say whether that shape is right.
+    print("\n[4/4] Fun scorecard (diagnostic, non-gating)...")
+    try:
+        from htn_metrics.extract import ExtractError
+        from htn_metrics.profile import profile_level
+        from htn_metrics.report import render_terminal
+        profile = profile_level(full_path)
+        print(render_terminal(profile, verbose=args.verbose))
+    except ExtractError as exc:
+        print(f"  scorecard unavailable: {exc}")
+    except Exception as exc:  # the scorecard must never break verify
+        print(f"  scorecard unavailable: {exc}")
 
     # Summary
     print("\n" + "=" * 60)
@@ -2503,6 +2560,116 @@ def cmd_library_coverage(args) -> int:
 # Main Entry Point
 # =============================================================================
 
+# =============================================================================
+# Fun metrics
+# =============================================================================
+
+def _fun_profile(level: str, ablate: bool, loadouts: bool, verbose: bool = False):
+    """Build one level's fun profile, running counterfactuals if asked for."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_metrics.profile import profile_level
+
+    progress = (lambda msg: print(f"  {msg}", file=sys.stderr)) if verbose else None
+    return profile_level(level, ablate=ablate, loadouts=loadouts, progress=progress)
+
+
+def cmd_fun(args) -> int:
+    """Score one level's solution-space shape against the fun metrics."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_metrics.extract import ExtractError
+    from htn_metrics.report import render_json, render_markdown, render_terminal
+
+    try:
+        profile = _fun_profile(
+            args.level, getattr(args, "ablate", False),
+            getattr(args, "loadouts", False), verbose=True,
+        )
+    except ExtractError as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    if getattr(args, "json", False):
+        print(render_json(profile))
+    else:
+        print(render_terminal(profile, verbose=getattr(args, "verbose", False)))
+
+    md_path = getattr(args, "md", None)
+    if md_path:
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(render_markdown(profile))
+        print(f"Markdown report written to {md_path}")
+
+    # The scorecard is a diagnostic, not a gate. The exit code says only
+    # whether there was a plan set to measure at all.
+    unsolvable = profile.truncated or any(
+        f.key == "f1_multiplicity" and f.verdict == "fail" for f in profile.families
+    )
+    return 2 if unsolvable else 0
+
+
+def _discover_levels() -> List[str]:
+    levels_dir = os.path.join(PROJECT_ROOT, "levels")
+    if not os.path.isdir(levels_dir):
+        return []
+    return sorted(
+        name for name in os.listdir(levels_dir)
+        if os.path.exists(os.path.join(levels_dir, name, "level.htn"))
+    )
+
+
+def cmd_fun_all(args) -> int:
+    """Score every level and print a comparison table."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_metrics.extract import ExtractError
+    from htn_metrics.report import render_comparison
+
+    levels = getattr(args, "levels", None) or _discover_levels()
+    if not levels:
+        print("No levels found.")
+        return 1
+
+    profiles = []
+    for level in levels:
+        try:
+            profiles.append(
+                _fun_profile(level, getattr(args, "ablate", False),
+                             getattr(args, "loadouts", False))
+            )
+        except ExtractError as exc:
+            print(f"[skip] {level}: {exc}", file=sys.stderr)
+
+    if not profiles:
+        print("No level could be profiled.")
+        return 1
+
+    if getattr(args, "json", False):
+        print(json.dumps([p.to_dict() for p in profiles], indent=2))
+    else:
+        print()
+        print(render_comparison(profiles))
+        print()
+    return 0
+
+
+def cmd_fun_compare(args) -> int:
+    """Diff two levels' profiles side by side."""
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "Python"))
+    from htn_metrics.extract import ExtractError
+    from htn_metrics.report import render_diff
+
+    try:
+        left = _fun_profile(args.left, getattr(args, "ablate", False),
+                            getattr(args, "loadouts", False))
+        right = _fun_profile(args.right, getattr(args, "ablate", False),
+                             getattr(args, "loadouts", False))
+    except ExtractError as exc:
+        print(f"Error: {exc}")
+        return 1
+
+    print(render_diff(left, right))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="HTN Component Management Tool",
@@ -2517,6 +2684,9 @@ Commands:
   coverage          Check design-to-test coverage
   evaluate          Evaluate plan-space richness of a level
   library-coverage  Aggregate plan-space metrics across all levels
+  fun               Score a level's solution-space shape (docs/FUN_METRICS.md)
+  fun-all           Fun comparison table across levels
+  fun-compare       Side-by-side fun profile diff
 
 Examples:
   python -m htn_components new primitives/tags
@@ -2580,6 +2750,11 @@ Examples:
     # play command
     play_parser = subparsers.add_parser("play", help="Play level with narrative output")
     play_parser.add_argument("level", help="Level path (e.g., puzzle1)")
+    play_parser.add_argument("--solution", "-s", type=int, default=0, metavar="N",
+                             help="Narrate solution N (0-based; default 0)")
+    play_parser.add_argument("--class", dest="class_label", metavar="LABEL",
+                             help="Narrate the representative plan of the strategy class "
+                                  "whose label contains LABEL (e.g. theSlipstream)")
     play_parser.add_argument("--interactive", "-i", action="store_true",
                             help="Interactive stepping mode with state inspection")
     play_parser.set_defaults(func=cmd_play)
@@ -2602,6 +2777,39 @@ Examples:
     verify_parser.add_argument("level", help="Level path (e.g., puzzle1)")
     verify_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     verify_parser.set_defaults(func=cmd_verify)
+
+    # fun command
+    fun_parser = subparsers.add_parser(
+        "fun", help="Score a level's solution-space shape (see docs/FUN_METRICS.md)")
+    fun_parser.add_argument("level", help="Level path (e.g. gamehack_multipath)")
+    fun_parser.add_argument("--ablate", action="store_true",
+                            help="Re-plan without each fact: critical facts, "
+                                 "independence, shared linchpins (F2, F6)")
+    fun_parser.add_argument("--loadouts", action="store_true",
+                            help="Enumerate the declared X-of-Y choice lattice (F4)")
+    fun_parser.add_argument("--json", action="store_true", help="Emit JSON")
+    fun_parser.add_argument("--md", metavar="FILE", help="Write a markdown report")
+    fun_parser.add_argument("-v", "--verbose", action="store_true",
+                            help="Show per-class detail and full metric lists")
+    fun_parser.set_defaults(func=cmd_fun)
+
+    # fun-all command
+    fun_all_parser = subparsers.add_parser(
+        "fun-all", help="Fun comparison table across levels")
+    fun_all_parser.add_argument("levels", nargs="*", help="Levels (default: all)")
+    fun_all_parser.add_argument("--ablate", action="store_true")
+    fun_all_parser.add_argument("--loadouts", action="store_true")
+    fun_all_parser.add_argument("--json", action="store_true", help="Emit JSON")
+    fun_all_parser.set_defaults(func=cmd_fun_all)
+
+    # fun-compare command
+    fun_compare_parser = subparsers.add_parser(
+        "fun-compare", help="Side-by-side fun profile diff")
+    fun_compare_parser.add_argument("left", help="First level")
+    fun_compare_parser.add_argument("right", help="Second level")
+    fun_compare_parser.add_argument("--ablate", action="store_true")
+    fun_compare_parser.add_argument("--loadouts", action="store_true")
+    fun_compare_parser.set_defaults(func=cmd_fun_compare)
 
     # evaluate command
     evaluate_parser = subparsers.add_parser(

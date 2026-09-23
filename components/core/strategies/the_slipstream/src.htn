@@ -1,0 +1,43 @@
+% the_slipstream - get them stuck, then finish them
+%
+% The need is a dead enemy. This way of meeting it: a region with snaring
+% terrain (made by a reaction if it does not exist yet - the primer role),
+% cover at its edge (whoever carries the shield plants it: a commitment),
+% the enemy brought in with whoever else can be brought, and then the
+% pay-off: strike the snared one dead, or blast the whole region. The
+% pay-off may not be the primer. Anyone may fill either role; what they
+% hold decides. Sludge persists, so the trap made for one fight serves the
+% next; the shield commitment persists too.
+
+theSlipstream(?e) :-
+    if(role(?e, enemy), not(status(?e, dead)), terrain(?trap, snared),
+       trapSite(?r, ?trap, ?p)),
+    do(makeTrap(?r, ?trap, ?p), coverAt(?r), bringTo(?e, ?r), try(gatherIntoTrap(?e, ?r)),
+       finishTrap(?e, ?r, ?p)).
+
+% Where the trap is, and who primes it: nobody if the terrain is already
+% there, else the first companion who can cause the reaction that makes it.
+trapSite(?r, ?trap, none) :- regionHas(?r, ?trap).
+trapSite(?r, ?trap, ?p) :-
+    not(regionHas(?r, ?trap)), regionHas(?r, ?old), reacts(?el, ?old, ?trap), primer(?el, ?p).
+
+makeTrap(?r, ?trap, none) :- if(), do().
+makeTrap(?r, ?trap, ?p) :-
+    if(\==(?p, none), regionHas(?r, ?old), reacts(?el, ?old, ?trap)),
+    do(prime(?el, ?r, ?p)).
+
+% The shield-bearer holds the first region adjoining the trap.
+coverAt(?r) :-
+    if(first(and(canAct(?a), signature(?a, shield))), first(connected(?edge, ?r))),
+    do(holdPosition(?a, ?edge)).
+coverAt(?r) :- else, if(), do().
+
+% Every other living enemy that can be brought into the trap, is.
+gatherIntoTrap(?e, ?r) :-
+    allOf, if(role(?o, enemy), \==(?o, ?e), not(status(?o, dead)), not(at(?o, ?r))),
+    do(bringTo(?o, ?r)).
+
+% Finish the one, or blast the lot. Alternatives, not fallbacks. Never the
+% primer.
+finishTrap(?e, ?r, ?p) :- if(status(?e, snared)), do(strikeDead(?e, ?p)).
+finishTrap(?e, ?r, ?p) :- if(status(?e, snared)), do(blastDeadAt(?r, ?p)).

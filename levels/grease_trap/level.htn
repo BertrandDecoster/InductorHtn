@@ -1,0 +1,114 @@
+% The Grease Trap (core vocabulary)
+%
+% A corridor slick with oil between the entry and the exit. A swarm waits in
+% the side gallery; an iron-clad bearer holds the exit. Two ways through:
+%
+%   The Burn        get the enemy onto the oil, the player ignites it. Kills
+%                   what stands in it; scorches the floor. One match: whoever
+%                   else can be dragged in burns too.
+%   The Slipstream  the Arcanist freezes the oil into sludge, the Warden
+%                   plants the shield at its edge, the enemy is pushed,
+%                   dragged or taunted in, and the player finishes it while
+%                   it is stuck - or electrifies the sludge and takes the lot.
+%
+% Magnetize only moves iron and a gust cannot, so the Warden drags the
+% bearer and the player has to move the swarm (gust or dash). The oil, once
+% burned, cannot be frozen; the sludge, once made, serves both fights. The
+% player has one Ignite and one Lightning charge for the skills they pick,
+% and a flare that dazzles one enemy into taking a direct strike.
+%
+% Hypothesis (design.md): two ideas; median plan 6-12 operators; encounter
+% feasibility 0.2-0.4 with no mandatory pick; at least two player decision
+% points; teamwork edges above 0.3; no single companion carries a plan alone.
+
+% === Regions ===
+region(entry).
+region(corridor).
+region(gallery).
+region(exit).
+connected(entry, corridor).
+connected(corridor, entry).
+connected(corridor, gallery).
+connected(gallery, corridor).
+connected(corridor, exit).
+connected(exit, corridor).
+lineOfSight(entry, corridor).
+lineOfSight(entry, gallery).
+lineOfSight(gallery, corridor).
+lineOfSight(gallery, exit).
+lineOfSight(corridor, exit).
+regionHas(corridor, oil).
+
+% === Cast ===
+role(player, player).
+role(warden, companion).
+role(arcanist, companion).
+role(swarm, enemy).
+role(bearer, enemy).
+at(player, entry).
+at(warden, entry).
+at(arcanist, entry).
+at(swarm, gallery).
+at(bearer, exit).
+metal(bearer).
+
+% === Skills ===
+signature(warden, magnetize).
+signature(warden, shield).
+signature(arcanist, freeze).
+hasSkill(warden, magnetize).
+hasSkill(warden, shield).
+hasSkill(arcanist, freeze).
+
+skillElement(magnetize, pull).
+skillElement(freeze, freeze).
+skillElement(ignite, fire).
+skillElement(gust, push).
+skillElement(lightning, lightning).
+skillElement(dash, dash).
+skillElement(flare, light).
+
+unlimited(gust).
+unlimited(dash).
+unlimited(flare).
+charge(player, ignite, i1).
+charge(player, lightning, l1).
+
+% === Chemistry ===
+reacts(fire, oil, scorched).
+reacts(freeze, oil, sludge).
+reacts(fire, sludge, scorched).
+reacts(lightning, sludge, scorched).
+blast(fire, oil, dead).
+blast(fire, sludge, dead).
+blast(lightning, sludge, dead).
+terrain(sludge, snared).
+strike(fire, dead).
+strike(lightning, dead).
+mark(light, dazzled).
+
+% === Default kit (a winning pair; F4 strips these and re-adds each pick) ===
+hasSkill(player, ignite).
+hasSkill(player, gust).
+
+% === The encounter ===
+clearGreaseTrap :- if(), do(defeatGroup(swarm), defeatGroup(bearer)).
+
+% === Declared choice space: pick 2 of 5, blockers in play order ===
+funChoiceSpace(kit, 2).
+funChoice(kit, ignite).
+funChoice(kit, gust).
+funChoice(kit, lightning).
+funChoice(kit, dash).
+funChoice(kit, flare).
+funChoiceFact(ignite, hasSkill(player, ignite)).
+funChoiceFact(gust, hasSkill(player, gust)).
+funChoiceFact(lightning, hasSkill(player, lightning)).
+funChoiceFact(dash, hasSkill(player, dash)).
+funChoiceFact(flare, hasSkill(player, flare)).
+funBlocker(swarm).
+funBlocker(bearer).
+funBlockerGoal(swarm, defeatGroup(swarm)).
+funBlockerGoal(bearer, defeatGroup(bearer)).
+
+goals(clearGreaseTrap).

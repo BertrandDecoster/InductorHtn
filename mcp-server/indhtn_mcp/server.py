@@ -106,6 +106,9 @@ class IndHTNMCPServer:
             planner_class=planner_class, max_sessions=max_sessions
         )
         self.server = Server("indhtn")
+        # Player-perspective level play (each LevelSession owns its planner).
+        self.level_sessions: dict = {}
+        self._next_level_session = 1
         self._register()
 
     # ------------------------------------------------------------------
@@ -530,6 +533,89 @@ class IndHTNMCPServer:
                 description="Return the resolution step count for the most recent query.",
                 inputSchema=obj({"sessionId": {"type": "string"}}, required=["sessionId"]),
             ),
+            # ---------------------------------------------------------
+            # Player-perspective level play (own planner, no sessionId)
+            # ---------------------------------------------------------
+            Tool(
+                name="indhtn_load_level",
+                description=(
+                    "Start a playtest of a level directory (e.g. 'grease_trap', 'levels/grease_trap', "
+                    "or an absolute path). Plans the whole level once, then lets you play it from the "
+                    "player's point of view. Returns a levelSessionId, the first observation and the "
+                    "player's first legal actions. Companion-only steps are advanced automatically."
+                ),
+                inputSchema=obj({
+                    "level": {"type": "string", "description": "Level name or directory"},
+                    "playthroughDir": {
+                        "type": "string",
+                        "description": "Where to record the playthrough JSON (default: .playthroughs/)",
+                    },
+                }, required=["level"]),
+            ),
+            Tool(
+                name="indhtn_observe",
+                description=(
+                    "What the player sees now: their region, skills and charges, where companions and "
+                    "enemies are, region features, and each companion's stated intention "
+                    "('Warden: I'll drag bearer from exit into corridor'). No strategy names, no plan counts."
+                ),
+                inputSchema=obj({"levelSessionId": {"type": "string"}}, required=["levelSessionId"]),
+            ),
+            Tool(
+                name="indhtn_actions",
+                description=(
+                    "The player's own legal moves here, each with a narration and its consequences. "
+                    "'wait' is offered when a companion could act instead. An empty list with done=false "
+                    "means no plan survives."
+                ),
+                inputSchema=obj({"levelSessionId": {"type": "string"}}, required=["levelSessionId"]),
+            ),
+            Tool(
+                name="indhtn_act",
+                description=(
+                    "Take a move: one of the actions offered, or 'wait'. An off-plan move is refused "
+                    "unless force=true, in which case the operator's grounded effects are applied and the "
+                    "level is re-planned from the resulting world (so a mistake becomes observable: "
+                    "plans_remaining may drop to 0). Returns the new observation."
+                ),
+                inputSchema=obj({
+                    "levelSessionId": {"type": "string"},
+                    "action": {"type": "string", "description": "Operator text, e.g. 'opPush(player, swarm, gallery, corridor)', or 'wait'"},
+                    "force": {"type": "boolean", "default": False},
+                }, required=["levelSessionId", "action"]),
+            ),
+            Tool(
+                name="indhtn_undo",
+                description="Return to the previous decision point (undoes the last indhtn_act, forced or not).",
+                inputSchema=obj({"levelSessionId": {"type": "string"}}, required=["levelSessionId"]),
+            ),
+            Tool(
+                name="indhtn_explain",
+                description=(
+                    "After playing: the strategy class reached, the classes missed, and at every decision "
+                    "the alternatives the planner had and where each led. This is the planner's view - "
+                    "call it after the walk, not during."
+                ),
+                inputSchema=obj({"levelSessionId": {"type": "string"}}, required=["levelSessionId"]),
+            ),
+            Tool(
+                name="indhtn_state",
+                description="The full fact set of the play session's current world, the operators taken so far, and plans_remaining.",
+                inputSchema=obj({"levelSessionId": {"type": "string"}}, required=["levelSessionId"]),
+            ),
+            Tool(
+                name="indhtn_fun",
+                description=(
+                    "The fun scorecard for a level (see docs/FUN_METRICS.md): six families, verdicts, "
+                    "strategy classes. ablate and loadouts re-plan many times and can take minutes on a "
+                    "large level; results are disk-cached under .htn_metrics_cache/."
+                ),
+                inputSchema=obj({
+                    "level": {"type": "string"},
+                    "ablate": {"type": "boolean", "default": False},
+                    "loadouts": {"type": "boolean", "default": False},
+                }, required=["level"]),
+            ),
         ]
 
     # ------------------------------------------------------------------
@@ -906,6 +992,83 @@ def _require_str(args: dict, key: str) -> str:
     return value
 
 
+# ----------------------------------------------------------------------
+# Player-perspective level play
+# ----------------------------------------------------------------------
+
+def _level_session(srv: IndHTNMCPServer, args: dict):
+    sid = _require_str(args, "levelSessionId")
+    session = srv.level_sessions.get(sid)
+    if session is None:
+        raise KeyError(f"Unknown levelSessionId: {sid}")
+    return session
+
+
+async def _h_load_level(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    from .level_tools import LevelSession
+
+    level = _require_str(args, "level")
+    playthrough_dir = args.get("playthroughDir")
+    # Planning can take a while on a large level; keep the event loop free.
+    session = await asyncio.to_thread(LevelSession, level, None, playthrough_dir)
+    sid = f"level-{srv._next_level_session}"
+    srv._next_level_session += 1
+    srv.level_sessions[sid] = session
+    return _text(_ok_dict(
+        levelSessionId=sid,
+        level=session.level_id,
+        goal=session.goal,
+        truncated=session.truncated,
+        playthrough=session.playthrough_path,
+        observation=session.observe(),
+        actions=session.actions(),
+    ))
+
+
+async def _h_observe(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    return _text(_ok_dict(**_level_session(srv, args).observe()))
+
+
+async def _h_actions(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    session = _level_session(srv, args)
+    return _text(_ok_dict(done=session.done, actions=session.actions()))
+
+
+async def _h_act(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    session = _level_session(srv, args)
+    action = _require_str(args, "action")
+    force = bool(args.get("force", False))
+    result = await asyncio.to_thread(session.act, action, force)
+    if result.get("accepted") and not result.get("done"):
+        result["actions"] = session.actions()
+    return _text(_ok_dict(**result))
+
+
+async def _h_undo(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    session = _level_session(srv, args)
+    result = session.undo()
+    result["actions"] = session.actions()
+    return _text(_ok_dict(**result))
+
+
+async def _h_explain(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    return _text(_ok_dict(**_level_session(srv, args).explain()))
+
+
+async def _h_level_state(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    return _text(_ok_dict(**_level_session(srv, args).state()))
+
+
+async def _h_fun(srv: IndHTNMCPServer, args: dict) -> List[TextContent]:
+    from .level_tools import fun_profile
+
+    level = _require_str(args, "level")
+    profile = await asyncio.to_thread(
+        fun_profile, level, bool(args.get("ablate", False)), bool(args.get("loadouts", False))
+    )
+    return _text(profile)
+
+
 _HANDLERS = {
     "indhtn_create_session": _h_create_session,
     "indhtn_end_session": _h_end_session,
@@ -936,6 +1099,14 @@ _HANDLERS = {
     "indhtn_set_trace": _h_set_trace,
     "indhtn_get_traces": _h_get_traces,
     "indhtn_get_resolution_steps": _h_get_resolution_steps,
+    "indhtn_load_level": _h_load_level,
+    "indhtn_observe": _h_observe,
+    "indhtn_actions": _h_actions,
+    "indhtn_act": _h_act,
+    "indhtn_undo": _h_undo,
+    "indhtn_explain": _h_explain,
+    "indhtn_state": _h_level_state,
+    "indhtn_fun": _h_fun,
 }
 
 

@@ -102,6 +102,7 @@ class HtnTestSuite:
             self._record(False, f"Load file: {htn_file}", f"Compile error: {error}")
             return False
 
+        self._extra_sources = [(htn_file, content)]
         return True
 
     def _reload_file(self):
@@ -199,6 +200,7 @@ class HtnTestSuite:
             self._planner = HtnPlanner(self.verbose)
             self._loader = ComponentLoader(self._planner, self._project_root)
             self._loaded_components = set()
+            self._extra_sources = []
 
         # Idempotent re-entry: if a loader already exists for this planner and
         # the component is known, nothing to do.
@@ -380,6 +382,13 @@ class HtnTestSuite:
             self._planner = HtnPlanner(self.verbose)
 
         error = self._planner.HtnCompileCustomVariables(content)
+        if error is None:
+            # Remember it so state replay can see any operators it defines.
+            extra = getattr(self, "_extra_sources", None)
+            if extra is None:
+                extra = []
+                self._extra_sources = extra
+            extra.append(("compile_additional", content))
         return error is None
 
     # =========================================================================
@@ -1205,58 +1214,42 @@ class HtnTestSuite:
         # Get operators
         operators = solutions[0] if isinstance(solutions[0], list) else []
 
-        # Get final state
-        error, final_json = self._planner.GetSolutionFacts(0)
-        if error:
+        if not operators:
             return timeline
 
-        final_state = set(json.loads(final_json))
+        # Reconstruct each intermediate state by replaying the operators'
+        # del/add clauses. The planner only exposes the initial and final
+        # fact sets, so the steps in between have to be derived from the
+        # operator definitions in the sources we compiled.
+        from htn_metrics.extract import ground_solution, replay_states
 
-        # For now, we can only compute initial and final
-        # TODO: Implement incremental state reconstruction
-        if operators:
-            # Add a single step showing initial -> final transition
-            added = list(final_state - initial_state)
-            removed = list(initial_state - final_state)
+        grounded = ground_solution(operators, self._compiled_sources())
+        states = replay_states(sorted(initial_state), grounded)
 
-            # Format operators
-            op_strs = []
-            for op in operators:
-                if isinstance(op, dict):
-                    for name, args in op.items():
-                        if isinstance(args, list):
-                            arg_strs = []
-                            for arg in args:
-                                if isinstance(arg, dict):
-                                    for k, _ in arg.items():
-                                        arg_strs.append(k)
-                                        break
-                                else:
-                                    arg_strs.append(str(arg))
-                            op_strs.append(f"{name}({', '.join(arg_strs)})")
-                        else:
-                            op_strs.append(name)
-                        break
-                else:
-                    op_strs.append(str(op))
-
-            # Add each operator as a step (with cumulative state for now)
-            prev_state = initial_state
-            for i, op_str in enumerate(op_strs):
-                # For intermediate steps, we approximate
-                # In a full implementation, we'd track del/add per operator
-                is_final = (i == len(op_strs) - 1)
-                step_state = final_state if is_final else initial_state
-
-                timeline.append({
-                    'step': i + 1,
-                    'operator': op_str,
-                    'state': list(step_state),
-                    'added': added if is_final else [],
-                    'removed': removed if is_final else []
-                })
+        for i, op in enumerate(grounded):
+            before, after = states[i], states[i + 1]
+            timeline.append({
+                'step': i + 1,
+                'operator': op.text,
+                'state': sorted(after),
+                'added': sorted(after - before),
+                'removed': sorted(before - after),
+            })
 
         return timeline
+
+    def _compiled_sources(self) -> List[tuple]:
+        """Every HTN source compiled into the current planner, as (label, text).
+
+        Components come from the loader's own record; files and ad-hoc
+        `compile_additional` content are tracked as they are compiled.
+        """
+        sources: List[tuple] = []
+        loader = getattr(self, "_loader", None)
+        if loader is not None:
+            sources.extend(loader.sources)
+        sources.extend(getattr(self, "_extra_sources", []))
+        return sources
 
     # =========================================================================
     # Reporting
