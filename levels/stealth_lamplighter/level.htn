@@ -1,151 +1,139 @@
 % The Lamplighter (stealth and avoidance)
 %
-% Everyone out through the town gate. The gate is shut; its lever lies in
-% the guardroom, under a warden's eyes. The road to the gate runs down the
-% lamp-lit street, then through the hall, which the lamplighter watches
-% from his post. His own lantern means no flash dazzles him. The hall's
-% shutters are closed and the guardroom has no window: nobody sees into
-% either, so nobody blinks or dashes in.
+% Everyone out through the town gate. The gate is shut; its winch stands
+% in the gatehouse yard, which the warden watches from his lodge - a big
+% man, rooted in his chair: no taunt gets him up, no hook moves him. The
+% road to the gate runs down the lamp-lit street, which the lamplighter
+% watches from his post while the lamps burn. His own lantern means no
+% flash dazzles him. At the post hangs the lamp rope: weigh it down and
+% every lamp in the street goes out.
 %
-%   guardroom (warden; the lever)      yard (a crate)
-%        |                         ___/    \___
-%      start ------------------------ lamps ---- hall ---- gate ---- exit
-%                                       |
-%                                      post (lamplighter)
+%   lodge (warden) ---- square (start) ---- yard (the winch plate)
+%                          |
+%                        street (lamps) ==gate== exit
+%                          |
+%                        post (lamplighter; the lamp rope plate)
 %
 % Two obstacles:
-%   the lever      someone on it, or something: blind the warden from the
-%                  start (blindingFlash), stun him (shieldBash), or push the
-%                  crate from the yard onto the lever (a fireball from the
-%                  start, or a tidalWave that washes it in).
-%   the hall       everyone crosses it: drag the lamplighter off his post
-%                  (taunt, hook), draw him into the street (a vortex on the
-%                  lamps), or push the crate into the hall from the lamps
-%                  (fireball, tidalWave) and walk behind it - cover.
+%   the winch     a companion must stand on it, and the warden sees the
+%                 yard: blind him (blindingFlash in his lodge), stun him
+%                 (shieldBash), or soak him (tidalWave in his lodge) and
+%                 freeze him (blizzard): wet and chilled, he is stunned.
+%   the street    everyone crosses it: taunt the lamplighter off his post
+%                 (he walks after you), knock him onto his own lamp rope
+%                 (fireball, or a vortex on the rope: the street goes
+%                 dark), or frost the lamps over (blizzard on the street).
 %
-% fireball and tidalWave have two roles - the crate on the lever, or the
-% crate as cover - but there is one crate: the two of them, or one of them
-% twice, leave one obstacle.
+% blizzard has two roles: it frosts the lamps, and it freezes a soaked
+% warden - one blizzard each, with the mana for two.
 %
 % Traps:
-%   - nothing dazzles or stuns the lamplighter (his lantern); nothing drags
-%     the warden (nobody sees into his room).
-%   - a vortex on the lamps draws in everyone next to them, companions
-%     included, and roots them for good: cast it when your friend is on the
-%     lever, not beside you. With the crate on the lever, there is nowhere
-%     for your friend to stand clear, so crate + vortex has no plan.
-%   - the crate cannot be in two places.
+%   - nothing dazzles or stuns the lamplighter (his lantern); nothing moves
+%     the warden (rooted and heavy). A taunt on him breaks.
+%   - blizzard on the warden alone only chills him: he must be wet.
+%   - the post can only be reached through the lit street.
 %
 % Victory: both companions at the exit (escape/0).
 
-% === Regions ===
-region(start).
-region(guardroom).
+% === Areas ===
+region(square).
+region(lodge).
 region(yard).
-region(lamps).
+region(street).
 region(post).
-region(hall).
-region(gate).
 region(exit).
-connected(start, guardroom).
-connected(guardroom, start).
-connected(start, lamps).
-connected(lamps, start).
-connected(start, yard).
-connected(yard, start).
-connected(yard, lamps).
-connected(lamps, yard).
-connected(lamps, post).
-connected(post, lamps).
-connected(lamps, hall).
-connected(hall, lamps).
-connected(hall, gate).
-connected(gate, hall).
-connected(gate, exit).
-connected(exit, gate).
+connected(square, lodge).
+connected(square, yard).
+connected(square, street).
+connected(street, post).
+doorway(street, exit, gate).
+door(gate).
+feature(yard, winch, turnWinch).
+plate(winch).
+effect(turnWinch, target, open(gate)).
+feature(post, lampRope, douse).
+plate(lampRope).
+effect(douse, target, spill(shadows, street)).
 
-lineOfSight(start, yard).
-lineOfSight(start, lamps).
-lineOfSight(lamps, yard).
-lineOfSight(lamps, post).
-lineOfSight(lamps, start).
-lineOfSight(hall, gate).
-lineOfSight(gate, exit).
-
-% Push lines for the crate: from the start into the guardroom (onto the
-% lever); from under the lamps into the hall (cover).
-beyond(start, yard, guardroom).
-beyond(lamps, yard, hall).
+lineOfSight(square, lodge).
+lineOfSight(square, yard).
+lineOfSight(square, street).
+lineOfSight(square, post).
+lineOfSight(lodge, yard).
+lineOfSight(street, post).
 
 % === Terrain ===
-door(gate).
-onEnter(guardroom, lever).
-effect(lever, target, open(gate)).
+% The street lamps are a zone with no effect of their own. Dark (shadows)
+% or frosted over (an ice sheet), they are out.
+onEnter(street, lamplight).
+zoneReaction(lamplight, shadows, shadows).
+zoneReaction(lamplight, iceSheet, iceSheet).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
-at(player, start).
-at(mage, start).
+at(player, square).
+at(mage, square).
 mana(player, 4).
 mana(mage, 4).
 
 % === The watch ===
+% The warden watches the yard from his lodge; big and rooted in his chair.
 role(warden, enemy).
-at(warden, guardroom).
+at(warden, lodge).
 tag(warden, living).
-watches(warden, guardroom) :- at(warden, guardroom).
+tag(warden, heavy).
+tag(warden, rooted).
+watches(warden, yard) :- at(warden, lodge).
 
-% The lamplighter watches the hall from his post - unless the crate stands
-% in the hall to hide behind. His lantern: nothing blinds him.
+% The lamplighter watches the street from his post while the lamps burn.
+% His lantern: nothing blinds him.
 role(lamplighter, enemy).
 at(lamplighter, post).
 tag(lamplighter, living).
 immune(lamplighter, blinded).
-watches(lamplighter, hall) :- at(lamplighter, post), not(at(crate, hall)).
-
-role(crate, object).
-at(crate, yard).
+watches(lamplighter, street) :- at(lamplighter, post), onEnter(street, lamplight).
 
 % === Default kit (combos replans the whole matrix) ===
-knows(player, fireball).
+knows(player, blindingFlash).
 knows(mage, taunt).
 
 % === Getting somewhere unseen ===
 
 watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
-watchedRegion(?r) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
 
-% ?a gets to ?r: walk if it can; else stop a watcher watching, or put the
-% crate in a watched region as cover, and try again (at most ?n times).
+% ?a gets to ?r: walk if it can; else stop a watcher watching, and try
+% again (at most ?n times).
 getTo(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
 getTo(?a, ?r, ?n) :-
     if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watching(?g)),
-    do(unwatch(?g), getTo(?a, ?r, ?m)).
-getTo(?a, ?r, ?n) :-
-    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watchedRegion(?w),
-       not(at(crate, ?w))),
-    do(place(crate, ?w, none), getTo(?a, ?r, ?m)).
+    do(answer(?g), getTo(?a, ?r, ?m)).
 
-% A watcher stops watching: blinded (a flash, a stun) or moved off his post.
-unwatch(?g) :-
-    if(canInflict(?c, ?ab, blinded, ?g)), do(cast(?c, ?ab, ?g), confirmUnwatched(?g)).
-unwatch(?g) :- if(), do(budge(?g), confirmUnwatched(?g)).
-confirmUnwatched(?g) :- if(not(watching(?g))), do().
-
-% Something moves off its spot: dragged to someone (taunt, hook), pushed
-% along a line, or drawn into the next region (vortex).
-budge(?e) :-
-    if(at(?e, ?r), canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, ?e)),
-    do(cast(?a, ?ab, ?e), ensureMoved(?e, ?r)).
-budge(?e) :-
-    if(at(?e, ?r), placement(?a, ?ab, ?from, ?aim, ?e, ?to)),
-    do(castFrom(?a, ?ab, ?aim, ?from), ensureMoved(?e, ?r)).
+% A watcher is answered: one cast lands on it (a blinding, a stun, a
+% taunt, a knock onto the rope), on what it watches (the lamps frosted), or
+% a vortex on a plate in its area - or it is soaked first and then frozen.
+answer(?g) :- if(), do(strike(?g), cleared(?g)).
+answer(?g) :-
+    if(canAct(?c), knows(?c, ?ab), grants(?ab, wet), not(holds(?g, wet))),
+    do(cast(?c, ?ab, ?g), confirmHas(?g, wet), strike(?g), cleared(?g)).
+strike(?g) :-
+    if(canAct(?c), knows(?c, ?ab), ready(?c, ?ab, ?g)), do(cast(?c, ?ab, ?g)).
+strike(?g) :-
+    if(watches(?g, ?r), canAct(?c), knows(?c, ?ab), effect(?ab, target, spill(?z)),
+       ready(?c, ?ab, ?r)),
+    do(cast(?c, ?ab, ?r)).
+strike(?g) :-
+    if(at(?g, ?r), feature(?r, ?f, ?x), knocks(?c, ?ab, ?from, ?f, ?g, feature(?f))),
+    do(castFrom(?c, ?ab, ?f, ?from)).
+% The physics tries every aim: confirm the watcher no longer watches.
+cleared(?g) :- if(not(watching(?g))), do().
 
 % === Victory: everyone out ===
+% The gate: someone stands on the winch.
 openGate :- if(open(gate)), do().
-openGate :- if(not(open(gate)), canAct(?a)), do(getTo(?a, guardroom, 1)).
-openGate :- if(not(open(gate))), do(place(crate, guardroom, none)).
+openGate :-
+    if(not(open(gate)), canAct(?a)), do(getTo(?a, yard, 2), stepOn(?a, winch), gateOpen(gate)).
+gateOpen(?d) :- if(open(?d)), do().
 
 escape :- if(), do(openGate, getTo(player, exit, 1), getTo(mage, exit, 1)).
 
@@ -156,10 +144,10 @@ comboSeat(player, 1).
 comboSeat(mage, 1).
 comboPool(blindingFlash).
 comboPool(shieldBash).
-comboPool(fireball).
 comboPool(tidalWave).
+comboPool(blizzard).
 comboPool(taunt).
-comboPool(hook).
+comboPool(fireball).
 comboPool(vortex).
 comboMinWins(10).
 comboMinMethods(3).
