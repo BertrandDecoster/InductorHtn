@@ -2,7 +2,7 @@
   "name": "sync_decoy",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Sync: The Decoy - one companion lures a watching golem out of the arch, the other slips across the hall to the switch; one skill each from eight",
+  "description": "Sync: The Decoy - one companion baits a golem's telegraphed slam onto the watching eye, the other pulls them clear in the one-cast window; or lure the golem and blind the eye; one skill each from seven",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:40:38.565899"
+    "last_checked": "2026-09-24T18:10:50.840703"
   },
   "provides": [
     "at/2",
@@ -27,6 +27,7 @@
     "door/1",
     "effect/3",
     "funExpect/3",
+    "immune/2",
     "knows/2",
     "leftArch/0",
     "lineOfSight/2",
@@ -36,13 +37,16 @@
     "opened/1",
     "region/1",
     "role/2",
-    "trait/2",
-    "veil/1",
+    "slip/0",
+    "standby/1",
+    "tag/2",
+    "unseeing/0",
+    "veil/0",
     "watches/2",
     "win/0"
   ],
   "requires": [
-    "cast/3",
+    "castFrom/4",
     "inflict/3",
     "place/3",
     "walkTo/2"

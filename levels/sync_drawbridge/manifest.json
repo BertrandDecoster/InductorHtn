@@ -2,7 +2,7 @@
   "name": "sync_drawbridge",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Sync: The Drawbridge - one companion leaps the gulf and lowers the bridge, the others cross and drop or short the sentinel machine; one skill each from eight, plus a porter with rain",
+  "description": "Sync: The Drawbridge - one companion blinks or flashes over the gulf and lowers the bridge; the porter mists the heavy sentinel and the very next cast throws it into the cliff, or a wave and a flash short it; one skill each from seven",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/strategies/passage",
@@ -13,7 +13,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:45:21.448417"
+    "last_checked": "2026-09-24T18:08:53.548134"
   },
   "provides": [
     "at/2",
@@ -35,7 +35,7 @@
     "progress/2",
     "region/1",
     "role/2",
-    "trait/2",
+    "tag/2",
     "win/0"
   ],
   "requires": [

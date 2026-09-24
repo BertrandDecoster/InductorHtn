@@ -4,27 +4,34 @@
 
 A synchronisation level: **a door with two plates that must be weighed down at the same moment**
 (the `plateFor/2` + `openWhenHeld(D)` door of `ab_effects`). One plate is on an island across a
-rift, the other in a closet a sentry keeps its eye on. Two companions, the player and the mage,
-pick one skill each from a pool of eight. Whoever takes the island plate is stranded there, so the
-closet has to be done by the other one. Portal 2 co-op's two-button door, with one twist: the enemy
-can be the weight.
+rift. The other is in a closet that a warden watches from its post. A barrel stands on the post
+beside the warden. Two companions, the player and the mage, pick one skill each from a pool of
+seven. Whoever takes the island plate is stranded there, so the other one has to do the closet. This
+is Portal 2 co-op's two-button door, with one twist: the enemy's own blow can put the weight on the
+plate.
+
+The warden is a heavy boss: nothing moves it and nothing stuns it. It answers a taunt with a
+telegraphed `groundSlam` on its own post. The slam is heavy and physical, so it cannot be stopped.
+It knocks down everyone on the post except the warden and throws them into the closet. Bait it, and
+its blow throws the barrel onto the plate. No companion may be standing on the post when it lands.
 
 | Obstacle | What stops you | Methods (pool skills) |
 |----------|----------------|-----------------------|
-| **The island** | a rift (chasm): nobody walks over it | dash onto the outcrop (`pounce`, `charge`); hook the anchored pillar there (`magnetize`); swap with the barrel there (`translocate`) - then walk onto the plate |
-| **The closet** | the sentry watches it: nobody walks in seen; no line of sight in, so nothing dashes in | walk in stealthed (`vanish`); walk in once the sentry is blinded (`flashbang`, `net`); shove the sentry itself off its post onto the plate (`gust`) |
+| **The island** | a rift (chasm): nobody walks over it | from the rim: teleport onto the outcrop (`blink`), dash there (`lightningFlash`), hook the anchored pillar there and be dragged over (`hook`); then walk onto the plate |
+| **The closet** | the warden watches it: nobody walks in seen; there is no line of sight in, so nothing teleports or dashes in | blind the warden and walk in (`blindingFlash` from the hall); put the barrel on the plate: push it off the post from the hall (`fireball`, `tidalWave`), or `taunt` the warden so that its slam throws the barrel |
 
 Why no single skill works:
 - The island skills only move their caster, and only over the rift.
 - The closet skills never cross the rift.
-- The sentry is a boss: `charge`'s stun and `translocate`'s confusion are hard control and do not
-  land, so neither blinds it. `flashbang` and `net` land the `blinded` atom itself.
-- The sentry's watch belongs to the sentry, not to its post: swapping it away (`translocate`),
-  dragging it (`magnetize`) or dashing up to it (`pounce`, `charge`) leaves the closet watched.
+- The warden is heavy: pushes, pulls and the wave move only the barrel. It is a boss, so a stun does
+  not land.
+- A hook on the barrel drags it to the hooker, away from the plate. A hook on the warden drags the
+  hooker to the warden.
 - One companion can never hold both plates, and the island holder cannot come back.
 
-The two kinds of method differ in kind on both sides: a dash, a hook or a swap for the island;
-stealth, a blinded watcher, or the enemy used as a counterweight for the closet.
+The methods differ in kind on both sides. The island is reached by a teleport, a dash or a
+grappling hook. The closet is done by a blinded watcher, a push, or the enemy's own blow used as the
+push.
 
 ## Layer
 
@@ -39,70 +46,80 @@ level
 ## World
 
 ```
-foyer (player, mage) --- hall --- rim ~~ rift (chasm) ~~ outcrop (pillar, barrel) --- island [plate]
+foyer (player, mage) --- hall --- rim ~~ rift (chasm) ~~ outcrop (pillar) --- island [plate]
                           |  \
-                          |   post (sentry) --- closet [plate, watched by the sentry]
+                          |   post (warden, barrel) --- closet [plate, watched by the warden]
                           |
                       vaultdoor (door: both plates at once) --- vault
 ```
 
-- **Plates:** `plateFor(island, vaultdoor)`, `plateFor(closet, vaultdoor)`; each plate region is a
-  zone with `openWhenHeld(vaultdoor)`. The door latches open the moment both are weighed down.
+- **Plates:** `plateFor(island, vaultdoor)`, `plateFor(closet, vaultdoor)`. Each plate region is a
+  zone with `openWhenHeld(vaultdoor)`, so the door latches open the moment the second plate is
+  weighed down.
 - **Lines of sight:** foyer-hall, hall-rim, rim-outcrop, hall-post. None into the closet.
-- **Push line:** from the hall, a push on the post lands in the closet.
-- **Sentry:** living, `rank(sentry, boss)`, `watches(sentry, closet)`.
-- **Outcrop:** a heavy pillar (an anchor for a hook) and a light barrel (a swap partner). They stand
-  off the plate, so the island plate starts empty.
-- **Goal:** `win` = `weighIsland`, `weighCloset`, confirm the door opened, then someone walks into
-  the vault. The level's own methods name the closet options (stealth, blind, shove).
+- **Push lines:** from the hall, a push on the post lands in the closet. So does the warden's slam
+  on its own post (`beyond(post, post, closet)`).
+- **Warden:** living, heavy, `rank(warden, boss)`, `watches(warden, closet)`,
+  `behavior(warden, taunted, groundSlam, here)`.
+- **Outcrop:** a heavy pillar, an anchor for a hook. The island plate starts empty.
+- **Route:** `progress/2` only rises across the rift, so leaps go from the rim to the outcrop or
+  the island.
+- **Goal:** `win` = `weighIsland` (`reach` the island), `weighCloset`, confirm the door opened, then
+  someone walks into the vault. The level's own methods name the closet options: blind and walk in,
+  `place(barrel, closet)`, or a taunt followed by a check that the barrel is on the plate.
 
 ## Hypothesis
 
 Measured with `htn_components combos sync_vault` (and pinned by `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 8.
-- 32 of the 64 assignments win: each of the 4 island skills with each of the 4 closet skills,
-  whichever companion holds which half (16 pairs).
-- 16 methods (distinct sets of skills cast), 0 solo plans, no dead skill: every skill is in 8
-  winning assignments.
-- Every losing pair has a named reason: two island skills (nobody reaches the closet), two closet
-  skills (nobody crosses), or a hard-control skill against the boss sentry.
+- No single skill wins, even when both companions hold it: 0 of 7.
+- 24 of the 49 assignments win: each of the 3 island skills with each of the 4 closet skills,
+  whichever companion holds which half (12 pairs).
+- 12 methods (distinct sets of skills cast), 0 solo plans, no dead skill. Usage: blink,
+  lightningFlash, hook 8 each; blindingFlash, fireball, tidalWave, taunt 6 each.
+- Every losing pair has a reason: two island skills (nobody weighs the closet), or two closet skills
+  (nobody crosses).
+- One replan takes under 3 s.
 
 ## Examples
 
-### Example 1: Pounce over, blind the sentry
+### Example 1: Blink to the island, fireball the barrel
 
-**Given:** the player knows `pounce`, the mage knows `flashbang`.
-
-**When:** `win`
-
-**Then:** the player pounces from the rim onto the outcrop and walks onto the island plate; the mage
-flashbangs the sentry and walks into the closet; the vault door opens.
-
-### Example 2: Hook over, the sentry holds the door
-
-**Given:** the player knows `magnetize`, the mage knows `gust`.
+**Given:** the player knows `blink`, the mage knows `fireball`.
 
 **When:** `win`
 
-**Then:** the player hooks the pillar and is dragged over the rift; the mage gusts the sentry off its
-post onto the closet plate, and walks into the vault.
+**Then:** the player blinks from the rim onto the outcrop and walks onto the island plate. From the
+hall, the mage fireballs the barrel off the post onto the closet plate, and the door opens. The mage
+walks into the vault.
 
-### Example 3: Swap over, sneak in
+### Example 2: Hook over, the warden throws the barrel
 
-**Given:** the player knows `vanish`, the mage knows `translocate`.
+**Given:** the player knows `hook`, the mage knows `taunt`.
 
 **When:** `win`
 
-**Then:** the mage swaps places with the barrel and walks onto the island plate; the player vanishes
-and walks into the closet under the sentry's nose.
+**Then:** the player hooks the pillar and is dragged over the rift onto the outcrop, then walks onto
+the plate. The mage taunts the warden from the hall. Heavy, the warden is not dragged anywhere; it
+winds up a ground slam on its own post. Nobody is in danger, so the blow lands and throws the barrel
+into the closet, and the door opens.
+
+### Example 3: Flash over, blind and walk in
+
+**Given:** the player knows `blindingFlash`, the mage knows `lightningFlash`.
+
+**When:** `win`
+
+**Then:** the mage dashes over the rift and walks onto the island plate. The player flashes in the
+hall, which blinds the warden next door, then walks through the post onto the closet plate.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
-| P2 | Sixteen pairs win | Exactly the 16 island-by-closet pairs have a plan. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
+| P2 | The measured pairs win | Exactly the 12 island-by-closet pairs have a plan. |
 | P3 | Either seat | A pair wins whichever companion holds which half. |
-| P4 | Hard control does not blind the boss | `charge` + `translocate` has no plan. |
-| P5 | The door needs both plates | One plate alone leaves the vault shut. |
+| P4 | The door waits for both plates | The island plate alone leaves the door shut; the second plate opens it. |
+| P5 | The slam throws only the barrel | In every taunt plan, the only thing the blow moves is the barrel, into the closet. |
+| P6 | The warden does not budge | Fireball and tidal-wave plans never move the warden. |
