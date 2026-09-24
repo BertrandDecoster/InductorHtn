@@ -14,17 +14,16 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["rainCall", "glaciate", "tidalWave", "provoke", "taunt", "chainLightning", "lightningFlash"]
+POOL = ["tidalWave", "vortex", "taunt", "hook", "lightningFlash", "blindingFlash"]
 
-# The measured matrix: the pairs that win, and nothing else does.
-WINNING = {
-    frozenset(p) for p in [
-        ("rainCall", "lightningFlash"), ("glaciate", "lightningFlash"),
-        ("tidalWave", "chainLightning"), ("tidalWave", "lightningFlash"),
-        ("provoke", "chainLightning"), ("provoke", "lightningFlash"),
-        ("taunt", "chainLightning"), ("taunt", "lightningFlash"),
-    ]
-}
+# The measured matrix (htn_components combos: 12 of 36).
+#   short: a soak (wave, or a herd into the flooded sump) and one lightning flash down the hall;
+#   drop:  the ogre's cave-in on the drones - taunt it into the yard and be hooked out, or
+#          vortex drones and ogre into the sump and dazzle it.
+SHORT = {frozenset((s, "lightningFlash")) for s in ["tidalWave", "vortex", "taunt", "hook"]}
+DROP = {frozenset(("taunt", "hook")), frozenset(("vortex", "blindingFlash"))}
+WINNING = SHORT | DROP
+START = {"player": "gate", "mage": "gate"}
 
 
 def _solutions(planner, goal):
@@ -56,6 +55,30 @@ def ops_text(plans):
     return " ".join(json.dumps(p) for p in plans)
 
 
+def op_list(plan):
+    """[(name, [args])] for one plan."""
+    out = []
+    for op in plan:
+        name = list(op.keys())[0]
+        out.append((name, [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]))
+    return out
+
+
+def where(ops, start):
+    """Each companion's region after `ops`, and who is disjoint right then."""
+    pos, phased = dict(start), set()
+    for n, args in ops:
+        if n in ("opNavigate", "opDash", "opTeleport") and args[0] in pos:
+            pos[args[0]] = args[2]
+        elif n == "opForcedMove" and args[1] in pos:
+            pos[args[1]] = args[3]
+        elif n == "opGrant" and args[2] == "disjoint":
+            phased.add(args[1])
+        elif n == "opRemove" and args[2] == "disjoint":
+            phased.discard(args[1])
+    return pos, phased
+
+
 class ShortCircuitTest(HtnTestSuite):
 
     def setup(self):
@@ -66,30 +89,48 @@ class ShortCircuitTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_pull_into_the_sump_then_chain(self):
+    def test_example_1_vortex_into_the_sump_then_one_flash(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, provoke, cog1)", "opForcedMove(player, cog1, yard, sump)",
-            "opForcedMove(player, cog2, yard, sump)", "opCast(mage, chainLightning, sump)",
-            "opExploit(mage, cog1, electrocuted, dead)", "opExploit(mage, cog3, electrocuted, dead)"])
+            "opCast(player, vortex, sump)", "opForcedMove(player, cog1, yard, sump)",
+            "opGrant(player, cog3, wet)", "opCast(mage, lightningFlash, forge)",
+            "opExploit(mage, cog1, electrocuted, dead)", "opExploit(mage, cog3, electrocuted, dead)",
+            "opDash(mage, gate, forge)"])
 
-    def test_example_2_rain_then_a_line_bolt(self):
-        plans = plans_with("rainCall", "lightningFlash")
-        ops = ops_text(plans)
-        assert plans and "puddle" in ops and "opDash" in ops and "forge" in ops, \
-            "rain on the yard, then a flash from the gate down the hall to the forge"
-        assert ops.count("electrocuted") >= 3
-        self._record(True, "Example 2: rain on the yard, one flash down the hall takes all three")
+    def test_example_2_a_wave_in_place_or_into_the_sump(self):
+        plans = plans_with("tidalWave", "lightningFlash")
+        ops = [op_list(p) for p in plans]
+        washed = [o for o in ops if ("opForcedMove", ["player", "cog1", "yard", "sump"]) in o]
+        in_place = [o for o in ops if not any(n == "opForcedMove" for n, _ in o)]
+        assert washed and in_place, "the wave from the gate washes them in; from the yard it soaks in place"
+        self._record(True, "Example 2: soak in place or wash into the sump; one flash takes all three")
 
-    def test_example_3_wash_into_the_sump(self):
-        plans = plans_with("tidalWave", "chainLightning")
-        ops = ops_text(plans)
-        assert plans and '"sump"' in ops and "opForcedMove" in ops
-        self._record(True, "Example 3: the wave washes the yard into the sump; one chain there")
+    def test_example_3_taunt_the_ogre_and_be_hooked_out(self):
+        plans = plans_with("taunt", "hook")
+        assert plans
+        ops = op_list(plans[0])
+        assert ("opWindUp", ["ogre", "caveIn", "yard"]) in ops
+        assert ("opForcedMove", ["mage", "player", "yard", "gate"]) in ops
+        assert ("opSpill", ["ogre", "yard", "chasm"]) in ops
+        assert all(("opExploit", ["ogre", c, "chasm", "fell"]) in ops for c in ("cog1", "cog2", "cog3"))
+        self._record(True, "Example 3: the ogre stamps the yard through; the taunter is hooked out")
 
-    def test_example_4_trap_one_room_per_chain(self):
-        assert not plans_with("rainCall", "chainLightning"), "a chain on the yard should miss cog3"
-        assert not plans_with("glaciate", "chainLightning")
-        self._record(True, "Example 4: soaked where they stand, a chain covers one room only")
+    def test_example_4_gather_and_dazzle(self):
+        plans = plans_with("vortex", "blindingFlash")
+        spots = set()
+        for plan in plans:
+            ops = op_list(plan)
+            assert ("opForcedMove", ["player", "ogre", "forge", "sump"]) in ops
+            i = next(i for i, (n, _) in enumerate(ops) if n == "opCast" and _[1] == "blindingFlash")
+            spots.add(where(ops[:i], START)[0]["mage"])
+        assert spots == {"yard", "forge"}, f"the flash comes from next door, never the sump: {spots}"
+        self._record(True, "Example 4: the vortex draws drones and ogre into the sump; flash from next door")
+
+    def test_example_5_traps(self):
+        assert not plans_with("lightningFlash", "lightningFlash"), "dry drones are only stunned"
+        assert not plans_with("taunt", "taunt"), "companions cannot be taunted out"
+        assert not plans_with("taunt", "tidalWave"), "the wave washes the drones out with the taunter"
+        assert not plans_with("hook", "blindingFlash"), "the hooker is caught in the cave-in"
+        self._record(True, "Example 5: two bolts, two taunts, wave rescue, hook + flash")
 
     # -------------------------------------------------------------- properties
 
@@ -98,23 +139,33 @@ class ShortCircuitTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_eight_pairs_win(self):
+    def test_property_p2_six_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_each_hand_matters(self):
-        assert plans_with("chainLightning", "provoke") and plans_with("lightningFlash", "rainCall")
+        for a, b in [tuple(p) for p in WINNING]:
+            assert plans_with(a, b) and plans_with(b, a), f"{a}+{b}"
         self._record(True, "P3: the pairs win whichever companion holds which half")
 
-    def test_property_p4_one_bolt(self):
-        """Every winning plan casts exactly one bolt."""
+    def test_property_p4_one_blow(self):
+        """Every winning plan takes all three drones with one blow - one flash, or one
+        cave-in - and nobody on the team is under the cave-in, stunned or fallen."""
         for a, b in [tuple(p) for p in WINNING]:
             for plan in plans_with(a, b):
-                bolts = [op for op in plan if "opCast" in op
-                         and list(op["opCast"][1].keys())[0] in ("chainLightning", "lightningFlash")]
-                assert len(bolts) == 1, f"{a}+{b}: {len(bolts)} bolts"
-        self._record(True, "P4: every winning plan uses exactly one bolt")
+                ops = op_list(plan)
+                bolts = [1 for n, args in ops if n == "opCast" and args[1] == "lightningFlash"]
+                blows = [args for n, args in ops if n == "opBlow"]
+                assert len(bolts) + len(blows) == 1, f"{a}+{b}"
+                for i, (n, args) in enumerate(ops):
+                    if n == "opBlow":
+                        pos, phased = where(ops[:i], START)
+                        assert not [c for c in pos if pos[c] == args[3] and c not in phased], f"{a}+{b}"
+                hurt = [args for n, args in ops if n == "opGrant" and args[1] in START
+                        and args[2] in ("stunned", "fell", "dead")]
+                assert not hurt, f"{a}+{b}: {hurt}"
+        self._record(True, "P4: one flash or one cave-in takes the crowd; the team walks away")
 
 
 def run_tests():

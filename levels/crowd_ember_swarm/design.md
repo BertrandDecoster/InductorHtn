@@ -3,41 +3,45 @@
 ## Purpose
 
 A crowd-control level (category 8): **one shared surface catches the whole group, in the right
-order.** Three ember beetles swarm in a nest, still aflame. An ember freezes solid once its fire is
-out; a chill on a burning one only quenches it (the catalogue's `quench`), and an iced room does not
-chill again. So the whole swarm has to be doused first, then frozen - two steps, two companions.
-The player and the mage pick one skill each from a pool of seven. Nothing grants an outcome: `frozen`
-comes from the beetles' own weakness, declared in the level.
+order.** Three ember beetles swarm in a nest, still aflame. They are insects: the cold kills them
+(the catalogue's `weakness(?e, chilled, none, dead)` for `insect`) - but not while they burn. A chill
+on a burning beetle only quenches it (`quench`), and a region ices over only once. So the whole swarm
+has to be doused first, then frozen - two steps, two companions. The player and the mage pick one
+skill each from a pool of six. Nothing grants an outcome: `dead` is the insects' own weakness.
+
+The douse must leave the beetles dry: fire meeting water (`extinguish`) or cold (`quench`) cancels
+both, but a beetle soaked after its fire is out would only freeze (`wet` + `chilled` = stunned).
 
 The level's goal is a crowd recipe, spelled out top-down from the need: every beetle's fire out
-(`douseAll`: blanket its room, or blow its flame out), then every beetle frozen (`freezeAll`: chill
-its room, or move it into a room that chills - drag it there, or frighten it there).
+(`douseAll`: lay on it a tag its fire reacts to by going out), then every beetle dead (`freezeAll`:
+lay on it the tag it is lethally weak to). Laying a tag (`lay`) is one of three things: a skill that
+gives it, cast on the beetle or everyone around it; a pull-in or push into a region that gives it
+(`placement/6`); or a drag into such a region by someone standing in it.
 
 | Step | Skills | How |
 |------|--------|-----|
-| **Douse** | `rainCall` | the nest floods: the fire goes out (`extinguish`) |
-| | `glaciate`, `iceStorm` | the nest ices: the fire is quenched - and the nest will not chill again |
-| | `gust` | one beetle at a time: the flame is blown out |
-| **Freeze** | `glaciate`, `iceStorm` | ice a doused nest: the whole swarm freezes |
-| | `roar` | from the ridge, round the corner: the frightened swarm runs into the ice cave |
-| | `provoke`, `taunt` | from the ice cave: the whole nest (provoke) or one beetle at a time (taunt) is dragged into the ice |
+| **Douse** | `tidalWave` | from the nest: the wave soaks everyone around, the fires go out |
+| | `blizzard` | the nest ices: the fires are quenched - and the nest will not chill again |
+| | `vortex` | on the brook: the swarm is sucked into the deep water, and pinned there |
+| **Freeze** | `blizzard` | on the doused swarm: the nest, or the brook (the water ices into a floor) |
+| | `vortex` | on the ice cave: the whole nest is sucked into the ice |
+| | `taunt`, `hook` | from inside the ice cave: one beetle at a time is dragged into the ice |
 
 Why no single skill works: a douse alone leaves them standing. A freeze alone reaches a burning
-swarm, which only quenches (a chill cast on it) or slows (a beetle frightened or dragged into the
-ice). The cold skills can't do both halves, because the nest ices only once. And a frightened or
-taunted beetle can't be moved the same way a second time: the tag is already there.
+swarm, which only quenches. Blizzard cannot do both halves, because the nest ices only once. A vortex
+pins what it gathers: this level declares `wards(rooted, forcedMove)` ("suck enemies into one spot
+and pin them there"), so a second vortex cannot fetch the swarm back out of the ice or the brook. A
+taunted beetle cannot be taunted again, and the ice cave cannot see the brook, so no dragger yo-yos
+a beetle from one to the other.
 
-The traps: freezing first (`glaciate` + `iceStorm`: the first quenches, the second finds the nest
-already iced); two herders (`roar` + `provoke`: the swarm reaches the ice still burning); two douses
-(`rainCall` + `gust`).
+Skills serving two roles: `blizzard` douses (quench) in one plan and freezes in another; `vortex`
+douses (into the brook) in one plan and freezes (into the ice cave) in another.
 
-Skills serving two roles: `glaciate` and `iceStorm` douse in one plan (quench) and freeze in
-another (a doused nest).
-
-Level-local physics (wishlist evidence): `weakness(?e, chilled, burning, slowed)` declared before
-`weakness(?e, chilled, none, frozen)` for the `ember` trait. The catalogue's `insect` would not do:
-a beetle dragged or frightened into ice lands in *raw* mode (an `onGrant` movement), which skips the
-`quench` reaction, so a burning insect would freeze outright, and `provoke` alone would win.
+The traps: cold twice (`blizzard` + `blizzard`); a vortex into the ice first (quenched and pinned);
+two waves (the second soaks the doused swarm, which then only freezes); dragging the beetles into
+the brook yourself (`taunt`, `hook`: the blizzard that freezes them freezes you, and the plan is
+refused); `fireball`, which relights the nest and pushes nobody anywhere useful. Fireball is the one
+skill that wins nothing: every fire relights the region it lands on.
 
 ## Layer
 
@@ -51,72 +55,77 @@ level
 ## World
 
 ```
-gate (player, mage)
- |
-ridge --- nest (b1, b2, b3, burning) --- icecave (iceSheet)
+camp (player, mage) --- gate --- nest (b1, b2, b3; insects, burning) --- icecave (iceSheet)
+                                  |
+                                brook (deepWater)
 ```
 
-- **Line of sight:** the gate overlooks the nest and the ice cave; the ice cave sees the nest. The
-  ridge is round the corner: it has no sight of the nest, so only a melee skill works from there.
-- **Lines:** a push from the ridge on the nest throws it into the ice cave.
-- **Zones:** the ice cave is an `iceSheet`: whoever arrives is chilled.
-- **Beetles:** trait `ember`, burning. Both companions have 2 mana.
+- **Line of sight:** the gate overlooks the nest, the brook and the ice cave; the brook and the ice
+  cave each see the nest, not each other.
+- **Zones:** the ice cave is an `iceSheet` (slowed, chilled); the brook is `deepWater` (wet; nothing
+  here is heavy).
+- **Level physics:** `wards(rooted, forcedMove)` - a vortex pins what it gathers.
+- **Beetles:** `insect`, `burning`. Both companions have 2 mana: one wave, blizzard or fireball each.
+- **The team:** a plan that leaves a companion frozen (stunned) is refused (`teamFit`).
 
 ## Hypothesis
 
 Measured with `htn_components combos crowd_ember_swarm` (and this level's `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 7.
-- 32 of 49 assignments win (16 unordered pairs, whichever companion holds which half): a douser
-  (`rainCall`, `gust`) with a cold skill or a herder (10 pairs), and a cold skill with a herder
-  (6 pairs).
-- 16 methods, in four kinds: douse + freeze in place, douse + drive into the ice, douse + drag into
-  the ice, quench + move into the ice. No dead skill: every skill is in 8 to 10 winning assignments.
-- The losing pairs: two cold skills, two herders, two douses.
-- One replan takes about 0.5 s; the whole matrix under 5 s.
+- No single skill wins, even when both companions hold it: 0 of 6.
+- 14 of 36 assignments win (7 unordered pairs, whichever companion holds which half):
+  `tidalWave` with `blizzard`, `vortex`, `taunt` or `hook`; `blizzard` with `vortex`, `taunt` or
+  `hook`.
+- 7 methods (distinct skill sets cast), in two kinds of douse (water, cold) and two kinds of freeze
+  (freeze in place, move into the ice). Skill usage: `tidalWave` 8, `blizzard` 8, `vortex` 4,
+  `taunt` 4, `hook` 4, `fireball` 0 (a trap).
+- No solo plans. One replan takes 0.3 to 4 s; the whole matrix well under a minute.
 
 ## Examples
 
-### Example 1: Rain, then roar them into the ice
+### Example 1: A wave, then a vortex into the ice
 
-**Given:** the player knows `rainCall`, the mage knows `roar`.
+**Given:** the player knows `tidalWave`, the mage knows `vortex` (the default kit).
 
 **When:** `win`
 
-**Then:** rain on the nest puts all three fires out. The mage walks to the ridge and roars: the
-frightened swarm runs into the ice cave and freezes.
+**Then:** the player walks into the nest and bursts a wave: the three fires go out. The mage casts a
+vortex on the ice cave from the gate: the swarm is sucked into the ice and dies of the cold.
 
 ### Example 2: Quench, then drag into the ice
 
-**Given:** the player knows `glaciate`, the mage knows `provoke`.
+**Given:** the player knows `blizzard`, the mage knows `taunt`.
 
 **When:** `win`
 
-**Then:** the player ices the nest (the fires are quenched, nobody freezes). The mage walks into the
-ice cave and provokes the nest: the swarm is dragged into the ice and freezes.
+**Then:** the blizzard ices the nest: the fires are quenched, nobody dies. The mage walks across the
+ice into the ice cave and taunts the beetles one at a time: each is dragged into the ice and dies.
 
-### Example 3: Blow them out, then freeze
+### Example 3: One vortex, two roles
 
-**Given:** the player knows `gust`, the mage knows `iceStorm`.
-
-**When:** `win`
-
-**Then:** three gusts blow out three flames; one iceStorm on the nest freezes the swarm.
-
-### Example 4: Trap - cold twice, or two herders
-
-**Given:** `glaciate` and `iceStorm`; or `roar` and `provoke`.
+**Given:** the player knows `vortex`, the mage knows `blizzard`.
 
 **When:** `win`
 
-**Then:** no plan. The first cold quenches and the second finds the nest already iced; the herders
-bring a burning swarm to the ice, and it only slows.
+**Then:** two plans. The vortex sucks the swarm into the brook (the fires go out, the swarm is
+pinned) and the blizzard ices the brook into a floor, freezing them; or the blizzard quenches the
+nest and the vortex sucks the swarm into the ice cave.
+
+### Example 4: Traps
+
+**Given:** `blizzard` twice; `vortex` twice; `taunt` and `hook`; `tidalWave` twice; `fireball` and
+`blizzard`.
+
+**When:** `win`
+
+**Then:** no plan. The nest ices once; a vortexed swarm is pinned; the brook and the ice cave do not
+see each other; the second wave soaks them and wet beetles only freeze; fire relights the nest.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
-| P2 | Sixteen pairs win | Exactly the sixteen measured pairs have a plan. |
-| P3 | Each hand matters | A pair wins whichever companion holds which half. |
-| P4 | Douse before freeze | In every winning plan, all three fires are out before any beetle freezes. |
+| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
+| P2 | Seven pairs win | Exactly the seven measured pairs have a plan. |
+| P3 | Each hand matters | Every winning pair wins whichever companion holds which half. |
+| P4 | Douse before freeze | In every winning plan all three fires are out before any beetle dies, and no companion is left frozen. |
