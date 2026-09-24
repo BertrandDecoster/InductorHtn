@@ -1,97 +1,71 @@
 % Sync: The Drawbridge (one crosses and lowers the bridge; mist, then throw)
 %
-% A sentinel machine stands on a ledge beyond a gulf. It is heavy: nothing
-% moves it. The drawbridge over the gulf is raised, and its winch is on the
-% far pier. Three companions: the player and the mage pick one skill each
-% from seven; the porter only knows turnToMist. Nobody can do the job from
-% the dock - the ledge is out of sight - so one companion crosses on its
-% own and lowers the bridge, and the others walk over and finish it.
+% A sentinel - a heavy machine - stands on a ledge beyond a gulf. Nothing
+% moves it. The drawbridge over the gulf is raised, and its winch is a
+% plate on the far pier. Three companions: the player and the mage pick one
+% skill each from seven; the porter only knows Turn to Mist. Nothing can be
+% done from the dock - the ledge is out of sight - so one companion crosses
+% alone and lowers the bridge, and the others walk over and finish it.
 %
-%   dock (player, mage, porter) ~~ gulf ~~ pier [winch] --- ledge (sentinel) ~~ cliff
-%      \                                /      |
-%       ------- drawbridge (door) -----       stair --- overlook (across the cliff)
+%   dock ==gulf (a gap) + drawbridge (a door)== pier [winch] --- ledge (sentinel, cliff)
+%                                                 |                 :
+%                                              overlook ...gap...
 %
-% The moment: the porter turns the sentinel to mist - for a moment it is not
-% heavy. The moment lasts through the next cast by anyone, so the very next
-% cast must be the one that throws it: mist, then throw, back to back.
+% The moment: the porter turns the sentinel to mist - for a moment it is
+% not heavy. The moment lasts through the next cast by anyone, so the very
+% next cast must be the one that throws it: mist, then throw, back to back.
 %
 % Obstacles and every method:
-%   the gulf       nobody walks over it, and the bridge is up. Blink onto
-%                  the pier, or lightningFlash there (a dash). Arriving on
-%                  the pier works the winch: the drawbridge comes down for
-%                  good, and the others walk over.
-%   the sentinel   drop it off the ledge into the cliff, right after the
-%                  porter's mist: fireball or tidalWave it from the pier (a
-%                  push), hook or taunt it from the overlook (dragged across
-%                  the cliff, it falls in), or vortex the cliff (everything
-%                  next to it is sucked in). Or short it, with no mist at
-%                  all: tidalWave soaks it, lightningFlash jolts it.
+%   the gulf       nobody walks over it while the bridge is up. Blink onto
+%                  the pier, or lightning-flash there (a dash). On the pier,
+%                  step on the winch: the drawbridge comes down for good.
+%   the sentinel   right after the porter's mist, knock it off the ledge:
+%                  into the cliff with a fireball or a shield bash (from the
+%                  pier), a tidal wave (on the ledge), a vortex on the
+%                  cliff; or hook it from the overlook, across the gap: it
+%                  falls in. Or short it, no mist at all: a tidal wave soaks
+%                  it, a lightning flash jolts it.
 %
 % Traps:
-%   - no line of sight from the dock to the ledge: nothing is done from the
-%     near side;
-%   - the crossing skills move only their caster, and none of them throws
-%     the sentinel;
-%   - heavy, the sentinel does not budge: a push without the mist just
-%     before it does nothing, and so does a cast in between;
-%   - a dry jolt only stuns a machine (it is not out of the fight).
+%   - no line of sight from the dock: nothing is done from the near side;
+%   - the crossing skills move only their caster and throw nothing;
+%   - heavy, the sentinel does not budge: a push without the mist right
+%     before it does nothing, and so does a push after any other cast; a
+%     hook on it drags the hooker to it;
+%   - a dry jolt only stuns a machine: the flasher who crossed has mana
+%     for one more flash, and it only shorts the sentinel once it is wet;
+%   - a vortex on the cliff takes everyone on the ledge, friends included.
 %
 % Hypothesis (design.md): no single skill wins; 20 of 49 assignments win
 % (each crossing skill with each thrower, either seat), by 11 methods.
 
-% === Regions ===
+% === Areas ===
 region(dock).
-region(gulf).
 region(pier).
-region(drawbridge).
 region(ledge).
-region(cliff).
-region(stair).
 region(overlook).
-connected(dock, gulf).
-connected(gulf, dock).
-connected(gulf, pier).
-connected(pier, gulf).
-connected(dock, drawbridge).
-connected(drawbridge, dock).
-connected(drawbridge, pier).
-connected(pier, drawbridge).
+gap(dock, pier).
+doorway(dock, pier, drawbridge).
 connected(pier, ledge).
-connected(ledge, pier).
-connected(ledge, cliff).
-connected(cliff, ledge).
-connected(pier, stair).
-connected(stair, pier).
-connected(stair, overlook).
-connected(overlook, stair).
+connected(pier, overlook).
+gap(overlook, ledge).
 
 lineOfSight(dock, pier).
-lineOfSight(pier, dock).
 lineOfSight(pier, ledge).
-lineOfSight(pier, cliff).
 lineOfSight(overlook, ledge).
-lineOfSight(overlook, cliff).
 
-% The route over the gulf, for leaps: only forward.
+% The route, for leaps (passage): only forward.
 progress(dock, 0).
-progress(gulf, 1).
-progress(drawbridge, 1).
-progress(pier, 2).
-progress(ledge, 3).
-progress(stair, 3).
-progress(overlook, 4).
+progress(pier, 1).
+progress(ledge, 2).
+progress(overlook, 2).
 
-% A push from the pier on the ledge lands in the cliff; from the overlook,
-% the cliff lies between it and the ledge.
-beyond(pier, ledge, cliff).
-beyond(overlook, cliff, ledge).
-
-% === Terrain ===
-onEnter(gulf, chasm).
-onEnter(cliff, chasm).
+% === Features ===
+feature(pier, winch, lower).
+plate(winch).
+effect(lower, target, open(drawbridge)).
 door(drawbridge).
-onEnter(pier, winch).
-effect(winch, target, open(drawbridge)).
+feature(ledge, cliff, chasm).
 
 % === Companions ===
 role(player, player).
@@ -115,11 +89,20 @@ knows(player, blink).
 knows(mage, fireball).
 
 % === Victory ===
-% Someone gets onto the pier (the bridge comes down), then the sentinel goes.
-win :- if(), do(lowerBridge, neutralize(sentinel)).
+% Someone crosses and lowers the bridge, then the sentinel goes.
+win :- if(), do(lowerBridge, drop).
 
-lowerBridge :- if(canAct(?a)), do(reach(?a, pier), opened(drawbridge)).
+lowerBridge :-
+    if(canAct(?a), not(at(?a, pier))), do(reach(?a, pier), stepOn(?a, winch), opened(drawbridge)).
 opened(?d) :- if(open(?d)), do().
+
+% Mist, then throw: the porter's moment, and the very next cast knocks it
+% off the ledge (or drags it across the gap).
+drop :-
+    if(),
+    do(cast(porter, turnToMist, sentinel), sendDown(sentinel, porter), confirmStopped(sentinel)).
+% Or short it: soaked, then jolted.
+drop :- if(), do(conduct(sentinel)).
 
 funExpect(single_actor_plans, atMost, 0).
 
@@ -132,8 +115,8 @@ comboPool(lightningFlash).
 comboPool(fireball).
 comboPool(tidalWave).
 comboPool(hook).
-comboPool(taunt).
 comboPool(vortex).
+comboPool(shieldBash).
 comboMinWins(8).
 comboMinMethods(4).
 

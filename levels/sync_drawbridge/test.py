@@ -17,7 +17,7 @@ from htn_components.manifest import Manifest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 CROSS = ["blink", "lightningFlash"]
-THROW = ["fireball", "tidalWave", "hook", "taunt", "vortex"]
+THROW = ["fireball", "tidalWave", "hook", "vortex", "shieldBash"]
 POOL = CROSS + THROW
 
 # The measured matrix: each crossing skill with each thrower.
@@ -78,18 +78,20 @@ class SyncDrawbridgeTest(HtnTestSuite):
 
     def test_example_1_blink_over_mist_then_fireball(self):
         self.assert_plan("win.", contains=[
-            "opTeleport(player, dock, pier)", "opOpen(player, drawbridge)",
+            "opTeleport(player, dock, pier)", "opStepOn(player, player, winch)",
+            "opOpen(player, drawbridge)", "opNavigate(porter, dock, pier)",
             "opCast(porter, turnToMist, sentinel)", "opRemove(porter, sentinel, heavy)",
-            "opNavigate(mage, drawbridge, pier)", "opCast(mage, fireball, sentinel)",
-            "opForcedMove(mage, sentinel, ledge, cliff)", "opExploit(mage, sentinel, chasm, fell)"])
+            "opCast(mage, fireball, sentinel)", "opKnock(mage, sentinel, cliff)",
+            "opExploit(mage, sentinel, chasm, fell)"])
 
-    def test_example_2_flash_over_mist_then_taunt_it_across_the_cliff(self):
-        plans = plans_with("lightningFlash", "taunt")
+    def test_example_2_flash_over_mist_then_hook_it_across_the_gap(self):
+        plans = plans_with("lightningFlash", "hook")
         assert has(plans, "opDash", "player", "dock", "pier"), plans[:1]
-        assert has(plans, "opNavigate", "mage", "stair", "overlook")
-        assert has(plans, "opForcedMove", "mage", "sentinel", "ledge", "cliff")
-        self._record(True, "Example 2: the flash lowers the bridge; misted, the taunt drags it "
-                           "into the cliff")
+        assert has(plans, "opNavigate", "mage", "pier", "overlook")
+        assert has(plans, "opFall", "mage", "sentinel", "ledge", "overlook")
+        assert has(plans, "opExploit", "mage", "sentinel", "gap", "fell")
+        self._record(True, "Example 2: the flash lowers the bridge; misted, the hook drags the "
+                           "sentinel into the gap below the overlook")
 
     def test_example_3_soak_then_jolt_no_mist(self):
         plans = plans_with("tidalWave", "lightningFlash")

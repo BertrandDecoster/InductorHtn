@@ -5,6 +5,7 @@
   "description": "Sync: The Decoy - one companion baits a golem's telegraphed slam onto the watching eye, the other pulls them clear in the one-cast window; or lure the golem and blind the eye; one skill each from seven",
   "dependencies": [
     "abilities/goals/neutralize",
+    "abilities/strategies/passage",
     "abilities/primitives/ab_catalog"
   ],
   "certified": true,
@@ -12,12 +13,12 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:10:50.840703"
+    "last_checked": "2026-09-24T20:21:42.219926"
   },
   "provides": [
     "at/2",
+    "bait/3",
     "behavior/4",
-    "beyond/3",
     "blocker/1",
     "comboMinMethods/1",
     "comboMinWins/1",
@@ -25,16 +26,19 @@
     "comboSeat/2",
     "connected/2",
     "door/1",
+    "doorway/3",
     "effect/3",
+    "feature/3",
     "funExpect/3",
-    "immune/2",
     "knows/2",
     "leftArch/0",
     "lineOfSight/2",
     "lure/0",
     "mana/2",
-    "onEnter/2",
+    "mustSurvive/1",
     "opened/1",
+    "plate/1",
+    "progress/2",
     "region/1",
     "role/2",
     "slip/0",
@@ -47,8 +51,11 @@
   ],
   "requires": [
     "castFrom/4",
+    "confirmStopped/1",
     "inflict/3",
-    "place/3",
+    "knockOn/3",
+    "reach/2",
+    "stepOn/2",
     "walkTo/2"
   ]
 }
