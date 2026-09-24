@@ -15,26 +15,18 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 COMPANIONS = {"player", "mage"}
-DEPS = ("abilities/goals/neutralize", "abilities/strategies/passage",
-        "abilities/primitives/ab_catalog")
+DEPS = ("abilities/goals/neutralize", "abilities/primitives/ab_catalog")
 
-# The measured matrix, unordered; each pair wins in both seat orders.
-WINNING = {frozenset(p) for p in [
-    # onto the brink: hook it there or suck it in, then push it over; or taunt
-    # it there and fireball it over before its slam lands
-    ("fireball", "hook"), ("fireball", "vortex"), ("fireball", "taunt"),
-    ("tidalWave", "hook"), ("tidalWave", "vortex"),
-    # from behind: land on the perch, walk round, push
-    ("fireball", "blink"), ("fireball", "lightningFlash"),
-    ("tidalWave", "blink"), ("tidalWave", "lightningFlash"),
-    # across: a vortex lifts the puller onto the perch
-    ("vortex", "hook"), ("vortex", "taunt"),
-]}
+BRINGERS = ("hook", "taunt")
+KNOCKERS = ("fireball", "tidalWave", "shieldBash", "vortex")
+# The measured matrix, unordered: one bringer and one knocker, each way round.
+WINNING = {frozenset((b, k)) for b in BRINGERS for k in KNOCKERS}
 
 _REPORT = []
 
 
 def combos_report():
+    """One parallel `combos` run, shared by the properties that read it."""
     if not _REPORT:
         _REPORT.append(run_combos(HERE, ROOT))
     return _REPORT[0]
@@ -49,24 +41,38 @@ def _solutions(planner, goal):
     return solutions
 
 
-def _actor(op):
-    return list(op[list(op.keys())[0]][0].keys())[0]
+def _casters(plan):
+    """The companions who cast in a plan (walking is not a second pair of hands)."""
+    out = set()
+    for op in plan:
+        name = list(op.keys())[0]
+        if name == "opCast":
+            out.add(list(op[name][0].keys())[0])
+    return out & COMPANIONS
 
 
-def plans_with(player, mage, goal="win."):
-    """Plans with the player knowing `player` and the mage `mage`, on a fresh
-    planner (a failed search locks the rule set)."""
+def _planner(extra="", strip_kit=True, replace=()):
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
-    text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
+    for old, new in replace:
+        assert old in text, old
+        text = text.replace(old, new)
+    if strip_kit:
+        text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     planner = HtnPlanner(False)
     planner.SetMemoryBudget(256 * 1024 * 1024)
     loader = ComponentLoader(planner, ROOT)
     for dep in DEPS:
         loader.load(dep)
+    assert planner.HtnCompileCustomVariables(text + extra) is None
+    return planner
+
+
+def plans_with(player, mage, goal="win.", **kw):
+    """Plans with the player knowing `player` and the mage `mage`, on a fresh
+    planner (a failed search locks the rule set)."""
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
-    assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, goal)
+    return _solutions(_planner(kit, **kw), goal)
 
 
 def _ops(plans):
@@ -75,6 +81,11 @@ def _ops(plans):
 
 def _op(name, *args):
     return f'"{name}":[' + ",".join('{"%s":[]}' % a for a in args) + "]"
+
+
+def _fell(plan, who):
+    """`who` went over in this plan."""
+    return ('{"%s":[]},{"fell":[]}' % who) in _ops([plan])
 
 
 class RingOutTest(HtnTestSuite):
@@ -88,33 +99,33 @@ class RingOutTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_hook_it_onto_the_brink_then_push(self):
+    def test_example_1_hook_it_onto_the_brink_then_knock_it_over(self):
+        self.assert_state_after("win.", has=["tag(ogre,fell)"])
         self.assert_plan("win.", contains=[
-            "opForcedMove(mage, ogre, plinth, brink)", "opForcedMove(player, ogre, brink, void)",
-            "opExploit(player, ogre, chasm, fell)"])
+            "opCast(mage, hook, ogre)", "opForcedMove(mage, ogre, plinth, brink)",
+            "opKnock(player, ogre, verge)", "opExploit(player, ogre, chasm, fell)"])
 
-    def test_example_2_land_on_the_perch_push_from_behind(self):
-        ops = _ops(plans_with("tidalWave", "blink"))
-        assert _op("opTeleport", "mage", "gate", "perch") in ops, ops[:300]
-        assert _op("opOpen", "mage", "grate") in ops
-        assert _op("opForcedMove", "player", "ogre", "plinth", "void") in ops
-        self._record(True, "Example 2: the mage blinks onto the perch; the player's wave from the "
-                           "ledge rings it out")
-
-    def test_example_3_taunt_it_and_knock_it_over_before_the_slam(self):
-        ops = _ops(plans_with("fireball", "taunt"))
-        assert _op("opWindUp", "ogre", "groundSlam", "brink") in ops, ops[:300]
-        assert _op("opForcedMove", "player", "ogre", "brink", "void") in ops
+    def test_example_2_taunt_it_and_knock_it_over_before_the_slam(self):
+        ops = _ops(plans_with("taunt", "fireball"))
+        assert _op("opWindUp", "ogre", "groundSlam", "brink") in ops, ops[:400]
+        assert (_op("opCast", "mage", "fireball", "ogre") + "},{" +
+                _op("opSpill", "mage", "brink", "flames")) in ops
         assert _op("opMiss", "ogre", "groundSlam", "brink") in ops
-        self._record(True, "Example 3: taunted onto the brink it winds up; the fireball in the "
-                           "window rings it out and the slam never lands")
+        self._record(True, "Example 2: taunted onto the brink, it winds up; the fireball knocks it "
+                           "over the verge before the slam lands")
 
-    def test_example_4_a_vortex_lifts_the_puller(self):
-        ops = _ops(plans_with("vortex", "hook"))
-        assert _op("opForcedMove", "player", "mage", "yard", "perch") in ops, ops[:300]
-        assert _op("opForcedMove", "mage", "ogre", "plinth", "void") in ops
-        self._record(True, "Example 4: the player's vortex sucks the mage onto the perch; her hook "
-                           "drags it across the void")
+    def test_example_3_a_wave_on_the_brink(self):
+        ops = _ops(plans_with("hook", "tidalWave"))
+        assert _op("opCast", "mage", "tidalWave", "mage") in ops, ops[:400]
+        assert _op("opKnock", "mage", "ogre", "verge") in ops
+        self._record(True, "Example 3: hooked onto the brink, the wave washes it over")
+
+    def test_example_4_take_the_slam_then_the_vortex(self):
+        plans = plans_with("taunt", "vortex")
+        ops = _ops(plans)
+        assert _op("opBlow", "ogre", "groundSlam", "brink", "brink") in ops, ops[:400]
+        assert _op("opCast", "mage", "vortex", "verge") in ops
+        self._record(True, "Example 4: the taunter takes the slam; the vortex draws the ogre over")
 
     # -------------------------------------------------------------- properties
 
@@ -122,9 +133,8 @@ class RingOutTest(HtnTestSuite):
         plans = _solutions(self._planner, "win.")
         assert plans, "the level must be winnable"
         for plan in plans:
-            allies = {_actor(op) for op in plan} & COMPANIONS
-            assert len(allies) >= 2, f"one companion carries this plan alone: {plan}"
-        self._record(True, f"P1: {len(plans)} plans, none by one companion")
+            assert len(_casters(plan)) >= 2, f"one companion carries this plan alone: {plan}"
+        self._record(True, f"P1: {len(plans)} plans, each with two or more casters")
 
     def test_property_p2_no_single_skill_wins(self):
         report = combos_report()
@@ -138,18 +148,32 @@ class RingOutTest(HtnTestSuite):
         assert len(report.winning) == 2 * len(WINNING), "each pair should win in both seat orders"
         assert not report.failures, report.failures
         assert not report.dead_skills, report.dead_skills
-        self._record(True, f"P3: exactly the {len(WINNING)} measured pairs win, both ways round")
+        self._record(True, f"P3: exactly the {len(WINNING)} bringer x knocker pairs win")
 
-    def test_property_p4_two_pushers_only_shove_it_about(self):
-        assert not plans_with("fireball", "tidalWave")
-        self._record(True, "P4: fireball + tidal wave never find a line into the void")
+    def test_property_p4_the_plinth_has_no_edge(self):
+        """A knock on the plinth goes nowhere: two knockers never win."""
+        assert not plans_with("fireball", "shieldBash")
+        planner = _planner("knows(player, fireball).\nknows(mage, hook).\n")
+        plans = _solutions(planner, "castFrom(player, fireball, ogre, yard).")
+        assert plans and "opExploit" not in _ops(plans)
+        self._record(True, "P4: the plinth has nothing to knock the ogre into")
 
-    def test_property_p5_the_slam_must_be_answered(self):
-        """Taunted onto the brink, the ogre slams the taunter into the void
-        unless the partner knocks it over in the window: a blinker cannot."""
-        assert plans_with("taunt", "fireball", "lure(ogre), standing.")
-        assert not plans_with("taunt", "blink", "lure(ogre), standing.")
-        self._record(True, "P5: a taunt lure needs a fireball ready; with a blinker it kills the taunter")
+    def test_property_p5_the_taunter_may_be_sacrificed(self):
+        """Taking the slam is allowed: some plans lose the taunter over the
+        verge, and some keep everyone."""
+        plans = plans_with("taunt", "shieldBash")
+        lost = [p for p in plans if _fell(p, "player")]
+        kept = [p for p in plans if not _fell(p, "player")]
+        assert lost and kept, (len(lost), len(kept))
+        self._record(True, f"P5: {len(lost)} plans sacrifice the taunter, {len(kept)} do not")
+
+    def test_property_p6_step_back_before_the_vortex(self):
+        """The vortex draws in everyone on the brink: the hooker steps back
+        first, or goes over with the ogre."""
+        ops = _ops(plans_with("hook", "vortex"))
+        assert _op("opNavigate", "player", "brink", "yard") in ops, ops[:400]
+        assert _op("opKnock", "mage", "player", "verge") in ops
+        self._record(True, "P6: step back, or the vortex takes the hooker too")
 
 
 def run_tests():

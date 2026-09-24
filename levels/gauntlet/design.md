@@ -4,37 +4,39 @@
 
 The pure-movement level on the ability layer. Nothing dies except by falling. Three companions have
 to reach the exit: the player and the mage pick **one skill each** from six catalogue skills, and
-the Warden, who only knows `turnToMist`, cannot leap. So the guard has to be moved out of his way
-and the lava channel has to be bridged for him. Three obstacles, each with several answers:
+the Warden, who only knows `turnToMist`, cannot leap. So the guard has to be moved out of his way,
+the lever behind the grate has to be pressed, and the lava channel has to be bridged for him. Each
+seat has mana for one costly cast (the fireball and the tidal wave cost 2).
+
+The level follows the map rule of the catalogue: a knockback never changes the area. Everything is
+knocked into something *in its own area*: the guard into the trapdoor under him, the crate onto the
+lever beside it, the barrel into the channel at the rim's edge.
 
 | Obstacle | Answers |
 |----------|---------|
-| **The heavy guard at the choke** | Nothing moves it until the Warden turns it to mist. For that moment (the next cast) someone drops it through the trapdoor (`fireball` or `tidalWave` from the start) or drags it out of the doorway (`hook`). |
-| **The plate in the grated alcove** (latches the exit gate) | Nobody walks onto it. A leaper lands on it (`blink`, `lightningFlash`) and leaps on over the lava; or a pusher throws a friend onto it from the rim (`fireball`, `tidalWave`), and the friend gets out forward: hooks the far pillar (`hook`), or is hooked out by a friend across. The crate can be thrown onto it too. |
-| **The lava channel** | The crate fills it: two pushes (`fireball`, `tidalWave`: onto the rim, then in), or a hook hauls it to the rim, the hooker grapples across on the pillar and drags it in from the far side (`hook`). Or a `blizzard` cools the lava to rock (a zone reaction: ice on lava leaves no zone). |
-
-The crate can hold the plate or fill the channel. The plate latches, so a `hook` can take the crate
-back off it and still bridge the lava; without a hook, a crate on the plate leaves only the
-blizzard.
+| **The heavy guard in the choke** (a blocker) | Nothing moves it until the Warden turns it to mist. For that moment (the next cast) someone knocks it through the trapdoor under it (`fireball` from the start, `shieldBash` from next door, a `vortex` on the trapdoor) or drags it out into the start (`hook`). |
+| **The lever in the grated alcove** (latches the exit gate) | The grate is a wall: nobody walks, dashes or pulls through it. The crate beside the lever is knocked onto it through the bars (`fireball`, a `vortex` on the lever); or a blinker lands in the alcove, steps on, and blinks on over the lava (`blink`). |
+| **The lava channel** (a gap between the rim and the far bank) | The barrel on the rim is knocked into it and bridges it (`fireball`, `shieldBash`, a `tidalWave` from the rim); or a hooker swings across on the far pillar and drags the barrel in from the far side (`hook`). |
 
 Why no single skill wins, even held by both seats:
-- a pusher throws a friend onto the plate and strands him there, or spends the crate on the plate
-  and cannot bridge the lava;
-- a leaper cannot move the guard or the crate;
-- a hook gets nobody onto the plate;
-- the blizzard moves nothing.
+- `fireball` does all three jobs, but mana gives each seat one;
+- `vortex` drops the guard and works the lever, but cannot push into a gap;
+- `shieldBash` and `hook` cannot reach through the grate;
+- `blink` moves no one else; `tidalWave` only works where the caster stands.
 
-Traps: a tidal wave from the rim throws everyone in the hall onto the plate: the crate, friends and
-the Warden alike. The mist lasts through exactly one more cast, so the push must come next. Two
-pushers only strand each other.
+Traps:
+- The mist lasts through exactly one more cast, so the push must come next (P4).
+- Unmisted, the guard is an anchor: a hook swings the hooker into the choke instead (P6).
+- Two fireballs: three jobs, two casts (P5).
+- A wave from the rim knocks everyone else standing there: the Warden too, if he came early.
 
 Several skills serve several roles:
-- `fireball` and `tidalWave` drop the guard, throw a friend or the crate onto the plate, and push
-  the crate into the lava.
-- `hook` drags the guard, hauls the crate (even back off the plate), grapples the pillar out of the
-  alcove and across the lava, and hauls a stranded friend out.
-- The leapers land on the plate and cross the lava.
-- `blizzard` turns the lava into a floor.
+- `fireball`: the guard, the crate, the barrel.
+- `vortex`: the guard (trapdoor) and the crate (lever).
+- `hook`: drags the guard, grapples the far pillar, drags the barrel across.
+- `shieldBash`: the guard and the barrel.
+- `blink`: the lever, and the way out of the alcove.
+- `tidalWave`: the barrel.
 
 ## Layer
 
@@ -49,97 +51,88 @@ level
 ## World
 
 ```
-start --- choke (guard) --- hall (crate) --- rim ~~ channel (lava) ~~ far (pillar) --- exit (gate)
-  |                          :       :                                 :
- pit (trapdoor)            alcove (plate; seen from the hall, the rim and far; never walked into)
+start --- choke (guard; trapdoor) --- hall --- rim (barrel) ~~ lava ~~ far (pillar) --- exit
+                                        #                              ~~                (gate)
+                                     alcove (crate; lever) ~~~~~~~~~~~~
 ```
 
-- **Lines:**
-  - From the start, a push on the choke lands in the pit; from the hall, back to the start.
-  - From the choke, a push on the hall lands on the rim; from the rim, in the alcove.
-  - From the hall, a push on the rim lands in the lava.
-  - The lava lies between the rim and far, so a pull from far drops what stands on the rim into it.
-- **Line of sight:**
-  - start-choke-hall-rim;
-  - the hall and the rim see the alcove;
-  - the rim and far see the lava and each other;
-  - the alcove and far see each other.
-- **Guard:** living, heavy, a blocker. **Crate:** a filler. **Pillar:** heavy (an anchor).
-- **Exit:** a gate (a door region) that the plate latches open.
-- **Warden:** knows `turnToMist` only. The player and the mage have 6 mana each and start with
-  `fireball` and `blizzard`. This default kit is the one whose plan fits the planner's default 1 MB
-  memory budget, which `verify` uses. Kits that throw the crate twice need about 1.5 MB, which
-  `combos` and the tests give them.
+- **Areas:** start, choke, hall, alcove, rim, far, exit (seven).
+- **Links:** start–choke, choke–hall, hall–rim walkable; hall # alcove a `wall` (the grate: seen
+  through, only a teleport passes); rim ~ far and alcove ~ far `gap`s (the lava channel);
+  far–exit a `doorway` (the gate).
+- **Features:** `trapdoor` (a chasm) in the choke; `lever` (a plate: `open(gate)`) in the alcove.
+- **Line of sight:** start → choke, hall; hall → alcove, rim, choke; rim ↔ far; rim, far → alcove.
+- **Things:** the guard (enemy: heavy, living, blocker) in the choke; the crate beside the lever;
+  the barrel (filler) on the rim; the pillar (heavy) on the far bank.
+- **Kit:** the Warden knows `turnToMist`; the player and the mage have mana 2 each. Default (it
+  fits the planner's default 1 MB budget, for `verify`): player `fireball`, mage `hook`.
+- **Goal:** `escape` spells out the stages: `unguard`, `weighPlate`, `spanChannel`, then everyone
+  leaves (walks, or leaps and walks on).
 
 ## Hypothesis
 
-Measured by `htn_components combos gauntlet` (36 replans in about 8 s in parallel; the slowest
-plan takes 5.2 s):
+Measured by `htn_components combos gauntlet` (36 assignments in about 4 s; each plan under 1 s):
 
 - No single skill wins, even when both seats hold it: 0 of 6.
-- 20 of 36 assignments win, 10 pairs each way round:
-  - a pusher (`fireball`, `tidalWave`) with a leaper, a `hook` or the `blizzard`;
-  - `hook` with a leaper (`blink`, `lightningFlash`).
-- 10 methods (sets of skills cast), of five kinds:
-  - leap onto the plate, push the crate twice;
-  - throw the crate onto the plate, ice the lava;
-  - throw a friend who grapples out (or the crate, hooked back off the plate);
-  - leap onto the plate, haul the crate and drag it in;
-  - mist and hook the guard aside.
-- Skill usage: fireball 8, tidalWave 8, hook 8, blink 6, lightningFlash 6, blizzard 4. No dead
-  skill; no plan carried by one companion.
+- 16 of 36 assignments win: 8 pairs, each way round.
+  - `vortex` with `fireball`, `shieldBash`, `hook` or `tidalWave`;
+  - `fireball` with `shieldBash` or `hook`;
+  - `blink` with `shieldBash` or `hook`.
+- 8 methods (sets of skills cast, the Warden's mist included).
+- Skill usage: vortex 8, fireball 6, shieldBash 6, hook 6, blink 4, tidalWave 2. No dead skill; no
+  plan carried by one companion.
 
 ## Examples
 
-### Example 1: Mist and drop, crate on the plate, ice on the lava
+### Example 1: Drag the guard, throw the crate, swing over
 
-**Given:** the default kit (player `fireball`, mage `blizzard`).
+**Given:** the default kit (player `fireball`, mage `hook`).
 
 **When:** `win`
 
 **Then:**
-1. The Warden mists the guard, and the player's fireball from the start drops it through the
-   trapdoor.
-2. The player throws the crate onto the plate from the rim.
-3. The mage's blizzard cools the lava into a floor.
+1. The Warden mists the guard; the mage hooks it out of the choke into the start.
+2. From the hall, the player's fireball knocks the crate onto the lever: the gate opens.
+3. The mage hooks the far pillar, swings over the lava, and drags the barrel in: it bridges the
+   channel.
 4. Everyone walks out.
 
-### Example 2: Blink onto the plate, push the crate in
+### Example 2: Drag the guard, blink on the lever, swing over
 
-**Given:** player `fireball`, mage `blink`.
-
-**When:** `win`
-
-**Then:** the mage blinks onto the plate and on over the lava; the player pushes the crate into the
-lava in two fireballs.
-
-### Example 3: The latch holds - hook the crate back
-
-**Given:** player `tidalWave`, mage `hook`.
+**Given:** player `blink`, mage `hook`.
 
 **When:** `win`
 
-**Then:** the wave from the rim throws the crate onto the plate, and the gate latches. The mage then:
-1. hooks the crate back to the rim;
-2. grapples across on the pillar;
-3. drags the crate into the lava.
+**Then:** the mage hooks the misted guard out into the start. The player blinks through the grate,
+steps on the lever and later blinks on to the far bank. The mage hooks the far pillar, swings over
+the lava, and drags the barrel in behind him.
 
-### Example 4: Haul the crate and grapple across
+### Example 3: Bash the guard and the barrel
 
-**Given:** player `hook`, mage `lightningFlash`.
+**Given:** player `shieldBash`, mage `blink`.
 
 **When:** `win`
 
-**Then:** the player drags the misted guard out of the doorway. The mage flashes onto the plate.
-The player hooks the crate to the rim, grapples across on the pillar, and drags the crate in.
+**Then:** the player bashes the misted guard through the trapdoor, and later bashes the barrel into
+the channel; the mage works the lever.
+
+### Example 4: A wave from the rim
+
+**Given:** player `tidalWave`, mage `vortex`.
+
+**When:** `win`
+
+**Then:** one vortex on the trapdoor drops the misted guard, a second on the lever knocks the crate
+onto it; the player's wave from the rim washes the barrel into the lava.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No companion carries a plan alone | Every winning plan of the default kit has two or more companions acting. |
-| P2 | Without a hook the crate cannot do both | With the crate on the plate (`fireball` + `blink`), the Warden cannot get across. |
-| P3 | No single skill wins | Each pool skill held by both seats: no plan. |
-| P4 | The measured assignments win | Exactly the 10 measured pairs win, both ways round; `combos` passes; no dead skill. |
-| P5 | The mist lasts one cast | A fireball right after the mist drops the guard; after one more cast in between, it only scorches it. |
-| P6 | Two pushers strand each other | `fireball` + `tidalWave` loses. |
+| P1 | No companion carries a plan alone | Every winning plan of the default kit has two or more companions casting. |
+| P2 | No single skill wins | Each pool skill held by both seats: no plan. |
+| P3 | The measured pairs win | Exactly the 8 measured pairs win, both ways round; `combos` passes; no dead skill. |
+| P4 | The mist lasts one cast | Misted, the guard drops on the next cast; a cast later it is heavy again and the fireball does not move it. |
+| P5 | One fireball each is not enough | `fireball` + `fireball` loses; with mana 4 each it wins. |
+| P6 | The heavy guard is an anchor | Unmisted, a hook on it swings the hooker into the choke; the guard stays. |
+| P7 | The grate stops melee | `shieldBash` + `hook` cannot work the lever. |

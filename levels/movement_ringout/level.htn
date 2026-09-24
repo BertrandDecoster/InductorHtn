@@ -1,112 +1,54 @@
 % Ring-Out (pure movement)
 %
-% An ogre stands on a plinth at the edge of the void. Nothing hurts it: the
-% only way to win is to ring it out - get it into the void. Two companions,
-% one skill each, from seven. The idea is Into the Breach's: the enemy never
-% starts on a line into the void, so somebody moves first.
+% An ogre stands on a plinth by the void. Nothing hurts it: the only way to
+% win is to ring it out - over the verge. Two companions, one skill each,
+% from six. The idea is Into the Breach's: the enemy never starts on a line
+% into the void, so somebody moves it first. A knockback never leaves its
+% area and the plinth has no edge, so a push there goes nowhere.
 %
-%               perch (barred; a plate that opens the grate; over the void)
-%                 :
-%   gate --- yard ---------- grate (door) --- ledge
-%              |   \                            |
-%            brink - plinth (ogre) -------------+
-%              |       \
-%             void      void (between the perch and the plinth)
+%   gate --- yard --- plinth (ogre)
+%              \        /
+%               brink (verge: the void)
 %
-% A push from the yard only shoves the ogre back onto the ledge. Taunted, it
-% is dragged to the taunter and slams the ground where it lands: a heavy
-% blow - everyone else there is stunned and thrown away from it (off the
-% brink, into the void). It goes into the void three ways:
-%   onto the brink   draw it onto the brink - hook it to your feet there,
-%                    or a vortex on the brink sucks it in (and roots it) -
-%                    step off, and someone pushes it over (a fireball from
-%                    the gate or the yard, a tidal wave from the yard). A
-%                    taunt drags it there too, but then it slams the brink:
-%                    the only answer is the fireball that knocks it over
-%                    before the blow lands.
-%   from behind      the ledge is behind a grate that opens when something
-%                    lands on the perch - a blink or a lightning flash up
-%                    there - then a pusher walks round through the grate and
-%                    shoves it off from the ledge (fireball, tidal wave)
-%   across           the void lies between the perch and the plinth: a
-%                    puller up there drags it in (hook, taunt - it falls on
-%                    the way, before it can slam). Nobody who pulls can get
-%                    up alone: a friend's vortex on the perch sucks them up.
-% Every method takes two companions and two different skills.
+% Every method is the same two steps, by two companions:
+%   bring    onto the brink: stand there and hook it over from the plinth;
+%            or stand there and taunt it - it walks after you and slams the
+%            brink where it arrives (a heavy physical blow: everyone else
+%            there is stunned and knocked, maybe over the verge)
+%   knock    over the verge: a fireball (from the gate or the yard), a
+%            shield bash (from next door), a tidal wave (standing on the
+%            brink), or a vortex on the verge (it takes everyone there)
+% The slam is answered - a friend knocks the ogre over in the window and it
+% misses - or taken: sacrifice is allowed. Whoever stands on the brink may
+% step back into the yard first (a taunter who does leads the ogre along).
 %
-% Traps: two pushers only shove it back and forth; a puller alone drags it
-% onto the brink and nobody pushes; a leaper on the perch cannot bring
-% anyone up; a tidal wave from the yard throws whoever still stands on the
-% brink into the void with the ogre; a vortex on the brink sucks in friends
-% standing in the yard; taunt it onto the brink with nobody ready to knock
-% it over, and it slams the taunter into the void.
+% Traps: two knockers only shove it about on the plinth; a bringer alone
+% brings it and no further; a vortex on the verge or a wave on the brink
+% takes the friend still standing there.
 
-% === Regions ===
+% === Map: four areas ===
 region(gate).
 region(yard).
 region(brink).
-region(void).
 region(plinth).
-region(ledge).
-region(grate).
-region(perch).
 connected(gate, yard).
-connected(yard, gate).
 connected(yard, brink).
-connected(brink, yard).
 connected(yard, plinth).
-connected(plinth, yard).
 connected(brink, plinth).
-connected(plinth, brink).
-connected(yard, grate).
-connected(grate, yard).
-connected(grate, ledge).
-connected(ledge, grate).
-connected(ledge, plinth).
-connected(plinth, ledge).
-connected(yard, perch).
-connected(perch, yard).
 
 lineOfSight(gate, yard).
-lineOfSight(yard, gate).
 lineOfSight(gate, brink).
+lineOfSight(yard, gate).
 lineOfSight(yard, brink).
-lineOfSight(brink, yard).
 lineOfSight(yard, plinth).
+lineOfSight(brink, yard).
 lineOfSight(brink, plinth).
-lineOfSight(ledge, plinth).
-lineOfSight(yard, perch).
-lineOfSight(gate, perch).
-lineOfSight(perch, yard).
-lineOfSight(perch, gate).
-lineOfSight(perch, plinth).
+lineOfSight(plinth, yard).
+lineOfSight(plinth, brink).
 
-% The route, for leaps: only forward.
-progress(gate, 0).
-progress(yard, 1).
-progress(brink, 2).
-progress(plinth, 2).
-progress(perch, 3).
-progress(grate, 2).
-progress(ledge, 3).
-
-% Push lines (and what lies between).
-beyond(yard, brink, void).
-beyond(gate, brink, void).
-beyond(brink, brink, void).
-beyond(ledge, plinth, void).
-beyond(yard, plinth, ledge).
-beyond(brink, plinth, ledge).
-beyond(perch, void, plinth).
-
-% === Terrain ===
-onEnter(void, chasm).
-onEnter(perch, press).
-effect(press, target, open(grate)).
-door(grate).
-% The perch is barred: no stair leads up, so nobody walks onto it - you
-% land on it, or are drawn up.
-door(perch).
+% === Features ===
+% The brink ends at the void; the plinth has no edge on it.
+feature(brink, verge, chasm).
 
 % === Companions ===
 role(player, player).
@@ -116,75 +58,41 @@ at(mage, gate).
 mana(player, 4).
 mana(mage, 4).
 
-% === Things ===
+% === The ogre ===
 role(ogre, enemy).
 at(ogre, plinth).
-blocker(ogre).
 tag(ogre, living).
 behavior(ogre, taunted, groundSlam, here).
-
 
 % === Default kit (a winning pair; combos strips these) ===
 knows(player, fireball).
 knows(mage, hook).
 
 % === Victory: ring it out ===
-win :- if(), do(setUp(ogre), neutralize(ogre), standing).
+win :- if(), do(bringTo(ogre, brink, none), stepBack, finish(ogre)).
 
-% Nobody was thrown into the void on the way.
-standing :- if(not(first(and(canAct(?a), gone(?a))))), do().
+% Whoever stands on the brink may stay, or step back into the yard (a
+% taunter who steps back leads the ogre off the brink again).
+stepBack :- if(), do().
+stepBack :- if(first(onBrink(?a))), do(allBack).
+allBack :- allOf, if(onBrink(?a)), do(walkTo(?a, yard)).
+onBrink(?a) :- at(?a, brink), canAct(?a), not(gone(?a)), not(forbidden(?a, move)).
 
-% Get it where a push drops it, get a pusher behind it, or get a puller
-% across the void from it.
-setUp(?e) :- if(), do().
-setUp(?e) :- if(not(neutralized(?e))), do(lure(?e)).
-setUp(?e) :-
-    if(plateOf(?p, ?d), not(open(?d)), canAct(?a), first(leap(?a, ?ab, ?from, ?aim, ?p))),
-    do(castFrom(?a, ?ab, ?aim, ?from), confirmOpen(?d)).
-setUp(?e) :-
-    if(at(?e, ?r), between(?spot, ?r, ?h), onEnter(?h, chasm), canAct(?a), knows(?a, ?ab),
-       pulls(?ab)),
-    do(lift(?a, ?spot)).
-
-% Lure: someone draws it onto a spot a push drops it from - to the caster's
-% feet there, or sucked in by a vortex - and whoever stands there steps off.
-lure(?e) :-
-    if(at(?e, ?r), landing(?f, ?spot, ?h), onEnter(?h, chasm), \==(?spot, ?r),
-       canAct(?a), knows(?a, ?ab), drawer(?ab), ready(?a, ?ab, ?e)),
-    do(castFrom(?a, ?ab, ?e, ?spot), onSpot(?e, ?spot), stepOff(?spot)).
-lure(?e) :-
-    if(at(?e, ?r), landing(?f, ?spot, ?h), onEnter(?h, chasm), \==(?spot, ?r),
-       first(placement(?a, ?ab, ?from, ?aim, ?e, ?spot))),
-    do(castFrom(?a, ?ab, ?aim, ?from), onSpot(?e, ?spot), stepOff(?spot)).
-drawer(?ab) :- first(pullsAny(?ab)).
-onSpot(?e, ?r) :- if(at(?e, ?r)), do().
-onSpot(?e, ?r) :- if(neutralized(?e)), do().
-stepOff(?r) :- if(not(first(and(at(?a, ?r), canAct(?a))))), do().
-stepOff(?r) :-
-    if(first(and(at(?a, ?r), canAct(?a))), connected(?r, ?back), not(hazardAt(?back, ?h)),
-       progress(?back, ?n), progress(?r, ?m), <(?n, ?m)),
-    do(allOff(?r, ?back)).
-allOff(?r, ?back) :- allOf, if(at(?a, ?r), canAct(?a)), do(walkTo(?a, ?back)).
-
-% A puller gets across the void: by itself, or sucked up by a friend.
-lift(?a, ?spot) :- if(), do(reach(?a, ?spot)).
-lift(?a, ?spot) :-
-    if(not(at(?a, ?spot)), first(and(connected(?near, ?spot), canReachNow(?a, ?near))),
-       canAct(?b), \==(?b, ?a), knows(?b, ?ab), effect(?ab, target, pullIn),
-       first(spot(?b, ?ab, ?spot, ?from))),
-    do(walkTo(?a, ?near), castFrom(?b, ?ab, ?spot, ?from), onSpot(?a, ?spot)).
+% Already over (knocked in while it wound up its slam), or knocked in now.
+finish(?e) :- if(neutralized(?e)), do().
+finish(?e) :-
+    if(not(neutralized(?e))), do(knockOn(?e, feature(verge), none), confirmStopped(?e)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from seven (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
 comboPool(fireball).
 comboPool(tidalWave).
+comboPool(shieldBash).
+comboPool(vortex).
 comboPool(hook).
 comboPool(taunt).
-comboPool(vortex).
-comboPool(blink).
-comboPool(lightningFlash).
 
 goals(win).
