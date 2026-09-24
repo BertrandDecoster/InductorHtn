@@ -3,25 +3,31 @@
 ## Purpose
 
 A hazard-terrain level where **the enemy's own weight is the puzzle**. A knight in full plate holds a
-keep on a spit of rock: on one side the keep drops into a moat (a chasm), and below the quay wall
-lies a deep lake. Nobody can hurt the knight; the terrain can. The knight is `heavy`, which cuts both
-ways - it wards off every push and pull, and the catalogue sinks the heavy in deep water. The player
-and the mage pick one skill each from a pool of six catalogue skills.
+keep on a spit of rock: the moat (a pit) runs at the keep's foot, and a short drop separates the keep
+from the old tower. Between the gate and the causeway lies a dry lock basin; behind the gatehouse
+wall, the sluice that floods it. Nobody can hurt the knight; the water and the drop can. The knight
+is `heavy`, which cuts both ways - no knockback moves it and no hook drags it, and in deep water the
+heavy sink. The player and the mage pick one skill each from a pool of eight catalogue skills.
 
 | Method | First | Then |
 |--------|-------|------|
-| **Drown it** (keep it heavy, make it move itself) | a friend puts the baiter in the lake: washed off the quay (`tidalWave`), blasted off it (`fireball`), or sucked down (`vortex` on the lake) | the baiter taunts the knight from the water (`taunt`): it leaps in after them (a dash) and sinks |
-| **Drop it** (take the weight off for a moment) | turn it to mist (`turnToMist`): through the next cast it is not heavy | that next cast moves it: blasted or washed off the keep into the moat from the causeway (`fireball`, `tidalWave`), sucked into the moat (`vortex`), or pulled across it from the tower (`hook`, `taunt`) |
+| **Drown it** (keep it heavy, make it walk) | taunt it from the lock (`taunt`): the only thing that moves it is its own feet, after its taunter | open the sluice: knock the counterweight onto the plate (`fireball` from the gate, `shieldBash` across the gap from the lock, `vortex` on the plate), or leap in and step on it (`blink` through the wall, `lightningFlash` over the gap). The lock floods with deep water and the knight sinks |
+| **Drop it** (take the weight off for a moment) | turn it to mist (`turnToMist`): through the next cast it is not heavy | that next cast knocks it into the moat or the drop by the tower (`fireball`, `shieldBash`, `vortex` on the moat), or hooks it across the drop from the tower (`hook`: it falls in) |
 
 Why no single skill works:
-- Heavy wards off forced movement, and a misted knight no longer drowns.
-- A knight taunted from dry land just leaps over to its taunter: a leap never falls.
-- Nobody can walk down to the lake (the quay wall is a door that never opens); the only way in is
-  to be put there by a friend.
+- Heavy wards off forced movement; a taunt only walks it about, and the flood only drowns what
+  stands in the lock.
+- Nobody walks to the sluice (a wall and a gap): opening it takes a knock from outside or a leap.
+- The mist lasts one cast, and a misted knight no longer drowns.
 - Hooked while heavy, the knight is an anchor: the hook drags the hooker onto the keep instead.
 
-`taunt` serves two roles (the bait from the water; a pull across the moat), and so do `tidalWave`,
-`fireball` and `vortex` (put a friend in the lake; move the misted knight into the moat).
+Its heavy move: taunted, the knight walks up to its taunter and slams (`groundSlam`, physical,
+telegraphed): everyone in the lock but the knight is stunned and knocked back (into the gap to the
+sluice, possibly). The team may answer in the wind-up with one cast: open the sluice then and the
+knight sinks before the blow lands. A friend waiting in the lock is caught by the slam too.
+
+`fireball`, `shieldBash` and `vortex` each serve two roles: they open the sluice (the counterweight
+onto the plate) in the drowning, and knock the misted knight down in the drop.
 
 ## Layer
 
@@ -35,84 +41,85 @@ level
 ## World
 
 ```
-gate --- quay --- causeway --- keep (knight) --- moat
- |        :                      :
-tower    lake (below the wall; no way down but a fall)
+            sluice (plate, counterweight)
+           #wall      :gap
+  tower --- gate --- lock --- causeway --- keep (knight; the moat)
+    :                                        :
+    :................... gap ................:
 ```
 
-- **Walking:** gate-quay-causeway-keep, gate-tower. The knight holds the keep (a blocker). The lake
-  is next to the quay and the moat next to the keep (a vortex draws from there), but the lake is a
-  `door` that never opens and the moat is a chasm, so nobody walks in.
-- **Line of sight:** gate to quay and lake; causeway and tower to keep and moat; lake to keep.
-- **Push lines:** from the gate, whoever stands on the quay goes into the lake; from the causeway,
-  the keep's occupant goes into the moat; a pull from the tower crosses the moat.
-- **Zones:** the lake is `deepWater`, the moat is `chasm`.
-- **Knight:** `tag(knight, heavy)`, `tag(knight, living)`, blocker. The catalogue's
-  `weakness(?e, deepWater, none, fell) :- has(?e, heavy)` sinks it.
-  `behavior(knight, taunted, lunge, source)` with the level-local `effect(lunge, target, dash)`:
-  taunted, it leaps at its taunter (a dash, which no weight stops).
-- Both companions have 2 mana (one tidalWave or fireball).
-- **Goal** `win`: `neutralize(knight)` (the catalogue's mist-then-push recipe), or `bait(knight)`:
-  a companion is put into water that drowns the knight, then taunts it from there. Either way,
-  `standing()`: no companion is lost.
+- **Areas (6):** gate, lock, causeway, keep, tower, sluice.
+- **Links:** walkable gate-lock-causeway-keep and gate-tower; a `gap` tower-keep (the drop) and
+  lock-sluice; a `wall` gate-sluice (only a blink goes through).
+- **Features:** `feature(keep, moat, chasm)`; `feature(sluice, sluiceGate, flood)` with
+  `plate(sluiceGate)` and `effect(flood, target, spill(deepWater, lock))`: pressed, the lock fills
+  with deep water and everyone in it takes it.
+- **Line of sight:** gate to lock and sluice; lock to sluice and keep; causeway and tower to keep.
+- **Knight:** `heavy`, `living`; `behavior(knight, taunted, groundSlam, source)`.
+- **Counterweight:** an object in the sluice area.
+- Both companions have 4 mana.
+- **Goal** `win`: `drown(knight)` (bring it into the lock with `bringTo`, then open the sluice unless
+  it was opened in the wind-up) or `dropIt(knight)` (mist, then `sendDown` by someone else).
+  Sacrifice is allowed: a companion knocked into the gap by the slam is lost, and the plan still wins.
 
 ## Hypothesis
 
 Measured by `htn_components combos hazard_drowned_knight` (pinned by `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 6.
-- 16 of 36 assignments win: 8 pairs, whichever companion holds which half:
-  - `turnToMist` plus `fireball`, `tidalWave`, `vortex`, `hook` or `taunt`: 5 pairs;
-  - `taunt` plus `tidalWave`, `fireball` or `vortex`: 3 pairs.
-- 8 methods (distinct skill sets) of two opposite kinds. No solo plans; no dead skills.
-- Every loss has a nameable reason: a mover without mist (heavy holds), a taunt without a friend to
-  put the taunter in the water (it just leaps over), `hook` with anything but mist (an anchor pulls
-  the hooker in), two movers (nothing lightens it).
+- No single skill wins, even when both companions hold it: 0 of 8.
+- 18 of 64 assignments win: 9 pairs, whichever companion holds which half:
+  - `taunt` plus `fireball`, `shieldBash`, `vortex`, `blink` or `lightningFlash`: 5 pairs;
+  - `turnToMist` plus `fireball`, `shieldBash`, `vortex` or `hook`: 4 pairs.
+- 9 methods (distinct skill sets) of two opposite kinds. No solo plans; no dead skills.
+- Every loss has a nameable reason: a mover without mist (heavy holds), a taunt with nothing that
+  opens the sluice, the sluice opened with nobody luring the knight, `hook` with anything but mist
+  (an anchor pulls the hooker in), mist with a leaper (nothing knocks it).
 
 ## Examples
 
-### Example 1: Bait it from the water
+### Example 1: Lure, then knock the counterweight
 
-**Given:** the player knows `tidalWave`, the mage knows `taunt`.
-
-**When:** `win`
-
-**Then:** the mage walks onto the quay and the player's wave washes them over the wall into the
-lake; the mage taunts the knight from the water, it leaps in after them and sinks.
-
-### Example 2: A vortex in the lake
-
-**Given:** the player knows `vortex`, the mage knows `taunt`.
+**Given:** the player knows `taunt`, the mage knows `fireball`.
 
 **When:** `win`
 
-**Then:** the player casts a vortex on the lake, which sucks the mage down off the quay; the mage
-taunts, the knight leaps in and sinks.
+**Then:** the player taunts the knight from the lock; it walks in by the causeway. The mage's
+fireball knocks the counterweight onto the sluice; the lock floods and the knight sinks.
 
-### Example 3: Mist, then push
+### Example 2: A blink through the wall
 
-**Given:** the player knows `turnToMist`, the mage knows `fireball`.
+**Given:** the player knows `taunt`, the mage knows `blink`.
 
 **When:** `win`
 
-**Then:** the player turns the knight to mist from the causeway; with the next cast the mage's
-fireball blasts it off the keep into the moat.
+**Then:** with the knight in the lock, the mage blinks through the gatehouse wall and steps on the
+sluice.
 
-### Example 4: Mist, then pull across
+### Example 3: Mist, then hook across the drop
 
 **Given:** the player knows `turnToMist`, the mage knows `hook`.
 
 **When:** `win`
 
-**Then:** the player mists the knight; the mage hooks it from the tower, and it is dragged across
-the moat and falls.
+**Then:** the player mists the knight from the lock; the mage hooks it from the tower, across the
+drop, and it falls in.
+
+### Example 4: Open the sluice in the wind-up
+
+**Given:** the player knows `taunt`, the mage knows `fireball`.
+
+**When:** `win`
+
+**Then:** in one plan, the knight reaches the lock and winds up its slam on the player; in that
+window the mage fireballs the counterweight onto the sluice, the knight sinks, and the blow misses.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
-| P2 | Eight pairs win | Exactly the eight measured pairs have a plan. |
+| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
+| P2 | Nine pairs win | Exactly the nine measured pairs have a plan. |
 | P3 | Each hand matters | A pair wins whichever companion holds which half. |
-| P4 | Misted, it does not drown | turnToMist + tidalWave: no winning plan uses the lake. |
-| P5 | Heavy, it cannot be moved | hook + tidalWave and hook + taunt: no plan. |
+| P4 | Misted, it does not drown | turnToMist + fireball: no winning plan uses deep water. |
+| P5 | Heavy, it cannot be moved | hook + fireball and hook + taunt: no plan. |
+| P6 | The flood needs the knight in the lock | In every drowning the lock floods after the knight walked in. |

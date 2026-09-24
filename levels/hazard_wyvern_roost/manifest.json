@@ -2,7 +2,7 @@
   "name": "hazard_wyvern_roost",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Wyvern Roost: a flier over lava and a cliff; bring it down, then pull it across the lava, push it off, or drop the crag from under it",
+  "description": "The Wyvern Roost: a flyer above a chasm, a lava channel and a cliff; fetch it and wash it into the lava, ground it and knock or drag it down, or cool the lava into a road and wade out",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,24 +12,23 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:07:04.981545"
+    "last_checked": "2026-09-24T20:32:50.254392"
   },
   "provides": [
     "at/2",
-    "beyond/3",
-    "blocker/1",
+    "behavior/4",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
-    "confirmAt/2",
     "confirmCooled/2",
     "connected/2",
-    "cool/0",
+    "cool/2",
     "effect/3",
-    "fetch/1",
+    "feature/3",
     "funExpect/3",
-    "ground/1",
+    "gap/2",
+    "ground/2",
     "knows/2",
     "lineOfSight/2",
     "mana/2",
@@ -37,16 +36,13 @@
     "reaction/3",
     "region/1",
     "role/2",
-    "standing/0",
-    "stepAside/2",
     "tag/2",
     "win/0"
   ],
   "requires": [
     "cast/3",
-    "castFrom/4",
+    "confirmStopped/1",
     "ensureOff/2",
-    "neutralize/1",
-    "walkTo/2"
+    "sendDown/2"
   ]
 }
