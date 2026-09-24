@@ -14,16 +14,18 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["taunt", "blindingFlash", "hook", "vortex", "tidalWave", "fireball"]
+POOL = ["hook", "taunt", "tidalWave", "vortex", "shieldBash", "fireball", "blink"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        # a hook soaks the robot (into the fountain), a taunt lures the golem
-        # onto it, and the hook drags the taunter out of the discharge
-        ("hook", "taunt"),
-        # soaked and brought together by a mover, set off by a flash
-        ("hook", "blindingFlash"), ("vortex", "blindingFlash"), ("tidalWave", "blindingFlash"),
+        # soak the robot, then taunt the golem into the hall: it discharges on arrival
+        ("taunt", "tidalWave"), ("taunt", "vortex"), ("taunt", "shieldBash"), ("taunt", "blink"),
+        # the fire trap, beaten: the second fireball's knock alone soaks the robot
+        ("taunt", "fireball"),
+        # hook the golem into the hall; water on both sets it off (a wave, a vortex,
+        # or the flooded hall it is dragged into)
+        ("hook", "tidalWave"), ("hook", "vortex"), ("hook", "blink"),
     ]
 }
 
@@ -37,8 +39,8 @@ def _solutions(planner, goal):
     return solutions
 
 
-def plans_with(player, mage):
-    """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
+def plans_with(player, mage, extra="", goal="win."):
+    """All plans of `goal` with the player knowing `player` and the mage `mage`, on a fresh
     planner (a failed search locks the rule set)."""
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
@@ -48,9 +50,9 @@ def plans_with(player, mage):
     loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
     loader.load("abilities/goals/neutralize")
     loader.load("abilities/primitives/ab_catalog")
-    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
+    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n" + extra
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    return _solutions(planner, goal)
 
 
 def ops_list(plan):
@@ -77,35 +79,38 @@ class LightningRodTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_hook_it_in_taunt_the_golem_hook_the_taunter_out(self):
-        ops = ops_text(plans_with("hook", "taunt"))
-        for op in ["opForcedMove(player,robot,hall,fountain)", "opCast(mage,taunt,golem)",
-                   "opForcedMove(mage,golem,forge,fountain)", "opWindUp(golem,discharge,fountain)",
-                   "opCast(player,hook,mage)", "opForcedMove(player,mage,fountain,hall)",
-                   "opExploit(golem,robot,electrocuted,dead)"]:
+    def test_example_1_flood_the_hall_and_hook_the_golem_in(self):
+        ops = ops_list(plans_with("hook", "blink")[0])
+        for op in ["opTeleport(mage,gallery,pumps)", "opStepOn(mage,mage,valve)",
+                   "opSpill(mage,hall,puddle)", "opGrant(mage,robot,wet)",
+                   "opForcedMove(player,golem,forge,hall)", "opGrant(player,golem,wet)",
+                   "opBlow(golem,discharge,hall,hall)", "opExploit(golem,robot,electrocuted,dead)"]:
             assert op in ops, f"missing {op}"
-        self._record(True, "Example 1: hook the robot into the fountain, taunt, hook the taunter out")
+        self._record(True, "Example 1: blink onto the valve, hook the golem into the flooded hall")
 
-    def test_example_2_wash_the_golem_over_and_flash_it(self):
-        ops = ops_text(plans_with("tidalWave", "blindingFlash"))
-        for op in ["opForcedMove(player,robot,hall,fountain)", "opForcedMove(player,golem,forge,fountain)",
-                   "opCast(mage,blindingFlash,mage)", "opWindUp(golem,discharge,fountain)",
-                   "opExploit(golem,robot,electrocuted,dead)"]:
+    def test_example_2_bash_it_into_the_fountain_then_taunt(self):
+        ops = ops_list(plans_with("taunt", "shieldBash")[0])
+        for op in ["opCast(mage,shieldBash,robot)", "opKnock(mage,robot,fountain)",
+                   "opCast(player,taunt,golem)", "opNavigate(golem,forge,hall)",
+                   "opWindUp(golem,discharge,hall)", "opExploit(golem,robot,electrocuted,dead)"]:
             assert op in ops, f"missing {op}"
-        self._record(True, "Example 2: wash the robot and the golem into the fountain, flash")
+        self._record(True, "Example 2: bash the robot into the fountain, taunt the golem in")
 
-    def test_example_3_vortex_both_and_flash_from_inside(self):
-        plans = plans_with("vortex", "blindingFlash")
-        ops = ops_text(plans)
-        for op in ["opCast(player,vortex,fountain)", "opCast(player,vortex,hall)",
-                   "opForcedMove(player,golem,forge,hall)", "opBlow(golem,discharge,hall,hall)",
+    def test_example_3_hook_then_vortex_both_into_the_fountain(self):
+        ops = ops_text(plans_with("hook", "vortex"))
+        for op in ["opForcedMove(player,golem,forge,hall)", "opCast(mage,vortex,fountain)",
+                   "opKnock(mage,golem,fountain)", "opProvoked(golem,wet,discharge)",
                    "opExploit(golem,robot,electrocuted,dead)"]:
             assert op in ops, f"missing {op}"
-        # the mage was drawn into the hall by the vortex and flashes from inside: disjoint
-        inside = [p for p in plans if "opForcedMove(player,mage,gallery,hall)" in ops_list(p)
-                  and not any(o.startswith("opNavigate(mage") for o in ops_list(p))]
-        assert inside, "no plan flashes from inside the struck hall"
-        self._record(True, "Example 3: vortex the robot into the pool, then both into the hall; flash")
+        self._record(True, "Example 3: hook the golem in, vortex both into the fountain")
+
+    def test_example_4_the_second_fireball(self):
+        ops = ops_list(plans_with("taunt", "fireball")[0])
+        assert "opReact(mage,robot,burning,wet,extinguish)" in ops, ops
+        w = ops.index("opWindUp(golem,discharge,hall)")
+        b = ops.index("opBlow(golem,discharge,hall,hall)")
+        assert "opCast(mage,fireball,robot)" in ops[w:b], ops
+        self._record(True, "Example 4: the first fireball dries the robot; the second, in the window, soaks it")
 
     # -------------------------------------------------------------- properties
 
@@ -119,26 +124,23 @@ class LightningRodTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_the_taunter_is_always_pulled_out(self):
-        """Every hook + taunt plan has the hook cast on the taunter inside the window."""
-        plans = plans_with("hook", "taunt")
-        assert plans
-        for p in plans:
-            ops = ops_list(p)
-            w = next(i for i, o in enumerate(ops) if o.startswith("opWindUp(golem"))
-            b = next(i for i, o in enumerate(ops) if o.startswith("opBlow(golem"))
-            assert "opCast(player,hook,mage)" in ops[w:b], ops
-        self._record(True, "P3: the taunter is hooked out between the wind-up and the blow")
+    def test_property_p3_one_charge(self):
+        """The discharge spends the golem: on a dry robot it only stuns it, and nothing
+        sets it off again."""
+        plans = plans_with("taunt", "hook", goal="walkTo(player, hall), cast(player, taunt, golem).")
+        ops = ops_text(plans)
+        assert "opExploit(golem,robot,electrocuted,stunned)" in ops and "opGrant(golem,golem,silenced)" in ops
+        assert not plans_with("taunt", "hook")
+        self._record(True, "P3: one charge - wasted on a dry robot")
 
-    def test_property_p4_no_rescue_but_a_hook(self):
-        """A wave or a vortex cast to save the taunter moves the robot out too."""
-        assert not plans_with("taunt", "tidalWave") and not plans_with("taunt", "vortex")
-        self._record(True, "P4: taunt with a wave or a vortex: no plan")
+    def test_property_p4_a_stunned_golem_never_discharges(self):
+        assert not plans_with("hook", "shieldBash")
+        assert not plans_with("hook", "tidalWave", "tag(golem, stunned).\n")
+        self._record(True, "P4: a bash stuns the golem (silenced): no discharge")
 
-    def test_property_p5_fire_dries(self):
-        """Fireball never helps: steam on the soaked robot, or its own fire put out in the pool."""
-        assert not any(plans_with("fireball", s) for s in POOL if s != "fireball")
-        self._record(True, "P5: fireball wins with nothing")
+    def test_property_p5_water_in_the_forge_spends_the_charge(self):
+        assert not plans_with("blink", "tidalWave")
+        self._record(True, "P5: flood the hall and wave the golem in its forge: spent there")
 
 
 def run_tests():

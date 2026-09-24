@@ -14,18 +14,19 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["taunt", "blindingFlash", "hook", "vortex", "tidalWave", "fireball"]
+POOL = ["hook", "taunt", "blindingFlash", "lightningFlash", "fireball", "tidalWave", "shieldBash"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        # a taunt lures the troll into a room with both imps; a friend gets the
-        # taunter out: a hook, a fireball that knocks it clear, or a vortex
-        # that draws everyone out and then back onto the ice
-        ("taunt", "hook"), ("taunt", "fireball"), ("taunt", "vortex"),
-        # gather (or breathe first and deliver onto the ice), then a flash
-        ("blindingFlash", "hook"), ("blindingFlash", "vortex"), ("blindingFlash", "tidalWave"),
-        ("blindingFlash", "fireball"),
+        # lure the troll to imp1 with a taunt, then lead it on to the kiln
+        # and set it off again: a flash from inside, a jolt from next door
+        ("taunt", "blindingFlash"), ("taunt", "lightningFlash"),
+        # lure it to imp1; imp2 goes over the lip: knocked in, or hooked across
+        ("taunt", "fireball"), ("taunt", "tidalWave"), ("taunt", "shieldBash"), ("taunt", "hook"),
+        # hook imp1 into the cave (or onto its ice), set the troll off where it
+        # stands, hook imp2 across the lip
+        ("hook", "blindingFlash"), ("hook", "lightningFlash"),
     ]
 }
 
@@ -39,8 +40,8 @@ def _solutions(planner, goal):
     return solutions
 
 
-def plans_with(player, mage, extra=""):
-    """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
+def plans_with(player, mage, extra="", goal="win."):
+    """All plans of `goal` with the player knowing `player` and the mage `mage`, on a fresh
     planner (a failed search locks the rule set)."""
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
@@ -52,7 +53,7 @@ def plans_with(player, mage, extra=""):
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n" + extra
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    return _solutions(planner, goal)
 
 
 def ops_list(plan):
@@ -79,33 +80,38 @@ class ColdShoulderTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_breathe_first_then_hook_the_other_imp_onto_the_ice(self):
-        plans = plans_with("hook", "blindingFlash")
-        late = [p for p in plans if "opBlow(troll,frostBreath,cave,cave)" in ops_list(p)
-                and any(o.startswith("opExploit(player,imp") for o in ops_list(p))]
-        assert late, "no plan delivers an imp onto the ice after the breath"
-        ops = ops_list(late[0])
-        assert ops.index("opCast(mage,blindingFlash,mage)") < ops.index("opSpill(troll,cave,iceSheet)")
-        self._record(True, "Example 1: flash the troll in its cave, hook the second imp onto the ice")
-
-    def test_example_2_fireball_the_imp_over_taunt_knock_the_taunter_clear(self):
-        ops = ops_text(plans_with("fireball", "taunt"))
-        for op in ["opForcedMove(player,imp1,forge,kiln)", "opCast(mage,taunt,troll)",
-                   "opForcedMove(mage,troll,cave,kiln)", "opWindUp(troll,frostBreath,kiln)",
-                   "opCast(player,fireball,mage)", "opForcedMove(player,mage,kiln,cave)",
-                   "opExploit(troll,imp1,chilled,dead)", "opExploit(troll,imp2,chilled,dead)",
-                   "opReshape(troll,kiln,flames,puddle)"]:
+    def test_example_1_lure_it_then_lead_it_on(self):
+        ops = ops_list(plans_with("taunt", "blindingFlash")[0])
+        for op in ["opCast(player,taunt,troll)", "opNavigate(troll,hall,forge)",
+                   "opExploit(troll,imp1,chilled,dead)", "opNavigate(player,forge,kiln)",
+                   "opNavigate(troll,forge,kiln)", "opCast(mage,blindingFlash,mage)",
+                   "opExploit(troll,imp2,chilled,dead)"]:
             assert op in ops, f"missing {op}"
-        self._record(True, "Example 2: fireball imp1 into the kiln, taunt, fireball the taunter clear")
+        assert ops.index("opNavigate(troll,forge,kiln)") < ops.index("opCast(mage,blindingFlash,mage)")
+        self._record(True, "Example 1: taunt it to the forge, lead it to the kiln, flash it")
 
-    def test_example_3_vortex_out_and_back_onto_the_ice(self):
-        ops = ops_text(plans_with("taunt", "vortex"))
-        for op in ["opCast(player,taunt,troll)", "opWindUp(troll,frostBreath,hall)",
-                   "opCast(mage,vortex,gate)", "opForcedMove(mage,player,hall,gate)",
-                   "opBlow(troll,frostBreath,hall,hall)", "opCast(mage,vortex,hall)",
-                   "opExploit(mage,imp1,chilled,dead)", "opExploit(mage,imp2,chilled,dead)"]:
+    def test_example_2_gather_then_jolt(self):
+        ops = ops_text(plans_with("hook", "lightningFlash"))
+        for op in ["opForcedMove(player,imp1,forge,hall)", "opForcedMove(player,imp1,hall,cave)",
+                   "opCast(mage,lightningFlash,troll)", "opExploit(troll,imp1,chilled,dead)",
+                   "opFall(player,imp2,kiln,cave)", "opExploit(player,imp2,gap,fell)"]:
             assert op in ops, f"missing {op}"
-        self._record(True, "Example 3: vortex everyone out of the breath, then the imps back onto the ice")
+        self._record(True, "Example 2: hook imp1 into the cave, jolt the troll, hook imp2 over the lip")
+
+    def test_example_3_breathe_first_then_hook_onto_the_ice(self):
+        late = [ops_list(p) for p in plans_with("hook", "blindingFlash")
+                if "opExploit(player,imp1,chilled,dead)" in ops_list(p)]
+        assert late, "no plan hooks imp1 onto the ice"
+        ops = late[0]
+        assert ops.index("opSpill(troll,cave,iceSheet)") < ops.index("opForcedMove(player,imp1,hall,cave)")
+        self._record(True, "Example 3: flash the troll in its cave, then hook the imp onto the ice")
+
+    def test_example_4_over_the_lip(self):
+        ops = ops_text(plans_with("taunt", "fireball"))
+        for op in ["opExploit(troll,imp1,chilled,dead)", "opCast(mage,fireball,imp2)",
+                   "opFall(mage,imp2,kiln,cave)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 4: taunt the troll to the forge, fireball imp2 into the gap")
 
     # -------------------------------------------------------------- properties
 
@@ -119,34 +125,30 @@ class ColdShoulderTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_the_taunter_is_always_answered(self):
-        """In every taunt plan, the other companion casts between the wind-up and the breath."""
-        for other in ["hook", "fireball", "vortex"]:
-            for p in plans_with("taunt", other):
-                ops = ops_list(p)
-                w = next(i for i, o in enumerate(ops) if o.startswith("opWindUp(troll"))
-                b = next(i for i, o in enumerate(ops) if o.startswith("opBlow(troll"))
-                assert any(o.startswith(f"opCast(mage,{other},") for o in ops[w:b]), ops
-        self._record(True, "P3: a taunter is always got out in the window")
+    def test_property_p3_each_mood_once(self):
+        """The troll answers a taunt once: two taunts cannot reach both imps."""
+        assert not plans_with("taunt", "taunt")
+        self._record(True, "P3: a second taunt does nothing")
 
-    def test_property_p4_the_ice_stays(self):
-        """Some winning plans kill an imp by delivering it onto the ice after the breath."""
-        ops = ops_text(plans_with("fireball", "blindingFlash"))
-        assert "opExploit(player,imp1,chilled,dead)" in ops
-        self._record(True, "P4: an imp sent onto the ice later dies there")
+    def test_property_p4_a_stunned_troll_never_breathes(self):
+        assert not plans_with("taunt", "blindingFlash", "tag(troll, stunned).\n")
+        self._record(True, "P4: stunned (silenced), the troll breathes no more")
 
     def test_property_p5_a_soaked_imp_only_freezes_on_the_ice(self):
-        """Soaked, an imp that arrives on the ice freezes over (water meets cold) instead of
-        dying: no plan kills it by arrival any more; only the breath itself does."""
+        """Soaked, an imp that arrives on the ice freezes over (stunned) instead of dying: only
+        the breath itself (raw) kills it."""
         plans = plans_with("hook", "blindingFlash", "tag(imp1, wet).\n")
         assert plans
-        assert "opExploit(player,imp1," not in ops_text(plans)
-        self._record(True, "P5: a soaked imp must be in the breath itself")
+        text = ops_text(plans)
+        assert "opExploit(player,imp1,chilled,dead)" not in text
+        assert "opExploit(troll,imp1,chilled,dead)" in text
+        self._record(True, "P5: a soaked imp must be caught in the breath itself")
 
-    def test_property_p6_taunt_alone_is_a_trap(self):
-        """With a flash, a taunt cannot be answered: the taunter stays in the breath."""
-        assert not plans_with("taunt", "blindingFlash") and not plans_with("taunt", "tidalWave")
-        self._record(True, "P6: taunt with a flash or a wave: no plan")
+    def test_property_p6_fire_melts_the_ice(self):
+        plans = plans_with("hook", "fireball", "onEnter(forge, iceSheet).\n",
+                           goal="cast(mage, fireball, imp1).")
+        assert plans and "opReshape(mage,forge,iceSheet,puddle)" in ops_text(plans)
+        self._record(True, "P6: a fireball on an iced room leaves a puddle")
 
 
 def run_tests():

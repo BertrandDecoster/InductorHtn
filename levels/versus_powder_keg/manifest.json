@@ -1,8 +1,8 @@
 {
   "name": "versus_powder_keg",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "layer": "level",
-  "description": "Powder Keg: jolt, startle or goad a powder-mule and its keg blows (a heavy blow that sets its region on fire); bring it down to a rooted ent, and get the taunter out; one skill each from six",
+  "description": "Powder Keg: a powder-mule's keg winds up a heavy blast that follows the mule when it is jolted, blinded or snared; bring it to a heavy wooden ent (hook along the road, taunt - even in the window) and light it, or turn the ent to mist and knock it into the hollow; one skill each from eight",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,39 +12,39 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:23:24.334129"
+    "last_checked": "2026-09-24T20:45:37.102828"
   },
   "provides": [
-    "arrived/2",
     "at/2",
     "behavior/4",
-    "beyond/3",
-    "bring/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
     "effect/3",
+    "feature/3",
+    "fetch/2",
     "funExpect/3",
+    "gap/2",
     "heavy/1",
     "immune/2",
     "knows/2",
+    "light/1",
     "lineOfSight/2",
     "mana/2",
     "region/1",
     "role/2",
-    "setOff/2",
-    "standBy/2",
-    "stepAside/2",
     "tag/2",
-    "trigger/2",
     "win/0"
   ],
   "requires": [
-    "castFrom/4",
+    "bringTo/3",
+    "cast/3",
     "confirmStopped/1",
-    "inflictAs/3",
+    "inflict/3",
+    "knockOn/3",
+    "unset/2",
     "walkTo/2"
   ]
 }

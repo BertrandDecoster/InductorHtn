@@ -14,17 +14,17 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["lightningFlash", "blindingFlash", "taunt", "hook", "vortex", "tidalWave"]
+POOL = ["hook", "taunt", "lightningFlash", "blindingFlash", "vortex", "turnToMist", "tidalWave",
+        "shieldBash"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        # the keg brought to the ent, then jolted from outside
-        ("lightningFlash", "hook"), ("lightningFlash", "vortex"),
-        # the keg brought to the ent, then startled (the flasher may stay: disjoint)
-        ("blindingFlash", "hook"), ("blindingFlash", "vortex"), ("blindingFlash", "tidalWave"),
-        # goaded into the grove, and the taunter got out of the blast: the rooted ent stays
-        ("taunt", "hook"), ("taunt", "vortex"), ("taunt", "tidalWave"),
+        # bring the mule to the ent (hook, taunt) and light it (a jolt, a flash, a snare)
+        ("hook", "lightningFlash"), ("hook", "blindingFlash"), ("hook", "vortex"),
+        ("taunt", "lightningFlash"), ("taunt", "blindingFlash"), ("taunt", "vortex"),
+        # or turn the ent to mist and knock it into the hollow
+        ("turnToMist", "tidalWave"), ("turnToMist", "shieldBash"), ("turnToMist", "vortex"),
     ]
 }
 
@@ -38,8 +38,8 @@ def _solutions(planner, goal):
     return solutions
 
 
-def plans_with(player, mage):
-    """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
+def plans_with(player, mage, extra="", goal="win."):
+    """All plans of `goal` with the player knowing `player` and the mage `mage`, on a fresh
     planner (a failed search locks the rule set)."""
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
@@ -49,9 +49,9 @@ def plans_with(player, mage):
     loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
     loader.load("abilities/goals/neutralize")
     loader.load("abilities/primitives/ab_catalog")
-    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
+    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n" + extra
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    return _solutions(planner, goal)
 
 
 def ops_list(plan):
@@ -78,29 +78,39 @@ class PowderKegTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_hook_the_keg_down_and_jolt_it(self):
+    def test_example_1_hook_it_down_the_road_jolt_it(self):
         ops = ops_text(plans_with("hook", "lightningFlash"))
-        for op in ["opForcedMove(player,mule,ridge,grove)", "opCast(mage,lightningFlash,mule)",
-                   "opProvoked(mule,electrocuted,blast)", "opWindUp(mule,blast,grove)",
-                   "opSpill(mule,grove,flames)", "opExploit(mule,ent,burning,dead)"]:
+        for op in ["opForcedMove(player,mule,ridge,road)", "opForcedMove(player,mule,road,grove)",
+                   "opCast(mage,lightningFlash,mule)", "opBlow(mule,blast,mule,grove)",
+                   "opExploit(mule,ent,burning,dead)"]:
             assert op in ops, f"missing {op}"
-        self._record(True, "Example 1: hook the mule into the grove, jolt it from the road")
+        self._record(True, "Example 1: two hooks along the road, a jolt: the keg blows on the ent")
 
-    def test_example_2_goad_it_and_wash_the_taunter_out(self):
-        ops = ops_text(plans_with("taunt", "tidalWave"))
-        for op in ["opCast(player,taunt,mule)", "opForcedMove(player,mule,ridge,grove)",
-                   "opWindUp(mule,blast,grove)", "opCast(mage,tidalWave,mage)",
-                   "opForcedMove(mage,player,grove,hollow)", "opForcedMove(mage,mule,grove,hollow)",
-                   "opBlow(mule,blast,grove,grove)", "opExploit(mule,ent,burning,dead)"]:
-            assert op in ops, f"missing {op}"
-        self._record(True, "Example 2: taunt from the grove, the wave washes the taunter out")
+    def test_example_2_flash_it_on_the_ridge_taunt_it_down_in_the_window(self):
+        late = []
+        for p in plans_with("taunt", "blindingFlash"):
+            ops = ops_list(p)
+            if "opWindUp(mule,blast,mule)" in ops:
+                w = ops.index("opWindUp(mule,blast,mule)")
+                if "opCast(player,taunt,mule)" in ops[w:] and "opNavigate(mule,ridge,road)" in ops[w:]:
+                    late.append(ops)
+        assert late, "no plan taunts the mule down in the window"
+        assert "opBlow(mule,blast,mule,grove)" in late[0] and "opExploit(mule,ent,burning,dead)" in late[0]
+        self._record(True, "Example 2: flash it on the ridge; in the window, taunt it down to the grove")
 
-    def test_example_3_wash_it_down_the_slope_and_flash_it(self):
-        ops = ops_text(plans_with("tidalWave", "blindingFlash"))
-        for op in ["opForcedMove(player,mule,ridge,grove)", "opCast(mage,blindingFlash,mage)",
-                   "opProvoked(mule,blinded,blast)", "opExploit(mule,ent,burning,dead)"]:
+    def test_example_3_snare_it_with_a_vortex(self):
+        ops = ops_text(plans_with("taunt", "vortex"))
+        for op in ["opCast(mage,vortex,sap)", "opProvoked(mule,rooted,blast)",
+                   "opExploit(mule,ent,burning,dead)"]:
             assert op in ops, f"missing {op}"
-        self._record(True, "Example 3: wash the mule down from the crag, flash it")
+        self._record(True, "Example 3: taunt it into the grove, vortex on the sap pool snares it")
+
+    def test_example_4_mist_and_the_hollow(self):
+        ops = ops_text(plans_with("turnToMist", "tidalWave"))
+        for op in ["opCast(player,turnToMist,ent)", "opCast(mage,tidalWave,mage)",
+                   "opExploit(mage,ent,chasm,fell)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 4: turn the ent to mist, wash it into the hollow")
 
     # -------------------------------------------------------------- properties
 
@@ -115,22 +125,28 @@ class PowderKegTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_a_soaked_fuse(self):
-        """Washed down the slope, the mule is wet: lightning only makes it seize up."""
-        assert not plans_with("lightningFlash", "tidalWave")
-        self._record(True, "P3: lightningFlash + tidalWave: no plan")
+        """Soaked, the mule only seizes up under lightning (stunned: silenced, no blast); a
+        blinding flash still lights it."""
+        assert not plans_with("hook", "lightningFlash", "tag(mule, wet).\n")
+        assert plans_with("hook", "blindingFlash", "tag(mule, wet).\n")
+        self._record(True, "P3: a wet mule seizes up under lightning; a flash still lights it")
 
-    def test_property_p4_the_rooted_ent_stays(self):
-        """Whatever gets the taunter out, the ent never moves: it is heavy."""
-        for other in ["hook", "vortex", "tidalWave"]:
-            ops = ops_text(plans_with("taunt", other))
-            assert ops and not re.search(r"opForcedMove\(\w+,ent,", ops), other
-        self._record(True, "P4: the ent stays rooted in every taunt plan")
+    def test_property_p4_over_the_ravine_it_falls(self):
+        plans = plans_with("hook", "hook", goal="walkTo(player, grove), cast(player, hook, mule).")
+        assert "opFall(player,mule,ridge,grove)" in ops_text(plans)
+        self._record(True, "P4: hooked straight across the ravine, the mule falls, keg and all")
 
     def test_property_p5_the_keg_blows_once(self):
-        """Two triggers and no mover: the first spends the keg on the ridge."""
-        assert not plans_with("lightningFlash", "blindingFlash")
-        assert not plans_with("lightningFlash", "taunt") and not plans_with("blindingFlash", "taunt")
-        self._record(True, "P5: two triggers and no mover: no plan")
+        plans = plans_with("lightningFlash", "hook", goal="walkTo(player, road), cast(player, lightningFlash, mule).")
+        ops = ops_text(plans)
+        assert "opBlow(mule,blast,mule,ridge)" in ops and "opGrant(mule,mule,silenced)" in ops
+        self._record(True, "P5: lit on the ridge, the keg is spent")
+
+    def test_property_p6_the_ent_never_walks_or_flies(self):
+        for a, b in [("hook", "blindingFlash"), ("taunt", "lightningFlash"), ("turnToMist", "vortex")]:
+            assert "opForcedMove(player,ent" not in ops_text(plans_with(a, b))
+            assert "opForcedMove(mage,ent" not in ops_text(plans_with(a, b))
+        self._record(True, "P6: the ent is never moved to another area")
 
 
 def run_tests():
