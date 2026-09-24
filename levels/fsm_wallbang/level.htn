@@ -1,39 +1,43 @@
 % Wall-Bang (enemy state machines)
 %
-% The Ram is a boss: heavy (nothing moves it), and immune to hard control.
-% It has one telegraphed reaction: whoever taunts it, it charges - it
-% dashes to where its taunter stands. At the brink a stone pillar stands;
-% a charge that ends there crashes into it, and the Ram is left staggered.
-% Staggered is its vulnerability window:
-%   - staggered, it loses its footing (its immunity to forced movement
-%     lapses), so it can be thrown off the brink into the ravine;
-%   - staggered, its heart is open: a jolt stops it (dead).
+% The Ram is a boss: heavy (nothing moves it), immune to stuns, and it holds
+% the arena (a blocker). Its one move is a telegraphed charge: taunted or
+% blinded, it lowers its horns and charges down its lane to the brink - a
+% heavy, physical blow (it cannot be interrupted). The team gets one cast;
+% then the Ram lands on the brink, goring and throwing everyone there into
+% the ravine. At the brink stands a stone pillar: the charge ends in it.
+%   crashing into the pillar -> staggered (a hazard only the Ram is weak to),
+%                               and knocked off its feet (heavy comes off)
+%   staggered + electrocuted -> dead (its heart is open)
+%   off its feet             -> a push or a pull drops it into the ravine
 %
-%   pen --- arena (Ram) --- brink (pillar)
-%             |               :
-%          gallery          ravine (a chasm below the brink)
-%   crag: a spur off the gallery, facing nothing useful
+%          arena (Ram)
+%            |
+%   pen --- brink (pillar) ... ravine (a chasm below the brink)
+%    |                           :
+%   gallery ---------------- ledge   (faces the brink across the ravine)
 %
-% The state machine, as tags:
-%   taunted (taunt, provoke) -> charge (dash to the taunter)
-%   charge ends at the pillar -> staggered (the pillar's own weakness rule)
-%   staggered + a push or pull into the ravine -> fell
-%   staggered + electrocuted -> dead
+% Only the brink sees into the arena, so the lure is cast there, and the
+% charge comes down on the lure's own head.
 %
-% Methods:
-%   wall-bang and drop   one companion taunts (or provokes) from the brink;
-%                        the other throws the staggered Ram into the ravine
-%                        from the arena or the gallery (gust, tidalWave,
-%                        concuss)
-%   wall-bang and shock  one companion taunts from the brink; the other
-%                        jolts the open heart (zap, chainLightning)
+% Methods (the lure, then the finisher):
+%   flash and ...   blindingFlash from the brink: the Ram charges blind, and
+%                   the flash has made its caster disjoint - the gore passes
+%                   through them. Then the other companion drops it (fireball
+%                   or tidalWave from the pen, vortex into the ravine, hook or
+%                   taunt across the ravine from the ledge) or jolts its open
+%                   heart (lightningFlash)
+%   taunt and pull  taunt from the brink; in the window the partner pulls the
+%                   taunter clear (hook from the pen, or a vortex on the pen),
+%                   and the same skill then drops the staggered Ram
 %
 % Traps:
-%   - taunting from anywhere but the brink only brings the Ram to you;
-%   - a push or a jolt before the crash does nothing (heavy; a living thing
-%     only seizes up);
-%   - tidalWave and chainLightning hit everyone at the brink: the taunter is
-%     thrown into the ravine too, or shocked alongside it.
+%   - a push, a pull or a jolt before the crash does nothing (heavy; a
+%     living thing only seizes up);
+%   - the charge is physical: no interrupt saves the taunter, only leaving;
+%   - fireball and tidalWave "save" the taunter by throwing them into the
+%     ravine: the partner must pull, not push;
+%   - taunting the staggered Ram from the brink side just drags it closer.
 
 % === Regions ===
 region(pen).
@@ -41,31 +45,41 @@ region(arena).
 region(brink).
 region(ravine).
 region(gallery).
-region(crag).
-connected(pen, arena).
-connected(arena, pen).
-connected(arena, brink).
+region(ledge).
+connected(pen, brink).
+connected(brink, pen).
 connected(brink, arena).
-connected(arena, gallery).
-connected(gallery, arena).
-connected(gallery, crag).
-connected(crag, gallery).
-lineOfSight(pen, arena).
-lineOfSight(arena, pen).
-lineOfSight(arena, brink).
+connected(arena, brink).
+connected(brink, ravine).
+connected(ravine, brink).
+connected(pen, gallery).
+connected(gallery, pen).
+connected(gallery, ledge).
+connected(ledge, gallery).
+lineOfSight(pen, brink).
+lineOfSight(brink, pen).
 lineOfSight(brink, arena).
-lineOfSight(gallery, arena).
-lineOfSight(gallery, brink).
-lineOfSight(crag, gallery).
+lineOfSight(pen, gallery).
+lineOfSight(gallery, pen).
+lineOfSight(gallery, ledge).
+lineOfSight(ledge, gallery).
+lineOfSight(ledge, brink).
+lineOfSight(pen, ravine).
+lineOfSight(ledge, ravine).
 
-% Push lines: from the arena or the gallery, over the brink, into the ravine.
-beyond(arena, brink, ravine).
-beyond(gallery, brink, ravine).
+% Push lines: from the pen over the brink into the ravine; a blow landing on
+% the brink throws whoever stands there over it; from the ledge, the ravine
+% lies between it and the brink, so a pull drops what it drags.
+beyond(pen, brink, ravine).
+beyond(brink, brink, ravine).
+beyond(ledge, ravine, brink).
 onEnter(ravine, chasm).
 
-% The pillar: a charge that ends here crashes. Only the Ram is weak to it.
-onEnter(brink, pillarCrash).
-effect(pillarCrash, target, hazard(pillar)).
+% The pillar: whatever crashes into it is knocked off its feet; only the Ram
+% is staggered by it.
+onEnter(brink, pillar).
+effect(pillar, target, hazard(pillar)).
+effect(pillar, target, remove(heavy)).
 
 % === Companions ===
 role(player, player).
@@ -79,46 +93,49 @@ mana(mage, 4).
 role(ram, enemy).
 at(ram, arena).
 rank(ram, boss).
-trait(ram, living).
-trait(ram, heavy).
+tag(ram, living).
+tag(ram, heavy).
+blocker(ram).
 
-% Its reaction: taunted, it charges its taunter.
-behavior(ram, taunted, ramCharge, source).
-reach(ramCharge, ranged).
+% Taunted or blinded, it charges down its lane: heavy, physical. It dashes
+% to the brink and gores everyone there (stunned, thrown over the edge).
+behavior(ram, taunted, ramCharge, there(brink)).
+behavior(ram, blinded, ramCharge, there(brink)).
+heavy(ramCharge).
 effect(ramCharge, target, dash).
+effect(ramCharge, area, grant(stunned)).
+effect(ramCharge, area, push).
 
-% Its phases: crashing into the pillar staggers it; staggered, it can be
-% moved, and a jolt stops it.
+% Its phase: staggered by the pillar, its heart is open.
 weakness(ram, pillar, none, staggered).
-suspends(staggered, forcedMove).
 weakness(ram, electrocuted, staggered, dead).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, taunt).
-knows(mage, gust).
+knows(player, blindingFlash).
+knows(mage, fireball).
 
 % === Victory ===
-% The standard recipes (they find nothing while the Ram stands firm) ...
-win :- if(), do(neutralize(ram)).
-% ... or bang it into the pillar first, then someone else finishes it.
+% Provoke the charge, see it crash, then the standard recipes finish the
+% Ram in the state it is left in (a drop into the ravine, or its weakness).
+% Nobody may be lost on the way: a companion thrown into the ravine to dodge
+% the gore is no rescue.
 win :-
-    if(lurer(ram, ?p, ?sk, ?r)),
-    do(castFrom(?p, ?sk, ram, ?r), confirmTag(ram, staggered), finish(ram, ?p)).
+    if(),
+    do(provokeCharge(ram), confirmTag(ram, staggered), stepBack(brink, pen), neutralize(ram),
+       teamStanding()).
 
-% Who can set off the Ram's charge, and from where it ends at the pillar.
-crashSite(?e, ?r) :-
-    onEnter(?r, ?z), effect(?z, target, hazard(?h)), weakness(?e, ?h, none, staggered).
-lurer(?e, ?p, ?sk, ?r) :-
-    behavior(?e, ?t, ?ab, source), crashSite(?e, ?r), canInflict(?p, ?sk, ?t, ?e),
-    reach(?sk, ?k), at(?e, ?er), inRange(?k, ?r, ?er).
+% Someone lands a tag it answers with its charge.
+provokeCharge(?e) :-
+    if(behavior(?e, ?t, ?ab, ?aim), heavy(?ab), canAct(?p), knows(?p, ?sk), grants(?sk, ?t)),
+    do(cast(?p, ?sk, ?e)).
 
 confirmTag(?e, ?t) :- if(tag(?e, ?t)), do().
+teamStanding() :- if(not(first(and(canAct(?a), gone(?a))))), do().
 
-% Drop it (a push or pull into the ravine), or play the open window.
-finish(?e, ?p) :- if(), do(sendInto(?e, ravine, ?p), confirmStopped(?e)).
-finish(?e, ?p) :-
-    if(weakness(?e, ?in, staggered, ?out), stops(?e, ?out)),
-    do(deliver(?in, ?e, ?p), confirmStopped(?e)).
+% After the charge, whoever stands on the brink steps back off the edge.
+stepBack(?r, ?to) :- if(not(first(and(canAct(?a), at(?a, ?r))))), do().
+stepBack(?r, ?to) :- if(first(and(canAct(?a), at(?a, ?r)))), do(stepAll(?r, ?to)).
+stepAll(?r, ?to) :- allOf, if(canAct(?a), at(?a, ?r)), do(walkTo(?a, ?to)).
 
 funExpect(single_actor_plans, atMost, 0).
 % The intent: every plan sets off the Ram's charge.
@@ -127,13 +144,13 @@ funIntended(opProvoked).
 % === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
+comboPool(blindingFlash).
 comboPool(taunt).
-comboPool(provoke).
-comboPool(gust).
+comboPool(hook).
+comboPool(vortex).
+comboPool(fireball).
 comboPool(tidalWave).
-comboPool(concuss).
-comboPool(zap).
-comboPool(chainLightning).
+comboPool(lightningFlash).
 comboMinWins(8).
 comboMinMethods(4).
 

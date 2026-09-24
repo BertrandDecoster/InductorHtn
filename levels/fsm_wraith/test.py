@@ -1,4 +1,4 @@
-"""Tests for the Lunging Wraith level."""
+"""Tests for the Soulfire Wraith level."""
 
 import itertools
 import json
@@ -14,12 +14,13 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["provoke", "flashbang", "taunt", "chainLightning", "zap", "frostBolt", "flameWall"]
-LURES = ["provoke", "flashbang"]
-STRIKES = ["chainLightning", "zap", "frostBolt", "flameWall"]
+POOL = ["blindingFlash", "taunt", "lightningFlash", "tidalWave", "fireball", "vortex", "hook"]
+FINISHERS = ["taunt", "lightningFlash", "tidalWave", "fireball", "vortex", "hook"]
 
-# The measured matrix: an area lure and a strike, or a taunt after a chain.
-WINNING = {frozenset((l, s)) for l in LURES for s in STRIKES} | {frozenset(("taunt", "chainLightning"))}
+# The measured matrix: the flash and any finisher; or a revealer (a jolt, a wave)
+# that lets a taunt set off the soulfire, and then finishes it.
+WINNING = {frozenset(("blindingFlash", f)) for f in FINISHERS} | {
+    frozenset(("lightningFlash", "taunt")), frozenset(("tidalWave", "taunt"))}
 
 
 def _solutions(planner, goal):
@@ -48,7 +49,7 @@ def plans_with(player, mage):
 
 
 def op_strings(plan):
-    """One plan as readable operators: opCast(player, provoke, crypt)."""
+    """One plan as readable operators: opCast(player, taunt, wraith)."""
     out = []
     for op in plan:
         name = list(op.keys())[0]
@@ -71,27 +72,26 @@ class WraithTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_provoke_then_jolt(self):
+    def test_example_1_flash_then_jolt(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, provoke, crypt)", "opProvoked(wraith, taunted, lunge)",
-            "opGrant(wraith, wraith, exhausted)", "opGrant(wraith, player, stunned)",
-            "opExploit(mage, wraith, electrocuted, dead)"])
+            "opCast(player, blindingFlash, player)", "opProvoked(wraith, blinded, soulfire)",
+            "opWindUp(wraith, soulfire, crypt)", "opBlow(wraith, soulfire, crypt, crypt)",
+            "opGrant(wraith, wraith, exhausted)", "opExploit(mage, wraith, electrocuted, dead)"])
 
-    def test_example_2_lure_into_fire(self):
-        plans = plans_with("flameWall", "flashbang")
-        trap = [p for p in plans
-                if "opExploit(wraith, wraith, burning, dead)" in op_strings(p)]
-        assert trap, "the Wraith should lunge, spent, into flames laid where the lure stood"
-        ops = op_strings(trap[0])
-        lure = ops.index("opCast(mage, flashbang, crypt)")
-        assert any(o.startswith("opSpill(player") for o in ops[:lure]), "the flames come first"
-        self._record(True, "Example 2: flames laid first; the blinded Wraith lunges into them and burns")
-
-    def test_example_3_shake_then_taunt(self):
-        ops = all_ops(plans_with("taunt", "chainLightning"))
+    def test_example_2_reveal_taunt_jolt(self):
+        ops = all_ops(plans_with("lightningFlash", "taunt"))
+        assert "opCast(player, lightningFlash, ossuary)" in ops, "the bolt flies through the crypt"
         assert "opProvoked(wraith, electrocuted, flinch)" in ops, ops
-        assert "opCast(player, taunt, wraith)" in ops and "opExploit(mage, wraith, electrocuted, dead)" in ops
-        self._record(True, "Example 3: the chain shakes it out of hiding; the taunt spends it; the chain ends it")
+        assert "opProvoked(wraith, taunted, soulfire)" in ops, ops
+        assert "opExploit(player, wraith, electrocuted, dead)" in ops, ops
+        self._record(True, "Example 2: the bolt shows it; the taunt spends it; the second bolt ends it")
+
+    def test_example_3_flash_then_hook_into_the_well(self):
+        ops = all_ops(plans_with("hook", "blindingFlash"))
+        assert "opRemove(wraith, wraith, flying)" in ops, ops
+        assert "opForcedMove(player, wraith, crypt, well)" in ops, ops
+        assert "opExploit(player, wraith, chasm, fell)" in ops, ops
+        self._record(True, "Example 3: spent and sunk, it is hooked across the well and falls")
 
     # -------------------------------------------------------------- properties
 
@@ -105,27 +105,29 @@ class WraithTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_the_mist_hides_it_again(self):
-        """Provoked from the mist, it lunges back into hiding: a frost bolt cannot be aimed
-        at it, so every provoke+frostBolt plan lures it from elsewhere."""
-        plans = plans_with("provoke", "frostBolt")
-        assert plans
-        for p in plans:
-            assert "opDash(wraith, crypt, mist)" not in op_strings(p)
-        plans = plans_with("provoke", "chainLightning")
-        assert any("opDash(wraith, crypt, mist)" in op_strings(p) for p in plans), \
-            "a chain (an area) still reaches it back in the mist"
-        self._record(True, "P3: lured into the mist it hides again; only an area reaches it there")
-
-    def test_property_p4_the_lure_is_stunned(self):
-        """Whoever sets off the lunge is flattened, so the strike is always the other's."""
-        for lure, strike in [("provoke", "zap"), ("flashbang", "frostBolt")]:
-            for p in plans_with(lure, strike):
+    def test_property_p3_every_plan_spends_it_with_soulfire(self):
+        for pair in [("blindingFlash", "vortex"), ("tidalWave", "taunt"), ("blindingFlash", "taunt")]:
+            plans = plans_with(*pair)
+            assert plans, pair
+            for p in plans:
                 ops = op_strings(p)
-                assert "opGrant(wraith, player, stunned)" in ops, ops
-                assert not any(o.startswith("opCast(player") for o in ops[ops.index(
-                    "opGrant(wraith, player, stunned)"):]), "a stunned lure casts nothing more"
-        self._record(True, "P4: the lure is stunned by the lunge; the other companion strikes")
+                assert "opBlow(wraith, soulfire, crypt, crypt)" in ops, f"{pair}: no soulfire"
+                assert "opGrant(wraith, wraith, exhausted)" in ops, f"{pair}: not spent"
+        self._record(True, "P3: every plan lets the soulfire land and spend the Wraith")
+
+    def test_property_p4_the_flash_survives_the_blow(self):
+        """A flasher standing in the crypt is disjoint when the soulfire lands: the blow
+        spends the disjoint and passes through."""
+        plans = plans_with("blindingFlash", "fireball")
+        assert any("opRemove(wraith, player, disjoint)" in op_strings(p) for p in plans),             "the flasher should be in the crypt, disjoint, when the blow lands"
+        self._record(True, "P4: the flash's disjoint lets its caster stand in the soulfire")
+
+    def test_property_p5_revealing_is_not_spending(self):
+        """A jolt and a wave only show it: without a taunt or a flash it is never spent.
+        Fire alone does nothing lasting."""
+        assert not plans_with("lightningFlash", "tidalWave")
+        assert not plans_with("fireball", "taunt")
+        self._record(True, "P5: a reveal without the soulfire, or fire on it, wins nothing")
 
 
 def run_tests():
