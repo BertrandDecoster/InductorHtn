@@ -2,25 +2,32 @@
 
 ## Purpose
 
-An elemental-chemistry level on the ability catalogue. A clockwork crab, a **heavy machine**, squats
-on a slipway above a flooded dock. The player and the mage pick one skill each from a pool of eight.
-Nothing grants the crab an outcome. It has two weaknesses, and each needs two different kinds of step:
+An elemental-chemistry level about **a moment** and **reactions that cancel a soak**. A clockwork
+crab, a **heavy machine**, squats on a slipway above a flooded dock. A jolt on a dry machine only
+stuns it; soaked first, it short-circuits (catalogue: `machine`, `electrocuted` + `wet -> dead`). It
+cannot swim (this level: `weakness(crab, deepWater, none, fell)`), but it is heavy, so nothing moves
+it - until Turn to Mist takes `heavy` off it for a moment (through the next cast by anyone). The
+player and the mage pick one skill each from a pool of seven.
 
-| Method | First | Then |
-|--------|-------|------|
-| **Short it** (a wet machine, jolted, is dead) | soak it: `rainCall`, `tidalWave` | jolt it: `zap`, `chainLightning` |
-| **Slide it** (the heavy sink in deep water) | oil it: `oilFlask`, `tarPot`. This level's physics says an oiled heavy thing slides: `suspends(oiled, forcedMove)` | move it into the dock: `gust` or `tidalWave` push it from the quay; `magnetize` hooks it across the dock from the gantry |
+| Method | One companion | The other |
+|--------|---------------|-----------|
+| **Short it** | soak it: `tidalWave` | jolt it: `lightningFlash` |
+| **Mist, then sink it** | `turnToMist`: for one cast it is not heavy | on the very next cast, move it into the dock: a push from the quay (`tidalWave`, `fireball`), a pull-in on the dock (`vortex`), or a drag across the dock from the gantry (`hook`, `taunt`): it falls in |
 
 Why no single skill works:
-- It is heavy, so a push or a hook alone does nothing. A hook on the dry crab drags the caster to it
-  instead.
+- It is heavy: a push or a pull alone does nothing, and a hook drags the caster to it instead.
 - A jolt on a dry machine only stuns it, and a stun is not out.
-- Oil alone makes it slippery, but nothing moves it.
-- The primer never pays off its own setup, so one companion cannot do both halves even when both
-  hold the same skill.
+- The mist alone makes it light for a moment, and nothing moves it.
 
-`tidalWave` has two roles: it soaks the crab for the jolt, and its area push slides an oiled crab
-into the dock. That is the chemistry: water and oil on the same shell do different things.
+The chemistry is in the order of the tags: water then lightning kills; lightning then water only
+stuns; fire then water puts the fire out (`extinguish`) and leaves it dry; water then fire dries it
+(`steam`). So fireball and tidalWave never make a pair, though one burns and the other soaks.
+
+Skills in two roles: `tidalWave` soaks for the short and pushes a misted crab into the dock.
+`turnToMist` is the hub of the sinking method: five movers, one gate.
+
+No zone reaction in this level: the catalogue's melting ice leaves a puddle, never the deep water it
+covered, so a "freeze the dock, lure it on, melt it" method cannot be written (see the report).
 
 ## Layer
 
@@ -41,69 +48,83 @@ stairs                    dock  (deepWater)
 gantry   (across the dock, facing the slipway)
 ```
 
-- **Lines:** a push from the quay on the slipway lands in the dock. From the gantry, the dock lies
-  between it and the slipway, so a hook from there drops the crab in.
-- **Line of sight:** the quay and the gantry both see the slipway.
-- **Zones:** the dock is `deepWater`. It soaks whoever arrives, and the heavy sink (`fell`).
-- **Crab:** machine, heavy. Both companions have 4 mana.
-- **Level physics:** `suspends(oiled, forcedMove)`: oil lets a heavy thing be moved.
+- **Walking:** quay–slipway, slipway–berth, slipway–dock, quay–stairs, stairs–gantry.
+- **Line of sight:** quay→slipway, quay→dock, gantry→slipway, gantry→dock.
+- **Push lines:** from the quay, the slipway falls into the dock; from the gantry, the dock lies
+  between it and the slipway (a drag from there crosses the water).
+- **Zone:** dock `deepWater`.
+- **Crab:** `machine`, `heavy`; this level's weakness: `deepWater -> fell` whether heavy or not.
+  Both companions have 4 mana.
+- **Level recipe:** none. The generic `neutralize` finds every method: `exploit` (the short: wet, then
+  electrocuted) and `intoThePit` (take the `heavy` ward off, then send it into the dock).
+- **Heavy attack:** none.
 
 ## Hypothesis
 
 Measured with `htn_components combos chem_slipway`:
 
-- No single skill wins, even when both companions hold it: 0 of 8.
-- **20 of 64** assignments win (10 unordered pairs, and each works whichever companion holds which
-  half). There are **10 methods** (distinct sets of skills cast) of two kinds, and no dead skills:
-  - short it: {rainCall, tidalWave} x {zap, chainLightning}, 4 pairs;
-  - slide it: {oilFlask, tarPot} x {gust, tidalWave, magnetize}, 6 pairs.
-- Skill usage: tidalWave 8, oilFlask 6, tarPot 6, and 4 each for the rest.
-- The other pairs lose, and each for a reason you can name: two movers (it is too heavy), a mover
-  and a jolt (it is dry and heavy), oil and a jolt (oil does not conduct), rain and oil (nothing
-  moves it).
+- No single skill wins, even when both companions hold it: 0 of 7.
+- **12 of 49** assignments win (6 unordered pairs, in either seat). **6 methods** of two kinds (a
+  weakness, a hazard drop), no solo plans, no dead skills:
+  - short it: tidalWave x lightningFlash;
+  - mist, then sink it: turnToMist x {tidalWave, fireball, hook, vortex, taunt}.
+- Skill usage: turnToMist 10, tidalWave 4, and 2 each for lightningFlash, fireball, hook, vortex,
+  taunt.
+- Losing pairs, each for a named reason: two movers (heavy), a mover and a jolt (heavy, dry), fire and
+  water (they cancel), mist and a jolt (light, but nothing moves it).
 
 ## Examples
 
-### Example 1: Oil, then push
+### Example 1: Soak, then jolt
 
-**Given:** the player knows `oilFlask`, the mage knows `gust`.
-
-**When:** `win`
-
-**Then:** the player oils the crab. The mage's gust slides it off the slipway into the dock, where it
-sinks (`fell`).
-
-### Example 2: Tar, then hook across
-
-**Given:** the player knows `tarPot`, the mage knows `magnetize`.
+**Given:** the player knows `tidalWave`, the mage knows `lightningFlash`.
 
 **When:** `win`
 
-**Then:** the tar oils the crab. The mage climbs the stairs to the gantry and hooks it across the
-dock, and it falls in on the way.
+**Then:** the player's wave soaks the crab (its push does nothing to the heavy crab). The mage's
+lightning flash strikes the wet machine: it short-circuits (`dead`).
 
-### Example 3: Soak, then jolt
+### Example 2: Mist, then hook across the dock
 
-**Given:** the player knows `rainCall`, the mage knows `zap`.
-
-**When:** `win`
-
-**Then:** the rain soaks it, and the jolt short-circuits it (`dead`).
-
-### Example 4: The wave serves two roles
-
-**Given:** `tidalWave` with `chainLightning`, or `tidalWave` with `oilFlask`.
+**Given:** the player knows `turnToMist`, the mage knows `hook`.
 
 **When:** `win`
 
-**Then:** with the lightning, the wave is the soak (`dead`). With the oil, the wave is the push
-(`fell`).
+**Then:** the mage walks up to the gantry. The player turns the crab to mist; for that moment it is
+not heavy, and the mage's hook drags it across the dock. It falls in (`fell`).
+
+### Example 3: Mist, then wash it in
+
+**Given:** the player knows `tidalWave`, the mage knows `turnToMist`.
+
+**When:** `win`
+
+**Then:** the mage mists the crab; the player's wave from the quay soaks it and washes it off the
+slipway into the dock (`fell`).
+
+### Example 4: Fire, then water is steam, not a soak
+
+**Given:** the player knows `fireball`, the mage knows `tidalWave`.
+
+**When:** `win`
+
+**Then:** no plan. After the fireball, the wave only puts the fire out (`extinguish`), and the crab
+stays dry.
+
+### Example 5: A dry jolt only stuns
+
+**Given:** the player knows `lightningFlash`, the mage knows `hook`.
+
+**When:** `cast(player, lightningFlash, crab)`
+
+**Then:** the crab is stunned (`opExploit(crab, electrocuted, stunned)`), not out; the pair finds no
+plan.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
-| P2 | Ten pairs win | Exactly the ten measured pairs have a plan. |
-| P3 | Each hand matters | A pair wins whichever companion holds which half. |
-| P4 | Dry jolt, dry push fail | zap + gust (dry, unoiled) and tidalWave + magnetize (wet but not oiled) find no plan. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
+| P2 | Six pairs win, in either hand | Exactly the six measured pairs have a plan, whichever companion holds which half. |
+| P3 | The mist lasts one cast | Mist, a wasted wave, then a wave from the quay: the crab is heavy again and stays put. |
+| P4 | Heavy stops every mover | A hook on the heavy crab drags the caster to it; hook + vortex and fireball + taunt find no plan. |

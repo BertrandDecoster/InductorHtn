@@ -1,33 +1,35 @@
 % Slipway (elemental chemistry)
 %
 % A clockwork crab, a heavy machine, squats on the slipway above the
-% flooded dock. It is too heavy to shift and its shell shrugs off a dry
-% jolt. Two companions, one skill each, from a pool of eight.
+% flooded dock. It is too heavy to shift, and a dry jolt only stuns it. It
+% cannot swim (this level: weakness(crab, deepWater, none, fell)). Two
+% companions, one skill each, from a pool of seven.
 %
 %   quay (player, mage) --- slipway (crab) --- berth
 %     |                        |
-%   stairs                    dock    (deepWater: the heavy sink)
+%   stairs                    dock    (deepWater)
 %     |
 %   gantry     (across the dock, facing the slipway)
 %
 % Obstacles:
-%   heavy      immune to forced movement: no push or pull moves it dry
+%   heavy      no push or pull moves it (Hook drags the caster to it)
 %   machine    a jolt on a dry machine only stuns it
 %
 % Methods (each needs two different companions):
-%   short it   soak it (rainCall, tidalWave), then jolt it (zap,
-%              chainLightning): a wet machine short-circuits (dead)
-%   slide it   oil it (oilFlask, tarPot): an oiled heavy thing slides
-%              (this level: suspends(oiled, forcedMove)); then move it
-%              into the dock - push it from the quay (gust, tidalWave) or
-%              hook it across the dock from the gantry (magnetize). The
-%              heavy crab sinks (fell)
+%   short it   soak it (tidalWave), then jolt it (lightningFlash): a wet
+%              machine short-circuits (dead)
+%   sink it    turn it to mist (turnToMist: for a moment it is not heavy),
+%              and on the very next cast move it into the dock: a push from
+%              the quay (tidalWave, fireball), a pull-in on the dock
+%              (vortex), or a drag across the dock from the gantry (hook,
+%              taunt): it falls in (fell)
 %
 % Traps:
-%   a jolt first only stuns it; soaking after that is too late for that
-%   jolt. tidalWave on a dry, unoiled crab soaks it but its push does
-%   nothing. magnetize on the unoiled crab drags the caster to it instead.
-%   Oil on a soaked crab still slides; water does not wash the oil off.
+%   the mist lasts one cast: any other cast before the move, and it is
+%   heavy again. A jolt first only stuns it. Fire, then water: the water
+%   only puts the fire out (extinguish), it is not soaked; water, then
+%   fire: the fire only dries it (steam). A hook or a taunt from the quay
+%   drags the misted crab to the quay, not into the water.
 
 % === Regions ===
 region(quay).
@@ -40,12 +42,16 @@ connected(quay, slipway).
 connected(slipway, quay).
 connected(slipway, berth).
 connected(berth, slipway).
+connected(slipway, dock).
+connected(dock, slipway).
 connected(quay, stairs).
 connected(stairs, quay).
 connected(stairs, gantry).
 connected(gantry, stairs).
 lineOfSight(quay, slipway).
+lineOfSight(quay, dock).
 lineOfSight(gantry, slipway).
+lineOfSight(gantry, dock).
 
 % Push lines: from the quay, the slipway falls into the dock; from the
 % gantry, the dock lies between it and the slipway.
@@ -55,8 +61,6 @@ beyond(gantry, dock, slipway).
 % === Zones ===
 onEnter(dock, deepWater).
 
-% === Level physics: oil makes the heavy slide ===
-suspends(oiled, forcedMove).
 
 % === Companions ===
 role(player, player).
@@ -66,31 +70,31 @@ at(mage, quay).
 mana(player, 4).
 mana(mage, 4).
 
-% === Enemy ===
+% === Enemy: a clockwork crab; it cannot swim ===
 role(crab, enemy).
 at(crab, slipway).
-trait(crab, machine).
-trait(crab, heavy).
+tag(crab, machine).
+tag(crab, heavy).
+weakness(crab, deepWater, none, fell).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, oilFlask).
-knows(mage, gust).
+knows(player, tidalWave).
+knows(mage, lightningFlash).
 
 win :- if(), do(neutralize(crab)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(rainCall).
 comboPool(tidalWave).
-comboPool(zap).
-comboPool(chainLightning).
-comboPool(oilFlask).
-comboPool(tarPot).
-comboPool(gust).
-comboPool(magnetize).
+comboPool(lightningFlash).
+comboPool(turnToMist).
+comboPool(fireball).
+comboPool(hook).
+comboPool(vortex).
+comboPool(taunt).
 comboMinWins(4).
 comboMinMethods(3).
 
