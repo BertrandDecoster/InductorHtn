@@ -2,65 +2,60 @@
 %
 % A clockwork crab, a heavy machine, squats on the slipway above the
 % flooded dock. It is too heavy to shift, and a dry jolt only stuns it. It
-% cannot swim (this level: weakness(crab, deepWater, none, fell)). Two
-% companions, one skill each, from a pool of seven.
+% cannot swim, heavy or not (this level: weakness(crab, deepWater, none,
+% fell)). The dock is deep water at the slipway's edge (a feature); across
+% the dock channel (a gap) stands the gantry; the berth beside the slipway
+% is awash (a puddle zone). Two companions, one skill each, from a pool of
+% eight.
 %
-%   quay (player, mage) --- slipway (crab) --- berth
-%     |                        |
-%   stairs                    dock    (deepWater)
-%     |
-%   gantry     (across the dock, facing the slipway)
+%   quay (player, mage) ---- slipway (crab; dock) ---- berth (puddle)
+%     |                         :
+%   gantry ....... gap .........:
+%
+%   sight: quay->slipway, quay->berth, berth->slipway, gantry->slipway
 %
 % Obstacles:
-%   heavy      no push or pull moves it (Hook drags the caster to it)
+%   heavy      nothing knocks or pulls it (a hook drags the caster to it)
 %   machine    a jolt on a dry machine only stuns it
 %
-% Methods (each needs two different companions):
-%   short it   soak it (tidalWave), then jolt it (lightningFlash): a wet
-%              machine short-circuits (dead)
-%   sink it    turn it to mist (turnToMist: for a moment it is not heavy),
-%              and on the very next cast move it into the dock: a push from
-%              the quay (tidalWave, fireball), a pull-in on the dock
-%              (vortex), or a drag across the dock from the gantry (hook,
-%              taunt): it falls in (fell)
+% Methods (one companion each half):
+%   short it   soak it, then jolt it: a wave in the slipway (tidalWave), or
+%              lure it through the flooded berth (taunt from the berth: it
+%              walks in and is soaked); then lightning from next door
+%              (lightningFlash) or a flash beside it (blindingFlash - the
+%              wave and the flash together are a one-area short circuit)
+%   sink it    turn it to mist (turnToMist: for one cast it is not heavy),
+%              and on the very next cast knock it into the dock (fireball,
+%              tidalWave, shieldBash, a vortex on the dock), or hook it from
+%              the gantry across the channel: it falls in
 %
 % Traps:
-%   the mist lasts one cast: any other cast before the move, and it is
-%   heavy again. A jolt first only stuns it. Fire, then water: the water
-%   only puts the fire out (extinguish), it is not soaked; water, then
-%   fire: the fire only dries it (steam). A hook or a taunt from the quay
-%   drags the misted crab to the quay, not into the water.
+%   the mist lasts one cast: any other cast first, and it is heavy again.
+%   A jolt first only stuns it. Fire, then water: the water only puts the
+%   fire out, it is not soaked; water, then fire: the fire dries it
+%   (steam). A misted crab hooked from the berth lands in the puddle (wet,
+%   not sunk). Taunted from the gantry, it walks round by the quay: a lure
+%   moves it, but never into the water.
+%   The flash shocks friends too: a companion standing in the wave is
+%   soaked and jolted with it.
 
-% === Regions ===
+% === Areas ===
 region(quay).
 region(slipway).
 region(berth).
-region(dock).
-region(stairs).
 region(gantry).
 connected(quay, slipway).
-connected(slipway, quay).
 connected(slipway, berth).
-connected(berth, slipway).
-connected(slipway, dock).
-connected(dock, slipway).
-connected(quay, stairs).
-connected(stairs, quay).
-connected(stairs, gantry).
-connected(gantry, stairs).
+connected(quay, gantry).
+gap(gantry, slipway).
 lineOfSight(quay, slipway).
-lineOfSight(quay, dock).
+lineOfSight(quay, berth).
+lineOfSight(berth, slipway).
 lineOfSight(gantry, slipway).
-lineOfSight(gantry, dock).
 
-% Push lines: from the quay, the slipway falls into the dock; from the
-% gantry, the dock lies between it and the slipway.
-beyond(quay, slipway, dock).
-beyond(gantry, dock, slipway).
-
-% === Zones ===
-onEnter(dock, deepWater).
-
+% === Terrain ===
+feature(slipway, dock, deepWater).
+onEnter(berth, puddle).
 
 % === Companions ===
 role(player, player).
@@ -85,11 +80,12 @@ win :- if(), do(neutralize(crab)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from seven (htn_components combos) ===
+% === Choice: one skill each, from eight (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
 comboPool(tidalWave).
 comboPool(lightningFlash).
+comboPool(blindingFlash).
 comboPool(turnToMist).
 comboPool(fireball).
 comboPool(hook).

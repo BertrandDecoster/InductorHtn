@@ -2,7 +2,7 @@
   "name": "chem_wetwood",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Wet Wood: a soaked treant; bring the oiled keg in and set it off, set the grove alight first, or mist it and blow it into the kiln",
+  "description": "Wet Wood: a soaked treant only steams. Hook the oil keg down to it, or lure it through the slick beside the keg, then set the oil off (fire, a spark, the kiln); or mist it and blast it into the kiln",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,40 +12,42 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:12:03.610340"
+    "last_checked": "2026-09-24T20:19:11.998364"
   },
   "provides": [
     "at/2",
-    "beyond/3",
     "blazeBeside/1",
-    "bringAs/3",
-    "bringIn/3",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
+    "feature/3",
     "funExpect/3",
-    "igniteFuel/2",
-    "intoTheFire/1",
+    "immune/2",
+    "intoTheKiln/1",
     "knows/2",
     "lineOfSight/2",
+    "lureOntoOil/1",
     "mana/2",
     "onEnter/2",
     "reaction/3",
     "region/1",
     "role/2",
     "setAlight/2",
+    "setOff/2",
     "tag/2",
     "win/0"
   ],
   "requires": [
+    "bringTo/3",
     "cast/3",
     "castFrom/4",
+    "confirmHas/2",
     "confirmStopped/1",
     "ensureOff/2",
     "inflict/3",
-    "neutralize/1",
-    "place/3"
+    "knockOn/3",
+    "placeAs/3"
   ]
 }
