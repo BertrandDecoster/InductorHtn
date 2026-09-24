@@ -1,0 +1,473 @@
+% ab_catalog - the standard tags and skills
+%
+% Data for the ability layer. Three kinds of tag:
+%   atomic      one meaning each (blinded: no basic attack; silenced: no
+%               skills; rooted: no moving; slowed: no dashing;
+%               uncontrolledMove: it moves, but not where it chooses; wet,
+%               oiled, burning, electrocuted: what elements leave behind;
+%               taunted; wakeOnHit; and the buffs stealthed, shielded,
+%               hasted, armored, invulnerable)
+%   composite   a named bundle of atoms (stunned = blinded + silenced +
+%               rooted; chilled = wet + slowed; ...)
+%   outcome     dead, frozen, fell - never granted by a skill. Only an
+%               enemy's own weakness, or a hazard it is weak to, produces one.
+%   look        appearance(?look, ?tag): a status that plays exactly like a
+%               catalogue tag and only looks different (petrified is a
+%               stun). The runtime draws the look; the planner sees the tag.
+%
+% Nothing here kills in general. A combo is deadly because of who it lands
+% on: weakness(?e, ?in, ?have, ?out) says this enemy, taking ?in while
+% carrying ?have (or `none`), gets ?out. Archetype rules at the bottom give
+% the usual ones (a machine short-circuits; a fire elemental freezes solid).
+%
+% Skills do no damage: damage is incremental, and this layer is about the
+% combos. Each skill lands several tags, or a tag and a movement.
+%
+% The component's tests hold the catalogue to two rules: every tag is
+% applicable by at least two skills, and every tag does something.
+
+% === Atomic tags ===
+
+forbids(blinded, attack).
+forbids(silenced, skill).
+forbids(rooted, move).
+forbids(rooted, dash).
+forbids(slowed, dash).
+forbids(uncontrolledMove, move).
+forbids(uncontrolledMove, dash).
+% What cannot see cannot keep watch.
+forbids(blinded, watch).
+
+% Taunted: fixated on its taunter - drawn to it, and too angry to be afraid.
+onGrant(taunted, pull).
+wards(taunted, feared).
+
+wards(stealthed, targeted).
+wards(invulnerable, hostile).
+wards(armored, forcedMove).
+wards(hasted, slowed).
+
+% === Composites ===
+
+bundles(stunned, blinded).
+bundles(stunned, silenced).
+bundles(stunned, rooted).
+
+bundles(asleep, blinded).
+bundles(asleep, silenced).
+bundles(asleep, rooted).
+bundles(asleep, wakeOnHit).
+
+% Feared: will not fight, and runs from whoever frightened it.
+bundles(feared, blinded).
+bundles(feared, silenced).
+bundles(feared, uncontrolledMove).
+onGrant(feared, push).
+
+bundles(chilled, wet).
+bundles(chilled, slowed).
+
+% Charmed: will not fight you, until you hit it.
+bundles(charmed, blinded).
+bundles(charmed, silenced).
+bundles(charmed, wakeOnHit).
+
+% Confused: swings at nothing and stumbles about, until a blow brings it
+% round.
+bundles(confused, blinded).
+bundles(confused, uncontrolledMove).
+bundles(confused, wakeOnHit).
+
+% Berserk: basic attacks only, and nothing frightens or charms it.
+bundles(berserk, silenced).
+wards(berserk, feared).
+wards(berserk, charmed).
+
+% Polymorphed: feared, but a sheep - far slower.
+bundles(polymorphed, blinded).
+bundles(polymorphed, silenced).
+bundles(polymorphed, uncontrolledMove).
+bundles(polymorphed, slowed).
+
+% === Groups ===
+
+group(dead, gone).
+group(frozen, gone).
+group(fell, gone).
+
+group(blinded, hostile).
+group(silenced, hostile).
+group(rooted, hostile).
+group(slowed, hostile).
+group(wet, hostile).
+group(oiled, hostile).
+group(burning, hostile).
+group(electrocuted, hostile).
+group(taunted, hostile).
+group(uncontrolledMove, hostile).
+group(stunned, hostile).
+group(asleep, hostile).
+group(feared, hostile).
+group(chilled, hostile).
+group(charmed, hostile).
+group(confused, hostile).
+group(berserk, hostile).
+group(polymorphed, hostile).
+
+group(stealthed, buff).
+group(shielded, buff).
+group(hasted, buff).
+group(armored, buff).
+group(invulnerable, buff).
+
+% A guard comes off before anything else can land.
+group(stealthed, guard).
+group(shielded, guard).
+group(invulnerable, guard).
+
+% What a boss shrugs off, and what the mindless do.
+group(stunned, hardControl).
+group(asleep, hardControl).
+group(feared, hardControl).
+group(charmed, hardControl).
+group(confused, hardControl).
+group(berserk, hardControl).
+group(polymorphed, hardControl).
+group(asleep, mind).
+group(feared, mind).
+group(charmed, mind).
+group(confused, mind).
+group(berserk, mind).
+
+hostile(?t) :- group(?t, hostile).
+
+% === Reactions: what meets what, for everyone ===
+
+% A shield takes the next hostile tag; a blow wakes the sleeping, breaks a
+% charm, clears a head.
+reaction(shielded, hostile, absorb).
+effect(absorb, target, remove(shielded)).
+reaction(wakeOnHit, hostile, wake).
+effect(wake, target, remove(asleep)).
+effect(wake, target, remove(charmed)).
+effect(wake, target, remove(confused)).
+
+% Water and fire put each other out; cold thaws in fire; oil spreads it.
+reaction(wet, burning, steam).
+effect(steam, target, remove(wet)).
+reaction(burning, wet, extinguish).
+effect(extinguish, target, remove(burning)).
+reaction(chilled, burning, thaw).
+effect(thaw, target, remove(chilled)).
+effect(thaw, target, grant(wet)).
+reaction(burning, chilled, quench).
+effect(quench, target, remove(burning)).
+reaction(oiled, burning, blaze).
+reaction(burning, oiled, blaze).
+effect(blaze, target, remove(oiled)).
+effect(blaze, target, grant(burning)).
+effect(blaze, area, grant(burning)).
+
+% Haste undoes a slow (and a slow is refused while hasted).
+reaction(slowed, hasted, quicken).
+effect(quicken, target, remove(slowed)).
+
+% === Looks: same play, different appearance ===
+
+appearance(petrified, stunned).
+appearance(paralyzed, stunned).
+appearance(knockedUp, stunned).
+appearance(knockedDown, stunned).
+appearance(disarmed, blinded).
+appearance(nearsighted, blinded).
+appearance(webbed, slowed).
+appearance(crippled, slowed).
+appearance(snared, rooted).
+appearance(entangled, rooted).
+appearance(netted, rooted).
+appearance(drenched, wet).
+appearance(frostbitten, chilled).
+appearance(ignited, burning).
+appearance(shocked, electrocuted).
+appearance(terrified, feared).
+appearance(fleeing, feared).
+appearance(hexed, polymorphed).
+appearance(toad, polymorphed).
+appearance(sheep, polymorphed).
+appearance(drowsy, asleep).
+appearance(dazed, confused).
+appearance(drunk, confused).
+appearance(enraged, berserk).
+appearance(frenzied, berserk).
+appearance(infatuated, charmed).
+appearance(provoked, taunted).
+appearance(invisible, stealthed).
+appearance(camouflaged, stealthed).
+appearance(warded, shielded).
+appearance(barkskin, armored).
+appearance(ironclad, armored).
+appearance(swift, hasted).
+appearance(untouchable, invulnerable).
+
+% === Zones (a level places them with onEnter/2; skills spill them) ===
+
+effect(puddle, target, grant(wet)).
+effect(slick, target, grant(oiled)).
+effect(flames, target, grant(burning)).
+effect(iceSheet, target, grant(chilled)).
+effect(tar, target, grant(oiled)).
+effect(tar, target, grant(slowed)).
+effect(shadows, target, grant(stealthed)).
+effect(chasm, target, hazard(chasm)).
+effect(lava, target, hazard(lava)).
+effect(deepWater, target, grant(wet)).
+effect(deepWater, target, hazard(deepWater)).
+
+hazardType(chasm).
+hazardType(lava).
+hazardType(deepWater).
+
+% === Archetypes: who is weak to what ===
+
+% Contractual boss immunity: no hard control. The atoms still land.
+immune(?e, ?t) :- rank(?e, boss), group(?t, hardControl).
+immune(?e, ?t) :- trait(?e, mindless), group(?t, mind).
+
+% Anything that walks falls; anything not made of fire burns in lava; the
+% heavy sink.
+weakness(?e, chasm, none, fell) :- not(trait(?e, flier)).
+weakness(?e, lava, none, fell) :- not(trait(?e, flier)), not(element(?e, fire)).
+weakness(?e, deepWater, none, fell) :- trait(?e, heavy).
+immune(?e, forcedMove) :- trait(?e, heavy).
+
+% Machines: a jolt stuns them; soaked first, they short-circuit.
+weakness(?e, electrocuted, wet, dead) :- trait(?e, machine).
+weakness(?e, electrocuted, none, stunned) :- trait(?e, machine).
+immune(?e, ?t) :- trait(?e, machine), group(?t, mind).
+% The living: soaked and jolted, they seize up.
+weakness(?e, electrocuted, wet, stunned) :- trait(?e, living).
+% Things of fire freeze solid; water creatures are all conductor.
+weakness(?e, chilled, none, frozen) :- element(?e, fire).
+immune(?e, burning) :- element(?e, fire).
+weakness(?e, electrocuted, none, dead) :- element(?e, water).
+immune(?e, wet) :- element(?e, water).
+% Cold-blooded insects freeze; wood burns.
+weakness(?e, chilled, none, frozen) :- trait(?e, insect).
+weakness(?e, burning, none, dead) :- trait(?e, wooden).
+
+% === Skills ===
+% Every skill is a `skill` for silence; a dash is also a `dash`.
+
+kind(?ab, skill) :- reach(?ab, ?r).
+
+% -- fire and water
+% The impact region catches fire - everyone in it burns and it stays a
+% fire zone - and the target is thrown out of it.
+reach(fireball, ranged).
+manaCost(fireball, 2).
+effect(fireball, target, spill(flames)).
+effect(fireball, target, push).
+
+reach(flameWall, ranged).
+effect(flameWall, target, spill(flames)).
+
+reach(tidalWave, ranged).
+manaCost(tidalWave, 2).
+effect(tidalWave, target, spill(puddle)).
+effect(tidalWave, area, push).
+
+reach(rainCall, ranged).
+effect(rainCall, target, spill(puddle)).
+
+% -- cold
+reach(frostBolt, ranged).
+effect(frostBolt, target, grant(chilled)).
+
+reach(iceStorm, ranged).
+manaCost(iceStorm, 2).
+effect(iceStorm, target, spill(iceSheet)).
+
+reach(glaciate, ranged).
+effect(glaciate, target, spill(iceSheet)).
+
+% -- lightning
+reach(zap, ranged).
+effect(zap, target, grant(electrocuted)).
+
+% Become the lightning: everyone between you and where you land is struck,
+% and so is whoever stands there.
+reach(lightningFlash, ranged).
+manaCost(lightningFlash, 2).
+effect(lightningFlash, path, grant(electrocuted)).
+effect(lightningFlash, target, grant(electrocuted)).
+effect(lightningFlash, target, dash).
+
+reach(chainLightning, ranged).
+manaCost(chainLightning, 2).
+effect(chainLightning, area, grant(electrocuted)).
+
+% -- oil and tar
+reach(oilFlask, ranged).
+effect(oilFlask, area, grant(oiled)).
+
+reach(tarPot, ranged).
+effect(tarPot, target, spill(tar)).
+
+% -- force
+reach(gust, ranged).
+effect(gust, target, push).
+effect(gust, target, remove(burning)).
+
+% A hook: a light target is dragged in (across a pit, it falls in); an
+% anchored one drags you to it.
+reach(magnetize, ranged).
+effect(magnetize, target, hook).
+effect(magnetize, target, grant(slowed)).
+
+% Swap places, and leave it reeling.
+reach(translocate, ranged).
+effect(translocate, target, swap).
+effect(translocate, target, grant(confused)).
+
+% Dashes that land with something.
+reach(charge, ranged).
+kind(charge, dash).
+effect(charge, target, dash).
+effect(charge, target, grant(stunned)).
+effect(charge, target, push).
+
+reach(pounce, ranged).
+kind(pounce, dash).
+effect(pounce, target, dash).
+effect(pounce, target, grant(rooted)).
+
+reach(shadowStep, ranged).
+effect(shadowStep, target, dash).
+effect(shadowStep, self, grant(stealthed)).
+
+reach(shieldBash, melee).
+effect(shieldBash, target, grant(stunned)).
+effect(shieldBash, target, push).
+
+reach(thunderclap, melee).
+once(thunderclap).
+effect(thunderclap, area, grant(stunned)).
+effect(thunderclap, area, push).
+
+reach(collapse, ranged).
+once(collapse).
+effect(collapse, target, spill(chasm)).
+
+reach(magmaBurst, ranged).
+once(magmaBurst).
+effect(magmaBurst, target, spill(lava)).
+
+% -- snares
+reach(net, ranged).
+effect(net, target, grant(rooted)).
+effect(net, target, grant(blinded)).
+
+reach(entangle, ranged).
+effect(entangle, area, grant(rooted)).
+
+% -- the mind
+reach(lullaby, ranged).
+effect(lullaby, area, grant(asleep)).
+
+reach(sleepDart, ranged).
+effect(sleepDart, target, grant(asleep)).
+
+reach(roar, melee).
+effect(roar, area, grant(feared)).
+
+reach(terrify, ranged).
+effect(terrify, target, grant(feared)).
+
+reach(taunt, ranged).
+effect(taunt, target, grant(taunted)).
+
+reach(provoke, melee).
+effect(provoke, area, grant(taunted)).
+
+reach(charm, ranged).
+effect(charm, target, grant(charmed)).
+
+reach(enthrall, ranged).
+once(enthrall).
+effect(enthrall, area, grant(charmed)).
+
+reach(confuse, ranged).
+effect(confuse, target, grant(confused)).
+
+reach(concuss, melee).
+effect(concuss, target, grant(confused)).
+effect(concuss, target, push).
+
+reach(enrage, ranged).
+effect(enrage, target, grant(berserk)).
+
+reach(bloodlust, self).
+effect(bloodlust, self, grant(berserk)).
+effect(bloodlust, self, grant(hasted)).
+
+reach(hex, ranged).
+effect(hex, target, grant(polymorphed)).
+
+reach(toadCurse, ranged).
+once(toadCurse).
+effect(toadCurse, area, grant(polymorphed)).
+
+% -- sight
+reach(smokeBomb, ranged).
+effect(smokeBomb, area, grant(blinded)).
+effect(smokeBomb, self, grant(stealthed)).
+
+reach(flashbang, ranged).
+effect(flashbang, area, grant(blinded)).
+effect(flashbang, area, remove(stealthed)).
+
+reach(vanish, self).
+effect(vanish, self, grant(stealthed)).
+
+% -- protection
+reach(barrier, ranged).
+effect(barrier, target, grant(shielded)).
+
+reach(aegis, self).
+effect(aegis, self, grant(shielded)).
+effect(aegis, self, grant(armored)).
+
+reach(stoneSkin, self).
+effect(stoneSkin, self, grant(armored)).
+effect(stoneSkin, self, grant(rooted)).
+
+reach(divineShield, ranged).
+once(divineShield).
+effect(divineShield, target, grant(invulnerable)).
+
+reach(iceBlock, self).
+once(iceBlock).
+effect(iceBlock, self, grant(invulnerable)).
+effect(iceBlock, self, grant(rooted)).
+
+reach(haste, ranged).
+effect(haste, target, grant(hasted)).
+
+% Only the hasted can blitz: dash in, and scatter everyone there.
+reach(blitz, ranged).
+kind(blitz, dash).
+requires(blitz, caster, hasted).
+effect(blitz, target, dash).
+effect(blitz, area, push).
+effect(blitz, target, grant(slowed)).
+
+% -- removal
+reach(dispel, ranged).
+effect(dispel, target, purge(buff)).
+
+reach(cleanse, ranged).
+effect(cleanse, target, purge(hostile)).
+
+reach(sunder, melee).
+effect(sunder, target, remove(armored)).
+effect(sunder, target, remove(shielded)).

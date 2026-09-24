@@ -1,0 +1,92 @@
+% ab_casting - who may use an ability, from where, at what cost
+%
+% GAS activation gates on the caster and the target, and costs, as facts:
+%   knows(?a, ?ab)                     the loadout - what a level varies
+%   reach(?ab, self|melee|ranged)      melee: same region; ranged: line of sight
+%   requires(?ab, caster|target, ?t)   must carry ?t
+%   blockedBy(?ab, caster|target, ?t)  must not carry ?t (hammer: tired)
+%   manaCost(?ab, ?n) + mana(?a, ?m)   paid with a fluent
+%   once(?ab)                          one use per encounter; spent(?a, ?ab)
+%   kind(?ab, spell|attack|dash)       what a forbidding tag checks; a ranged
+%                                      ability is also of kind `ranged`
+%
+% A tag the caster carries can forbid a kind (silenced: spell; disarmed:
+% attack; blinded: ranged; stunned: any). A target whose tags ward
+% `targeted` (stealthed) cannot be aimed at - only reached by an area
+% effect or a zone. An ability may be aimed at a region.
+%
+% Anyone can cast anything they know - the player character, an AI
+% companion, an NPC. Nothing here gates on role(?a, player).
+
+% === Operators ===
+
+opCast(?a, ?ab, ?e) :-
+    del(), add().
+
+opSpendMana(?a, ?n) :-
+    decrease(mana(?a), ?n).
+
+opUseUp(?a, ?ab) :-
+    del(), add(spent(?a, ?ab)).
+
+% === Rules ===
+
+% Any reason ?a cannot use ?ab on ?e right now.
+unmet(?a, ?ab, ?e) :- requires(?ab, caster, ?t), not(has(?a, ?t)).
+unmet(?a, ?ab, ?e) :- requires(?ab, target, ?t), not(has(?e, ?t)).
+unmet(?a, ?ab, ?e) :- blockedBy(?ab, caster, ?t), has(?a, ?t).
+unmet(?a, ?ab, ?e) :- blockedBy(?ab, target, ?t), has(?e, ?t).
+unmet(?a, ?ab, ?e) :- spent(?a, ?ab).
+unmet(?a, ?ab, ?e) :- manaCost(?ab, ?n), not(mana(?a, ?m)).
+unmet(?a, ?ab, ?e) :- manaCost(?ab, ?n), mana(?a, ?m), <(?m, ?n).
+unmet(?a, ?ab, ?e) :- kindOf(?ab, ?k), forbidden(?a, ?k).
+unmet(?a, ?ab, ?e) :- \==(?a, ?e), not(region(?e)), not(receptive(?e, targeted)).
+
+kindOf(?ab, ?k) :- kind(?ab, ?k).
+kindOf(?ab, ranged) :- reach(?ab, ranged).
+
+ready(?a, ?ab, ?e) :-
+    knows(?a, ?ab), not(gone(?a)), not(gone(?e)), not(unmet(?a, ?ab, ?e)).
+
+% Where ?a can use ?ab on something in ?r from: melee is the same region or
+% the next one (a blocker holding a doorway can still be hit); ranged needs
+% line of sight. It prefers staying put, then any region it can walk to.
+inRange(melee, ?from, ?r) :- =(?from, ?r).
+inRange(melee, ?from, ?r) :- connected(?from, ?r).
+inRange(ranged, ?from, ?r) :- canTarget(?from, ?r).
+spot(?a, ?ab, ?r, ?from) :- reach(?ab, self), at(?a, ?from).
+spot(?a, ?ab, ?r, ?from) :- reach(?ab, ?k), \==(?k, self), at(?a, ?from), inRange(?k, ?from, ?r).
+spot(?a, ?ab, ?r, ?from) :-
+    reach(?ab, ?k), \==(?k, self), at(?a, ?cur), region(?from), inRange(?k, ?from, ?r),
+    canReach(?a, ?cur, ?from).
+
+% === Methods ===
+%
+% No `else`: each cost branch negates the other, so backtracking can never
+% pick the free branch of something that has a cost.
+
+% ?a uses ?ab on ?e from wherever it reaches.
+cast(?a, ?ab, ?e) :-
+    if(canAct(?a), ready(?a, ?ab, ?e), locus(?e, ?r), first(spot(?a, ?ab, ?r, ?from))),
+    do(castFrom(?a, ?ab, ?e, ?from)).
+
+% ?a uses ?ab on ?e from a chosen region (a push needs the right side).
+castFrom(?a, ?ab, ?e, ?from) :-
+    if(canAct(?a), ready(?a, ?ab, ?e)),
+    do(walkTo(?a, ?from), useAbility(?a, ?ab, ?e)).
+
+% Gates are checked again once there: walking may have changed the caster.
+useAbility(?a, ?ab, ?e) :-
+    if(ready(?a, ?ab, ?e), reach(?ab, ?k), at(?a, ?from), locus(?e, ?r), inRange(?k, ?from, ?r)),
+    do(payMana(?a, ?ab), useUp(?a, ?ab), opCast(?a, ?ab, ?e),
+       applyAbility(?a, ?ab, ?e, react)).
+useAbility(?a, ?ab, ?a) :-
+    if(ready(?a, ?ab, ?a), reach(?ab, self)),
+    do(payMana(?a, ?ab), useUp(?a, ?ab), opCast(?a, ?ab, ?a),
+       applyAbility(?a, ?ab, ?a, react)).
+
+payMana(?a, ?ab) :- if(manaCost(?ab, ?n)), do(opSpendMana(?a, ?n)).
+payMana(?a, ?ab) :- if(not(manaCost(?ab, ?n))), do().
+
+useUp(?a, ?ab) :- if(once(?ab)), do(opUseUp(?a, ?ab)).
+useUp(?a, ?ab) :- if(not(once(?ab))), do().

@@ -1,0 +1,95 @@
+% passage - getting everyone through: around, over, or by moving what is in
+% the way
+%
+% The movement recipes. A level lays out its route with progress(?r, ?n)
+% (higher is further along) and names its obstacles; these recipes say how
+% each kind is overcome, each in several ways:
+%
+%   reach(?a, ?r)   walk; or leap forward and carry on - a dash or a blink to
+%                   a region, a hook to something anchored there, a swap with
+%                   someone standing there, or an ally who swaps you forward
+%   openWay(?d)     a door opens for good when something weighs down its
+%                   plate: someone walks on, or something is pushed, pulled or
+%                   swapped on
+%   span(?g)        a gap is bridged by pushing something that fills it into
+%                   it (one push, or two), or dragging it in across the gap -
+%                   or left, for everyone to cross on their own
+%   clear(?e)       a blocker is dropped into a hazard, moved out of its
+%                   doorway, or left for everyone to get past
+%
+% Leaps only go forward along the route, so every decomposition ends.
+
+% === Rules ===
+
+selfMover(?ab) :- effect(?ab, target, dash).
+anchorHook(?ab) :- effect(?ab, target, hook).
+swapper(?ab) :- effect(?ab, target, swap).
+ahead(?from, ?to) :- progress(?from, ?n1), progress(?to, ?n2), >(?n2, ?n1).
+
+% ?a lands at ?land by casting ?ab at ?aim from ?from, a region it can walk
+% to. Cheap tests first; the route search last.
+leap(?a, ?ab, ?from, ?land, ?land) :-
+    knows(?a, ?ab), selfMover(?ab), reach(?ab, ?k), at(?a, ?cur), progress(?land, ?n),
+    ahead(?cur, ?land), progress(?from, ?m), inRange(?k, ?from, ?land),
+    ready(?a, ?ab, ?land), canReach(?a, ?cur, ?from).
+leap(?a, ?ab, ?from, ?x, ?land) :-
+    knows(?a, ?ab), anchorHook(?ab), reach(?ab, ?k), at(?a, ?cur), at(?x, ?land),
+    anchoredAgainst(?x), ahead(?cur, ?land), progress(?from, ?m), inRange(?k, ?from, ?land),
+    ready(?a, ?ab, ?x), canReach(?a, ?cur, ?from).
+leap(?a, ?ab, ?from, ?x, ?land) :-
+    knows(?a, ?ab), swapper(?ab), reach(?ab, ?k), at(?a, ?cur), at(?x, ?land), \==(?x, ?a),
+    ahead(?cur, ?land), not(anchoredAgainst(?x)), progress(?from, ?m),
+    inRange(?k, ?from, ?land), ready(?a, ?ab, ?x), canReach(?a, ?cur, ?from).
+
+% ?b, standing ahead at ?land, swaps ?a forward to it.
+ferry(?a, ?b, ?ab, ?land) :-
+    canAct(?b), \==(?b, ?a), knows(?b, ?ab), swapper(?ab), at(?b, ?land), at(?a, ?cur),
+    ahead(?cur, ?land), reach(?ab, ?k), inRange(?k, ?land, ?cur), ready(?b, ?ab, ?a).
+
+% The plate of a door; something that fills a gap.
+plateOf(?p, ?d) :- onEnter(?p, ?z), effect(?z, target, open(?d)).
+filler(?x) :- trait(?x, filler), not(gone(?x)).
+
+% === Methods ===
+
+reach(?a, ?r) :- if(), do(reachWithin(?a, ?r, 2)).
+
+reachWithin(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
+reachWithin(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), leap(?a, ?ab, ?from, ?aim, ?land), is(?m, -(?n, 1))),
+    do(castFrom(?a, ?ab, ?aim, ?from), reachWithin(?a, ?r, ?m)).
+reachWithin(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), ferry(?a, ?b, ?ab, ?land), is(?m, -(?n, 1))),
+    do(castFrom(?b, ?ab, ?a, ?land), reachWithin(?a, ?r, ?m)).
+
+% A door that latches: already open; someone gets onto the plate; or
+% something else is put on it.
+openWay(?d) :- if(open(?d)), do().
+openWay(?d) :- if(not(open(?d)), plateOf(?p, ?d), canAct(?a)), do(reach(?a, ?p), confirmOpen(?d)).
+openWay(?d) :-
+    if(not(open(?d)), plateOf(?p, ?d), first(placement(?a, ?ab, ?from, ?x, ?p))),
+    do(castFrom(?a, ?ab, ?x, ?from), confirmOpen(?d)).
+confirmOpen(?d) :- if(open(?d)), do().
+
+% A gap: already bridged; bridged by one push; by two pushes; by a pull
+% across it; or left to be crossed one by one.
+span(?g) :- if(filled(?g)), do().
+span(?g) :- if(not(filled(?g))), do().
+span(?g) :-
+    if(not(filled(?g)), filler(?x), first(placement(?a, ?ab, ?from, ?x, ?g))),
+    do(castFrom(?a, ?ab, ?x, ?from), confirmFilled(?g)).
+span(?g) :-
+    if(not(filled(?g)), filler(?x), placement(?a, ?ab, ?from, ?x, ?mid), \==(?mid, ?g),
+       landing(?f2, ?mid, ?g)),
+    do(castFrom(?a, ?ab, ?x, ?from), place(?x, ?g, none), confirmFilled(?g)).
+span(?g) :-
+    if(not(filled(?g)), filler(?x), at(?x, ?xr), puller(?a, ?ab, ?x), between(?from, ?xr, ?g),
+       reach(?ab, ?k), inRange(?k, ?from, ?xr), canReachNow(?a, ?from)),
+    do(castFrom(?a, ?ab, ?x, ?from), confirmFilled(?g)).
+confirmFilled(?g) :- if(filled(?g)), do().
+
+% A blocker: dropped for good, moved out of its doorway, or left.
+clear(?e) :- if(neutralized(?e)), do().
+clear(?e) :- if(not(neutralized(?e))), do(neutralize(?e)).
+clear(?e) :- if(not(neutralized(?e))), do(dislodge(?e)).
+clear(?e) :- if(not(neutralized(?e))), do().

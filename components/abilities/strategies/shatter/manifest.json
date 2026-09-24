@@ -1,0 +1,25 @@
+{
+  "name": "shatter",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Soak, freeze; stop there if frozen is enough, else break it with a blunt blow",
+  "dependencies": [
+    "abilities/primitives/ab_acts"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:21:58.204303"
+  },
+  "provides": [
+    "shatter/1"
+  ],
+  "requires": [
+    "confirmStopped/1",
+    "inflict/3",
+    "strike/3",
+    "supply/3"
+  ]
+}

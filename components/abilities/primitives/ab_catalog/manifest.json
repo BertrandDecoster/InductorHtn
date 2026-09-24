@@ -1,0 +1,36 @@
+{
+  "name": "ab_catalog",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "The standard tag and skill catalogue: ~40 tags, their reactions, standard zones, ~100 skills, archetype immunities",
+  "dependencies": [
+    "abilities/primitives/ab_acts"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:49:49.526205"
+  },
+  "provides": [
+    "appearance/2",
+    "bundles/2",
+    "effect/3",
+    "forbids/2",
+    "group/2",
+    "hazardType/1",
+    "hostile/1",
+    "immune/2",
+    "kind/2",
+    "manaCost/2",
+    "onGrant/2",
+    "once/1",
+    "reach/2",
+    "reaction/3",
+    "requires/3",
+    "wards/2",
+    "weakness/4"
+  ],
+  "requires": []
+}

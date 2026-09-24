@@ -1,0 +1,22 @@
+{
+  "name": "ignite",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Oil it, then set it alight: oiled + burning, primer and pay-off differ",
+  "dependencies": [
+    "abilities/primitives/ab_acts"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:21:57.464544"
+  },
+  "provides": [
+    "ignite/1"
+  ],
+  "requires": [
+    "combo/3"
+  ]
+}

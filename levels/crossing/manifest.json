@@ -1,0 +1,42 @@
+{
+  "name": "crossing",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Crossing on the ability catalogue: a shielded adept, an armoured knight, a hidden wraith and an earth-bound boss; pick 2 of 8",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T13:28:49.124659"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "clearCrossing/0",
+    "connected/2",
+    "funBlocker/1",
+    "funBlockerGoal/2",
+    "funChoice/2",
+    "funChoiceFact/2",
+    "funChoiceSpace/2",
+    "funExpect/3",
+    "knows/2",
+    "lineOfSight/2",
+    "mana/2",
+    "onEnter/2",
+    "rank/2",
+    "region/1",
+    "role/2",
+    "tag/2",
+    "trait/2",
+    "weakness/4"
+  ],
+  "requires": [
+    "neutralize/1"
+  ]
+}

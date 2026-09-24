@@ -1,0 +1,70 @@
+% ab_tags - what an entity carries, and what it refuses
+%
+% The tag store of the ability layer. Composition, one level deep, never
+% inheritance (Dota's Hex = silenced + muted + disarmed; BG3 status groups):
+%   tag(?e, ?t)                 what was applied - the only store
+%   bundles(?composite, ?atom)  frozen bundles rooted, brittle, offBalance
+%   group(?t, ?g)               orthogonal categories: group(dead, gone)
+%   immune(?e, ?x)              ?x is a tag, a damage type or an effect kind
+%                               (forcedMove is what "heavy" means)
+%   suspends(?t, ?x)            while ?e has ?t, its immunity to ?x lapses
+%   wards(?t, ?x)               while ?e has ?t, it is immune to ?x (a flyer
+%                               does not fall; the stealthed are not targeted)
+%   forbids(?t, ?kind)          while ?e has ?t, it cannot do ?kind (spell,
+%                               attack, ranged, dash, move, or any)
+%   hostile(?t)                 the tags a `hostile` ward covers
+%   stops(?e, ?t)               ?t takes ?e out of the fight (anything in the
+%                               group `gone`; a level adds more)
+%
+% A controlled enemy is not out of the fight: a stun is a setup. Only an
+% outcome in `gone` (dead, frozen, fell) - produced by the entity's own
+% weakness or a hazard it is weak to - ends it.
+%
+% A composite's atoms are never stored: removing the composite removes them.
+% A tag has no kind. "Cannot be applied directly" is not a property of the
+% tag, it is the absence of an ability that grants it.
+
+% === Operators ===
+
+opGrant(?src, ?e, ?t) :-
+    del(), add(tag(?e, ?t)).
+
+opRemove(?src, ?e, ?t) :-
+    del(tag(?e, ?t)), add().
+
+% === Rules ===
+
+% Carries ?x, stored or bundled. Two clauses: use holds/2 inside allOf.
+has(?e, ?x) :- tag(?e, ?x).
+has(?e, ?x) :- tag(?e, ?c), bundles(?c, ?x).
+holds(?e, ?x) :- first(has(?e, ?x)).
+
+inGroup(?e, ?g) :- first(and(tag(?e, ?t), group(?t, ?g))).
+gone(?e) :- inGroup(?e, gone).
+
+% Immunity that holds right now: an innate one not lapsed by a suspending
+% tag, or one a carried tag wards.
+suspended(?e, ?x) :- first(and(suspends(?t, ?x), has(?e, ?t))).
+immuneNow(?e, ?x) :- immune(?e, ?x), not(suspended(?e, ?x)).
+immuneNow(?e, ?x) :- warded(?e, ?x).
+warded(?e, ?x) :- first(and(has(?e, ?t), wards(?t, ?x))).
+warded(?e, ?x) :- damageType(?x), first(and(has(?e, ?t), wards(?t, damage))).
+warded(?e, ?x) :- hostile(?x), first(and(has(?e, ?t), wards(?t, hostile))).
+
+% ?e cannot do ?kind: a carried tag forbids it, or forbids everything.
+forbidden(?e, ?k) :- first(and(has(?e, ?t), forbids(?t, ?k))).
+forbidden(?e, ?k) :- first(and(has(?e, ?t), forbids(?t, any))).
+
+% ?x does not land: immune to it, or to an atom it bundles.
+refuses(?e, ?x) :- immuneNow(?e, ?x).
+refuses(?e, ?x) :- bundles(?x, ?a), immuneNow(?e, ?a).
+
+% ?x can reach ?e at all (a tag, a damage type, forcedMove).
+receptive(?e, ?x) :- not(gone(?e)), not(refuses(?e, ?x)).
+
+% ?t can be added: receptive and not already stored.
+canReceive(?e, ?t) :- receptive(?e, ?t), not(tag(?e, ?t)).
+
+% Out of the fight: a stored tag that stops it. Anything gone stops.
+stops(?e, ?t) :- group(?t, gone).
+neutralized(?e) :- first(and(tag(?e, ?t), stops(?e, ?t))).

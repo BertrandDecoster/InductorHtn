@@ -1,0 +1,384 @@
+% ab_effects - what an ability does to the world
+%
+% The physics of the ability layer. Whoever acts - a companion, an NPC, a
+% hazard, a reaction - owns an ability, and an ability is a bundle of
+% effects applied in declared order:
+%   effect(?ab, target|self, ?atom)
+% where the recipient is `target`, `self` (the source), `area` (everyone
+% else in the target's region: friendly fire included) or `path` (everyone
+% in the regions between the source and the target), with a closed set of
+% atoms:
+%   grant(T)  remove(T)  purge(Group)  damage(Type)  push  pull  hook  swap
+%   dash  teleport(R)  spill(ZoneAbility)  hazard(H)  open(Door)
+% `hook` pulls a light target, or pulls the source to an anchored one (a
+% grappling hook). A pull across a live hazard the target is weak to drops
+% it there. `dash` flies over whatever lies between.
+% An ability may target a region instead of an entity: only `area`,
+% `spill` and `dash` do anything to a region.
+% and the world rules they consult:
+%   reaction(?have, ?incoming, ?ab)  ?incoming (a tag, a damage type, or
+%                                    `damage` for any damageType/1) landing
+%                                    on something that has ?have fires ability
+%                                    ?ab instead
+%   weakness(?e, ?in, ?have, ?out)   this entity, taking ?in (a tag or a
+%                                    hazard) while carrying ?have (or `none`),
+%                                    gets ?out instead: a robot electrocuted
+%                                    is stunned; an imp chilled is frozen
+%   onGrant(?t, ?atom)               storing ?t also does ?atom to the bearer
+%                                    (feared pushes it away; taunted pulls it)
+%   behavior(?npc, ?t, ?ab, ?aim)    an NPC that gains ?t casts ?ab at ?aim:
+%                                    `source` (whoever gave it ?t), `self`,
+%                                    `here` (its own region) or there(R). A
+%                                    taunted golem is dragged to its taunter,
+%                                    then discharges there. Its effects apply
+%                                    raw: weaknesses answer, reactions do not
+%   hostile(?t)                      the tags `hostile` stands for in a
+%                                    reaction or a ward (shields, wake-on-hit)
+%   vulnerable(?e, ?type)            that damage kills outright (mooks)
+%   onEnter(?r, ?ab)                 whoever arrives in ?r takes ?ab
+%   beyond(?from, ?over, ?to)        a push from ?from on ?over lands in ?to;
+%                                    it also says ?over lies between the two
+%   door(?r), open(?r)               a door region, passable once open;
+%                                    plateFor(?p, ?d): with openWhenHeld(D),
+%                                    it opens only when every plate of D is
+%                                    weighed down at once
+%   watches(?g, ?r)                  nobody walks into ?r under ?g's eyes -
+%                                    unless stealthed, or ?g cannot see
+%                                    (forbids(?t, watch): blinded, asleep...)
+%   blocker(?e)                      nobody else walks into its region
+%   trait(?e, filler)                fallen into a hazard, it fills it
+%
+% Mode is `react`, `raw` or `bare`. A tag landing in react mode meets, in
+% order: a reaction (a shield absorbs it), the bearer's own weakness, else it
+% is stored. A reaction's effects apply raw: weaknesses still answer, but no
+% further reaction fires. What a weakness produces is stored bare. So a
+% decomposition never chains, and only a weakness - a fact about that one
+% entity - produces an outcome like dead. Reactions are consulted
+% here as a filter on what just happened - never searched to plan a combo.
+% Planning combos is the job of the recipes at the top.
+%
+% Every "nothing happens" branch carries the negation of the branches before
+% it. `else` is not a cut in this engine: when a later task fails, the
+% planner backtracks into an `else` no-op, which would let a plan skip an
+% effect it finds inconvenient (a caster "forgetting" to get tired).
+
+% === Operators ===
+
+opReact(?src, ?e, ?have, ?incoming, ?ab) :-
+    del(), add().
+
+opForcedMove(?src, ?e, ?from, ?to) :-
+    del(at(?e, ?from)), add(at(?e, ?to)).
+
+opSwap(?src, ?e, ?rs, ?re) :-
+    del(at(?src, ?rs), at(?e, ?re)), add(at(?src, ?re), at(?e, ?rs)).
+
+opOpen(?src, ?d) :-
+    del(), add(open(?d)).
+
+opProvoked(?npc, ?trigger, ?ab) :-
+    del(), add().
+
+opExploit(?src, ?e, ?in, ?out) :-
+    del(), add().
+
+opDash(?a, ?from, ?to) :-
+    del(at(?a, ?from)), add(at(?a, ?to)).
+
+opSpill(?src, ?r, ?ab) :-
+    del(), add(onEnter(?r, ?ab)).
+
+% === Rules ===
+
+% Where an entity is, or a region itself.
+locus(?e, ?r) :- at(?e, ?r).
+locus(?r, ?r) :- region(?r).
+
+% A reaction to exactly ?incoming, or to any damage / any hostile tag.
+matches(?have, ?incoming, ?ab) :- reaction(?have, ?incoming, ?ab).
+matches(?have, ?incoming, ?ab) :- damageType(?incoming), reaction(?have, damage, ?ab).
+matches(?have, ?incoming, ?ab) :- hostile(?incoming), reaction(?have, hostile, ?ab).
+
+% The weakness ?incoming meets on ?e, if any: the first declared whose
+% prerequisite ?e carries.
+weakFor(?e, ?incoming, ?have, ?out) :-
+    receptive(?e, ?incoming),
+    first(and(weakness(?e, ?incoming, ?have, ?out), weakReady(?e, ?have))).
+weakReady(?e, none).
+weakReady(?e, ?have) :- \==(?have, none), has(?e, ?have).
+
+hasOnGrant(?t) :- first(onGrant(?t, ?atom)).
+hasBehavior(?e, ?t) :- first(behavior(?e, ?t, ?ab, ?aim)).
+
+% What an NPC's behaviour is aimed at.
+aimAt(?src, ?e, source, ?src).
+aimAt(?src, ?e, self, ?e).
+aimAt(?src, ?e, here, ?r) :- at(?e, ?r).
+aimAt(?src, ?e, there(?r), ?r).
+
+% The reaction ?incoming triggers on ?e, if any: the first stored tag (then
+% bundled atom) with a reaction wins, and an exact match beats `damage`.
+reactionFor(?e, ?incoming, ?have, ?ab) :-
+    receptive(?e, ?incoming),
+    first(and(has(?e, ?have), matches(?have, ?incoming, ?ab))).
+
+% That damage kills ?e outright.
+kills(?e, ?type) :- receptive(?e, ?type), vulnerable(?e, ?type), canReceive(?e, dead).
+
+% ?e cannot be moved by force: immune right now, or already out.
+anchoredAgainst(?e) :- not(receptive(?e, forcedMove)).
+
+% A push from ?from on ?over lands in exactly one place: the first line
+% declared. Planning (ab_acts placement) and physics both read this.
+landing(?from, ?over, ?to) :- region(?from), first(beyond(?from, ?over, ?to)).
+
+% Where a push from ?src sends ?e, a pull brings it, a dash takes ?src.
+pushLine(?src, ?e, ?over, ?to) :-
+    not(anchoredAgainst(?e)), at(?src, ?from), at(?e, ?over),
+    landing(?from, ?over, ?to).
+pullLine(?src, ?e, ?from, ?to) :-
+    not(anchoredAgainst(?e)), at(?src, ?to), at(?e, ?from), \==(?from, ?to).
+% Where a pull lands it: the first live hazard in between that it is weak
+% to, else at the source's feet.
+pullLand(?src, ?e, ?from, ?land) :-
+    pullLine(?src, ?e, ?from, ?to), first(and(between(?to, ?from, ?land), deadly(?e, ?land))).
+pullLand(?src, ?e, ?from, ?to) :-
+    pullLine(?src, ?e, ?from, ?to), not(first(and(between(?to, ?from, ?m), deadly(?e, ?m)))).
+swapLine(?src, ?e, ?rs, ?re) :-
+    not(anchoredAgainst(?e)), at(?src, ?rs), at(?e, ?re), \==(?rs, ?re).
+dashLine(?src, ?e, ?from, ?to) :-
+    at(?src, ?from), locus(?e, ?to), \==(?from, ?to).
+blinkLine(?e, ?r, ?from) :-
+    not(anchoredAgainst(?e)), at(?e, ?from), \==(?from, ?r).
+
+hasZone(?r) :- first(onEnter(?r, ?ab)).
+
+% Lines: ?m lies between ?x and ?y (either way round).
+between(?x, ?y, ?m) :- beyond(?x, ?m, ?y).
+between(?x, ?y, ?m) :- beyond(?y, ?m, ?x).
+
+% A hazard is live until something that fills it has fallen in.
+filled(?r) :- first(and(at(?x, ?r), trait(?x, filler), tag(?x, fell))).
+hazardAt(?r, ?h) :- onEnter(?r, ?z), effect(?z, target, hazard(?h)), not(filled(?r)).
+deadly(?e, ?r) :- first(and(hazardAt(?r, ?h), weakness(?e, ?h, none, ?o))).
+liveFor(?e, ?h) :- at(?e, ?r), not(filled(?r)).
+
+% Someone stands on the path from ?src to ?e.
+onPath(?src, ?e) :-
+    at(?src, ?from), locus(?e, ?to), first(and(between(?from, ?to, ?m), at(?x, ?m), \==(?x, ?src))).
+
+% Walking: a closed door, a blocker's region, a live hazard - none is passable.
+closedDoor(?r) :- door(?r), not(open(?r)).
+heldAgainst(?a, ?r) :- first(and(at(?e, ?r), blocker(?e), \==(?e, ?a), not(gone(?e)))).
+spotted(?a, ?r) :-
+    not(has(?a, stealthed)),
+    first(and(watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)))).
+passable(?a, ?r) :-
+    not(closedDoor(?r)), not(heldAgainst(?a, ?r)), not(deadly(?a, ?r)), not(spotted(?a, ?r)).
+% A plate is held while anything that weighs stands on it.
+plateHeld(?p) :- first(and(at(?x, ?p), not(gone(?x)), not(trait(?x, flier)))).
+allPlatesHeld(?d) :- not(first(and(plateFor(?p, ?d), not(plateHeld(?p))))).
+% Routes: iterative deepening over connected/2, at most eight steps, never
+% stepping straight back, so the first answer is a shortest walkable route.
+hop(0). hop(1). hop(2). hop(3). hop(4). hop(5). hop(6). hop(7).
+walkable(?a, ?p, ?x, ?x, ?d).
+walkable(?a, ?p, ?x, ?r, ?d) :-
+    >(?d, 0), \==(?x, ?r), connected(?x, ?m), \==(?m, ?p), passable(?a, ?m),
+    is(?d1, -(?d, 1)), walkable(?a, ?x, ?m, ?r, ?d1).
+% The first step of a shortest route to ?r.
+nextStep(?a, ?f, ?r, ?n) :-
+    first(and(hop(?d), connected(?f, ?n), passable(?a, ?n), walkable(?a, ?f, ?n, ?r, ?d))).
+canReach(?a, ?f, ?r) :- =(?f, ?r).
+canReach(?a, ?f, ?r) :- \==(?f, ?r), first(nextStep(?a, ?f, ?r, ?n)).
+
+% Someone other than ?src stands in ?r; someone at all stands in ?r.
+areaHit(?src, ?r) :- first(and(at(?x, ?r), \==(?x, ?src))).
+occupied(?r) :- first(at(?x, ?r)).
+
+% The atoms that do something to a region target.
+regionAtom(spill(?z)).
+regionAtom(dash).
+
+% === Methods ===
+
+% Every effect of ?ab, in declared order, from ?src onto ?e.
+applyAbility(?src, ?ab, ?e, ?mode) :-
+    allOf, if(effect(?ab, ?who, ?atom)),
+    do(applyEffect(?src, ?who, ?atom, ?e, ?mode)).
+
+applyEffect(?src, target, ?atom, ?e, ?mode) :-
+    if(not(region(?e))), do(effectOn(?src, ?e, ?atom, ?mode)).
+applyEffect(?src, target, ?atom, ?e, ?mode) :-
+    if(region(?e), regionAtom(?atom)), do(effectOn(?src, ?e, ?atom, ?mode)).
+applyEffect(?src, target, ?atom, ?e, ?mode) :-
+    if(region(?e), not(regionAtom(?atom))), do().
+applyEffect(?src, self, ?atom, ?e, ?mode) :- if(), do(effectOn(?src, ?src, ?atom, ?mode)).
+applyEffect(?src, area, ?atom, ?e, ?mode) :-
+    if(locus(?e, ?r), areaHit(?src, ?r)), do(areaEffect(?src, ?r, ?atom, ?mode)).
+applyEffect(?src, area, ?atom, ?e, ?mode) :-
+    if(locus(?e, ?r), not(areaHit(?src, ?r))), do().
+applyEffect(?src, path, ?atom, ?e, ?mode) :- if(onPath(?src, ?e)), do(pathEffect(?src, ?e, ?atom, ?mode)).
+applyEffect(?src, path, ?atom, ?e, ?mode) :- if(not(onPath(?src, ?e))), do().
+
+pathEffect(?src, ?e, ?atom, ?mode) :-
+    allOf, if(at(?src, ?from), locus(?e, ?to), between(?from, ?to, ?m), at(?x, ?m), \==(?x, ?src)),
+    do(effectOn(?src, ?x, ?atom, ?mode)).
+
+areaEffect(?src, ?r, ?atom, ?mode) :-
+    allOf, if(at(?x, ?r), \==(?x, ?src)), do(effectOn(?src, ?x, ?atom, ?mode)).
+
+% One clause per atom; each atom's method always succeeds, so one refused
+% atom never cancels the rest of the ability.
+effectOn(?src, ?e, grant(?t), ?mode) :- if(), do(grantTag(?src, ?e, ?t, ?mode)).
+effectOn(?src, ?e, remove(?t), ?mode) :- if(), do(removeTag(?src, ?e, ?t)).
+effectOn(?src, ?e, purge(?g), ?mode) :- if(), do(purgeGroup(?src, ?e, ?g)).
+effectOn(?src, ?e, spill(?z), ?mode) :- if(), do(spillZone(?src, ?e, ?z, ?mode)).
+effectOn(?src, ?e, damage(?type), ?mode) :- if(), do(takeDamage(?src, ?e, ?type, ?mode)).
+effectOn(?src, ?e, push, ?mode) :- if(), do(shove(?src, ?e, ?mode)).
+effectOn(?src, ?e, pull, ?mode) :- if(), do(drag(?src, ?e, ?mode)).
+effectOn(?src, ?e, dash, ?mode) :- if(), do(dashTo(?src, ?e, ?mode)).
+effectOn(?src, ?e, teleport(?r), ?mode) :- if(), do(blink(?src, ?e, ?r, ?mode)).
+effectOn(?src, ?e, hazard(?h), ?mode) :- if(), do(suffer(?src, ?e, ?h)).
+effectOn(?src, ?e, hook, ?mode) :- if(), do(hookOn(?src, ?e, ?mode)).
+effectOn(?src, ?e, swap, ?mode) :- if(), do(swapPlaces(?src, ?e, ?mode)).
+effectOn(?src, ?e, open(?d), ?mode) :- if(), do(openDoor(?src, ?d)).
+effectOn(?src, ?e, openWhenHeld(?d), ?mode) :- if(), do(openIfHeld(?src, ?d)).
+
+% A hazard does nothing by itself: it takes out whatever is weak to it -
+% unless something that fills it already lies at the bottom.
+suffer(?src, ?e, ?h) :-
+    if(weakFor(?e, ?h, ?have, ?out), liveFor(?e, ?h)),
+    do(opExploit(?src, ?e, ?h, ?out), grantTag(?src, ?e, ?out, bare)).
+suffer(?src, ?e, ?h) :- if(not(weakFor(?e, ?h, ?hv, ?o))), do().
+suffer(?src, ?e, ?h) :- if(weakFor(?e, ?h, ?hv, ?o), not(liveFor(?e, ?h))), do().
+
+% A grappling hook: a light target comes to the source; an anchored one
+% brings the source to it.
+hookOn(?src, ?e, ?mode) :- if(not(anchoredAgainst(?e))), do(drag(?src, ?e, ?mode)).
+hookOn(?src, ?e, ?mode) :- if(anchoredAgainst(?e), not(gone(?e))), do(dashTo(?src, ?e, ?mode)).
+hookOn(?src, ?e, ?mode) :- if(anchoredAgainst(?e), gone(?e)), do().
+
+% Two change places; each takes what is where it lands.
+swapPlaces(?src, ?e, ?mode) :-
+    if(swapLine(?src, ?e, ?rs, ?re)),
+    do(opSwap(?src, ?e, ?rs, ?re), arrive(?src, ?src, ?re, ?mode), arrive(?src, ?e, ?rs, ?mode)).
+swapPlaces(?src, ?e, ?mode) :- if(not(swapLine(?src, ?e, ?a, ?b))), do().
+
+% A door opens, and stays open.
+openDoor(?src, ?d) :- if(not(open(?d))), do(opOpen(?src, ?d)).
+openDoor(?src, ?d) :- if(open(?d)), do().
+
+% A door with several plates opens (for good) the moment all are held.
+openIfHeld(?src, ?d) :- if(not(open(?d)), allPlatesHeld(?d)), do(opOpen(?src, ?d)).
+openIfHeld(?src, ?d) :- if(open(?d)), do().
+openIfHeld(?src, ?d) :- if(not(open(?d)), not(allPlatesHeld(?d))), do().
+
+% A tag lands: a reaction fires instead if one applies (react mode only);
+% else it is stored if ?e can take it; else nothing happens.
+grantTag(?src, ?e, ?t, react) :-
+    if(reactionFor(?e, ?t, ?have, ?ab)),
+    do(opReact(?src, ?e, ?have, ?t, ?ab), applyAbility(?src, ?ab, ?e, raw)).
+grantTag(?src, ?e, ?t, react) :-
+    if(not(reactionFor(?e, ?t, ?h, ?b)), weakFor(?e, ?t, ?have, ?out)),
+    do(opExploit(?src, ?e, ?t, ?out), grantTag(?src, ?e, ?out, bare)).
+grantTag(?src, ?e, ?t, react) :-
+    if(not(reactionFor(?e, ?t, ?h, ?b)), not(weakFor(?e, ?t, ?hv, ?o)), canReceive(?e, ?t)),
+    do(opGrant(?src, ?e, ?t), afterGrant(?src, ?e, ?t)).
+grantTag(?src, ?e, ?t, react) :-
+    if(not(reactionFor(?e, ?t, ?h, ?b)), not(weakFor(?e, ?t, ?hv, ?o)), not(canReceive(?e, ?t))),
+    do().
+grantTag(?src, ?e, ?t, raw) :-
+    if(weakFor(?e, ?t, ?have, ?out)),
+    do(opExploit(?src, ?e, ?t, ?out), grantTag(?src, ?e, ?out, bare)).
+grantTag(?src, ?e, ?t, raw) :-
+    if(not(weakFor(?e, ?t, ?hv, ?o)), canReceive(?e, ?t)),
+    do(opGrant(?src, ?e, ?t), afterGrant(?src, ?e, ?t)).
+grantTag(?src, ?e, ?t, raw) :- if(not(weakFor(?e, ?t, ?hv, ?o)), not(canReceive(?e, ?t))), do().
+grantTag(?src, ?e, ?t, bare) :- if(canReceive(?e, ?t)), do(opGrant(?src, ?e, ?t)).
+grantTag(?src, ?e, ?t, bare) :- if(not(canReceive(?e, ?t))), do().
+
+% What storing ?t does at once: the tag's own movement (a feared bearer is
+% pushed away), then the bearer's behaviour, if it is an NPC that answers ?t.
+afterGrant(?src, ?e, ?t) :- if(), do(tagMoves(?src, ?e, ?t), provoke(?src, ?e, ?t)).
+tagMoves(?src, ?e, ?t) :- if(hasOnGrant(?t)), do(onGrantAll(?src, ?e, ?t)).
+tagMoves(?src, ?e, ?t) :- if(not(hasOnGrant(?t))), do().
+provoke(?src, ?e, ?t) :- if(hasBehavior(?e, ?t), not(gone(?e))), do(behaveAll(?src, ?e, ?t)).
+provoke(?src, ?e, ?t) :- if(not(hasBehavior(?e, ?t))), do().
+provoke(?src, ?e, ?t) :- if(hasBehavior(?e, ?t), gone(?e)), do().
+behaveAll(?src, ?e, ?t) :-
+    allOf, if(behavior(?e, ?t, ?ab, ?aim), aimAt(?src, ?e, ?aim, ?x)),
+    do(opProvoked(?e, ?t, ?ab), applyAbility(?e, ?ab, ?x, raw)).
+onGrantAll(?src, ?e, ?t) :-
+    allOf, if(onGrant(?t, ?atom)), do(effectOn(?src, ?e, ?atom, raw)).
+
+removeTag(?src, ?e, ?t) :- if(tag(?e, ?t)), do(opRemove(?src, ?e, ?t)).
+removeTag(?src, ?e, ?t) :- if(not(tag(?e, ?t))), do().
+
+% Every stored tag of ?e in group ?g goes (a cleanse, a dispel).
+purgeGroup(?src, ?e, ?g) :- if(inGroup(?e, ?g)), do(purgeAll(?src, ?e, ?g)).
+purgeGroup(?src, ?e, ?g) :- if(not(inGroup(?e, ?g))), do().
+purgeAll(?src, ?e, ?g) :-
+    allOf, if(tag(?e, ?t), group(?t, ?g)), do(opRemove(?src, ?e, ?t)).
+
+% The region of ?e becomes a zone of ?z, and everyone standing there takes
+% it at once - the caster too, if it stands there.
+spillZone(?src, ?e, ?z, ?mode) :-
+    if(locus(?e, ?r), not(onEnter(?r, ?z))),
+    do(opSpill(?src, ?r, ?z), soakRegion(?src, ?r, ?z, ?mode)).
+spillZone(?src, ?e, ?z, ?mode) :- if(locus(?e, ?r), onEnter(?r, ?z)), do().
+soakRegion(?src, ?r, ?z, ?mode) :- if(occupied(?r)), do(soakAll(?src, ?r, ?z, ?mode)).
+soakRegion(?src, ?r, ?z, ?mode) :- if(not(occupied(?r))), do().
+soakAll(?src, ?r, ?z, ?mode) :-
+    allOf, if(at(?x, ?r)), do(applyAbility(?src, ?z, ?x, ?mode)).
+
+% Damage alone harms no one prepared for it. It fires a reaction first (a
+% blunt blow on something brittle; a shield absorbs it; steam saves a wet
+% mook from fire), else it kills a target vulnerable to it.
+takeDamage(?src, ?e, ?type, react) :-
+    if(reactionFor(?e, ?type, ?have, ?ab)),
+    do(opReact(?src, ?e, ?have, ?type, ?ab), applyAbility(?src, ?ab, ?e, raw)).
+takeDamage(?src, ?e, ?type, react) :-
+    if(not(reactionFor(?e, ?type, ?h, ?b)), kills(?e, ?type)), do(opGrant(?src, ?e, dead)).
+takeDamage(?src, ?e, ?type, react) :-
+    if(not(reactionFor(?e, ?type, ?h, ?b)), not(kills(?e, ?type))), do().
+takeDamage(?src, ?e, ?type, raw) :- if(kills(?e, ?type)), do(opGrant(?src, ?e, dead)).
+takeDamage(?src, ?e, ?type, raw) :- if(not(kills(?e, ?type))), do().
+
+% Push: away from the source, along a declared line. Pull: to the source.
+shove(?src, ?e, ?mode) :-
+    if(pushLine(?src, ?e, ?over, ?to)),
+    do(opForcedMove(?src, ?e, ?over, ?to), arrive(?src, ?e, ?to, ?mode)).
+shove(?src, ?e, ?mode) :- if(not(pushLine(?src, ?e, ?o, ?t))), do().
+
+drag(?src, ?e, ?mode) :-
+    if(pullLand(?src, ?e, ?from, ?land)),
+    do(opForcedMove(?src, ?e, ?from, ?land), arrive(?src, ?e, ?land, ?mode)).
+drag(?src, ?e, ?mode) :- if(not(pullLine(?src, ?e, ?f, ?t))), do().
+
+% Dash: the source closes on the target.
+dashTo(?src, ?e, ?mode) :-
+    if(dashLine(?src, ?e, ?from, ?to)),
+    do(opDash(?src, ?from, ?to), arrive(?src, ?src, ?to, ?mode)).
+dashTo(?src, ?e, ?mode) :- if(not(dashLine(?src, ?e, ?f, ?t))), do().
+
+blink(?src, ?e, ?r, ?mode) :-
+    if(blinkLine(?e, ?r, ?from)),
+    do(opForcedMove(?src, ?e, ?from, ?r), arrive(?src, ?e, ?r, ?mode)).
+blink(?src, ?e, ?r, ?mode) :- if(not(blinkLine(?e, ?r, ?f))), do().
+
+% Whoever arrives in ?r takes what the region does. The one who moved ?e
+% there is the source: a push into the pit is the pusher's doing, and a
+% walk into the pool is the walker's. (A zone's ability has no `self`.)
+arrive(?src, ?e, ?r, ?mode) :- if(hasZone(?r)), do(enterZone(?src, ?r, ?e, ?mode)).
+arrive(?src, ?e, ?r, ?mode) :- if(not(hasZone(?r))), do().
+
+enterZone(?src, ?r, ?e, ?mode) :-
+    allOf, if(onEnter(?r, ?ab)), do(applyAbility(?src, ?ab, ?e, ?mode)).
+
+% A companion walks somewhere, one region at a time, taking what each
+% region does. It never walks into a closed door, a blocker's region, or a
+% live hazard it is weak to.
+walkTo(?a, ?r) :- if(at(?a, ?r)), do().
+walkTo(?a, ?r) :-
+    if(not(at(?a, ?r)), not(forbidden(?a, move)), at(?a, ?f), first(nextStep(?a, ?f, ?r, ?n))),
+    do(opNavigate(?a, ?f, ?n), arrive(?a, ?a, ?n, react), walkTo(?a, ?r)).

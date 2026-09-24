@@ -1,0 +1,118 @@
+% The Crossing (ability catalogue)
+%
+% A gate opens on a hall. Past the hall, a crypt whose back wall has fallen
+% into the abyss, and the brink of the same abyss. Nothing dies in general
+% here: each enemy has its own weakness, and the team has to find it.
+%
+%   sentry   a heavy machine behind a barrier, at the brink. It cannot be
+%            moved. Break the barrier (any hostile tag takes it), soak it,
+%            and a jolt short-circuits it - or a frost seizes its joints.
+%   bramble  a wooden thing hiding in the crypt's shadows. It cannot be aimed
+%            at until light finds it; then fire takes it - or a push sends
+%            it through the broken wall.
+%   brute    a boss in armour at the brink. No hard control holds it, and
+%            the armour keeps it from being moved: sunder the armour, and
+%            someone else sends it over the edge.
+%
+% The Mage throws flashbangs and calls rain; the Warden sunders, bashes and
+% taunts. The player picks two skills from the catalogue.
+%
+% Hypothesis (design.md): several kits clear it by different routes, no
+% pick is mandatory, and every plan needs at least two companions.
+
+% === Regions ===
+region(gate).
+region(hall).
+region(crypt).
+region(brink).
+region(abyss).
+connected(gate, hall).
+connected(hall, gate).
+connected(hall, crypt).
+connected(crypt, hall).
+connected(hall, brink).
+connected(brink, hall).
+lineOfSight(gate, hall).
+lineOfSight(gate, brink).
+lineOfSight(hall, crypt).
+lineOfSight(hall, brink).
+
+% Push lines: whatever stands at the brink, or in the crypt, goes over.
+beyond(hall, brink, abyss).
+beyond(gate, brink, abyss).
+beyond(brink, brink, abyss).
+beyond(hall, crypt, abyss).
+beyond(crypt, crypt, abyss).
+
+% === Zones ===
+onEnter(crypt, shadows).
+onEnter(abyss, chasm).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+role(warden, companion).
+at(player, gate).
+at(mage, gate).
+at(warden, gate).
+mana(player, 4).
+knows(mage, flashbang).
+knows(mage, rainCall).
+knows(warden, sunder).
+knows(warden, shieldBash).
+knows(warden, taunt).
+
+% === Enemies ===
+role(sentry, enemy).
+at(sentry, brink).
+trait(sentry, machine).
+trait(sentry, heavy).
+tag(sentry, shielded).
+% Its joints seize if soaked and then chilled.
+weakness(sentry, chilled, wet, frozen).
+
+role(bramble, enemy).
+at(bramble, crypt).
+trait(bramble, wooden).
+tag(bramble, stealthed).
+
+role(brute, enemy).
+at(brute, brink).
+rank(brute, boss).
+trait(brute, living).
+tag(brute, armored).
+
+% === Default kit (a winning pair; F4 strips these and re-adds each pick) ===
+knows(player, zap).
+knows(player, gust).
+
+% === The encounter ===
+clearCrossing :- if(), do(neutralize(sentry), neutralize(bramble), neutralize(brute)).
+
+% === Declared choice space: pick 2 of 8 ===
+funChoiceSpace(kit, 2).
+funChoice(kit, zap).
+funChoice(kit, chainLightning).
+funChoice(kit, fireball).
+funChoice(kit, iceStorm).
+funChoice(kit, frostBolt).
+funChoice(kit, tidalWave).
+funChoice(kit, gust).
+funChoice(kit, charge).
+funChoiceFact(zap, knows(player, zap)).
+funChoiceFact(chainLightning, knows(player, chainLightning)).
+funChoiceFact(fireball, knows(player, fireball)).
+funChoiceFact(iceStorm, knows(player, iceStorm)).
+funChoiceFact(frostBolt, knows(player, frostBolt)).
+funChoiceFact(tidalWave, knows(player, tidalWave)).
+funChoiceFact(gust, knows(player, gust)).
+funChoiceFact(charge, knows(player, charge)).
+funBlocker(sentry).
+funBlocker(bramble).
+funBlocker(brute).
+funBlockerGoal(sentry, neutralize(sentry)).
+funBlockerGoal(bramble, neutralize(bramble)).
+funBlockerGoal(brute, neutralize(brute)).
+funExpect(single_actor_plans, atMost, 0).
+
+goals(clearCrossing).

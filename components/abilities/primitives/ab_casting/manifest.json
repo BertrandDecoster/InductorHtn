@@ -1,0 +1,35 @@
+{
+  "name": "ab_casting",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "GAS-style activation gates, reach, mana and once-per-encounter costs; cast any known ability",
+  "dependencies": [
+    "abilities/primitives/ab_effects"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:21:48.807593"
+  },
+  "provides": [
+    "cast/3",
+    "castFrom/4",
+    "inRange/3",
+    "kindOf/2",
+    "opCast/3",
+    "opSpendMana/2",
+    "opUseUp/2",
+    "payMana/2",
+    "ready/3",
+    "spot/4",
+    "unmet/3",
+    "useAbility/3",
+    "useUp/2"
+  ],
+  "requires": [
+    "applyAbility/4",
+    "walkTo/2"
+  ]
+}

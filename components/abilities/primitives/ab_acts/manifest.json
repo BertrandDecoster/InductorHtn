@@ -1,0 +1,60 @@
+{
+  "name": "ab_acts",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Fixed-depth acts: inflict, place, strike, prime, supply - actor bound at the leaf, ?not excluded, no recursion",
+  "dependencies": [
+    "abilities/primitives/ab_casting"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:38:21.392699"
+  },
+  "provides": [
+    "aimed/1",
+    "canInflict/4",
+    "canPrime/3",
+    "canReachNow/2",
+    "canStrike/4",
+    "canUnset/5",
+    "combo/3",
+    "confirmStopped/1",
+    "deliver/3",
+    "dislodge/1",
+    "dropFor/2",
+    "ensureMoved/2",
+    "ensureOff/2",
+    "grants/2",
+    "grantsAny/2",
+    "inflict/3",
+    "inflictAs/3",
+    "moves/1",
+    "movesAny/1",
+    "place/3",
+    "placeAs/3",
+    "placement/5",
+    "pops/2",
+    "popsAny/2",
+    "primeAs/3",
+    "puller/3",
+    "pulls/1",
+    "pullsAny/1",
+    "removal/2",
+    "removalAny/2",
+    "sendInto/3",
+    "strike/3",
+    "strips/2",
+    "stripsAny/2",
+    "supplier/3",
+    "supply/3",
+    "unset/2",
+    "zoneFor/2"
+  ],
+  "requires": [
+    "cast/3",
+    "castFrom/4"
+  ]
+}

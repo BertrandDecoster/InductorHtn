@@ -1,0 +1,55 @@
+{
+  "name": "gauntlet",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Gauntlet: a pure-movement level - a guarded choke, a latching gate, a chasm; escape everyone, or drop both enemies",
+  "dependencies": [
+    "abilities/strategies/passage",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:02:44.244906"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "blocker/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "connected/2",
+    "door/1",
+    "effect/3",
+    "escape/0",
+    "funBlocker/1",
+    "funBlockerGoal/2",
+    "funChoice/2",
+    "funChoiceFact/2",
+    "funChoiceSpace/2",
+    "funExpect/3",
+    "knows/2",
+    "lineOfSight/2",
+    "mana/2",
+    "onEnter/2",
+    "overChasm/0",
+    "pastGuard/0",
+    "progress/2",
+    "region/1",
+    "role/2",
+    "rout/0",
+    "tag/2",
+    "trait/2",
+    "win/0"
+  ],
+  "requires": [
+    "clear/1",
+    "neutralize/1",
+    "openWay/1",
+    "reach/2",
+    "span/1"
+  ]
+}

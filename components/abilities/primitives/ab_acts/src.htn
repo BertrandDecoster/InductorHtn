@@ -1,0 +1,160 @@
+% ab_acts - the fixed-depth acts recipes are made of
+%
+% The middle layer. Each act answers one need with one cast - "?e carries
+% ?t", "?e is in ?r", "?e takes ?type damage" - and binds who does it at the
+% leaf, as the answer. An act never recurses to create its own
+% prerequisites: a recipe states every step, in order. That keeps every
+% decomposition finite (Erol, Hendler & Nau: acyclic methods, bounded depth).
+%
+% Cooperation is a role rule, not an identity rule: every act exists in a
+% form taking ?not, the companion excluded from it (the primer may not also
+% pay off). Anyone can fill any role.
+
+% === Rules ===
+
+% What an ability puts on what it is aimed at: directly, as an atom of a
+% composite it grants, on the target or on everyone around it, or through
+% the zone it spills there.
+aimed(target).
+aimed(area).
+grantsAny(?ab, ?t) :- effect(?ab, ?w, grant(?t)), aimed(?w).
+grantsAny(?ab, ?t) :- effect(?ab, ?w, grant(?c)), aimed(?w), bundles(?c, ?t).
+grantsAny(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?t)).
+grantsAny(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?c)), bundles(?c, ?t).
+grants(?ab, ?t) :- reach(?ab, ?k), first(grantsAny(?ab, ?t)).
+zoneFor(?r, ?t) :- onEnter(?r, ?ab), first(grantsAny(?ab, ?t)).
+
+% What an ability takes off: a remove, or a purge of its group.
+stripsAny(?ab, ?t) :- effect(?ab, ?w, remove(?t)), aimed(?w).
+stripsAny(?ab, ?t) :- effect(?ab, ?w, purge(?g)), aimed(?w), group(?t, ?g).
+strips(?ab, ?t) :- reach(?ab, ?k), first(stripsAny(?ab, ?t)).
+
+% What an ability pops: it lands something ?t reacts to by going away (a
+% flare unmasks the stealthed; any blow breaks a shield).
+popsAny(?ab, ?t) :-
+    effect(?ab, ?w, grant(?in)), aimed(?w), matches(?t, ?in, ?rab), effect(?rab, target, remove(?t)).
+popsAny(?ab, ?t) :-
+    effect(?ab, ?w, damage(?in)), aimed(?w), matches(?t, ?in, ?rab), effect(?rab, target, remove(?t)).
+pops(?ab, ?t) :- reach(?ab, ?k), first(popsAny(?ab, ?t)).
+
+% ?a can put ?t on ?e with ?ab, from where it stands or can reach.
+canInflict(?a, ?ab, ?t, ?e) :-
+    grants(?ab, ?t), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?e).
+
+% ?a can push ?e into ?r with ?ab, standing at ?from.
+placement(?a, ?ab, ?from, ?e, ?r) :-
+    receptive(?e, forcedMove), at(?e, ?over), landing(?from, ?over, ?r),
+    knows(?a, ?ab), first(and(effect(?ab, ?w, push), aimed(?w))), canAct(?a), ready(?a, ?ab, ?e),
+    reach(?ab, ?k), inRange(?k, ?from, ?over).
+
+% ?a can take ?t off ?e with ?ab, aimed at ?aim: ?e itself, or its region
+% when ?e cannot be aimed at and ?ab reaches everyone there.
+removalAny(?ab, ?t) :- stripsAny(?ab, ?t).
+removalAny(?ab, ?t) :- popsAny(?ab, ?t).
+removal(?ab, ?t) :- reach(?ab, ?k), first(removalAny(?ab, ?t)).
+canUnset(?a, ?ab, ?t, ?e, ?e) :-
+    removal(?ab, ?t), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?e).
+canUnset(?a, ?ab, ?t, ?e, ?r) :-
+    not(receptive(?e, targeted)), locus(?e, ?r), removal(?ab, ?t),
+    first(effect(?ab, area, ?x)), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?r).
+
+% ?a can deal ?type damage to ?e with ?ab.
+canStrike(?a, ?ab, ?type, ?e) :-
+    effect(?ab, target, damage(?type)), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?e).
+
+% ?a can make ?e carry ?t: cast it, or push ?e into a region that grants it.
+canPrime(?a, ?t, ?e) :- canInflict(?a, ?ab, ?t, ?e).
+canPrime(?a, ?t, ?e) :- zoneFor(?r, ?t), placement(?a, ?ab, ?from, ?e, ?r).
+
+% Who supplies ?t on ?e: nobody if it is already there, else one answer per
+% companion who can prime it.
+supplier(none, ?t, ?e) :- holds(?e, ?t).
+supplier(?p, ?t, ?e) :- not(holds(?e, ?t)), canAct(?p), first(canPrime(?p, ?t, ?e)).
+
+% What an ability does to where its target stands: pull it in (a pull, a
+% hook, a tag that drags its bearer), or move it at all.
+pullsAny(?ab) :- effect(?ab, target, pull).
+pullsAny(?ab) :- effect(?ab, target, hook).
+pullsAny(?ab) :- effect(?ab, target, grant(?t)), onGrant(?t, pull).
+pulls(?ab) :- reach(?ab, ?k), first(pullsAny(?ab)).
+movesAny(?ab) :- pullsAny(?ab).
+movesAny(?ab) :- effect(?ab, ?w, push), aimed(?w).
+movesAny(?ab) :- effect(?ab, target, swap).
+movesAny(?ab) :- effect(?ab, target, grant(?t)), onGrant(?t, push).
+moves(?ab) :- reach(?ab, ?k), first(movesAny(?ab)).
+puller(?a, ?ab, ?e) :- canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, ?e).
+
+% ?a can walk to ?r from where it stands.
+canReachNow(?a, ?r) :- at(?a, ?cur), canReach(?a, ?cur, ?r).
+
+% A region whose arrival takes ?e out of the fight.
+dropFor(?r, ?e) :- zoneFor(?r, ?t), stops(?e, ?t).
+dropFor(?r, ?e) :-
+    onEnter(?r, ?ab), effect(?ab, target, hazard(?h)),
+    weakness(?e, ?h, none, ?out), stops(?e, ?out).
+
+% === Methods ===
+
+% The need: ?e carries ?t, put there by ?a.
+inflictAs(?a, ?t, ?e) :-
+    if(canInflict(?a, ?ab, ?t, ?e)), do(cast(?a, ?ab, ?e)).
+
+% The need: ?e carries ?t, put there by anyone but ?not.
+inflict(?t, ?e, ?not) :-
+    if(canInflict(?a, ?ab, ?t, ?e), \==(?a, ?not)), do(cast(?a, ?ab, ?e)).
+
+% The need: ?e is in ?r, pushed there by ?a / by anyone but ?not.
+placeAs(?a, ?e, ?r) :-
+    if(first(placement(?a, ?ab, ?from, ?e, ?r))), do(castFrom(?a, ?ab, ?e, ?from)).
+place(?e, ?r, ?not) :-
+    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?e, ?from)).
+
+% The need: ?e ends up in ?r, sent there by anyone but ?not - pushed along a
+% line, or pulled across ?r so it falls in on the way.
+sendInto(?e, ?r, ?not) :-
+    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?e, ?from)).
+sendInto(?e, ?r, ?not) :-
+    if(at(?e, ?er), puller(?a, ?ab, ?e), \==(?a, ?not), between(?from, ?er, ?r),
+       reach(?ab, ?k), inRange(?k, ?from, ?er), canReachNow(?a, ?from)),
+    do(castFrom(?a, ?ab, ?e, ?from)).
+
+% The need: ?e takes ?type damage from anyone but ?not.
+strike(?type, ?e, ?not) :-
+    if(canStrike(?a, ?ab, ?type, ?e), \==(?a, ?not)), do(cast(?a, ?ab, ?e)).
+
+% The need: ?e carries ?t, primed by ?a - a cast, or a push into a zone.
+primeAs(?a, ?t, ?e) :- if(canInflict(?a, ?ab, ?t, ?e)), do(cast(?a, ?ab, ?e)).
+primeAs(?a, ?t, ?e) :-
+    if(zoneFor(?r, ?t), first(placement(?a, ?ab, ?from, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?e, ?from)).
+
+% The supplier found by supplier/3 does its part (nothing if it was there).
+supply(none, ?t, ?e) :- if(holds(?e, ?t)), do().
+supply(?p, ?t, ?e) :- if(\==(?p, none), not(holds(?e, ?t))), do(primeAs(?p, ?t, ?e)).
+
+% The need: ?e takes ?in - a tag cast on it, or damage dealt to it - from
+% anyone but ?not.
+deliver(?in, ?e, ?not) :- if(not(damageType(?in))), do(inflict(?in, ?e, ?not)).
+deliver(?in, ?e, ?not) :- if(damageType(?in)), do(strike(?in, ?e, ?not)).
+
+% The shape of most combos: someone makes ?e carry ?have, someone else lands
+% ?in on it, and the world must show ?e out of the fight.
+combo(?have, ?in, ?e) :-
+    if(receptive(?e, ?in), supplier(?p, ?have, ?e)),
+    do(supply(?p, ?have, ?e), deliver(?in, ?e, ?p), confirmStopped(?e)).
+
+% The need: ?e no longer carries ?t, taken off by anyone.
+unset(?t, ?e) :-
+    if(canUnset(?a, ?ab, ?t, ?e, ?aim)), do(cast(?a, ?ab, ?aim), ensureOff(?t, ?e)).
+ensureOff(?t, ?e) :- if(not(tag(?e, ?t))), do().
+
+% The need: ?e is no longer where it stands, moved by anyone, any way.
+dislodge(?e) :-
+    if(at(?e, ?r), canAct(?a), knows(?a, ?ab), moves(?ab), ready(?a, ?ab, ?e)),
+    do(cast(?a, ?ab, ?e), ensureMoved(?e, ?r)).
+ensureMoved(?e, ?r) :- if(not(at(?e, ?r))), do().
+
+% Verify the simulated world: the recipe worked only if ?e is out.
+confirmStopped(?e) :- if(neutralized(?e)), do().

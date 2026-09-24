@@ -1,0 +1,71 @@
+% Two Hands (ability catalogue)
+%
+% An armoured sentinel machine stands on a bridge over a pit. Two companions,
+% one skill each, from a pool of eight. No skill takes it alone - not even
+% when both companions hold it - and ten pairs do, by two methods.
+%
+%   ledge --- bridge (sentinel) --- far
+%                |
+%               pit          (across the pit: overlook, reached by a path)
+%
+% Two ways to take it out, each needing two different things:
+%   drop it   its armour wards forced movement: strip the armour
+%             (sunder, dispel), then move it into the pit (push it from the
+%             ledge, or pull it across the pit from the overlook)
+%   short it  it is a machine: soak it (tidalWave, rainCall), then jolt it
+%             (zap) - one companion soaks, the other jolts
+region(ledge).
+region(bridge).
+region(far).
+region(pit).
+region(path).
+region(overlook).
+connected(ledge, bridge).
+connected(bridge, ledge).
+connected(bridge, far).
+connected(far, bridge).
+connected(ledge, path).
+connected(path, ledge).
+connected(path, overlook).
+connected(overlook, path).
+lineOfSight(ledge, bridge).
+lineOfSight(overlook, bridge).
+
+beyond(ledge, bridge, pit).
+beyond(overlook, pit, bridge).
+onEnter(pit, chasm).
+
+role(player, player).
+role(mage, companion).
+at(player, ledge).
+at(mage, ledge).
+mana(player, 4).
+mana(mage, 4).
+
+role(sentinel, enemy).
+at(sentinel, bridge).
+trait(sentinel, machine).
+tag(sentinel, armored).
+
+% === Default kit: one skill each (the test replans the whole matrix) ===
+knows(player, sunder).
+knows(mage, gust).
+
+win :- if(), do(neutralize(sentinel)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(sunder).
+comboPool(dispel).
+comboPool(gust).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(tidalWave).
+comboPool(rainCall).
+comboPool(zap).
+comboMinWins(10).
+
+goals(win).

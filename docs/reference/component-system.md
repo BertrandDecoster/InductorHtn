@@ -403,6 +403,25 @@ what happens" is a bottom-up simulation, not a plan - see `docs/reference/author
 6. **Actor first.** The metrics (`actor_position: 0`) and the MCP play tools read the actor
    from the first argument. A level can override per operator with `funActor(opName, index)`
    and mark bookkeeping with `funNoop(opName)`.
+7. **`else` is not a cut.** Backtracking re-enters an `else` branch when a later task fails,
+   so an `else, if(), do()` no-op lets a plan skip an effect or a cost. Mandatory effects need
+   explicitly negated alternatives (`if(not(cond)), do()`); see `abilities/primitives/ab_effects`.
+
+## Ability Layer (`components/abilities/*`)
+
+A layer parallel to the core vocabulary for abilities that apply tags and effects. The physics
+is data at the bottom: `tag/2` with one-level `bundles/2` composites, abilities as `effect/3`
+bundles, `reaction/3` combos, `onEnter/2` zones. Fixed-depth acts sit in the middle, and
+specialized recipes at the top. Full spec: [`ability-system.md`](ability-system.md).
+
+- Primitives: `ab_tags`, `ab_effects`, `ab_casting`, `ab_acts`, `ab_catalog` (16 atomic tags,
+  8 composites, 3 outcomes, 47 skills; see [`ability-catalog.md`](ability-catalog.md))
+- Strategies: `exploit`, `into_the_pit`, `conduct`, `shatter`, `ignite`, `passage` (movement)
+- Goal: `neutralize`
+- Levels: `sinkhole` - a heavy golem at a pit's rim, two mooks in water and oil, pick 2 of 6;
+  `crossing` - three enemies, each with its own weakness, on the catalogue; pick 2 of 8;
+  `gauntlet` - pure movement: a guarded choke, a latching gate, a chasm; escape or rout;
+  `two_hands` - one skill each from eight: no single skill wins, exactly ten pairs do
 
 ## Naming Conventions
 

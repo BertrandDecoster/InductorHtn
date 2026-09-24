@@ -1,0 +1,19 @@
+% shatter - soak it, freeze it, and break it if freezing is not enough
+%
+% The recipe: ?e carries wet, someone else lands chilled on it (the level's
+% physics turns that into frozen). Where frozen stops ?e, that is the end -
+% stalling is a finisher. Otherwise a blunt blow shatters what is brittle.
+
+% === Methods ===
+
+% Frozen is enough.
+shatter(?e) :-
+    if(stops(?e, frozen), receptive(?e, chilled), supplier(?p, wet, ?e)),
+    do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), confirmStopped(?e)).
+
+% Frozen, then broken.
+shatter(?e) :-
+    if(not(stops(?e, frozen)), receptive(?e, chilled), receptive(?e, blunt),
+       supplier(?p, wet, ?e)),
+    do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), strike(blunt, ?e, ?p),
+       confirmStopped(?e)).

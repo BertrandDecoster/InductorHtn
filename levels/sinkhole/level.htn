@@ -1,0 +1,167 @@
+% The Sinkhole (ability layer)
+%
+% A ledge above a collapsing floor. At the rim stands a stone golem; below
+% it, a cultist wades in a flooded pool and another tends an oil slick. The
+% floor between them has fallen into a pit.
+%
+%   golem    a boss: too heavy to push, shrugs off shock, fire and blows.
+%            Knock it off balance - a quake, or freeze it (wet, then
+%            chilled) - and someone else pushes it into the pit.
+%   wader    a mook, already wet: shock it, freeze it where it stands (the
+%            pool ices over around it), or push it into the pit from the rim.
+%   tender   a mook, oiled, afraid of fire: burn it, douse and shock it,
+%            freeze it and break it, or push it into the pool first.
+%
+% A fireball also pushes, and fire on something wet makes steam - which
+% dries it. The player picks two abilities; the Mage douses; the Warden
+% swings a hammer or shoves - either one tires them, so it is one or the
+% other.
+%
+% Hypothesis (design.md): at least three kits clear the level, by different
+% recipes; the golem always takes two companions; no kit is mandatory.
+
+% === Regions ===
+region(ledge).
+region(rim).
+region(pool).
+region(slick).
+region(pit).
+connected(ledge, rim).
+connected(rim, ledge).
+connected(rim, pool).
+connected(pool, rim).
+connected(rim, slick).
+connected(slick, rim).
+lineOfSight(ledge, rim).
+lineOfSight(ledge, pool).
+lineOfSight(ledge, slick).
+lineOfSight(rim, pool).
+lineOfSight(rim, slick).
+lineOfSight(pool, rim).
+lineOfSight(slick, rim).
+
+% Push lines: from where, on what, into where.
+beyond(ledge, rim, pit).
+beyond(rim, rim, pit).
+beyond(rim, pool, pit).
+beyond(ledge, slick, pool).
+
+% === Zones: whoever arrives takes the region's ability ===
+onEnter(pool, soak).
+effect(soak, target, grant(wet)).
+onEnter(slick, slicked).
+effect(slicked, target, grant(oiled)).
+onEnter(pit, fall).
+effect(fall, target, grant(fell)).
+
+% === Tags ===
+group(dead, gone).
+group(fell, gone).
+bundles(frozen, rooted).
+bundles(frozen, brittle).
+bundles(frozen, offBalance).
+suspends(offBalance, forcedMove).
+
+% === Reactions: the physics of combos ===
+reaction(wet, shocked, electrocution).
+effect(electrocution, target, remove(wet)).
+effect(electrocution, target, grant(dead)).
+reaction(wet, chilled, freezeOver).
+effect(freezeOver, target, remove(wet)).
+effect(freezeOver, target, grant(frozen)).
+reaction(wet, burning, steam).
+effect(steam, target, remove(wet)).
+reaction(oiled, burning, blaze).
+effect(blaze, target, remove(oiled)).
+effect(blaze, target, grant(dead)).
+reaction(brittle, blunt, shatterBlow).
+effect(shatterBlow, target, remove(frozen)).
+effect(shatterBlow, target, grant(dead)).
+
+% === Abilities ===
+reach(fireball, ranged).
+manaCost(fireball, 2).
+effect(fireball, target, damage(fire)).
+effect(fireball, target, grant(burning)).
+effect(fireball, target, push).
+reach(shock, ranged).
+effect(shock, target, grant(shocked)).
+reach(gust, ranged).
+effect(gust, target, push).
+reach(chill, ranged).
+effect(chill, target, grant(chilled)).
+reach(quake, melee).
+effect(quake, target, grant(offBalance)).
+effect(quake, self, grant(tired)).
+blockedBy(quake, caster, tired).
+reach(douse, ranged).
+effect(douse, target, grant(wet)).
+reach(hammer, melee).
+effect(hammer, target, damage(blunt)).
+effect(hammer, self, grant(tired)).
+blockedBy(hammer, caster, tired).
+reach(shove, melee).
+effect(shove, target, push).
+effect(shove, self, grant(tired)).
+blockedBy(shove, caster, tired).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+role(warden, companion).
+at(player, ledge).
+at(mage, ledge).
+at(warden, ledge).
+mana(player, 3).
+knows(mage, douse).
+knows(warden, hammer).
+knows(warden, shove).
+
+% === Enemies ===
+role(golem, enemy).
+role(wader, enemy).
+role(tender, enemy).
+at(golem, rim).
+at(wader, pool).
+at(tender, slick).
+tag(wader, wet).
+tag(tender, oiled).
+immune(golem, forcedMove).
+immune(golem, shocked).
+immune(golem, burning).
+immune(golem, blunt).
+stops(wader, frozen).
+vulnerable(tender, fire).
+
+% === Default kit (a winning pair; F4 strips these and re-adds each pick) ===
+knows(player, chill).
+knows(player, fireball).
+
+% === The encounter ===
+clearSinkhole :- if(), do(neutralize(golem), neutralize(wader), neutralize(tender)).
+
+% === Declared choice space: pick 2 of 6, blockers in play order ===
+funChoiceSpace(kit, 2).
+funChoice(kit, fireball).
+funChoice(kit, shock).
+funChoice(kit, gust).
+funChoice(kit, chill).
+funChoice(kit, quake).
+funChoice(kit, douse).
+funChoiceFact(fireball, knows(player, fireball)).
+funChoiceFact(shock, knows(player, shock)).
+funChoiceFact(gust, knows(player, gust)).
+funChoiceFact(chill, knows(player, chill)).
+funChoiceFact(quake, knows(player, quake)).
+funChoiceFact(douse, knows(player, douse)).
+funBlocker(golem).
+funBlocker(wader).
+funBlocker(tender).
+funBlockerGoal(golem, neutralize(golem)).
+funBlockerGoal(wader, neutralize(wader)).
+funBlockerGoal(tender, neutralize(tender)).
+% The loadout hypothesis (at least three winning kits, none mandatory) needs
+% `fun --loadouts`, which verify does not run; test.py pins it instead.
+funExpect(single_actor_plans, atMost, 0).
+
+goals(clearSinkhole).

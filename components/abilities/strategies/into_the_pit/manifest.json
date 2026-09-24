@@ -1,0 +1,28 @@
+{
+  "name": "into_the_pit",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Push it into a region that stops it; unbalance what cannot be moved first",
+  "dependencies": [
+    "abilities/primitives/ab_acts"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:38:22.844751"
+  },
+  "provides": [
+    "intoThePit/1"
+  ],
+  "requires": [
+    "cast/3",
+    "confirmStopped/1",
+    "ensureOff/2",
+    "inflict/3",
+    "inflictAs/3",
+    "sendInto/3",
+    "supply/3"
+  ]
+}

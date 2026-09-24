@@ -20,4 +20,5 @@ All documentation lives here. Root keeps only `CLAUDE.md` (AI core rules) and
 
 - New to the engine? → [`legacy/engine-readme.md`](legacy/engine-readme.md) for background, then [`reference/authoring-rulesets.md`](reference/authoring-rulesets.md)
 - Writing a ruleset? → [`reference/authoring-rulesets.md`](reference/authoring-rulesets.md)
+- Abilities, tags and combos? → [`reference/ability-system.md`](reference/ability-system.md), the standard catalogue [`reference/ability-catalog.md`](reference/ability-catalog.md) (research: [`research/ability-systems-survey.md`](research/ability-systems-survey.md))
 - Debugging a plan? → [`tools/mcp-server.md`](tools/mcp-server.md), [`upgrades/query-tracing.md`](upgrades/query-tracing.md), [`upgrades/method-failure-tracking.md`](upgrades/method-failure-tracking.md)

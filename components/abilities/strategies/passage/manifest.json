@@ -1,0 +1,40 @@
+{
+  "name": "passage",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Movement recipes: reach a region (walk, leap, hook, swap, be ferried), latch a door, bridge a gap, clear a blocker",
+  "dependencies": [
+    "abilities/goals/neutralize"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T14:38:25.654285"
+  },
+  "provides": [
+    "ahead/2",
+    "anchorHook/1",
+    "clear/1",
+    "confirmFilled/1",
+    "confirmOpen/1",
+    "ferry/4",
+    "filler/1",
+    "leap/5",
+    "openWay/1",
+    "plateOf/2",
+    "reach/2",
+    "reachWithin/3",
+    "selfMover/1",
+    "span/1",
+    "swapper/1"
+  ],
+  "requires": [
+    "castFrom/4",
+    "dislodge/1",
+    "neutralize/1",
+    "place/3",
+    "walkTo/2"
+  ]
+}

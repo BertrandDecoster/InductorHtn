@@ -37,6 +37,7 @@ All docs live under `docs/`. Start at `docs/README.md`.
 - **Syntax & Prolog reference** → `docs/reference/htn-syntax.md`, `docs/reference/prolog-reference.md`
 - **Planner internals** → `docs/reference/planner-internals.md`
 - **Component system** → `docs/reference/component-system.md` (core vocabulary, operator rules)
+- **Ability layer** (tags, effect bundles, reactions, recipes) → `docs/reference/ability-system.md`; standard tags and skills → `docs/reference/ability-catalog.md`
 - **Level design loop** → `docs/reference/level-design-loop.md`
 - **Fun metrics** → `docs/FUN_METRICS.md`
 - **Tools** (REPL, tests, Python, GUI, MCP, components CLI) → `docs/TOOLS.md`
@@ -116,6 +117,10 @@ Rules: `docs/reference/level-design-loop.md`. Tools: `docs/tools/mcp-server.md`
   `defeat_group`; level `grease_trap`
 - Original tree: primitives `locomotion`, `tags`, `aggro`; strategies `the_burn`,
   `the_slipstream`; goals `defeat_enemy`, `clear_room`; level `puzzle1`
+- Abilities (`components/abilities/`, spec `docs/reference/ability-system.md`, catalogue
+  `docs/reference/ability-catalog.md`): primitives `ab_tags`, `ab_effects`, `ab_casting`,
+  `ab_acts`, `ab_catalog`; strategies `exploit`, `into_the_pit`, `conduct`, `shatter`,
+  `ignite`, `passage`; goal `neutralize`; levels `sinkhole`, `crossing`, `gauntlet`, `two_hands`
 - GameHack (`components/gamehack/`): primitives `gh_movement`, `gh_tags`, `gh_aggro`,
   `gh_skills`; action `gh_tag_application`; strategies `wet_and_electrocute`,
   `stun_and_slow_skill`, `stun_and_burn`; goal `plan_to_damage`; levels `gamehack_gh4`,
