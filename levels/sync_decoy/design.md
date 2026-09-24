@@ -3,35 +3,35 @@
 ## Purpose
 
 A synchronisation level: **one companion baits an enemy's big blow while the other pulls them clear
-of it**. A golem blocks the arch to the switch room. Up on a balcony, a stone eye (a heavy machine)
-watches the hall in front of the arch. Two companions, the player and the mage, pick one skill each
-from a pool of seven. Someone gets the golem out of the arch, someone puts the eye out, and then one
-of them walks across the hall onto the switch.
+of it**. A golem holds the arch to the switch room. Up on a balcony, a stone gargoyle (heavy,
+living) watches the hall in front of the arch. Two companions, the player and the mage, pick one
+skill each from a pool of six, with two mana each (one costly cast). Someone gets past the golem,
+someone gets past the gargoyle, then one of them steps on the switch plate and walks into the vault.
 
-The decoy is a heavy attack (`ab_casting`): a taunted golem is dragged to its taunter and winds up a
-`groundSlam` on that region. The slam is physical, so nothing stops it. The team gets exactly one
-cast before it lands on everyone in the region but the golem. Taunt it from the balcony and the slam
-stuns the eye, which then cannot watch, so one taunt does two jobs. The catch is that the taunter is
-standing in the blast and has no second skill to escape with. The friend's one cast in the window
-must get the taunter out. The Lost Vikings / Trine split: one draws the blow, the other saves them
-from it.
+The decoy is a heavy attack (`ab_casting`): taunted, the golem walks after its taunter and winds up
+a `groundSlam` where it arrives. The slam is physical, so nothing stops it. Taunt it from the
+balcony and the slam stuns the gargoyle, which then cannot watch, and the golem has left the arch:
+one taunt does both jobs. The catch is that the taunter stands in the blast, and the level declares
+both companions `mustSurvive` (whoever baits the golem is pulled clear). The taunter has no second
+skill; the friend's one cast in the window, from the nook next door, must hook them out. The Lost
+Vikings / Trine split: one draws the blow, the other saves them from it.
 
 | Obstacle | What stops you | Methods (pool skills) |
 |----------|----------------|-----------------------|
-| **The arch** | the golem is a `blocker`: nobody walks into its region | drag it out: `taunt` (to the taunter), `hook` (to the hooker); throw it into the alcove from the nook: `fireball`; suck it into the alcove: `vortex` (rooted there) |
-| **The hall** | `watches(eye, hall)`: nobody walks in seen | blind the eye: `blindingFlash` next to it, `shieldBash` (stunned); or taunt the golem from the balcony so that its slam stuns the eye |
-| **The slam** | the taunter is in the struck region; a companion may never take a heavy blow | the friend's cast in the window: `hook` the taunter away, `fireball` or `tidalWave` them off the balcony (they land in the camp), `vortex` everything movable on the balcony into the nook. The heavy eye stays and takes the blow |
+| **The golem** | a `blocker` in the arch: nobody walks into its area | the decoy: `taunt` (it follows you out, and the slam does the rest); `hook` it into the hall (once the gargoyle is out); knock it into the well from the nook: `fireball`, `vortex` on the well; or slip past it: `lightningFlash` from the hall into the arch (a dash is not a walk) |
+| **The gargoyle** | `watches(gargoyle, hall)`: nobody walks in seen | blind it: `blindingFlash` on the balcony; bait the golem's slam onto it (the decoy); or slip past it: `lightningFlash` from the camp into the hall |
+| **The slam** | the taunter is in the struck area and must survive | the friend's cast in the window: `hook` the taunter into the nook. Nothing else saves them: a flash is disjoint for its caster only, a knockback never leaves the area, and dropping the golem during the window cancels the slam the gargoyle needed |
+| **The vault** | the portcullis (a door) | step on the switch plate (it latches open) and walk in |
 
 Why no single skill works:
-- Moving the golem does not blind the eye, and blinding the eye does not move the golem.
-- The taunt does both jobs but leaves the taunter under the slam. A companion cannot be taunted
-  (`immune(?x, taunted) :- canAct(?x)`), so a second taunt rescues nobody.
-- `blindingFlash` only makes its own caster disjoint. `shieldBash` cannot stop a physical blow.
-- `tidalWave` has no lure line (nothing next to the arch can be reached unseen), so it is only a
-  rescuer.
+- A lure does not blind the gargoyle, and a blinder does not move the golem.
+- The taunt does both jobs but leaves the taunter under the slam; a companion cannot be taunted, and
+  a second taunt rescues nobody.
+- `lightningFlash` gets its caster into the hall or past the golem, but two mana buys one flash:
+  two flashers still leave the golem in the arch.
 
-`hook`, `fireball` and `vortex` each serve two roles: they lure the golem, or they pull the decoy out
-of the slam.
+`lightningFlash` serves two roles (past the gazer, or past the golem), and `hook` serves two (lure the
+golem, or rescue the decoy).
 
 ## Layer
 
@@ -40,46 +40,45 @@ level
 ## Dependencies
 
 - `abilities/goals/neutralize`
+- `abilities/strategies/passage`
 - `abilities/primitives/ab_catalog`
 
 ## World
 
 ```
-                balcony (eye: heavy machine)
-               /    (a shove from the nook throws whoever is up there down to the camp)
-camp ----- nook
-  \          \
-   --------- hall (watched) --- arch (golem) --- switch [plate] --- portcullis (door)
-               \                /
-                --- alcove ----
+camp ------- nook ------- balcony (gargoyle: heavy, living)
+  |            \  sight      /  sight
+hall (watched) --- arch (golem; well) --- switch [lever plate] ==portcullis== vault
 ```
 
-- **Lines of sight:** the camp and the nook see each other, the balcony, the arch and the alcove.
-  The balcony sees the arch.
-- **Push lines:** from the nook, a push on the arch lands in the alcove; a push on the balcony lands
-  in the camp.
+- **Areas (7):** camp, nook, balcony, hall, arch, switch, vault. Walkable links: camp-nook,
+  nook-balcony, camp-hall, hall-arch, arch-switch; a doorway (the portcullis) switch-vault.
+- **Lines of sight:** nook and balcony see the arch; the nook sees the balcony.
+- **Features:** a well (chasm) in the arch; the lever plate in the switch room (`open(portcullis)`,
+  latching).
 - **Golem:** living, `blocker`, `behavior(golem, taunted, groundSlam, here)`.
-- **Eye:** machine, heavy (no push, pull or vortex moves it), `watches(eye, hall)`.
-- **Switch:** a zone with `open(portcullis)`.
-- **Goal:** `win` = a companion stands by in the camp or the nook; `lure` (a puller cast from any
-  region that sees the arch, or `place(golem, R)` for a push or a vortex); `veil` (the eye is already
-  out, or `inflict(blinded, eye)`); someone walks onto the switch; the portcullis must be open.
+- **Gargoyle:** living, heavy, `watches(gargoyle, hall)`.
+- **Companions:** player and mage, two mana each, both `mustSurvive`.
+- **Goal:** `win` = `veil` (the gargoyle is out, or blinded, or left for a dash), `lure` (the golem
+  is hooked out, baited by a taunt with the friend standing by in the nook, knocked into the well,
+  or left for a dash), then `slip`: someone reaches the switch (`passage` `reach`: walk, or one
+  leap forward), steps on the lever and walks into the vault.
 
 ## Hypothesis
 
 Measured with `htn_components combos sync_decoy` (and pinned by `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 7.
-- 20 of the 49 assignments win, whichever companion holds which half (10 pairs):
-  - the taunt with each of its 4 rescuers (`hook`, `fireball`, `vortex`, `tidalWave`);
-  - each of the 3 lures (`hook`, `fireball`, `vortex`) with each of the 2 blinders
-    (`blindingFlash`, `shieldBash`).
-- 10 methods (distinct sets of skills cast), 0 solo plans, no dead skill. Usage: taunt 8; hook,
-  fireball, vortex, blindingFlash, shieldBash 6 each; tidalWave 2.
-- Every losing pair has a reason: two lures (the hall is still seen), two blinders (the arch is
-  still held), a taunt with a blinder (nobody pulls the decoy out), or the wave with anything but the
-  taunt (it lures nothing).
-- One replan takes 2 to 7 s.
+- No single skill wins, even when both companions hold it: 0 of 6.
+- 14 of the 36 assignments win, whichever companion holds which half (7 pairs):
+  - `blindingFlash` with each golem answer: `hook`, `fireball`, `vortex`, `lightningFlash`;
+  - `lightningFlash` (into the hall) with each knock into the well: `fireball`, `vortex`;
+  - the decoy: `taunt` with `hook`.
+- 7 methods (distinct sets of skills cast), 0 solo plans, no dead skill. Usage: blindingFlash 8,
+  lightningFlash 6, hook, fireball, vortex 4 each, taunt 2.
+- Every losing pair has a reason: two lures (the hall is still seen), `lightningFlash` with `hook`
+  (the flasher is in the hall alone, the hooker cannot follow), a taunt with anything but a hook
+  (nobody pulls the decoy out).
+- One replan takes 1 to 5 s.
 
 ## Examples
 
@@ -89,37 +88,40 @@ Measured with `htn_components combos sync_decoy` (and pinned by `test.py`):
 
 **When:** `win`
 
-**Then:** the player climbs to the balcony and taunts the golem. The golem is dragged up and winds up
-a ground slam there. In the window, the mage hooks the player down to the camp. The slam stuns the
-eye. Someone crosses the unseen hall and steps onto the switch, and the portcullis opens.
+**Then:** the mage takes post in the nook. The player climbs to the balcony and taunts the golem,
+which walks out of the arch, through the hall and the camp, up to the balcony, and winds up a ground
+slam there. In the window, the mage hooks the player down into the nook. The slam stuns the
+gargoyle. The player crosses the unseen hall and the empty arch, steps on the lever, and the
+portcullis opens.
 
-### Example 2: The vortex takes the decoy and the golem
+### Example 2: Flash past the gargoyle, vortex the golem
 
-**Given:** the player knows `vortex`, the mage knows `taunt`.
-
-**When:** `win`
-
-**Then:** the mage taunts from the balcony. In the window, the player vortexes the nook, which sucks
-the mage and the golem off the balcony (both rooted in the nook). The heavy eye stays behind and takes
-the slam. The player walks to the switch.
-
-### Example 3: Thrown into the alcove, then bashed
-
-**Given:** the player knows `fireball`, the mage knows `shieldBash`.
+**Given:** the player knows `lightningFlash`, the mage knows `vortex`.
 
 **When:** `win`
 
-**Then:** from the nook, the player's fireball throws the golem out of the arch into the alcove, and
-the arch catches fire (harmless). The mage shield-bashes the eye from the nook, which stuns it. The
-player crosses the hall and the burning arch onto the switch. No slam is ever wound up.
+**Then:** from the nook, the mage's vortex on the well drops the golem in. The player
+lightning-flashes from the camp into the watched hall (a dash, not a walk), walks through the arch,
+steps on the lever and walks into the vault.
+
+### Example 3: Blind the gargoyle, flash past the golem
+
+**Given:** the player knows `blindingFlash`, the mage knows `lightningFlash`.
+
+**When:** `win`
+
+**Then:** the player blinds the gargoyle from the balcony. The mage walks into the hall and
+lightning-flashes into the arch, past the golem, which never moves. The mage steps on the lever and
+walks into the vault.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
-| P2 | The measured pairs win | Exactly the 10 pairs above have a plan. |
+| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
+| P2 | The measured pairs win | Exactly the 7 pairs above have a plan. |
 | P3 | Either seat | A pair wins whichever companion holds which half. |
-| P4 | The rescue is the one cast in the window | In every taunt plan, the slam is wound up on the balcony, and the first cast between the wind-up and the blow is the partner's rescue. |
-| P5 | A flash saves only its caster | `taunt` + `blindingFlash` and `taunt` + `shieldBash` have no plan. |
-| P6 | Companions cannot be taunted | `receptive(mage, taunted)` fails. |
+| P4 | The rescue is the one cast in the window | In every taunt plan the slam is wound up on the balcony, the only cast between the wind-up and the blow is the mage's hook on the player, and the blow stuns the gargoyle. |
+| P5 | No one else saves the decoy | `taunt` with `fireball`, `vortex`, `blindingFlash` or `lightningFlash`: no plan. |
+| P6 | One lightning flash each | `lightningFlash` + `lightningFlash` and `lightningFlash` + `hook`: no plan. |
+| P7 | Companions cannot be taunted | `receptive(mage, taunted)` fails. |

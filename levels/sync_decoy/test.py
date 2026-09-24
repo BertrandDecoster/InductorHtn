@@ -16,14 +16,14 @@ from htn_components.manifest import Manifest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-LURES = ["hook", "fireball", "vortex"]
-BLINDERS = ["blindingFlash", "shieldBash"]
-RESCUERS = ["hook", "fireball", "vortex", "tidalWave"]
-POOL = ["taunt", "hook", "fireball", "vortex", "tidalWave", "blindingFlash", "shieldBash"]
+POOL = ["taunt", "hook", "fireball", "vortex", "blindingFlash", "lightningFlash"]
 
-# The measured matrix: the taunt with each rescuer; each lure with each blinder.
-WINNING = ({frozenset(("taunt", r)) for r in RESCUERS}
-           | {frozenset((a, b)) for a in LURES for b in BLINDERS})
+# The measured matrix: every golem answer with the blinding flash; the
+# lightning flash past the gargoyle with each knock into the well; the decoy
+# with its one rescuer.
+WINNING = ({frozenset((a, "blindingFlash")) for a in ["hook", "fireball", "vortex", "lightningFlash"]}
+           | {frozenset(("lightningFlash", a)) for a in ["fireball", "vortex"]}
+           | {frozenset(("taunt", "hook"))})
 
 
 @functools.lru_cache(maxsize=None)
@@ -68,6 +68,7 @@ class SyncDecoyTest(HtnTestSuite):
 
     def setup(self):
         self.load_component("abilities/goals/neutralize", reset_first=True)
+        self.load_component("abilities/strategies/passage", reset_first=False)
         self.load_component("abilities/primitives/ab_catalog", reset_first=False)
         self.verify_contracts()
         self._loader.load_level_htn(HERE)
@@ -76,28 +77,29 @@ class SyncDecoyTest(HtnTestSuite):
 
     def test_example_1_bait_the_slam_and_hook_the_decoy_out(self):
         self.assert_plan("win.", contains=[
-            "opNavigate(player, nook, balcony)", "opCast(player, taunt, golem)",
-            "opForcedMove(player, golem, arch, balcony)", "opWindUp(golem, groundSlam, balcony)",
-            "opCast(mage, hook, player)", "opForcedMove(mage, player, balcony, camp)",
-            "opBlow(golem, groundSlam, balcony, balcony)", "opGrant(golem, eye, stunned)",
-            "opNavigate(mage, arch, switch)", "opOpen(mage, portcullis)"])
+            "opNavigate(mage, camp, nook)", "opCast(player, taunt, golem)",
+            "opNavigate(golem, nook, balcony)", "opWindUp(golem, groundSlam, balcony)",
+            "opCast(mage, hook, player)", "opForcedMove(mage, player, balcony, nook)",
+            "opBlow(golem, groundSlam, balcony, balcony)", "opGrant(golem, gargoyle, stunned)",
+            "opStepOn(player, player, lever)", "opOpen(player, portcullis)"])
 
-    def test_example_2_the_vortex_takes_the_decoy_and_the_golem(self):
-        plans = plans_with("vortex", "taunt")
-        assert has(plans, "opCast", "player", "vortex", "nook"), plans[:1]
-        assert has(plans, "opForcedMove", "player", "mage", "balcony", "nook")
-        assert has(plans, "opForcedMove", "player", "golem", "balcony", "nook")
-        assert has(plans, "opGrant", "golem", "eye", "stunned")
+    def test_example_2_flash_past_the_gargoyle_vortex_the_golem(self):
+        plans = plans_with("lightningFlash", "vortex")
+        assert has(plans, "opCast", "mage", "vortex", "well"), plans[:1]
+        assert has(plans, "opExploit", "mage", "golem", "chasm", "fell")
+        assert has(plans, "opDash", "player", "camp", "hall")
         assert has(plans, "opOpen", "player", "portcullis")
-        self._record(True, "Example 2: the vortex sucks the decoy and the golem off the balcony; "
-                           "the eye takes the slam")
+        self._record(True, "Example 2: the vortex drops the golem in the well; the player "
+                           "lightning-flashes into the watched hall and walks on")
 
-    def test_example_3_thrown_into_the_alcove_then_bashed(self):
-        plans = plans_with("fireball", "shieldBash")
-        assert has(plans, "opForcedMove", "player", "golem", "arch", "alcove"), plans[:1]
-        assert has(plans, "opCast", "mage", "shieldBash", "eye")
-        assert not has(plans, "opWindUp", "golem", "groundSlam", "balcony")
-        self._record(True, "Example 3: the fireball throws the golem aside; the bash stuns the eye")
+    def test_example_3_blind_the_gargoyle_flash_past_the_golem(self):
+        plans = plans_with("blindingFlash", "lightningFlash")
+        assert has(plans, "opGrant", "player", "gargoyle", "blinded"), plans[:1]
+        assert has(plans, "opDash", "mage", "hall", "arch")
+        assert has(plans, "opStepOn", "mage", "mage", "lever")
+        assert not has(plans, "opForcedMove", "mage", "golem", "arch", "hall")
+        self._record(True, "Example 3: the gargoyle is blinded; the mage flashes past the "
+                           "golem, which never moves")
 
     # -------------------------------------------------------------- properties
 
@@ -112,33 +114,42 @@ class SyncDecoyTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_either_seat(self):
-        assert plans_with("tidalWave", "taunt") and plans_with("taunt", "tidalWave")
-        assert plans_with("shieldBash", "vortex") and plans_with("vortex", "shieldBash")
+        assert plans_with("taunt", "hook") and plans_with("hook", "taunt")
+        assert plans_with("fireball", "lightningFlash") and plans_with("lightningFlash", "fireball")
         self._record(True, "P3: a pair wins whichever companion holds which half")
 
     def test_property_p4_the_rescue_is_the_one_cast_in_the_window(self):
-        """In every taunt plan the slam is wound up on the balcony, and the
-        other companion's cast falls between the wind-up and the blow."""
-        for rescuer in RESCUERS:
-            plans = plans_with("taunt", rescuer)
-            assert plans, rescuer
-            for plan in plans:
-                up = index(plan, "opWindUp", "golem", "groundSlam", "balcony")
-                blow = index(plan, "opBlow", "golem", "groundSlam", "balcony", "balcony")
-                window = [args for name, args in plan[up:blow] if name == "opCast"]
-                assert window and window[0][0] == "mage" and window[0][1] == rescuer, (rescuer, window)
-        self._record(True, "P4: the slam lands on the eye; the friend's one cast saves the decoy")
+        """In every taunt plan the slam is wound up on the balcony, the
+        hook pulls the decoy out between the wind-up and the blow, and the
+        blow stuns the gargoyle."""
+        plans = plans_with("taunt", "hook")
+        assert plans
+        for plan in plans:
+            up = index(plan, "opWindUp", "golem", "groundSlam", "balcony")
+            blow = index(plan, "opBlow", "golem", "groundSlam", "balcony", "balcony")
+            window = [args for name, args in plan[up:blow] if name == "opCast"]
+            assert window == [("mage", "hook", "player")], window
+            assert ("opGrant", ("golem", "gargoyle", "stunned")) in plan[blow:]
+        self._record(True, "P4: the slam lands on the gargoyle; the friend's one cast saves the decoy")
 
-    def test_property_p5_a_flash_saves_only_its_caster(self):
-        """blindingFlash is disjoint for its caster alone: it cannot pull the
-        decoy out of the slam, so taunt + blindingFlash has no plan."""
-        assert not plans_with("taunt", "blindingFlash")
-        assert not plans_with("taunt", "shieldBash")
-        self._record(True, "P5: a flash or a bash cannot save the decoy from a physical slam")
+    def test_property_p5_no_one_else_saves_the_decoy(self):
+        """Only a hook takes the decoy out of the struck area: a flash is
+        disjoint for its own caster, a knockback never leaves the area, and a
+        knock that drops the golem cancels the slam the gargoyle needed."""
+        for partner in ["fireball", "vortex", "blindingFlash", "lightningFlash"]:
+            assert not plans_with("taunt", partner), partner
+        self._record(True, "P5: taunt wins only with a hook")
 
-    def test_property_p6_companions_cannot_be_taunted(self):
+    def test_property_p6_one_lightning_flash_each(self):
+        """Two mana each: a lightning flash gets you into the hall or past the
+        golem, not both."""
+        assert not plans_with("lightningFlash", "lightningFlash")
+        assert not plans_with("lightningFlash", "hook")
+        self._record(True, "P6: one costly cast per companion")
+
+    def test_property_p7_companions_cannot_be_taunted(self):
         self.assert_query("receptive(mage, taunted).", min_solutions=0, max_solutions=0)
-        self._record(True, "P6: a taunt never drags a friend out of the blast")
+        self._record(True, "P7: a taunt never drags a friend out of the blast")
 
 
 def run_tests():

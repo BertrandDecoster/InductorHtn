@@ -17,11 +17,11 @@ from htn_components.manifest import Manifest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 ISLAND = ["blink", "lightningFlash", "hook"]
-CLOSET = ["blindingFlash", "fireball", "tidalWave", "taunt"]
-POOL = ISLAND + CLOSET
+FORGE = ["fireball", "vortex", "taunt"]
+POOL = ISLAND + FORGE
 
-# The measured matrix: each island skill with each closet skill.
-WINNING = {frozenset((a, b)) for a in ISLAND for b in CLOSET}
+# The measured matrix: each island skill with each forge skill.
+WINNING = {frozenset((a, b)) for a in ISLAND for b in FORGE}
 
 
 @functools.lru_cache(maxsize=None)
@@ -71,28 +71,30 @@ class SyncVaultTest(HtnTestSuite):
 
     def test_example_1_blink_to_the_island_fireball_the_barrel(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, blink, outcrop)", "opTeleport(player, rim, outcrop)",
-            "opNavigate(player, outcrop, island)", "opCast(mage, fireball, barrel)",
-            "opForcedMove(mage, barrel, post, closet)", "opOpen(mage, vaultdoor)",
-            "opNavigate(mage, vaultdoor, vault)"])
+            "opCast(player, blink, island)", "opTeleport(player, rim, island)",
+            "opStepOn(player, player, islandPlate)", "opCast(mage, fireball, barrel)",
+            "opKnock(mage, barrel, forgePlate)", "opOpen(mage, vaultdoor)",
+            "opNavigate(mage, hall, vault)"])
 
     def test_example_2_hook_the_pillar_taunt_the_warden(self):
         plans = plans_with("hook", "taunt")
         assert has(plans, "opCast", "player", "hook", "pillar"), plans[:1]
-        assert has(plans, "opDash", "player", "rim", "outcrop")
-        assert has(plans, "opWindUp", "warden", "groundSlam", "post")
-        assert has(plans, "opForcedMove", "warden", "barrel", "post", "closet")
+        assert has(plans, "opDash", "player", "rim", "island")
+        assert has(plans, "opRemove", "mage", "warden", "taunted")
+        assert has(plans, "opWindUp", "warden", "groundSlam", "forge")
+        assert has(plans, "opKnock", "warden", "barrel", "forgePlate")
         assert has(plans, "opOpen", "warden", "vaultdoor")
-        self._record(True, "Example 2: hooked over the rift; the warden's own slam throws the "
-                           "barrel onto the plate")
+        self._record(True, "Example 2: hooked over the rift; the walled-in warden cannot follow its "
+                           "taunter, and its own slam throws the barrel onto the plate")
 
-    def test_example_3_flash_over_blind_and_walk_in(self):
-        plans = plans_with("blindingFlash", "lightningFlash")
-        assert has(plans, "opDash", "mage", "rim", "outcrop"), plans[:1]
-        assert has(plans, "opGrant", "player", "warden", "blinded")
-        assert has(plans, "opNavigate", "player", "post", "closet")
-        self._record(True, "Example 3: the mage flashes over; the player blinds the warden and "
-                           "walks onto the closet plate")
+    def test_example_3_flash_over_vortex_the_plate(self):
+        plans = plans_with("lightningFlash", "vortex")
+        assert has(plans, "opDash", "player", "rim", "island"), plans[:1]
+        assert has(plans, "opCast", "mage", "vortex", "forgePlate")
+        assert has(plans, "opKnock", "mage", "barrel", "forgePlate")
+        assert not has(plans, "opKnock", "mage", "warden", "forgePlate")
+        self._record(True, "Example 3: the player flashes over; the vortex draws the barrel onto "
+                           "the plate, the heavy warden stays")
 
     # -------------------------------------------------------------- properties
 
@@ -107,32 +109,45 @@ class SyncVaultTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_either_seat(self):
-        assert plans_with("tidalWave", "hook") and plans_with("hook", "tidalWave")
+        assert plans_with("taunt", "hook") and plans_with("hook", "taunt")
         self._record(True, "P3: a pair wins whichever companion holds which half")
 
     def test_property_p4_the_door_waits_for_both_plates(self):
-        """One plate alone does not open the door; the second arrival does."""
-        self.assert_state_after("weighIsland.", has=["at(player,island)"], not_has=["open(vaultdoor)"])
-        self.assert_plan("weighIsland, weighCloset.", contains=["opOpen(mage, vaultdoor)"])
+        """One plate alone does not open the door; the second one pressed does."""
+        self.assert_state_after("weighIsland(player).", has=["on(player,islandPlate)"],
+                                not_has=["open(vaultdoor)"])
+        self.assert_plan("weighIsland(player), weighForge(player).", contains=["opOpen(mage, vaultdoor)"])
         self._record(True, "P4: the door opens only when both plates are held at once")
 
-    def test_property_p5_no_companion_on_the_post_under_the_slam(self):
-        """The warden's slam throws everything on its post into the closet;
-        no taunt plan has a companion standing there when it lands."""
-        for crosser in ISLAND:
-            for plan in plans_with(crosser, "taunt"):
-                blow = plan.index(("opBlow", ("warden", "groundSlam", "post", "post")))
-                thrown = [a for n, a in plan[blow:] if n == "opForcedMove" and a[0] == "warden"]
-                assert thrown == [("warden", "barrel", "post", "closet")], thrown
-        self._record(True, "P5: the slam throws only the barrel")
+    def test_property_p5_nobody_sets_foot_in_the_forge(self):
+        """Walled and on lava: no companion ever ends up in the forge, and the
+        forge plate is only ever pressed by the barrel."""
+        for a in ISLAND:
+            for b in FORGE:
+                for plan in plans_with(a, b):
+                    assert not any(n in ("opNavigate", "opTeleport", "opDash") and a2[-1] == "forge"
+                                   for n, a2 in plan), (a, b)
+                    presses = [a2 for n, a2 in plan if n == "opStepOn" and a2[2] == "forgePlate"]
+                    assert all(p[1] == "barrel" for p in presses), presses
+        self._record(True, "P5: the forge plate takes the barrel, never a companion")
 
     def test_property_p6_the_warden_does_not_budge(self):
-        """Heavy, the warden stays on its post whatever pushes it; only the
-        barrel moves."""
-        for skill in ["fireball", "tidalWave"]:
+        """Heavy, the warden stays off the plate whatever knocks it; only the
+        barrel goes."""
+        for skill in FORGE:
             for plan in plans_with("blink", skill):
-                assert not any(n == "opForcedMove" and a[1] == "warden" for n, a in plan), skill
-        self._record(True, "P6: pushes move the barrel, never the warden")
+                assert not any(n == "opKnock" and a[1] == "warden" for n, a in plan), skill
+        self._record(True, "P6: knocks move the barrel, never the warden")
+
+    def test_property_p7_the_island_holder_stays(self):
+        """The door opens while the island holder is still on the island plate;
+        the other walks into the vault."""
+        for a in ISLAND:
+            for plan in plans_with(a, "fireball"):
+                opened = next(i for i, (n, _) in enumerate(plan) if n == "opOpen")
+                assert ("opStepOff", ("player", "player", "islandPlate")) not in plan[:opened]
+                assert ("opNavigate", ("mage", "hall", "vault")) in plan[opened:]
+        self._record(True, "P7: both plates are held when the door opens")
 
 
 def run_tests():
