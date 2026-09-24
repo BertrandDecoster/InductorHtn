@@ -14,12 +14,13 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["taunt", "provoke", "gust", "tidalWave", "concuss", "zap", "chainLightning"]
-LURES = ["taunt", "provoke"]
-FINISHERS = ["gust", "tidalWave", "concuss", "zap", "chainLightning"]
+POOL = ["blindingFlash", "taunt", "hook", "vortex", "fireball", "tidalWave", "lightningFlash"]
+FINISHERS = ["taunt", "hook", "vortex", "fireball", "tidalWave", "lightningFlash"]
 
-# The measured matrix: a lure and a finisher, and nothing else.
-WINNING = {frozenset((l, f)) for l in LURES for f in FINISHERS}
+# The measured matrix: the flash and any finisher; or a taunt and a partner who
+# pulls the taunter clear of the charge (hook, vortex) and then drops the Ram.
+WINNING = {frozenset(("blindingFlash", f)) for f in FINISHERS} | {
+    frozenset(("taunt", "hook")), frozenset(("taunt", "vortex"))}
 
 
 def _solutions(planner, goal):
@@ -71,18 +72,26 @@ class WallBangTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_bang_then_throw(self):
+    def test_example_1_flash_then_throw(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, taunt, ram)", "opProvoked(ram, taunted, ramCharge)",
+            "opCast(player, blindingFlash, player)", "opProvoked(ram, blinded, ramCharge)",
+            "opWindUp(ram, ramCharge, brink)", "opBlow(ram, ramCharge, brink, brink)",
             "opDash(ram, arena, brink)", "opExploit(ram, ram, pillar, staggered)",
-            "opCast(mage, gust, ram)", "opForcedMove(mage, ram, brink, ravine)",
+            "opCast(mage, fireball, ram)", "opForcedMove(mage, ram, brink, ravine)",
             "opExploit(mage, ram, chasm, fell)"])
 
-    def test_example_2_bang_then_shock(self):
-        ops = all_ops(plans_with("zap", "provoke"))
-        assert "opCast(mage, provoke, ram)" in ops and "opDash(ram, arena, brink)" in ops, ops
+    def test_example_2_taunt_and_hook_clear(self):
+        ops = all_ops(plans_with("taunt", "hook"))
+        assert "opWindUp(ram, ramCharge, brink)" in ops, ops
+        assert "opForcedMove(mage, player, brink, pen)" in ops, "the hook should pull the taunter clear"
+        assert "opExploit(mage, ram, chasm, fell)" in ops, ops
+        self._record(True, "Example 2: taunted, it charges; the hook pulls the taunter clear, then drops the Ram")
+
+    def test_example_3_flash_then_jolt(self):
+        ops = all_ops(plans_with("lightningFlash", "blindingFlash"))
+        assert "opProvoked(ram, blinded, ramCharge)" in ops, ops
         assert "opExploit(player, ram, electrocuted, dead)" in ops, ops
-        self._record(True, "Example 2: provoked from the brink, it crashes; the jolt stops it")
+        self._record(True, "Example 3: blinded, it crashes; the jolt stops its open heart")
 
     # -------------------------------------------------------------- properties
 
@@ -97,19 +106,27 @@ class WallBangTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_every_plan_crashes_at_the_pillar(self):
-        """Nothing wins without the wall-bang: every winning plan staggers the Ram
-        at the brink first."""
-        for lure, fin in [("taunt", "gust"), ("provoke", "chainLightning"), ("taunt", "concuss")]:
-            plans = plans_with(lure, fin)
-            assert plans
+        """Nothing wins without the wall-bang: every winning plan winds up the charge and
+        staggers the Ram at the brink."""
+        for pair in [("blindingFlash", "tidalWave"), ("taunt", "vortex"), ("blindingFlash", "hook")]:
+            plans = plans_with(*pair)
+            assert plans, pair
             for p in plans:
-                assert "opExploit(ram, ram, pillar, staggered)" in op_strings(p), \
-                    f"{lure}+{fin}: a plan without the crash"
-        self._record(True, "P3: every plan bangs the Ram into the pillar first")
+                ops = op_strings(p)
+                assert "opWindUp(ram, ramCharge, brink)" in ops, f"{pair}: no charge"
+                assert "opExploit(ram, ram, pillar, staggered)" in ops, f"{pair}: no crash"
+        self._record(True, "P3: every plan provokes the charge and bangs the Ram into the pillar")
 
-    def test_property_p4_each_hand_matters(self):
-        assert plans_with("gust", "taunt") and plans_with("chainLightning", "provoke")
-        self._record(True, "P4: the pairs win whichever companion holds which half")
+    def test_property_p4_a_push_is_no_rescue(self):
+        """The charge is physical: nothing interrupts it. A partner who can only push
+        (fireball, tidalWave) throws the taunter into the ravine: no plan."""
+        assert not plans_with("taunt", "fireball")
+        assert not plans_with("tidalWave", "taunt")
+        self._record(True, "P4: pushing the taunter off the brink is no rescue")
+
+    def test_property_p5_each_hand_matters(self):
+        assert plans_with("hook", "taunt") and plans_with("fireball", "blindingFlash")
+        self._record(True, "P5: the pairs win whichever companion holds which half")
 
 
 def run_tests():

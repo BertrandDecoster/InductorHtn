@@ -1,40 +1,37 @@
-# The Lunging Wraith
+# The Soulfire Wraith
 
 ## Purpose
 
-An enemy-state-machine level built around a **guard that hides** (stealth) and a **telegraphed
-reaction that spends the boss** (a Dark Souls recovery window). The Wraith haunts the crypt,
-stealthed: nothing can be aimed at it, only areas and zones reach it. It is a boss (no hard control)
-and bound to its crypt (nothing drags or pushes it: it moves only by its own lunge).
+An enemy-state-machine level about a hidden boss that has to be made to **spend itself**, with a
+**telegraphed, magic heavy spell** the team provokes on purpose. A Wraith haunts the crypt,
+stealthed: nothing can be aimed at it, only areas and zones reach it. It is a boss (no stuns), it
+flies, and it is bound to its crypt (nothing moves it). Its state machine:
 
-Its state machine is three tags and two behaviours:
+| State or trigger | Behaviour | Result |
+|------------------|-----------|--------|
+| `stealthed` | (innate) | cannot be aimed at: a taunt, a hook, a bolt at it all fail |
+| `wet`, `electrocuted` | `flinch` | it loses stealth, nothing more |
+| `blinded`, `taunted` | `soulfire` (heavy, magic, aimed `here`) | wind-up on the crypt; one team cast; then the crypt bursts into flames and the Wraith is out of hiding, `exhausted`, and no longer `flying` |
+| `exhausted` | the window | its binding lapses (`suspends(exhausted, forcedMove)`); `electrocuted` → `dead`; with no wings it falls into the well |
 
-| Trigger | Behaviour | Leaves it |
-|---------|-----------|-----------|
-| `taunted` or `blinded` | `lunge` at the source: loses stealth, spends itself, stuns the source, dashes to it | `exhausted` |
-| `electrocuted` | `flinch`: shaken out of hiding | not stealthed |
-| (`exhausted`) | the window: `electrocuted` → dead, `burning` → dead, `chilled` → frozen | - |
+The spell is magic, so a hook or a shield bash would interrupt it: that saves whoever stands in the
+crypt, and wastes the window.
 
-Three methods:
-
-| Method | Lure | Strike (the other companion) |
-|--------|------|------------------------------|
-| **Lure and strike** | `provoke` (an area taunt: it reaches the unseen) or `flashbang` (it blinds, and the blinded Wraith lashes out) | in the window: `zap`, `chainLightning`, `frostBolt`, `flameWall` |
-| **Lure into fire** | the same lures, sprung from a region `flameWall` set alight first | nothing: it lunges, already spent, into the flames and burns |
-| **Shake and taunt** | `chainLightning` shakes it out of hiding; now `taunt` reaches it and spends it | a second `chainLightning` |
+| Method | Set off the soulfire | Survive it | Finish it (the other companion) |
+|--------|----------------------|------------|---------------------------------|
+| **Flash and ...** | `blindingFlash` in or next to the crypt (it reaches the unseen) | the flash made its caster `disjoint`: the blow passes through them | drop it into the well (`tidalWave` or `fireball` from the mist, `vortex` into the well, `hook` or `taunt` across the well from the balcony) or jolt it (`lightningFlash`) |
+| **Reveal and taunt** | a jolt through the crypt (`lightningFlash` from the mist to the ossuary) or a wave from next door (`tidalWave`) shows it; then `taunt` | nobody is in the crypt | the revealer: a second bolt, or a second wave into the well |
 
 Why no single skill works:
-- A lure alone leaves it spent and standing. The lure is stunned by the lunge, so it could not
-  strike anyway.
-- A strike before the lunge does nothing lasting. `zap`, `frostBolt` and `taunt` cannot be aimed at
-  it while it hides.
-- A chain alone shakes it out of hiding, but never spends it.
+- Taunt, hook and bolt cannot be aimed at it while it hides.
+- A jolt or a wave only reveals it: it is bound and not spent, so nothing moves it and a jolt does
+  not kill it.
+- Two flashes: the second soulfire finds the crypt already ablaze, and nobody finishes it.
 
-Traps:
-- Lure it from the mist and it lunges back into hiding (the mist is a shadows zone). Then only an area
-  or a zone (`chainLightning`, `flameWall`) reaches it in its window: `zap` and `frostBolt` cannot be
-  aimed.
-- `flashbang` blinds everyone in the crypt, companions included.
+Traps: fire does nothing to it (the flames just burn: `fireball` + `taunt` never reveals it);
+`lightningFlash` + `tidalWave` reveal it twice and never spend it; interrupting the soulfire keeps it
+fresh. After the spell, whoever stands in the crypt steps back to the mist, so a wave or a vortex
+does not throw them into the well; a companion lost on the way is no win (`teamStanding`).
 
 ## Layer
 
@@ -48,71 +45,80 @@ level
 ## World
 
 ```
-gate (player, mage) --- nave --- mist --- crypt (Wraith) --- ossuary
-                         |                  .
-                      balcony . . . . . . . .   (the balcony overlooks the mist and the crypt)
+gate --- nave --- mist --- crypt (Wraith) --- ossuary
+           |                  |
+        balcony . . . . . .  well (a shaft beside the crypt)
 ```
 
-- **Line of sight:** gate-nave, nave-mist, nave-balcony, balcony-mist, balcony-crypt, mist-crypt,
-  crypt-ossuary.
-- **Zones:** `onEnter(mist, shadows)`: whoever arrives is stealthed. That includes companions walking
-  through, and the Wraith if it lunges there.
-- **Wraith:** boss, stealthed, `immune(wraith, forcedMove)`. `behavior(wraith, taunted, lunge,
-  source)`, `behavior(wraith, blinded, lunge, source)`, `behavior(wraith, electrocuted, flinch,
-  self)`. `lunge` = `self: remove(stealthed)`, `self: grant(exhausted)`, `target: grant(stunned)`,
-  `target: dash`, in that order: it lands already spent. `flinch` = `self: remove(stealthed)`.
-- **Goal:** `win` is the standard `neutralize(wraith)`, or `lure` (a trigger cast from any region in
-  range, the Wraith confirmed spent, then a strike by the other companion aimed at it, or at its
-  region while it hides), or a flinch first then `lure`, or flames laid in a region, then the lure
-  sprung from there.
-- Both companions have 4 mana.
+- **Zones:** the mist is `shadows` (whoever stands there is stealthed); the well is a `chasm`.
+- **Lines:** a push from the mist (or the ossuary) on the crypt drops into the well; from the
+  mist, the crypt lies between it and the ossuary (a bolt flies through); from the balcony, the
+  well lies between it and the crypt (a hook or a taunt's drag drops what it pulls).
+- **Line of sight:** the balcony overlooks the crypt and the well; the mist sees the crypt, the
+  well and the ossuary; the crypt and the ossuary see each other.
+- **Wraith:** boss, flying, stealthed, `immune(wraith, forcedMove)`, `suspends(exhausted,
+  forcedMove)`. `soulfire`: `target: spill(flames)`, `self: remove(stealthed)`,
+  `self: grant(exhausted)`, `self: remove(flying)`; `heavy`, `kind magic`.
+  `weakness(wraith, electrocuted, exhausted, dead)`.
+- **Goal:** `win` sets off the soulfire (revealing it first when the trigger must be aimed),
+  confirms it is spent, steps everyone out of the crypt, runs the standard `neutralize(wraith)`
+  in that state (`exploit` or `intoThePit`), and checks no companion was lost.
+- Both companions have 4 mana. Pool: `blindingFlash`, `taunt`, `lightningFlash`, `tidalWave`,
+  `fireball`, `vortex`, `hook`.
 
 ## Hypothesis
 
 Measured with `htn_components combos fsm_wraith` (and pinned by `test.py`):
 
 - No single skill wins, even when both companions hold it: 0 of 7.
-- 18 of 49 assignments win: 9 pairs, each whichever companion holds which half:
-  - `provoke` or `flashbang`, plus `zap`, `chainLightning`, `frostBolt` or `flameWall`: 8 pairs;
-  - `taunt` plus `chainLightning`: 1 pair (`chainLightning` plays two roles here: reveal, then strike).
-- 9 methods, 0 solo plans, no dead skills.
-- The other 12 pairs lose, each for a nameable reason: two lures (nobody strikes), two strikes
-  (nobody spends it), `taunt` with anything but the chain (it cannot be aimed at the unseen).
+- 16 of 49 assignments win: 8 pairs, each whichever companion holds which half:
+  - `blindingFlash` plus any finisher: `taunt`, `lightningFlash`, `tidalWave`, `fireball`,
+    `vortex`, `hook` (6 pairs);
+  - `taunt` plus a revealer that also finishes: `lightningFlash`, `tidalWave` (2 pairs).
+- 8 methods, 0 solo plans, no dead skills.
+- Skills with two roles: `lightningFlash` reveals it (through the crypt) and kills it; `tidalWave`
+  reveals it (wet) and washes it into the well; `taunt` sets off the soulfire, or drags the spent
+  Wraith across the well.
+- The other 13 pairs lose for a nameable reason: two finishers (it is never spent), fire with
+  anything but the flash (fire never reveals it), a taunt with nothing that reveals it.
 
 ## Examples
 
-### Example 1: Provoke, then jolt
+### Example 1: Flash, then jolt
 
-**Given:** the player knows `provoke`, the mage knows `zap`.
-
-**When:** `win`
-
-**Then:** the player provokes the crypt; the Wraith lunges, spent and revealed, and stuns the player;
-the mage's zap stops it (`dead`).
-
-### Example 2: Lure into fire
-
-**Given:** the player knows `flameWall`, the mage knows `flashbang`.
+**Given:** the player knows `blindingFlash`, the mage knows `lightningFlash`.
 
 **When:** `win`
 
-**Then:** one plan has the player set a region alight first; the mage flashbangs the crypt from
-there; the blinded Wraith lunges, already spent, into the flames and burns (`dead`).
+**Then:** the player walks into the crypt and flashes; the blinded Wraith winds up its soulfire; it
+lands, passing through the disjoint player; the Wraith is out of hiding and spent; the mage's
+lightning flash kills it (`dead`).
 
-### Example 3: Shake, then taunt
+### Example 2: Reveal, taunt, jolt
 
-**Given:** the player knows `taunt`, the mage knows `chainLightning`.
+**Given:** the player knows `lightningFlash`, the mage knows `taunt`.
 
 **When:** `win`
 
-**Then:** the mage's chain flinches the Wraith out of hiding; the player taunts it and it lunges,
-spent; the mage's second chain stops it (`dead`).
+**Then:** the player's bolt from the mist to the ossuary strikes through the crypt, and the Wraith
+flinches out of hiding; the mage taunts it from the balcony; the soulfire burns an empty crypt and
+spends it; the player's second bolt kills it.
+
+### Example 3: Flash, then hook into the well
+
+**Given:** the player knows `hook`, the mage knows `blindingFlash`.
+
+**When:** `win`
+
+**Then:** the mage's flash sets off the soulfire; spent, the Wraith has lost its wings and its
+binding; the player hooks it from the balcony across the well, and it falls (`fell`).
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
 | P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
-| P2 | The measured pairs win | Exactly the nine measured pairs have a plan. |
-| P3 | The mist hides it again | No provoke+frostBolt plan lures it into the mist; a chain still reaches it there. |
-| P4 | The lure is stunned | The lunge stuns whoever set it off, who casts nothing afterwards. |
+| P2 | The measured pairs win | Exactly the eight measured pairs have a plan. |
+| P3 | The soulfire spends it | Every winning plan lets the soulfire land and grants `exhausted`. |
+| P4 | The flash survives the blow | With `blindingFlash`, the flasher stands in the crypt, disjoint, when it lands. |
+| P5 | Revealing is not spending | `lightningFlash`+`tidalWave` and `fireball`+`taunt`: no plan. |

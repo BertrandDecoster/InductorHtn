@@ -14,18 +14,18 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["fireball", "flameWall", "tidalWave", "magnetize", "taunt", "frostBolt", "zap"]
+POOL = ["fireball", "tidalWave", "hook", "taunt", "blizzard", "lightningFlash", "turnToMist", "vortex"]
 
 # The measured matrix.
 WINNING = {
     frozenset(p) for p in [
-        # curl and roll: fireball burns and blasts it off; the partner pops the shield
-        ("fireball", "tidalWave"), ("fireball", "magnetize"), ("fireball", "taunt"),
-        ("fireball", "frostBolt"), ("fireball", "zap"),
-        # curl and roll: flameWall burns; the partner pops the shield and rolls it
-        ("flameWall", "tidalWave"), ("flameWall", "magnetize"),
-        # taunt and freeze
-        ("taunt", "frostBolt"),
+        # curl and roll: the partner pops the shield; fireball burns it and blasts it off
+        ("fireball", "tidalWave"), ("fireball", "taunt"), ("fireball", "lightningFlash"),
+        # taunt and strike: taunt pops the shield and makes it snap; the partner strikes its head
+        ("taunt", "blizzard"), ("taunt", "lightningFlash"),
+        # mist and roll: for a moment no shield, no weight; the partner pushes or pulls it in
+        ("turnToMist", "fireball"), ("turnToMist", "tidalWave"), ("turnToMist", "hook"),
+        ("turnToMist", "taunt"), ("turnToMist", "vortex"),
     ]
 }
 
@@ -56,7 +56,7 @@ def plans_with(player, mage):
 
 
 def op_strings(plan):
-    """One plan as readable operators: opCast(player, zap, shellback)."""
+    """One plan as readable operators: opCast(player, taunt, shellback)."""
     out = []
     for op in plan:
         name = list(op.keys())[0]
@@ -81,23 +81,24 @@ class ShellbackTest(HtnTestSuite):
 
     def test_example_1_pop_then_fireball(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, zap, shellback)", "opReact(player, shellback, shielded, electrocuted, absorb)",
+            "opCast(player, taunt, shellback)",
+            "opReact(player, shellback, shielded, taunted, absorb)",
             "opCast(mage, fireball, shellback)", "opProvoked(shellback, burning, withdraw)",
-            "opGrant(shellback, shellback, curled)", "opForcedMove(mage, shellback, causeway, chasm)",
+            "opRemove(shellback, shellback, heavy)",
+            "opForcedMove(mage, shellback, causeway, chasm)",
             "opExploit(mage, shellback, chasm, fell)"])
 
-    def test_example_2_hook_the_rolled_shell_across(self):
-        ops = all_ops(plans_with("flameWall", "magnetize"))
-        assert "opReact(mage, shellback, shielded, slowed, absorb)" in ops, ops
-        assert "opProvoked(shellback, burning, withdraw)" in ops
-        assert "opForcedMove(mage, shellback, causeway, chasm)" in ops
-        self._record(True, "Example 2: the hook pops the shield; flames curl it; the hook drags it into the chasm")
+    def test_example_2_mist_then_hook_across(self):
+        ops = all_ops(plans_with("hook", "turnToMist"))
+        assert "opCast(mage, turnToMist, shellback)" in ops, ops
+        assert "opForcedMove(player, shellback, causeway, chasm)" in ops, ops
+        self._record(True, "Example 2: the mist lifts its weight; the hook from the islet drags it into the chasm")
 
     def test_example_3_taunt_then_freeze(self):
-        ops = all_ops(plans_with("taunt", "frostBolt"))
+        ops = all_ops(plans_with("taunt", "blizzard"))
         assert "opProvoked(shellback, taunted, snap)" in ops and "opGrant(shellback, shellback, exhausted)" in ops
-        assert "opExploit(mage, shellback, chilled, frozen)" in ops
-        self._record(True, "Example 3: the taunt spends it; the frost bolt freezes it")
+        assert "opExploit(mage, shellback, chilled, dead)" in ops, ops
+        self._record(True, "Example 3: the second taunt makes it snap and spend itself; the blizzard stops it")
 
     # -------------------------------------------------------------- properties
 
@@ -112,19 +113,20 @@ class ShellbackTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_the_shield_eats_the_first_blow(self):
-        """Every winning plan loses one hostile tag to the shield first."""
-        for pair in [("fireball", "taunt"), ("flameWall", "tidalWave"), ("taunt", "frostBolt")]:
+        """Without the mist, every winning plan loses one hostile tag to the shield first."""
+        for pair in [("fireball", "taunt"), ("tidalWave", "fireball"), ("taunt", "blizzard")]:
             for p in plans_with(*pair):
                 assert any(o.startswith("opReact(") and "shielded" in o and "absorb" in o
                            for o in op_strings(p)), f"{pair}: no shield popped"
         self._record(True, "P3: the shield always eats the first hostile tag")
 
-    def test_property_p4_curled_it_takes_no_tags(self):
-        """Once curled it is invulnerable: after flameWall, a taunt cannot pull it into the chasm
-        from the islet, and frost cannot land. (fireball wins with either, by its own blast.)"""
-        assert not plans_with("flameWall", "taunt")
-        assert not plans_with("flameWall", "frostBolt")
-        self._record(True, "P4: curled, it refuses taunts and frost; only a push or a hook rolls it")
+    def test_property_p4_heavy_it_does_not_move(self):
+        """Heavy and shielded, it holds: a hook pops no shield, so fireball's one fire is
+        lost on it; frost undoes fire (thaw); and without fire or mist nothing moves it."""
+        assert not plans_with("fireball", "hook")
+        assert not plans_with("fireball", "blizzard")
+        assert not plans_with("vortex", "hook")
+        self._record(True, "P4: weight and shield hold unless burned or misted")
 
 
 def run_tests():

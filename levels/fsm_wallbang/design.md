@@ -2,30 +2,37 @@
 
 ## Purpose
 
-An enemy-state-machine level in the Monster Hunter wall-bang style. The Ram is a boss: heavy, so
-nothing moves it, and immune to hard control. It has one telegraphed reaction: **taunted, it charges
-its taunter** (it dashes to where the taunter stands). A stone pillar stands at the brink of a
-ravine. A charge that ends there crashes into it, and the Ram is **staggered**. Staggered is its
-vulnerability window, and it opens two ways to win:
+An enemy-state-machine level in the Monster Hunter wall-bang style, built on a **telegraphed,
+physical heavy attack** the team provokes on purpose. The Ram is a boss: heavy (nothing moves it),
+immune to stuns, and it holds the arena (a blocker). Taunted or blinded, it lowers its horns and
+**charges down its lane to the brink**: a heavy blow. The team gets one cast; then the Ram lands on
+the brink, goring whoever stands there (stunned, thrown into the ravine). A stone pillar stands at
+the brink, and the charge ends in it:
 
-| Method | First (the lure) | Then (the finisher, the other companion) |
-|--------|------------------|------------------------------------------|
-| **Bang and drop** (staggered, its footing lapses) | `taunt` or `provoke`, cast from the brink | throw it into the ravine from the arena or the gallery: `gust`, `tidalWave`, `concuss` |
-| **Bang and shock** (staggered, its heart is open) | `taunt` or `provoke`, cast from the brink | jolt it: `zap`, `chainLightning` |
+| State or trigger | Behaviour | Result |
+|------------------|-----------|--------|
+| `taunted`, `blinded` | `ramCharge` (heavy, physical, aimed `there(brink)`) | wind-up; one team cast; then it dashes to the brink and gores everyone there |
+| arrives at the brink | the `pillar` zone | `staggered` (a hazard only the Ram is weak to) and `heavy` removed (knocked off its feet) |
+| `staggered` | the window | `electrocuted` → `dead`; a push or a pull drops it into the ravine |
 
-The state machine is only tags: `taunted` → behaviour `ramCharge` (a dash to the source) → arrival
-at the brink meets the pillar, a hazard only the Ram is weak to → `staggered`, which suspends its
-immunity to forced movement and makes `electrocuted` lethal.
+Only the brink sees into the arena, so the lure is always cast from the brink, and the charge comes
+down on the lure's own head. Surviving it is half the puzzle:
+
+| Method | The lure (from the brink) | Surviving the charge | The finisher (the other companion) |
+|--------|---------------------------|----------------------|------------------------------------|
+| **Flash and ...** | `blindingFlash` (it blinds everyone around) | the flash made its caster `disjoint`: the gore passes through them | `fireball` or `tidalWave` from the pen, `vortex` into the ravine, `hook` or `taunt` across the ravine from the ledge, or `lightningFlash` on its open heart |
+| **Taunt and pull** | `taunt` | the partner pulls the taunter clear in the window: `hook` from the pen, or a `vortex` on the pen | the same skill drops the staggered Ram (hook across the ravine, vortex into it) |
 
 Why no single skill works:
-- A lure alone leaves a staggered Ram standing.
+- A lure alone leaves a staggered Ram standing; two taunts leave the taunter on the brink when the
+  charge lands.
 - A push, a pull or a jolt before the crash does nothing: it is heavy, and a jolted living thing
   only seizes up.
-- The lure has to be cast from the brink. From anywhere else, the Ram charges to you and nothing
-  happens.
+- The charge is physical: nothing interrupts it. Only leaving the brink, or being disjoint, survives.
 
-Traps: `tidalWave` and `chainLightning` hit everyone at the brink, so the taunter is thrown into the
-ravine along with the Ram, or shocked next to it. The plan still wins, at that cost.
+Traps: `fireball` and `tidalWave` "save" the taunter by throwing them into the ravine; the level
+does not count a lost companion as a rescue (`teamStanding`). After the charge, whoever stands on
+the brink steps back to the pen, so a finisher's wave or vortex does not take them too.
 
 ## Layer
 
@@ -39,62 +46,82 @@ level
 ## World
 
 ```
-pen (player, mage) --- arena (Ram) --- brink (pillar)
-                         |               :
-                      gallery          ravine (chasm, below the brink)
-                         |
-                       crag
+         arena (Ram)
+           |
+pen --- brink (pillar) ... ravine (chasm, below the brink)
+ |                            :
+gallery ----------------- ledge   (faces the brink across the ravine)
 ```
 
-- **Lines:** a push from the arena or the gallery on the brink lands in the ravine.
-- **Line of sight:** pen and arena see each other; the arena and the brink see each other; the
-  gallery sees the arena and the brink.
-- **The pillar:** `onEnter(brink, pillarCrash)`, a hazard `pillar`. Only the Ram has a weakness to it
-  (`weakness(ram, pillar, none, staggered)`), so companions walk the brink safely.
-- **Ram:** boss, living, heavy. `behavior(ram, taunted, ramCharge, source)`, `ramCharge` = `dash`.
-  `suspends(staggered, forcedMove)`, `weakness(ram, electrocuted, staggered, dead)`.
-- **Goal:** `win` is either the standard `neutralize(ram)` (it finds nothing while the Ram stands
-  firm), or the level's own stages: a lurer casts from the crash site, the Ram must be staggered, then
-  someone else finishes it (`sendInto` the ravine, or the weakness that needs `staggered`).
-- Both companions have 4 mana.
+- **Lines:** a push from the pen on the brink lands in the ravine; a blow landing on the brink
+  throws whoever stands there over it; from the ledge, the ravine lies between it and the brink, so
+  a pull (hook, a taunt's drag) drops what it drags.
+- **Line of sight:** only the brink sees the arena. Pen-brink, pen-gallery, gallery-ledge,
+  ledge-brink, pen and ledge see the ravine.
+- **The pillar:** `onEnter(brink, pillar)`, a zone with `hazard(pillar)` and `remove(heavy)`. Only the
+  Ram has a weakness to it (`weakness(ram, pillar, none, staggered)`).
+- **Ram:** boss, living, heavy, blocker. `behavior(ram, taunted|blinded, ramCharge, there(brink))`,
+  `heavy(ramCharge)` (physical): `target: dash`, `area: grant(stunned)`, `area: push`.
+  `weakness(ram, electrocuted, staggered, dead)`.
+- **Goal:** `win` provokes the charge (a skill that grants a trigger tag), confirms the Ram is
+  staggered, steps everyone off the brink, runs the standard `neutralize(ram)` in that state
+  (`intoThePit` or `exploit`), and checks no companion was lost.
+- Both companions have 4 mana. Pool: `blindingFlash`, `taunt`, `hook`, `vortex`, `fireball`,
+  `tidalWave`, `lightningFlash`.
 
 ## Hypothesis
 
 Measured with `htn_components combos fsm_wallbang` (and pinned by `test.py`):
 
 - No single skill wins, even when both companions hold it: 0 of 7.
-- 20 of 49 assignments win: 10 pairs, each whichever companion holds which half. Every pair is
-  one lure (`taunt`, `provoke`) plus one finisher (`gust`, `tidalWave`, `concuss`, `zap`,
-  `chainLightning`).
-- 10 methods (distinct sets of skills cast), 0 solo plans, no dead skills.
-- The other 11 pairs lose, each for a nameable reason: two lures (it staggers, nobody finishes), two
-  finishers (it never staggers).
+- 16 of 49 assignments win: 8 pairs, each whichever companion holds which half:
+  - `blindingFlash` plus any finisher: `taunt`, `hook`, `vortex`, `fireball`, `tidalWave`,
+    `lightningFlash` (6 pairs);
+  - `taunt` plus a partner who pulls: `hook`, `vortex` (2 pairs).
+- 8 methods, 0 solo plans, no dead skills.
+- Skills with two roles: `taunt` lures the charge, or drags the staggered Ram across the ravine;
+  `hook` and `vortex` pull the taunter out of the charge, then drop the Ram.
+- The other 13 pairs lose for a nameable reason: two finishers (it never charges), a taunt with a
+  pusher (the only rescue is a push into the ravine), `taunt`+`lightningFlash` (nobody pulls the
+  taunter clear).
 
 ## Examples
 
-### Example 1: Bang, then throw
+### Example 1: Flash, then throw
 
-**Given:** the player knows `taunt`, the mage knows `gust`.
-
-**When:** `win`
-
-**Then:** the player walks to the brink and taunts the Ram; it charges, crashes into the pillar and
-is staggered; the mage's gust from the arena throws it into the ravine (`fell`).
-
-### Example 2: Bang, then shock
-
-**Given:** the player knows `zap`, the mage knows `provoke`.
+**Given:** the player knows `blindingFlash`, the mage knows `fireball`.
 
 **When:** `win`
 
-**Then:** the mage provokes the Ram from the brink; it charges into the pillar; the player's zap
-stops its open heart (`dead`).
+**Then:** the player walks to the brink and flashes; the blinded Ram winds up its charge; it dashes
+to the brink, passes through the disjoint player, crashes into the pillar (`staggered`, no longer
+heavy); the player steps back; the mage's fireball from the pen throws it into the ravine (`fell`).
+
+### Example 2: Taunt, and the hook pulls you clear
+
+**Given:** the player knows `taunt`, the mage knows `hook`.
+
+**When:** `win`
+
+**Then:** the player taunts from the brink; in the wind-up the mage hooks the player back to the pen;
+the charge lands on an empty brink and the Ram crashes; the mage walks to the ledge and hooks the
+Ram across the ravine (`fell`).
+
+### Example 3: Flash, then jolt
+
+**Given:** the player knows `lightningFlash`, the mage knows `blindingFlash`.
+
+**When:** `win`
+
+**Then:** the mage flashes from the brink and survives the gore; the player's lightning flash stops
+the staggered Ram's open heart (`dead`).
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
 | P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
-| P2 | The measured pairs win | Exactly the ten lure-and-finisher pairs have a plan. |
-| P3 | The crash is the key | Every winning plan staggers the Ram at the pillar first. |
-| P4 | Each hand matters | A pair wins whichever companion holds which half. |
+| P2 | The measured pairs win | Exactly the eight measured pairs have a plan. |
+| P3 | The crash is the key | Every winning plan winds up the charge and staggers the Ram at the pillar. |
+| P4 | A push is no rescue | `taunt` with `fireball` or `tidalWave`: no plan. |
+| P5 | Each hand matters | A pair wins whichever companion holds which half. |
