@@ -1,0 +1,117 @@
+% The Drowned Knight (hazard terrain and physics objects)
+%
+% A knight in full plate holds a keep on a spit of rock. On one side the
+% keep drops into a moat (a chasm); below the quay wall lies a deep lake.
+% Nobody can hurt the knight: the terrain can. Its armour is the puzzle - it
+% keeps the knight from being moved, and it would drag it to the bottom of
+% the lake. Two companions, one skill each, from eight.
+%
+%   gate --- quay --- causeway --- keep (knight) ::: moat
+%    |        :                      :
+%   tower    lake (below the wall; no way down but a fall)
+%
+% Two ways, opposite in kind:
+%   drown it   keep the armour on and make the knight move itself: it lunges
+%              at whoever taunts or enrages it. Someone has to be down in
+%              the lake first - pushed off the quay by a friend (gust,
+%              tidalWave) - and taunt or enrage it from the water. The knight
+%              leaps in after them and sinks in its plate.
+%   drop it    take the armour off (sunder, dispel) - now it floats, but it
+%              can be moved: push it off the keep into the moat from the
+%              causeway (gust, shieldBash, tidalWave), or pull it across the
+%              moat from the tower (magnetize, taunt).
+% Traps: stripped, it no longer drowns; a knight taunted from dry land just
+% lunges over to you (a leap never falls); a friend shield-bashed into the
+% lake is stunned and cannot taunt; nobody can walk down to the water.
+region(gate).
+region(quay).
+region(lake).
+region(causeway).
+region(keep).
+region(moat).
+region(tower).
+connected(gate, quay).
+connected(quay, gate).
+connected(quay, causeway).
+connected(causeway, quay).
+connected(causeway, keep).
+connected(keep, causeway).
+connected(gate, tower).
+connected(tower, gate).
+lineOfSight(gate, quay).
+lineOfSight(causeway, keep).
+lineOfSight(tower, keep).
+lineOfSight(lake, keep).
+
+% Push lines (and what lies between): from the gate, whoever stands on the
+% quay goes over the wall into the lake; from the causeway, the keep's
+% occupant goes into the moat; a pull from the tower crosses the moat.
+beyond(gate, quay, lake).
+beyond(causeway, keep, moat).
+beyond(tower, moat, keep).
+
+% === Terrain ===
+onEnter(lake, deepWater).
+onEnter(moat, chasm).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, gate).
+at(mage, gate).
+mana(player, 2).
+mana(mage, 2).
+
+% === The knight ===
+role(knight, enemy).
+at(knight, keep).
+trait(knight, living).
+tag(knight, armored).
+blocker(knight).
+% It sinks in its plate; out of it, it swims.
+weakness(knight, deepWater, armored, fell).
+% Taunted or enraged, it leaps at whoever did it.
+behavior(knight, taunted, lunge, source).
+behavior(knight, berserk, lunge, source).
+effect(lunge, target, dash).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, taunt).
+
+% === Victory ===
+win :- if(), do(neutralize(knight)).
+win :- if(), do(bait(knight)).
+
+% Bait: a companion gets into water that drowns ?e, then provokes it from
+% there, and ?e leaps in after them.
+bait(?e) :-
+    if(behavior(?e, ?t, lunge, source), onEnter(?r, ?z), effect(?z, target, hazard(?h)),
+       weakness(?e, ?h, ?have, ?out), stops(?e, ?out), canAct(?b), first(canInflict(?b, ?ab, ?t, ?e))),
+    do(getInto(?b, ?r), inflictAs(?b, ?t, ?e), confirmStopped(?e)).
+
+% ?b ends up in ?r: already there, or pushed in by someone else from the
+% line's near side.
+getInto(?b, ?r) :- if(at(?b, ?r)), do().
+getInto(?b, ?r) :-
+    if(not(at(?b, ?r)), landing(?from, ?over, ?r)),
+    do(walkTo(?b, ?over), place(?b, ?r, ?b), confirmAt(?b, ?r)).
+confirmAt(?x, ?r) :- if(at(?x, ?r)), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(sunder).
+comboPool(dispel).
+comboPool(gust).
+comboPool(shieldBash).
+comboPool(tidalWave).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(enrage).
+comboMinWins(10).
+comboMinMethods(4).
+
+goals(win).

@@ -1,0 +1,139 @@
+% Powder Keg (ability catalogue; category: enemies' powers used against them)
+%
+% A goblin warband has sent a clockwork powder-mule up the ridge, a keg of
+% blackpowder strapped to its back. Knock it flat (stun it) and the keg goes
+% off: everything around it catches fire. Down in the grove stands an old
+% ent the goblins have been feeding - wood, and nothing in the party burns.
+% Bring the keg and the ent together, then knock the mule down.
+%
+%   camp --- road --- grove (ent)
+%             |      /
+%            ridge (mule) --- crag
+%
+% Two steps, two companions:
+%   bring them together
+%       the keg to the ent - taunt the mule from the grove (it is dragged
+%       to you), hook it from the grove (magnetize), swap places with it
+%       from the grove (translocate), blow it down off the crag (gust), or
+%       shove it down from the crag (concuss, melee);
+%       or the ent to the keg - hook the ent from the ridge (magnetize),
+%       swap with it from the ridge (translocate), taunt it up (taunt)
+%   knock the mule down
+%       shieldBash (melee), charge (a dash), thunderclap (melee, once)
+% The mule is clockwork: mindless, so a translocate cannot daze it and it
+% cannot be frightened; knocked down, it goes off at once, wherever it is.
+% Traps:
+%   - stunning the mule where it stands wastes the keg: it blows once, and
+%     a stunned mule cannot be stunned again;
+%   - a thunderclap from the crag stuns it before it shoves it down: the
+%     keg goes off on the ridge;
+%   - every stunner here also pushes, and never in a useful direction.
+% The blast sets the stunner alight too - harmless to the party.
+
+% === Regions ===
+region(camp).
+region(road).
+region(grove).
+region(ridge).
+region(crag).
+connected(camp, road).
+connected(road, camp).
+connected(road, grove).
+connected(grove, road).
+connected(road, ridge).
+connected(ridge, road).
+connected(grove, ridge).
+connected(ridge, grove).
+connected(ridge, crag).
+connected(crag, ridge).
+lineOfSight(camp, road).
+lineOfSight(road, camp).
+lineOfSight(road, grove).
+lineOfSight(grove, road).
+lineOfSight(road, ridge).
+lineOfSight(ridge, road).
+lineOfSight(grove, ridge).
+lineOfSight(ridge, grove).
+lineOfSight(crag, ridge).
+
+% Push line: from the crag, a blow on the ridge sends it down into the grove.
+beyond(crag, ridge, grove).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, camp).
+at(mage, camp).
+mana(player, 4).
+mana(mage, 4).
+
+% === Enemies ===
+role(ent, enemy).
+at(ent, grove).
+trait(ent, wooden).
+
+% The powder-mule: knocked flat, the keg goes off where it lies.
+role(mule, enemy).
+at(mule, ridge).
+trait(mule, mindless).
+immune(mule, burning).
+behavior(mule, stunned, keg, here).
+reach(keg, self).
+effect(keg, area, grant(burning)).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, taunt).
+knows(mage, shieldBash).
+
+% === Recipes (level-local: the keg, turned on the ent) ===
+
+% Bring ?b and ?v into one region, by ?p: pull one to where the other
+% stands, push one into the other's region, or swap places with one while
+% standing by the other.
+gather(?b, ?v, ?p) :-
+    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), puller(?p, ?ab, ?b), reach(?ab, ?k),
+       inRange(?k, ?vr, ?br), canReachNow(?p, ?vr)),
+    do(castFrom(?p, ?ab, ?b, ?vr)).
+gather(?b, ?v, ?p) :-
+    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), puller(?p, ?ab, ?v), reach(?ab, ?k),
+       inRange(?k, ?br, ?vr), canReachNow(?p, ?br)),
+    do(castFrom(?p, ?ab, ?v, ?br)).
+gather(?b, ?v, ?p) :-
+    if(at(?v, ?vr), first(placement(?p, ?ab, ?from, ?b, ?vr))), do(castFrom(?p, ?ab, ?b, ?from)).
+gather(?b, ?v, ?p) :-
+    if(at(?b, ?br), first(placement(?p, ?ab, ?from, ?v, ?br))), do(castFrom(?p, ?ab, ?v, ?from)).
+gather(?b, ?v, ?p) :-
+    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), knows(?p, ?ab), effect(?ab, target, swap),
+       ready(?p, ?ab, ?b), reach(?ab, ?k), inRange(?k, ?vr, ?br), canReachNow(?p, ?vr)),
+    do(castFrom(?p, ?ab, ?b, ?vr)).
+gather(?b, ?v, ?p) :-
+    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), knows(?p, ?ab), effect(?ab, target, swap),
+       ready(?p, ?ab, ?v), reach(?ab, ?k), inRange(?k, ?br, ?vr), canReachNow(?p, ?br)),
+    do(castFrom(?p, ?ab, ?v, ?br)).
+
+% Set ?b off where it stands, by anyone but ?not.
+setOff(?b, ?not) :- if(behavior(?b, ?t, ?x, here)), do(inflict(?t, ?b, ?not)).
+
+% The ent: one companion brings keg and ent together, the other knocks the
+% mule down.
+detonate(?b, ?v) :- if(canAct(?p)), do(gather(?b, ?v, ?p), setOff(?b, ?p), confirmStopped(?v)).
+
+win :- if(), do(detonate(mule, ent)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(translocate).
+comboPool(gust).
+comboPool(concuss).
+comboPool(shieldBash).
+comboPool(charge).
+comboPool(thunderclap).
+comboMinWins(10).
+comboMinMethods(4).
+
+goals(win).

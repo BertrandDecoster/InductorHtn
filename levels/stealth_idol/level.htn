@@ -1,0 +1,163 @@
+% The Idol (stealth and avoidance)
+%
+% A thief and a lookout, and a golden idol in a temple shrine. The way in
+% is the nave, watched from the altar by a keeper - with a second keeper
+% dozing beside him. The way out is a chute down to the crypt, where a
+% skeleton stands watch before the exit. The idol glows: whoever carries it
+% can hide no more. One companion must carry the idol out.
+%
+%   ledge ................................ (sees down into the crypt)
+%     |                                     :
+%   entry ---- nave ---- shrine (idol) --> chute ---- crypt (skeleton) ---- exit
+%                :                                      :
+%              altar (keeper, dozer)                  ossuary (a pit)
+%
+% Two obstacles, and the second cannot be sneaked:
+%   the nave    sneak in (vanish; shadowStep dashes in, hidden), put the
+%               keeper to sleep with a dart (sleepDart), or lure him off the
+%               altar (taunt drags him to the taunter).
+%   the crypt   the thief carries the glowing idol: no stealth. Dazzle the
+%               skeleton (flashbang), or shove it into the ossuary from the
+%               ledge (gust). It is mindless - no sleep - and deaf to taunts.
+%
+% Traps:
+%   - a flash, a cloud of smoke or any hostile touch on the dozer rouses
+%     him, alarmed: no flash dazzles him after that. A flashbang at the
+%     altar blinds the keeper and wakes the dozer - the nave is still
+%     watched (a taunt can then drag the roused dozer away).
+%   - sneaking gets the thief in, never out: the idol strips stealth and
+%     wards it.
+%   - the ledge is the only place that sees into the crypt, and the chute
+%     runs one way.
+%
+% Victory: either companion carries the idol to the exit (heist/0).
+
+% === Regions ===
+region(entry).
+region(ledge).
+region(nave).
+region(altar).
+region(shrine).
+region(chute).
+region(crypt).
+region(ossuary).
+region(exit).
+connected(entry, ledge).
+connected(ledge, entry).
+connected(entry, nave).
+connected(nave, entry).
+connected(nave, shrine).
+connected(shrine, nave).
+connected(shrine, chute).
+connected(chute, crypt).
+connected(crypt, exit).
+connected(exit, crypt).
+
+lineOfSight(entry, nave).
+lineOfSight(entry, altar).
+lineOfSight(nave, altar).
+lineOfSight(nave, shrine).
+lineOfSight(ledge, crypt).
+
+% The one push line: from the ledge, whatever is in the crypt goes into
+% the ossuary.
+beyond(ledge, crypt, ossuary).
+
+% === Terrain ===
+onEnter(ossuary, chasm).
+% The idol: whoever enters the shrine takes it, and its glow undoes and
+% wards off stealth.
+onEnter(shrine, idol).
+effect(idol, target, remove(stealthed)).
+effect(idol, target, grant(laden)).
+wards(laden, stealthed).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, entry).
+at(mage, entry).
+
+% === The watch ===
+% The keeper watches the nave from the altar; off the altar, he sees
+% nothing of it.
+role(keeper, enemy).
+at(keeper, altar).
+trait(keeper, living).
+watches(keeper, nave) :- at(keeper, altar).
+
+% The dozer: blind while he dozes; anything hostile rouses him, alarmed,
+% and nothing dazzles an alarmed guard.
+role(dozer, enemy).
+at(dozer, altar).
+trait(dozer, living).
+tag(dozer, dozing).
+bundles(dozing, blinded).
+reaction(dozing, hostile, rouse).
+effect(rouse, target, remove(dozing)).
+effect(rouse, target, grant(alarmed)).
+wards(alarmed, blinded).
+watches(dozer, nave) :- at(dozer, altar).
+
+% The skeleton: mindless, and deaf to taunts.
+role(skeleton, enemy).
+at(skeleton, crypt).
+trait(skeleton, mindless).
+immune(skeleton, taunted).
+watches(skeleton, crypt) :- at(skeleton, crypt).
+
+% === Default kit (combos replans the whole matrix) ===
+knows(player, vanish).
+knows(mage, gust).
+
+% === Getting somewhere unseen ===
+
+watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
+selfHide(?a, ?ab) :- knows(?a, ?ab), reach(?ab, self), effect(?ab, self, grant(stealthed)).
+% A dash that also hides the dasher, and where it lands.
+hideDash(?a, ?ab, ?r) :-
+    knows(?a, ?ab), effect(?ab, target, dash), effect(?ab, self, grant(stealthed)),
+    region(?r), not(at(?a, ?r)), ready(?a, ?ab, ?r), at(?a, ?from), canTarget(?from, ?r).
+% Anything someone can use on the watcher, from anywhere they can stand.
+tryOn(?c, ?ab, ?g, ?from) :-
+    canAct(?c), knows(?c, ?ab), ready(?c, ?ab, ?g), at(?g, ?r), reach(?ab, ?k), region(?from),
+    inRange(?k, ?from, ?r), canReachNow(?c, ?from).
+
+% ?a gets to ?r: walk if it can; else hide, dash in hidden, or stop a
+% watcher watching, and try again (at most ?n times).
+getTo(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), not(has(?a, stealthed)),
+       selfHide(?a, ?ab), receptive(?a, stealthed)),
+    do(cast(?a, ?ab, ?a), getTo(?a, ?r, ?m)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), hideDash(?a, ?ab, ?land)),
+    do(cast(?a, ?ab, ?land), getTo(?a, ?r, ?m)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watching(?g)),
+    do(unwatch(?g), getTo(?a, ?r, ?m)).
+
+% The watcher stops watching: blinded, asleep, lured off his post, or gone.
+unwatch(?g) :-
+    if(tryOn(?c, ?ab, ?g, ?from)), do(castFrom(?c, ?ab, ?g, ?from), confirmUnwatched(?g)).
+confirmUnwatched(?g) :- if(not(watching(?g))), do().
+
+% === Victory: the idol out ===
+carried(?t) :- if(has(?t, laden)), do().
+heist :- if(canAct(?t)), do(getTo(?t, shrine, 2), carried(?t), getTo(?t, exit, 2)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from six (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(vanish).
+comboPool(shadowStep).
+comboPool(sleepDart).
+comboPool(taunt).
+comboPool(flashbang).
+comboPool(gust).
+comboMinWins(10).
+comboMinMethods(3).
+
+goals(heist).

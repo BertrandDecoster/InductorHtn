@@ -1,0 +1,144 @@
+% The Shellback (enemy state machines)
+%
+% A giant tortoise holds the causeway over a chasm. It is a boss (no hard
+% control), heavy (nothing moves it), and wears an energy shield that eats
+% the next hostile tag. Its state machine:
+%   shielded             -> any hostile tag only pops the shield (a guard:
+%                           it comes off first)
+%   burning              -> withdraw: it curls into its shell - invulnerable
+%                           to every hostile tag, but curled, a ball that
+%                           rolls (its immunity to forced movement lapses)
+%   taunted              -> snap: its head lunges out at the taunter
+%                           (rooted) and it is left exhausted
+%   exhausted            -> the window: frost stops it (frozen)
+% Its defence becomes its weakness: the fire that makes it untouchable
+% makes it roll.
+%
+%   strand --- islet          (the islet faces the causeway across the chasm)
+%     |
+%   shore --- causeway (Shellback) --- far   (it blocks the way to the far end)
+%                 :
+%               chasm (below)
+%
+% Methods (each needs the shield popped first, by any hostile tag):
+%   curl and roll    set it burning (fireball, flameWall), then roll the
+%                    curled shell off the causeway: push it from the shore
+%                    (fireball's own blast, tidalWave), or drag it across the
+%                    chasm from the islet (magnetize)
+%   taunt and freeze taunt it; it snaps and is spent; freeze it (frostBolt)
+%
+% Traps:
+%   - the first hostile tag of any kind is lost on the shield: a fire that
+%     pops the shield leaves flames that will not burn it twice;
+%   - once curled, nothing hostile lands: no taunt, no frost - and a taunt's
+%     pull does not reach it either;
+%   - burn it after taunting it and the window closes (invulnerable);
+%   - a push or pull before it curls does nothing: it is heavy;
+%   - the taunter is pinned by the snap.
+
+% === Regions ===
+region(shore).
+region(causeway).
+region(far).
+region(chasm).
+region(strand).
+region(islet).
+connected(shore, causeway).
+connected(causeway, shore).
+connected(causeway, far).
+connected(far, causeway).
+connected(shore, strand).
+connected(strand, shore).
+connected(strand, islet).
+connected(islet, strand).
+lineOfSight(shore, causeway).
+lineOfSight(causeway, shore).
+lineOfSight(far, causeway).
+lineOfSight(islet, causeway).
+lineOfSight(shore, strand).
+lineOfSight(strand, shore).
+lineOfSight(strand, islet).
+lineOfSight(islet, strand).
+
+% A push from the shore rolls it off into the chasm; from the islet, the
+% chasm lies between, so a pull drops it in.
+beyond(shore, causeway, chasm).
+beyond(islet, chasm, causeway).
+onEnter(chasm, chasm).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, shore).
+at(mage, shore).
+mana(player, 4).
+mana(mage, 4).
+
+% === The Shellback ===
+role(shellback, enemy).
+at(shellback, causeway).
+rank(shellback, boss).
+trait(shellback, living).
+trait(shellback, heavy).
+blocker(shellback).
+tag(shellback, shielded).
+
+% Burning, it withdraws into its shell.
+behavior(shellback, burning, withdraw, self).
+reach(withdraw, self).
+effect(withdraw, self, grant(curled)).
+effect(withdraw, self, grant(invulnerable)).
+suspends(curled, forcedMove).
+
+% Taunted, it snaps at its taunter and is spent.
+behavior(shellback, taunted, snap, source).
+reach(snap, ranged).
+effect(snap, target, grant(rooted)).
+effect(snap, self, grant(exhausted)).
+weakness(shellback, chilled, exhausted, frozen).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, zap).
+knows(mage, fireball).
+
+% === Victory ===
+% The standard recipes (they find nothing while it stands shielded) ...
+win :- if(), do(neutralize(shellback)).
+% ... or: the shield off, a transition set off, then the standard recipes
+% in the state it is left in.
+win :- if(), do(popShield(shellback), setOff(shellback), neutralize(shellback)).
+
+% Any hostile tag pops the shield: cast, area or spilled zone.
+popShield(?e) :- if(not(tag(?e, shielded))), do().
+popShield(?e) :-
+    if(tag(?e, shielded), canAct(?a), knows(?a, ?sk), grants(?sk, ?t), hostile(?t),
+       ready(?a, ?sk, ?e)),
+    do(cast(?a, ?sk, ?e), confirmOff(?e, shielded)).
+
+% Someone lands a tag it answers with a behaviour.
+setOff(?e) :-
+    if(behavior(?e, ?t, ?ab, ?aim), canAct(?a), knows(?a, ?sk), grants(?sk, ?t),
+       ready(?a, ?sk, ?e)),
+    do(cast(?a, ?sk, ?e), confirmTag(?e, ?t)).
+
+confirmTag(?e, ?t) :- if(tag(?e, ?t)), do().
+confirmOff(?e, ?t) :- if(not(tag(?e, ?t))), do().
+
+funExpect(single_actor_plans, atMost, 0).
+% The intent: every plan sets off one of its transitions.
+funIntended(opProvoked).
+
+% === Choice: one skill each, from seven (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(fireball).
+comboPool(flameWall).
+comboPool(tidalWave).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(frostBolt).
+comboPool(zap).
+comboMinWins(8).
+comboMinMethods(4).
+
+goals(win).

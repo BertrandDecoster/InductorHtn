@@ -1,0 +1,155 @@
+% The Scholar (escort, protect, rescue)
+%
+% A scholar who cannot fight must get from the library to the exit. The
+% only door runs through the hall, where an armoured brute - a clockwork
+% machine - stands in the way: nobody walks past it. From the balcony, a gap
+% drops away to the exit landing, where an iron pillar is bolted down.
+%
+%   library (scholar, player, mage) --- hall (brute) --- exit (pillar)
+%      |                                  |               |
+%   balcony -------------- gap ------------------------- +
+%                        (chasm)          pit (under the hall)
+%
+% Three ways to get the scholar out, each needing both companions:
+%   move the brute   strip its armour (sunder), then move it out of the
+%                    doorway: push it into the pit from the library (gust),
+%                    drag it aside (magnetize), lure it onto the balcony
+%                    (taunt), or swap it away (translocate). Then the scholar
+%                    walks through the hall.
+%   short it         it is a machine: soak it (rainCall), then jolt it (zap);
+%                    it stops for good, and the scholar walks out.
+%   swap it over     one companion crosses - a dash (pounce) over the gap or
+%                    into the hall, or a grappling hook to the pillar or onto
+%                    the armoured brute (magnetize) - and the other
+%                    translocates over to it (a swap), then swaps the scholar
+%                    across from the exit.
+%
+% Traps:
+%   - a taunted brute is dragged to whoever taunted it and slams the floor
+%     there, stunning everyone around it. Taunt it from the library and the
+%     scholar is stunned where it stands and cannot walk: lure it from the
+%     balcony, away from the scholar;
+%   - dragging the scholar across the gap (magnetize, taunt from the exit)
+%     drops it into the chasm;
+%   - a push or a pull on the armoured brute does nothing; a hook on it
+%     drags the caster in instead; a dry jolt only stuns it, and a stunned
+%     brute still fills the doorway.
+
+% === Regions ===
+region(library).
+region(hall).
+region(exit).
+region(balcony).
+region(gap).
+region(pit).
+connected(library, hall).
+connected(hall, library).
+connected(hall, exit).
+connected(exit, hall).
+connected(library, balcony).
+connected(balcony, library).
+
+lineOfSight(library, hall).
+lineOfSight(library, balcony).
+lineOfSight(balcony, library).
+lineOfSight(balcony, hall).
+lineOfSight(balcony, exit).
+lineOfSight(hall, library).
+lineOfSight(hall, balcony).
+lineOfSight(exit, balcony).
+lineOfSight(exit, hall).
+
+% The route, for leaps: only forward.
+progress(library, 0).
+progress(balcony, 1).
+progress(hall, 1).
+progress(exit, 2).
+
+% Push lines (and what lies between).
+beyond(library, hall, pit).
+beyond(balcony, gap, exit).
+beyond(exit, gap, balcony).
+
+% === Terrain ===
+onEnter(pit, chasm).
+onEnter(gap, chasm).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, library).
+at(mage, library).
+mana(player, 4).
+mana(mage, 4).
+
+% === The scholar: cannot act; walks when the way is clear ===
+role(scholar, ward).
+at(scholar, library).
+trait(scholar, living).
+
+% === Things ===
+role(brute, enemy).
+at(brute, hall).
+blocker(brute).
+trait(brute, machine).
+tag(brute, armored).
+% Taunted, it is dragged to its taunter, then slams the floor there.
+behavior(brute, taunted, slam, here).
+effect(slam, area, grant(stunned)).
+
+role(pillar, object).
+at(pillar, exit).
+trait(pillar, heavy).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, sunder).
+knows(mage, taunt).
+
+% === Victory: the scholar stands at the exit, whole ===
+win :- if(), do(clearWay(brute), bringOut(scholar, exit)).
+win :- if(), do(swapAcross(scholar, exit)).
+
+% The doorway: the brute is out of the fight, or moved out of it.
+clearWay(?e) :- if(), do(neutralize(?e)).
+clearWay(?e) :- if(not(neutralized(?e)), not(anchoredAgainst(?e))), do(lure(?e)).
+clearWay(?e) :-
+    if(not(neutralized(?e)), first(and(has(?e, ?w), wards(?w, forcedMove))),
+       canUnset(?p, ?ab, ?w, ?e, ?aim)),
+    do(cast(?p, ?ab, ?aim), ensureOff(?w, ?e), lure(?e)).
+
+% Anyone moves it out of the doorway, from any spot they can reach.
+lure(?e) :-
+    if(at(?e, ?r), canAct(?a), knows(?a, ?ab), moves(?ab), ready(?a, ?ab, ?e), reach(?ab, ?k),
+       region(?from), inRange(?k, ?from, ?r), at(?a, ?cur), canReach(?a, ?cur, ?from)),
+    do(castFrom(?a, ?ab, ?e, ?from), ensureMoved(?e, ?r)).
+
+% The scholar walks out, and must arrive whole.
+bringOut(?v, ?r) :- if(), do(walkTo(?v, ?r), confirmSafe(?v, ?r)).
+
+% Over the gap: someone gets to ?r (leaping, or swapped over by a friend
+% already there), the scholar steps onto the balcony, and whoever is at ?r
+% swaps it across.
+swapAcross(?v, ?r) :-
+    if(canAct(?a), canAct(?b), \==(?a, ?b), knows(?b, ?ab), swapper(?ab)),
+    do(reach(?a, ?r), reach(?b, ?r), walkTo(?v, balcony), castFrom(?b, ?ab, ?v, ?r),
+       confirmSafe(?v, ?r)).
+
+confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v))), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(sunder).
+comboPool(gust).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(rainCall).
+comboPool(zap).
+comboPool(pounce).
+comboPool(translocate).
+comboMinWins(4).
+comboMinMethods(3).
+
+goals(win).

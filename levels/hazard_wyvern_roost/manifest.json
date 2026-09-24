@@ -1,0 +1,48 @@
+{
+  "name": "hazard_wyvern_roost",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Wyvern Roost: a flier over lava and a cliff; bring it down, then pull it across the lava, push it off, or drop the crag from under it",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:44:36.982680"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "connected/2",
+    "dropFloor/1",
+    "effect/3",
+    "funExpect/3",
+    "ground/1",
+    "knows/2",
+    "lineOfSight/2",
+    "onEnter/2",
+    "reaction/3",
+    "region/1",
+    "rockslide/1",
+    "role/2",
+    "tag/2",
+    "trait/2",
+    "wards/2",
+    "win/0"
+  ],
+  "requires": [
+    "cast/3",
+    "confirmStopped/1",
+    "ensureOff/2",
+    "neutralize/1",
+    "place/3"
+  ]
+}

@@ -1,0 +1,131 @@
+% The Doorman (stealth and avoidance)
+%
+% A thief's night at the manor. From the yard, a courtyard leads to the
+% vault door. A sentry on the wall watches the courtyard: nobody walks into
+% it under his eyes. A portly doorman fills the vault doorway: nobody gets
+% past him, seen or not. One companion must reach the vault; the other helps.
+%
+%   wall (sentry: watches the court)
+%    :
+%   yard ---- court ---- door (doorman) ---- vault
+%    |                    :
+%   garden ...............:  (the garden sees the doorway; a shove from
+%                              there sends the doorman down the cellar steps)
+%
+% Two obstacles, each with answers of different kinds:
+%   the sentry    sneak past him (vanish, or smokeBomb's cloud), blind him
+%                 (flashbang, smokeBomb), or put him to sleep (sleepDart,
+%                 lullaby). He is braced on the battlement: nothing moves him,
+%                 so a lure or a shove does nothing to him.
+%   the doorman   lure him out of the doorway (taunt drags him to the
+%                 taunter), hook him (magnetize), or shove him down the
+%                 cellar steps from the garden (gust). Blinding or sleeping
+%                 him changes nothing: he still fills the door.
+%
+% Traps:
+%   - vanish hides only its caster: it makes a thief, never a helper.
+%   - a lure or a shove from the courtyard needs the courtyard first; the
+%     garden is always open, and it sees the doorway.
+%   - gust only works from the garden (the only push line into the cellar).
+%   - two sneaks, two blinders or two movers: one obstacle is left.
+%
+% Victory: either companion is the thief (win/0).
+
+% === Regions ===
+region(yard).
+region(garden).
+region(court).
+region(wall).
+region(door).
+region(vault).
+region(cellar).
+connected(yard, court).
+connected(court, yard).
+connected(yard, garden).
+connected(garden, yard).
+connected(court, door).
+connected(door, court).
+connected(door, vault).
+connected(vault, door).
+
+lineOfSight(yard, court).
+lineOfSight(yard, wall).
+lineOfSight(garden, wall).
+lineOfSight(garden, door).
+lineOfSight(court, wall).
+lineOfSight(court, door).
+lineOfSight(door, vault).
+
+% The only push line: a shove from the garden sends the doorman down the
+% cellar steps.
+beyond(garden, door, cellar).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, yard).
+at(mage, yard).
+
+% === The watch ===
+role(sentry, enemy).
+at(sentry, wall).
+trait(sentry, living).
+immune(sentry, forcedMove).
+watches(sentry, court).
+
+role(doorman, enemy).
+at(doorman, door).
+trait(doorman, living).
+blocker(doorman).
+
+% === Default kit (combos replans the whole matrix) ===
+knows(player, vanish).
+knows(mage, taunt).
+
+% === Getting somewhere unseen ===
+
+% A watcher that can still see; a blocker still in the way.
+watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
+holding(?b) :- blocker(?b), not(gone(?b)).
+% A skill that hides its caster.
+selfHide(?a, ?ab) :- knows(?a, ?ab), reach(?ab, self), effect(?ab, self, grant(stealthed)).
+
+% ?a gets to ?r: walk if it can; else take one obstacle out of the way and
+% try again (at most ?n times).
+getTo(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), not(has(?a, stealthed)),
+       selfHide(?a, ?ab)),
+    do(cast(?a, ?ab, ?a), getTo(?a, ?r, ?m)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watching(?g)),
+    do(blind(?g), getTo(?a, ?r, ?m)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), holding(?b)),
+    do(dislodge(?b), getTo(?a, ?r, ?m)).
+
+% A watcher stops seeing: anything that lands blinded (a flash, a cloud of
+% smoke, sleep).
+blind(?g) :- if(canInflict(?c, ?ab, blinded, ?g)), do(cast(?c, ?ab, ?g), confirmBlind(?g)).
+confirmBlind(?g) :- if(forbidden(?g, watch)), do().
+
+% === Victory: a thief in the vault ===
+win :- if(canAct(?t)), do(getTo(?t, vault, 3)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(vanish).
+comboPool(smokeBomb).
+comboPool(flashbang).
+comboPool(sleepDart).
+comboPool(lullaby).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(gust).
+comboMinWins(10).
+comboMinMethods(3).
+
+goals(win).

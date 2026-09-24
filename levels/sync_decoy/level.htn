@@ -1,0 +1,138 @@
+% Sync: The Decoy (one baits, the other slips to the switch)
+%
+% A stone golem stands in the arch to the switch room, and from there it
+% keeps its eye on the whole hall. Two companions, one skill each from
+% eight. One of them is the decoy: it gets the golem out of the arch. The
+% other waits in the nook, out of the way, then slips across the hall and
+% through the arch onto the switch.
+%
+%   camp --- hall (watched) --- arch (golem) --- switch [plate: portcullis]
+%     \      /      \
+%      nook          alcove
+%
+% Obstacles and every method:
+%   the arch    the golem is a blocker: nobody walks into its region. Get it
+%               out: taunt it (it is dragged to its taunter - and slams it:
+%               the decoy is stunned where it stands), hook it with
+%               magnetize (dragged to the caster), or shove it into the
+%               alcove from the nook (gust, or tidalWave's wave).
+%   the hall    the golem watches it from wherever it stands: nobody walks
+%               in seen. The slipper goes stealthed (vanish, smokeBomb), or
+%               someone blinds the golem (flashbang, net, smokeBomb).
+%   the switch  the slipper walks onto it; the portcullis latches open.
+%
+% Traps:
+%   - moving the golem does not stop it watching; blinding it does not
+%     move it out of the arch;
+%   - the taunted golem slams everyone standing with its taunter, so the
+%     slipper waits in the nook, apart from the decoy;
+%   - the nook does not open onto the arch: the only way to the switch is
+%     across the hall.
+%
+% Hypothesis (design.md): no single skill wins; 32 of 64 assignments win
+% (each lure with each veil, either seat).
+
+% === Regions ===
+region(camp).
+region(nook).
+region(hall).
+region(alcove).
+region(arch).
+region(switch).
+region(portcullis).
+connected(camp, hall).
+connected(hall, camp).
+connected(camp, nook).
+connected(nook, camp).
+connected(nook, hall).
+connected(hall, nook).
+connected(hall, alcove).
+connected(alcove, hall).
+connected(hall, arch).
+connected(arch, hall).
+connected(arch, switch).
+connected(switch, arch).
+connected(switch, portcullis).
+connected(portcullis, switch).
+
+lineOfSight(camp, nook).
+lineOfSight(nook, camp).
+lineOfSight(camp, hall).
+lineOfSight(nook, hall).
+lineOfSight(camp, arch).
+lineOfSight(nook, arch).
+lineOfSight(camp, alcove).
+lineOfSight(nook, alcove).
+
+% From the nook, a shove on the arch lands in the alcove.
+beyond(nook, arch, alcove).
+
+% === Terrain ===
+onEnter(switch, winch).
+effect(winch, target, open(portcullis)).
+door(portcullis).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, camp).
+at(mage, camp).
+mana(player, 4).
+mana(mage, 4).
+
+% === The golem ===
+role(golem, enemy).
+at(golem, arch).
+trait(golem, living).
+blocker(golem).
+watches(golem, hall).
+% Taunted, it is dragged to its taunter (onGrant pull) and slams the
+% ground there: whoever stands with it is stunned.
+behavior(golem, taunted, slam, here).
+effect(slam, area, grant(stunned)).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, taunt).
+knows(mage, flashbang).
+
+% === Victory ===
+% ?b is the one who slips: it waits in the nook, the golem leaves the arch,
+% the hall stops being seen, and ?b walks onto the switch.
+win :-
+    if(canAct(?b)),
+    do(walkTo(?b, nook), lure, veil(?b), walkTo(?b, switch), opened(portcullis)).
+
+% Drag it out: anything that pulls (a taunt, a hook).
+lure :-
+    if(canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, golem)),
+    do(cast(?a, ?ab, golem), leftArch).
+% Shove it out, along the line from the nook.
+lure :- if(), do(place(golem, alcove, none)).
+leftArch :- if(not(at(golem, arch))), do().
+
+% The slipper goes unseen ...
+veil(?b) :-
+    if(knows(?b, ?ab), effect(?ab, self, grant(stealthed)), ready(?b, ?ab, ?b)),
+    do(cast(?b, ?ab, ?b)).
+% ... or the golem is blinded, by anyone.
+veil(?b) :- if(), do(inflict(blinded, golem, none)).
+
+opened(?d) :- if(open(?d)), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(gust).
+comboPool(tidalWave).
+comboPool(vanish).
+comboPool(flashbang).
+comboPool(net).
+comboPool(smokeBomb).
+comboMinWins(8).
+comboMinMethods(4).
+
+goals(win).

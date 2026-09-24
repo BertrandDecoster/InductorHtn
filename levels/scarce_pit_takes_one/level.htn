@@ -1,0 +1,105 @@
+% The Pit Takes One (resource scarcity: an irreversible fill)
+%
+% A ledge over a narrow pit. On the bridge across it squats a giant beetle;
+% on the flooded walk beside it, a drone - a machine, already soaked. Both
+% are bulky: the first body that falls into the pit fills it, and after
+% that the pit takes nobody. Two companions, one skill each, from eight.
+%
+%   ledge (team) --- bridge (beetle) --- far
+%     |
+%    walk (drone, flooded)          pit: under the bridge and the walk
+%
+% The beetle is an insect: the cold freezes it, and the pit takes it.
+% Nothing else does. The drone is a wet machine: any jolt kills it, and the
+% pit takes it too. The pit is the scarce thing: it can take only one.
+%
+% Methods:
+%   beetle in the pit   push it off the bridge from the ledge (gust,
+%                       tidalWave), or drag it across the pit from the far
+%                       side (taunt, magnetize); then jolt the drone (zap,
+%                       chainLightning)
+%   freeze the beetle   chill it (frostBolt, glaciate), and the pit is free
+%                       for the drone (gust, tidalWave from the ledge) - or
+%                       jolt the drone
+%
+% Traps:
+%   - the drone is nearest the ledge and a push drops it: that fills the
+%     pit, and with a mover and a jolt the beetle can no longer be taken;
+%   - a wave aimed at the walk soaks the drone - it already is - and washes
+%     it into the pit.
+%
+% Hypothesis (design.md): no single skill wins; 16 of 28 pairs do, by
+% three methods of different kinds; with a mover and a jolt, the order is
+% the puzzle.
+
+% === Regions ===
+region(ledge).
+region(bridge).
+region(far).
+region(walk).
+region(pit).
+connected(ledge, bridge).
+connected(bridge, ledge).
+connected(bridge, far).
+connected(far, bridge).
+connected(ledge, walk).
+connected(walk, ledge).
+lineOfSight(ledge, bridge).
+lineOfSight(ledge, walk).
+lineOfSight(far, bridge).
+
+% Push lines: from the ledge, off the bridge or off the walk, into the pit.
+% From the far side, the pit lies between it and the bridge: a pull drops
+% what it drags.
+beyond(ledge, bridge, pit).
+beyond(ledge, walk, pit).
+beyond(far, pit, bridge).
+
+onEnter(pit, chasm).
+onEnter(walk, puddle).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, ledge).
+at(mage, ledge).
+mana(player, 2).
+mana(mage, 2).
+
+% === Enemies: both fill the pit when they fall ===
+role(beetle, enemy).
+at(beetle, bridge).
+trait(beetle, insect).
+trait(beetle, filler).
+
+role(drone, enemy).
+at(drone, walk).
+trait(drone, machine).
+trait(drone, filler).
+tag(drone, wet).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, zap).
+
+% === Victory: both, in either order ===
+win :- if(), do(neutralize(beetle), neutralize(drone)).
+win :- if(), do(neutralize(drone), neutralize(beetle)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(gust).
+comboPool(tidalWave).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(frostBolt).
+comboPool(glaciate).
+comboPool(zap).
+comboPool(chainLightning).
+comboMinWins(10).
+comboMinMethods(3).
+
+goals(win).

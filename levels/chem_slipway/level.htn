@@ -1,0 +1,97 @@
+% Slipway (elemental chemistry)
+%
+% A clockwork crab, a heavy machine, squats on the slipway above the
+% flooded dock. It is too heavy to shift and its shell shrugs off a dry
+% jolt. Two companions, one skill each, from a pool of eight.
+%
+%   quay (player, mage) --- slipway (crab) --- berth
+%     |                        |
+%   stairs                    dock    (deepWater: the heavy sink)
+%     |
+%   gantry     (across the dock, facing the slipway)
+%
+% Obstacles:
+%   heavy      immune to forced movement: no push or pull moves it dry
+%   machine    a jolt on a dry machine only stuns it
+%
+% Methods (each needs two different companions):
+%   short it   soak it (rainCall, tidalWave), then jolt it (zap,
+%              chainLightning): a wet machine short-circuits (dead)
+%   slide it   oil it (oilFlask, tarPot): an oiled heavy thing slides
+%              (this level: suspends(oiled, forcedMove)); then move it
+%              into the dock - push it from the quay (gust, tidalWave) or
+%              hook it across the dock from the gantry (magnetize). The
+%              heavy crab sinks (fell)
+%
+% Traps:
+%   a jolt first only stuns it; soaking after that is too late for that
+%   jolt. tidalWave on a dry, unoiled crab soaks it but its push does
+%   nothing. magnetize on the unoiled crab drags the caster to it instead.
+%   Oil on a soaked crab still slides; water does not wash the oil off.
+
+% === Regions ===
+region(quay).
+region(slipway).
+region(berth).
+region(dock).
+region(stairs).
+region(gantry).
+connected(quay, slipway).
+connected(slipway, quay).
+connected(slipway, berth).
+connected(berth, slipway).
+connected(quay, stairs).
+connected(stairs, quay).
+connected(stairs, gantry).
+connected(gantry, stairs).
+lineOfSight(quay, slipway).
+lineOfSight(gantry, slipway).
+
+% Push lines: from the quay, the slipway falls into the dock; from the
+% gantry, the dock lies between it and the slipway.
+beyond(quay, slipway, dock).
+beyond(gantry, dock, slipway).
+
+% === Zones ===
+onEnter(dock, deepWater).
+
+% === Level physics: oil makes the heavy slide ===
+suspends(oiled, forcedMove).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, quay).
+at(mage, quay).
+mana(player, 4).
+mana(mage, 4).
+
+% === Enemy ===
+role(crab, enemy).
+at(crab, slipway).
+trait(crab, machine).
+trait(crab, heavy).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, oilFlask).
+knows(mage, gust).
+
+win :- if(), do(neutralize(crab)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(rainCall).
+comboPool(tidalWave).
+comboPool(zap).
+comboPool(chainLightning).
+comboPool(oilFlask).
+comboPool(tarPot).
+comboPool(gust).
+comboPool(magnetize).
+comboMinWins(4).
+comboMinMethods(3).
+
+goals(win).

@@ -1,0 +1,49 @@
+{
+  "name": "scarce_powder_keg",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "Powder Keg: one keg, one blast, two enemies",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:45:28.302985"
+  },
+  "provides": [
+    "at/2",
+    "behavior/4",
+    "beyond/3",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmAt/2",
+    "confirmSpent/1",
+    "connected/2",
+    "detonate/1",
+    "effect/3",
+    "funExpect/3",
+    "herd/2",
+    "knows/2",
+    "lineOfSight/2",
+    "mana/2",
+    "onEnter/2",
+    "region/1",
+    "role/2",
+    "trait/2",
+    "wards/2",
+    "weakness/4",
+    "win/0"
+  ],
+  "requires": [
+    "castFrom/4",
+    "confirmStopped/1",
+    "inflict/3",
+    "neutralize/1"
+  ]
+}

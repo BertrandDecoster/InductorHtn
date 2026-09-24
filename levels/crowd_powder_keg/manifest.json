@@ -1,0 +1,52 @@
+{
+  "name": "crowd_powder_keg",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "Powder Keg: three rain-soaked treants and a keg of oil up the ramp; put keg and crowd in one room, then one flame blazes through them all",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:44:29.821204"
+  },
+  "provides": [
+    "apart/2",
+    "at/2",
+    "beyond/3",
+    "bring/2",
+    "cleared/0",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmCleared/0",
+    "connected/2",
+    "drawsIn/1",
+    "ensureAt/2",
+    "funExpect/3",
+    "fuse/1",
+    "gather/1",
+    "knows/2",
+    "light/1",
+    "lineOfSight/2",
+    "mana/2",
+    "region/1",
+    "role/2",
+    "rout/0",
+    "shoves/1",
+    "standing/1",
+    "tag/2",
+    "together/1",
+    "trait/2",
+    "win/0"
+  ],
+  "requires": [
+    "cast/3",
+    "castFrom/4"
+  ]
+}

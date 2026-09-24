@@ -1,0 +1,151 @@
+% The Hostage (escort, protect, rescue)
+%
+% A hostage sits shackled in a cell at the end of a corridor. A hound in
+% its kennel watches the corridor: nobody walks through under its eyes. The
+% cell is reached only through the corridor (the kennel window looks into
+% it over a fire pit), so nobody helps the hostage before the hound stops
+% watching. The hostage must reach the gate.
+%
+%   gate --- corridor --- cell (hostage, shackled) --- bunk
+%               |          :
+%            kennel ... firepit (under the kennel window)
+%            (hound, a wooden war-construct)
+%
+% Obstacles, and the answers to each:
+%   the hound      blind it (net, flashbang, sleepDart, or terrify - fear
+%                  blinds too), or burn it: it is wooden, and fire kills it
+%                  (flameWall on the kennel)
+%   the shackles   the hostage cannot walk. Drag it out: from the corridor,
+%                  then again from the gate (magnetize); shove it out from
+%                  behind: from the bunk into the corridor, then from the
+%                  cell to the gate (gust); or take the shackles off
+%                  (cleanse) and it walks out on its own
+% So one companion silences the hound and the other brings the hostage.
+%
+% Traps:
+%   - fire is a hazard to the hostage too: it is frail, and burning kills
+%     it. Set the kennel alight, never the cell or the corridor it crosses;
+%   - dragging the hostage from the kennel window pulls it across the fire
+%     pit, and it falls in;
+%   - a taunt would move it once only (a taunted hostage is not taunted
+%     again), so it is not in the pool.
+
+% === Regions ===
+region(gate).
+region(corridor).
+region(cell).
+region(kennel).
+region(firepit).
+region(bunk).
+connected(gate, corridor).
+connected(corridor, gate).
+connected(corridor, cell).
+connected(cell, corridor).
+connected(corridor, kennel).
+connected(kennel, corridor).
+connected(cell, bunk).
+connected(bunk, cell).
+
+lineOfSight(gate, corridor).
+lineOfSight(corridor, gate).
+lineOfSight(corridor, cell).
+lineOfSight(cell, corridor).
+lineOfSight(corridor, kennel).
+lineOfSight(kennel, corridor).
+lineOfSight(kennel, cell).
+lineOfSight(bunk, cell).
+lineOfSight(gate, kennel).
+
+% The route out, for dragging the hostage: higher is nearer the gate.
+progress(cell, 0).
+progress(corridor, 1).
+progress(kennel, 1).
+progress(gate, 2).
+progress(bunk, 0).
+
+% Lines: the fire pit lies under the window between kennel and cell.
+beyond(kennel, firepit, cell).
+beyond(bunk, cell, corridor).
+beyond(cell, corridor, gate).
+onEnter(firepit, lava).
+
+% === Terrain: the hound watches the corridor from its kennel ===
+watches(hound, corridor).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, gate).
+at(mage, gate).
+mana(player, 4).
+mana(mage, 4).
+
+% === The hostage: cannot act; shackled ===
+role(hostage, ward).
+at(hostage, cell).
+trait(hostage, living).
+trait(hostage, frail).
+tag(hostage, rooted).
+weakness(?e, burning, none, dead) :- trait(?e, frail).
+
+% === The hound ===
+role(hound, enemy).
+at(hound, kennel).
+trait(hound, wooden).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, net).
+knows(mage, magnetize).
+
+% === Victory: the hostage stands at the gate, whole ===
+win :- if(), do(silenceHound, extract(hostage, gate, 3), confirmSafe(hostage, gate)).
+
+% The hound: already harmless; blinded; or neutralized (burnt).
+silenceHound :- if(houndDown), do().
+silenceHound :- if(not(houndDown)), do(inflict(blinded, hound, none), confirmHoundDown).
+silenceHound :- if(not(houndDown)), do(neutralize(hound)).
+houndDown :- gone(hound).
+houndDown :- forbidden(hound, watch).
+confirmHoundDown :- if(houndDown), do().
+
+% Getting the hostage to ?r, in at most ?n moves: it is there; it walks
+% there; its shackles come off and it walks; or someone drags it one step
+% nearer and it carries on.
+nearer(?from, ?to) :- progress(?from, ?n1), progress(?to, ?n2), >(?n2, ?n1).
+dragFrom(?a, ?ab, ?v, ?spot) :-
+    at(?v, ?vr), region(?spot), nearer(?vr, ?spot), puller(?a, ?ab, ?v),
+    reach(?ab, ?k), inRange(?k, ?spot, ?vr), canReachNow(?a, ?spot).
+
+extract(?v, ?r, ?n) :- if(at(?v, ?r)), do().
+extract(?v, ?r, ?n) :-
+    if(not(at(?v, ?r)), not(forbidden(?v, move)), canReachNow(?v, ?r)), do(walkTo(?v, ?r)).
+extract(?v, ?r, ?n) :-
+    if(not(at(?v, ?r)), forbidden(?v, move), holds(?v, rooted), canUnset(?a, ?ab, rooted, ?v, ?aim)),
+    do(cast(?a, ?ab, ?aim), ensureOff(rooted, ?v), walkTo(?v, ?r)).
+extract(?v, ?r, ?n) :-
+    if(not(at(?v, ?r)), >(?n, 0), dragFrom(?a, ?ab, ?v, ?spot), is(?m, -(?n, 1))),
+    do(castFrom(?a, ?ab, ?v, ?spot), extract(?v, ?r, ?m)).
+extract(?v, ?r, ?n) :-
+    if(not(at(?v, ?r)), >(?n, 0), at(?v, ?vr), placement(?a, ?ab, ?from, ?v, ?to), nearer(?vr, ?to),
+       at(?a, ?cur), canReach(?a, ?cur, ?from), is(?m, -(?n, 1))),
+    do(castFrom(?a, ?ab, ?v, ?from), extract(?v, ?r, ?m)).
+
+confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v))), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(net).
+comboPool(flashbang).
+comboPool(sleepDart).
+comboPool(flameWall).
+comboPool(magnetize).
+comboPool(gust).
+comboPool(cleanse).
+comboPool(terrify).
+comboMinWins(4).
+comboMinMethods(3).
+
+goals(win).

@@ -1,0 +1,53 @@
+{
+  "name": "escort_envoy",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Envoy: a frail envoy must cross briars and pass a watched gatehouse; one skill each from eight",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/strategies/passage",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:45:45.231493"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "bringOut/2",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmSafe/2",
+    "confirmSentryDown/0",
+    "connected/2",
+    "crossBriars/0",
+    "effect/3",
+    "funExpect/3",
+    "knows/2",
+    "lineOfSight/2",
+    "mana/2",
+    "onEnter/2",
+    "passSentry/0",
+    "region/1",
+    "role/2",
+    "sentryDown/0",
+    "tag/2",
+    "trait/2",
+    "watches/2",
+    "weakness/4",
+    "win/0"
+  ],
+  "requires": [
+    "confirmFilled/1",
+    "inflict/3",
+    "neutralize/1",
+    "span/1",
+    "walkTo/2"
+  ]
+}

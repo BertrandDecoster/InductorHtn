@@ -1,0 +1,123 @@
+% One Bolt (resource scarcity: a mana budget)
+%
+% A flooded chapel. In the hall stands a sentry drone; behind it, in the
+% flooded nave, the pump engine - a heavy machine, already soaked. Both
+% must go. Everyone has 2 mana, and every jolt in the pool costs 2: the
+% team gets ONE bolt. It has to take both machines at once.
+%
+%   porch --- hall (drone) --- nave (engine, flooded)
+%     |        |
+%   gallery ---+        pit   (off the hall: a push from the gallery)
+%
+% The engine is heavy and wet: any jolt kills it. The drone is dry: a jolt
+% only stuns it. So the one bolt must meet a wet drone, or the drone must go
+% some other way first.
+%
+% Methods:
+%   line up     soak the drone where it stands (rainCall, frostBolt), then
+%               lightningFlash from the porch at the engine: the bolt runs
+%               through the hall and kills both on the way
+%   the flood   put the drone in the nave with the engine - push it in from
+%               the porch (gust, tidalWave) or drag it in from the nave
+%               (taunt, magnetize) - and it arrives soaked; one
+%               chainLightning over the nave takes both
+%   the pit     push the drone into the pit from the gallery (gust,
+%               tidalWave), then jolt the engine (either bolt)
+%
+% Traps (each spends the only bolt):
+%   - jolting before the drone is wet: it is only stunned, and the mana is
+%     gone (the obvious order - soak it, jolt it, then the engine - never
+%     works: the bolt spent on the drone cannot reach the engine);
+%   - a wave from the porch "helps" the drone into the nave, out of the
+%     flash's line: a flash then takes only one of the two.
+%
+% Hypothesis (design.md): no single skill wins; 8 of 28 pairs do, by three
+% methods; every jolt costs the whole budget, so the order is the puzzle.
+
+% === Regions ===
+region(porch).
+region(gallery).
+region(hall).
+region(nave).
+region(pit).
+connected(porch, hall).
+connected(hall, porch).
+connected(porch, gallery).
+connected(gallery, porch).
+connected(gallery, hall).
+connected(hall, gallery).
+connected(hall, nave).
+connected(nave, hall).
+lineOfSight(porch, hall).
+lineOfSight(porch, nave).
+lineOfSight(gallery, hall).
+lineOfSight(hall, nave).
+lineOfSight(nave, hall).
+
+% Push lines: from the porch, the hall lies between it and the nave; from
+% the gallery, a push on the hall goes into the pit.
+beyond(porch, hall, nave).
+beyond(gallery, hall, pit).
+
+% === Terrain ===
+onEnter(nave, puddle).
+onEnter(pit, chasm).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, porch).
+at(mage, porch).
+mana(player, 2).
+mana(mage, 2).
+
+% === Machines ===
+role(drone, enemy).
+at(drone, hall).
+trait(drone, machine).
+
+role(engine, enemy).
+at(engine, nave).
+trait(engine, machine).
+trait(engine, heavy).
+tag(engine, wet).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, chainLightning).
+
+% === Victory ===
+% Each machine on its own (the pit), or the drone soaked first so one bolt
+% takes both.
+win :- if(), do(neutralize(drone), neutralize(engine)).
+win :- if(), do(douse(drone), neutralize(engine), neutralize(drone)).
+
+% The drone carries wet: it already does; someone soaks it or pushes it
+% into the flood; or someone in the nave drags it in.
+douse(?e) :- if(holds(?e, wet)), do().
+douse(?e) :-
+    if(not(holds(?e, wet)), supplier(?p, wet, ?e), \==(?p, none)),
+    do(supply(?p, wet, ?e)).
+douse(?e) :-
+    if(not(holds(?e, wet)), zoneFor(?r, wet), at(?e, ?er), \==(?r, ?er), puller(?a, ?ab, ?e),
+       reach(?ab, ?k), inRange(?k, ?r, ?er)),
+    do(castFrom(?a, ?ab, ?e, ?r), confirmWet(?e)).
+confirmWet(?e) :- if(holds(?e, wet)), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(rainCall).
+comboPool(frostBolt).
+comboPool(tidalWave).
+comboPool(gust).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(lightningFlash).
+comboPool(chainLightning).
+comboMinWins(8).
+comboMinMethods(3).
+
+goals(win).

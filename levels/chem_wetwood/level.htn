@@ -1,0 +1,141 @@
+% Wet Wood (elemental chemistry)
+%
+% A treant, rooted and rain-soaked, blocks the grove. Wood burns - but this
+% wood is wet, and fire on something wet only makes steam. Up on the ramp
+% stands a keg of lamp oil. Two companions, one skill each, from a pool of
+% eight.
+%
+%   ridge ---- glade (player, mage) ---- grove (treant: wooden, heavy, wet)
+%                |                       |
+%              landing ---- ramp (keg: oiled) ----+
+%
+% Obstacles:
+%   wet        fire on it makes steam and dries it; it does not burn
+%   heavy      it is rooted: nothing moves it
+%   a spilled fire zone does not relight what already stands in it, so a
+%   second fire on the grove does nothing
+%
+% Methods (each needs two different companions):
+%   dry, then burn   cleanse strips the soak; then fire (flameWall,
+%                    fireball) takes the dry wood (dead)
+%   blaze beside it  the keg is oil: bring it into the grove (gust or
+%                    tidalWave push it off the ramp from the landing;
+%                    magnetize or taunt drag it in from the grove), then
+%                    set it off - fire (flameWall, fireball) or a spark
+%                    (zap: this level's reaction, sparks ignite oil). The
+%                    blaze throws fire on everyone around it, and that fire
+%                    is raw: the soak does not save the treant
+%   fire, then keg   set the grove alight first (the steam dries it, and
+%                    the grove stays a fire zone), then bring the keg in:
+%                    it blazes as it arrives
+%
+% Traps:
+%   fire on the treant alone only steams it; a second fire on the grove
+%   lands on flames already there. Fire or a spark on the keg where it
+%   stands burns the oil off on the ramp, wasted (fireball does it even
+%   while throwing the keg into the grove). tidalWave on the grove only
+%   soaks it again.
+
+% === Regions ===
+region(glade).
+region(grove).
+region(ramp).
+region(landing).
+region(ridge).
+region(hollow).
+connected(glade, grove).
+connected(grove, glade).
+connected(glade, landing).
+connected(landing, glade).
+connected(landing, ramp).
+connected(ramp, landing).
+connected(grove, ramp).
+connected(ramp, grove).
+connected(glade, ridge).
+connected(ridge, glade).
+connected(grove, hollow).
+connected(hollow, grove).
+lineOfSight(glade, grove).
+lineOfSight(ridge, grove).
+lineOfSight(landing, ramp).
+lineOfSight(grove, ramp).
+
+% Push line: from the landing, the ramp tips into the grove.
+beyond(landing, ramp, grove).
+
+% === Level physics: a spark sets oil off ===
+reaction(oiled, electrocuted, blaze).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, glade).
+at(mage, glade).
+mana(player, 4).
+mana(mage, 4).
+
+% === The treant, and the keg ===
+role(treant, enemy).
+at(treant, grove).
+trait(treant, wooden).
+trait(treant, heavy).
+tag(treant, wet).
+
+at(keg, ramp).
+tag(keg, oiled).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, cleanse).
+knows(mage, flameWall).
+
+% === The goal: the treant burns ===
+win :- if(), do(neutralize(treant)).
+win :- if(), do(dryAndBurn(treant)).
+win :- if(), do(blazeBeside(treant)).
+
+% Dry, then burn: one takes the soak off, the other sets it alight.
+dryAndBurn(?e) :-
+    if(holds(?e, wet), canUnset(?p, ?ab, wet, ?e, ?aim)),
+    do(cast(?p, ?ab, ?aim), ensureOff(wet, ?e), deliver(burning, ?e, ?p), confirmStopped(?e)).
+
+% Something oiled goes up beside it: bring the fuel in and set it off, or
+% set the region alight and bring the fuel in.
+blazeBeside(?e) :-
+    if(at(?e, ?r), tag(?x, oiled), \==(?x, ?e), not(at(?x, ?r)), canAct(?a)),
+    do(bringAs(?a, ?x, ?r), igniteFuel(?x, ?a), confirmStopped(?e)).
+blazeBeside(?e) :-
+    if(at(?e, ?r), tag(?x, oiled), \==(?x, ?e), not(at(?x, ?r)), canAct(?a)),
+    do(setAlight(?a, ?r), bringIn(?x, ?r, ?a), confirmStopped(?e)).
+
+% ?a moves ?x into ?r: a push along a line, or a pull from ?r itself.
+bringAs(?a, ?x, ?r) :-
+    if(first(placement(?a, ?ab, ?from, ?x, ?r))), do(castFrom(?a, ?ab, ?x, ?from)).
+bringAs(?a, ?x, ?r) :-
+    if(puller(?a, ?ab, ?x), at(?x, ?xr), reach(?ab, ?k), inRange(?k, ?r, ?xr), canReachNow(?a, ?r)),
+    do(castFrom(?a, ?ab, ?x, ?r)).
+bringIn(?x, ?r, ?not) :- if(canAct(?a), \==(?a, ?not)), do(bringAs(?a, ?x, ?r)).
+
+% Fire or a spark on the fuel, by anyone but ?not.
+igniteFuel(?x, ?not) :- if(), do(inflict(burning, ?x, ?not)).
+igniteFuel(?x, ?not) :- if(), do(inflict(electrocuted, ?x, ?not)).
+
+% ?a sets the region alight: it becomes a fire zone.
+setAlight(?a, ?r) :- if(canInflict(?a, ?ab, burning, ?r)), do(cast(?a, ?ab, ?r)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(flameWall).
+comboPool(fireball).
+comboPool(zap).
+comboPool(cleanse).
+comboPool(gust).
+comboPool(magnetize).
+comboPool(tidalWave).
+comboPool(taunt).
+comboMinWins(4).
+comboMinMethods(3).
+
+goals(win).

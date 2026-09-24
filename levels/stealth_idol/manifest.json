@@ -1,0 +1,54 @@
+{
+  "name": "stealth_idol",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Idol: sneak, sleep or lure past the altar keepers without rousing the dozer; the glowing idol can't be hidden, so the crypt skeleton must be dazzled or shoved away",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:47:50.186780"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "bundles/2",
+    "carried/1",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmUnwatched/1",
+    "connected/2",
+    "effect/3",
+    "funExpect/3",
+    "getTo/3",
+    "heist/0",
+    "hideDash/3",
+    "immune/2",
+    "knows/2",
+    "lineOfSight/2",
+    "onEnter/2",
+    "reaction/3",
+    "region/1",
+    "role/2",
+    "selfHide/2",
+    "tag/2",
+    "trait/2",
+    "tryOn/4",
+    "unwatch/1",
+    "wards/2",
+    "watches/2",
+    "watching/1"
+  ],
+  "requires": [
+    "cast/3",
+    "castFrom/4",
+    "walkTo/2"
+  ]
+}

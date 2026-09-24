@@ -1,0 +1,138 @@
+% Powder Keg (resource scarcity: a spent reaction)
+%
+% A walled yard with one powder keg in it. A bruiser stands guard by the
+% keg; a lurker waits on the stair above. Nothing the team carries can hurt
+% either of them - only the keg's blast can, and the keg blows once. Two
+% companions, one skill each, from eight.
+%
+%   gate --- yard (keg, bruiser) --- stair (lurker) --- landing
+%     |                               |                   |
+%     +-------------------------------+-------------------+
+%                          well (a push from the yard side drops the lurker)
+%
+% The keg goes off when it takes fire or a spark (burning, electrocuted):
+% everyone else in the yard is blasted, and the living die of it. Then it
+% is spent - nothing sets it off again.
+%
+% Methods:
+%   gather    bring the lurker down into the yard first - push it from the
+%             landing (gust, tidalWave), drag it down from the yard (taunt,
+%             magnetize), or trade places with it (translocate) - then light
+%             the keg (flameWall, zap, lightningFlash): one blast, both
+%   the well  push the lurker off the stair into the well from the yard
+%             (gust, tidalWave), then light the keg for the bruiser
+%
+% Traps:
+%   - lighting the keg first: the bruiser dies, the keg is spent, and with a
+%     puller or a swapper nothing else here can touch the lurker (a pusher
+%     still has the well);
+%   - the side you push from decides where the lurker lands: from the
+%     landing into the yard, from the yard into the well; the gate sees
+%     nothing of the stair at all.
+%
+% Hypothesis (design.md): no single skill wins; 15 of 28 pairs do, by two
+% methods of different kinds (the blast takes both, or the well takes one).
+
+% === Regions ===
+region(gate).
+region(yard).
+region(stair).
+region(landing).
+region(well).
+connected(gate, yard).
+connected(yard, gate).
+connected(yard, stair).
+connected(stair, yard).
+connected(stair, landing).
+connected(landing, stair).
+connected(gate, landing).
+connected(landing, gate).
+lineOfSight(gate, yard).
+lineOfSight(yard, stair).
+lineOfSight(stair, yard).
+lineOfSight(landing, stair).
+
+% Push lines: from the landing, a push on the stair sends it down into the
+% yard; from the yard, off the stair and into the well.
+beyond(landing, stair, yard).
+beyond(yard, stair, well).
+
+onEnter(well, chasm).
+
+% === The keg: one blast ===
+role(keg, object).
+at(keg, yard).
+trait(keg, heavy).
+behavior(keg, burning, blast, here).
+behavior(keg, electrocuted, blast, here).
+effect(blast, area, grant(blasted)).
+effect(blast, self, grant(spent)).
+wards(spent, burning).
+wards(spent, electrocuted).
+% Blasted: harmless to the team; it kills the living enemies here.
+weakness(?e, blasted, none, dead) :- role(?e, enemy), trait(?e, living).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, gate).
+at(mage, gate).
+mana(player, 2).
+mana(mage, 2).
+
+% === Enemies ===
+role(bruiser, enemy).
+at(bruiser, yard).
+trait(bruiser, living).
+
+role(lurker, enemy).
+at(lurker, stair).
+trait(lurker, living).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, zap).
+
+% === Victory ===
+% Gather the lurker into the yard, then one blast; or drop it in the well
+% and blast the bruiser.
+win :- if(), do(herd(lurker, yard), detonate(keg), confirmStopped(bruiser), confirmStopped(lurker)).
+win :- if(), do(neutralize(lurker), detonate(keg), confirmStopped(bruiser)).
+
+% ?e ends up in ?r: pushed along a line, dragged to someone standing
+% there, or swapped with someone standing there.
+herd(?e, ?r) :- if(at(?e, ?r)), do().
+herd(?e, ?r) :-
+    if(not(at(?e, ?r)), canAct(?a), first(placement(?a, ?ab, ?from, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?e, ?from), confirmAt(?e, ?r)).
+herd(?e, ?r) :-
+    if(not(at(?e, ?r)), at(?e, ?er), puller(?a, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er)),
+    do(castFrom(?a, ?ab, ?e, ?r), confirmAt(?e, ?r)).
+herd(?e, ?r) :-
+    if(not(at(?e, ?r)), at(?e, ?er), canAct(?a), knows(?a, ?ab), effect(?ab, target, swap),
+       ready(?a, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er)),
+    do(castFrom(?a, ?ab, ?e, ?r), confirmAt(?e, ?r)).
+confirmAt(?e, ?r) :- if(at(?e, ?r)), do().
+
+% Set the keg off: fire or a spark, from anyone; it must blow.
+detonate(?k) :- if(not(tag(?k, spent))), do(inflict(burning, ?k, none), confirmSpent(?k)).
+detonate(?k) :- if(not(tag(?k, spent))), do(inflict(electrocuted, ?k, none), confirmSpent(?k)).
+confirmSpent(?k) :- if(tag(?k, spent)), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(gust).
+comboPool(tidalWave).
+comboPool(taunt).
+comboPool(magnetize).
+comboPool(translocate).
+comboPool(flameWall).
+comboPool(zap).
+comboPool(lightningFlash).
+comboMinWins(10).
+comboMinMethods(3).
+
+goals(win).
