@@ -15,14 +15,22 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 GOAL = "heist."
-POOL = ["vanish", "shadowStep", "sleepDart", "taunt", "flashbang", "gust"]
-NAVE = ["vanish", "shadowStep", "sleepDart", "taunt"]
-CRYPT = ["flashbang", "gust"]
+POOL = ["blink", "lightningFlash", "turnToMist", "taunt", "hook", "vortex", "blindingFlash", "shieldBash"]
+NAVE = ["blink", "lightningFlash"]
+CRYPT = ["blindingFlash", "shieldBash", "taunt", "hook", "vortex"]
+# turnToMist takes the keeper's `heavy` for a moment; a mover that drags or
+# draws him then serves both watchers.
+MIST_MOVERS = ["taunt", "hook", "vortex"]
+
+
+def _both_ways(pairs):
+    return set(pairs) | {(b, a) for a, b in pairs}
+
 
 # The measured matrix (htn_components combos): a way into the nave and a way
-# past the skeleton, either companion holding either (the thief is whoever
-# the plan needs: the sneak, or anyone).
-WINNING = {(a, b) for a in NAVE for b in CRYPT} | {(b, a) for a in NAVE for b in CRYPT}
+# past the skeleton, or turnToMist and a mover, held by either companion.
+WINNING = _both_ways([(a, b) for a in NAVE for b in CRYPT] +
+                     [("turnToMist", m) for m in MIST_MOVERS])
 
 _REPORT = None
 
@@ -78,43 +86,42 @@ class IdolTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_sneak_in_and_shove_the_skeleton(self):
-        plans = plans_with("vanish", "gust")
-        assert some_plan_has(plans, "opCast(player, vanish, player)",
-                             "opRemove(player, player, stealthed)", "opGrant(player, player, laden)",
-                             "opForcedMove(mage, skeleton, crypt, ossuary)",
+    def test_example_1_blink_in_and_taunt_the_skeleton(self):
+        plans = plans_with("blink", "taunt")
+        assert some_plan_has(plans, "opTeleport(player, entry, nave)",
+                             "opRemove(player, player, disjoint)", "opGrant(player, player, silenced)",
+                             "opForcedMove(mage, skeleton, crypt, ledge)",
                              "opNavigate(player, crypt, exit)"), plans[:2]
-        self._record(True, "Example 1: the player sneaks in for the idol; the mage shoves the skeleton into the ossuary")
+        self._record(True, "Example 1: the player blinks into the nave for the idol; the mage taunts the skeleton up to the ledge")
 
-    def test_example_2_a_dart_and_a_flash(self):
-        plans = plans_with("sleepDart", "flashbang")
-        assert some_plan_has(plans, "opGrant(player, keeper, asleep)",
+    def test_example_2_a_dash_and_a_bash(self):
+        plans = plans_with("lightningFlash", "shieldBash")
+        assert some_plan_has(plans, "opDash(player, entry, nave)",
                              "opNavigate(mage, entry, ledge)",
-                             "opGrant(mage, skeleton, blinded)",
+                             "opGrant(mage, skeleton, stunned)",
                              "opNavigate(player, crypt, exit)"), plans[:2]
-        self._record(True, "Example 2: a dart puts the keeper to sleep; a flash from the ledge blinds the skeleton")
+        self._record(True, "Example 2: a lightning dash into the nave; a bash from the ledge stuns the skeleton")
 
-    def test_example_3_the_flash_that_wakes_the_dozer(self):
-        plans = plans_with("flashbang", "taunt")
-        assert some_plan_has(plans, "opCast(player, flashbang, keeper)",
-                             "opReact(player, dozer, dozing, blinded, rouse)",
-                             "opCast(mage, taunt, dozer)",
-                             "opGrant(player, skeleton, blinded)"), plans[:2]
-        assert some_plan_has(plans, "opCast(mage, taunt, keeper)", "opGrant(player, skeleton, blinded)")
-        self._record(True, "Example 3: a flash at the altar rouses the dozer, and a taunt drags him off - or just taunt the keeper")
+    def test_example_3_mist_and_a_taunt(self):
+        plans = plans_with("turnToMist", "taunt")
+        assert some_plan_has(plans, "opRemove(player, keeper, heavy)",
+                             "opForcedMove(mage, keeper, altar, entry)",
+                             "opForcedMove(mage, skeleton, crypt, ledge)"), plans[:2]
+        self._record(True, "Example 3: the keeper turns to mist and is taunted off the altar; the same taunt drags the skeleton")
 
-    def test_example_4_dash_in_hidden(self):
-        plans = plans_with("shadowStep", "gust")
-        assert some_plan_has(plans, "opDash(player, entry, nave)", "opGrant(player, player, stealthed)",
-                             "opForcedMove(mage, skeleton, crypt, ossuary)"), plans[:2]
-        self._record(True, "Example 4: shadowStep dashes into the nave, hidden")
+    def test_example_4_a_vortex_into_the_ossuary(self):
+        plans = plans_with("blink", "vortex")
+        assert some_plan_has(plans, "opCast(mage, vortex, ossuary)",
+                             "opExploit(mage, skeleton, chasm, fell)",
+                             "opNavigate(player, crypt, exit)"), plans[:2]
+        self._record(True, "Example 4: a vortex on the ossuary draws the skeleton into the pit")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_single_skill_wins(self):
         report = combos_report()
         assert not report.singles_winning, report.singles_winning
-        assert not plans_with("flashbang", "flashbang")
+        assert not plans_with("blink", "blink")
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
     def test_property_p2_measured_assignments_win(self):
@@ -124,18 +131,30 @@ class IdolTest(HtnTestSuite):
         assert report.solo_plans == 0 and not report.dead_skills and not report.failures
         self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win, none solo")
 
-    def test_property_p3_the_idol_cannot_be_hidden(self):
-        assert not plans_with("vanish", "sleepDart")
-        assert not plans_with("shadowStep", "vanish")
-        self._record(True, "P3: sneaking gets the thief in, never out past the skeleton")
+    def test_property_p3_the_idol_silences(self):
+        # Every carrier is silenced, and the skill that got it in is spent:
+        # no plan has a cast by the carrier after it took the idol.
+        for kit in [("blink", "hook"), ("lightningFlash", "blindingFlash")]:
+            plans = plans_with(*kit)
+            assert plans
+            for p in plans:
+                carrier = next(o.split("(")[1].split(",")[0] for o in p
+                               if o.startswith("opGrant(") and o.endswith(", silenced)"))
+                after = p[p.index(next(o for o in p if o.endswith(", silenced)"))):]
+                assert not any(o.startswith(f"opCast({carrier},") for o in after), p
+        self._record(True, "P3: the idol silences its bearer - the crypt is the other companion's, or answered first")
 
-    def test_property_p4_a_flash_at_the_altar_rouses_the_dozer(self):
-        assert not plans_with("flashbang", "gust")
-        self._record(True, "P4: flashbang + gust has no plan - the roused dozer still watches the nave")
+    def test_property_p4_the_heavy_keeper(self):
+        # Movers and stuns alone never clear the nave: the keeper is heavy and
+        # the altar is next to the nave alone.
+        assert not plans_with("hook", "shieldBash")
+        assert not plans_with("taunt", "vortex")
+        self._record(True, "P4: nothing moves the keeper unless he is mist; no bash or flash reaches the altar")
 
-    def test_property_p5_the_skeleton_is_mindless_and_deaf(self):
-        assert not plans_with("sleepDart", "taunt")
-        self._record(True, "P5: sleepDart + taunt has no plan - no sleep, no taunt for the skeleton")
+    def test_property_p5_the_skeleton_cannot_be_leapt(self):
+        # A way in twice: nothing gets the silenced thief past the skeleton.
+        assert not plans_with("blink", "lightningFlash")
+        self._record(True, "P5: two ways in leave the skeleton watching the crypt")
 
 
 def run_tests():

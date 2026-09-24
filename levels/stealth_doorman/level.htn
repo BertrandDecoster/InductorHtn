@@ -1,48 +1,61 @@
 % The Doorman (stealth and avoidance)
 %
 % A thief's night at the manor. From the yard, a courtyard leads to the
-% vault door. A sentry on the wall watches the courtyard: nobody walks into
-% it under his eyes. A portly doorman fills the vault doorway: nobody gets
-% past him, seen or not. One companion must reach the vault; the other helps.
+% vault door. A sentry braced on the wall watches the courtyard: nobody
+% walks into it under his eyes. A portly doorman fills the vault doorway:
+% nobody walks past him, and from the doorway he watches the vault itself,
+% so a thief who slips into the doorway is still seen stepping into the
+% vault. One companion must reach the vault; the other helps.
 %
-%   wall (sentry: watches the court)
-%    :
-%   yard ---- court ---- door (doorman) ---- vault
-%    |                    :
-%   garden ...............:  (the garden sees the doorway; a shove from
-%                              there sends the doorman down the cellar steps)
+%          wall (sentry: watches the court)
+%           |
+%   garden - yard ---- court ---- door (doorman: watches the vault) ---- vault
+%     :                  :          |
+%     :..................:....... cellar (the steps down)
 %
 % Two obstacles, each with answers of different kinds:
-%   the sentry    sneak past him (vanish, or smokeBomb's cloud), blind him
-%                 (flashbang, smokeBomb), or put him to sleep (sleepDart,
-%                 lullaby). He is braced on the battlement: nothing moves him,
-%                 so a lure or a shove does nothing to him.
-%   the doorman   lure him out of the doorway (taunt drags him to the
-%                 taunter), hook him (magnetize), or shove him down the
-%                 cellar steps from the garden (gust). Blinding or sleeping
-%                 him changes nothing: he still fills the door.
+%   the sentry    slip into the courtyard (blink: a teleport passes a
+%                 watched region), blind him (blindingFlash from the yard or
+%                 the wall, or shieldBash's stun), or pull him off the wall
+%                 once he is mist (turnToMist takes his bracing - `heavy` -
+%                 for a moment; then taunt or hook drags him down, or a
+%                 vortex on the yard draws him in).
+%   the doorman   move him out of the doorway: taunt or hook drag him to the
+%                 caster, a fireball from the garden (or the courtyard)
+%                 blows him down the cellar steps, a vortex on the cellar
+%                 draws him down and roots him there. The lantern over the
+%                 door: nothing blinds him.
 %
 % Traps:
-%   - vanish hides only its caster: it makes a thief, never a helper.
-%   - a lure or a shove from the courtyard needs the courtyard first; the
-%     garden is always open, and it sees the doorway.
-%   - gust only works from the garden (the only push line into the cellar).
-%   - two sneaks, two blinders or two movers: one obstacle is left.
+%   - blink into the doorway still leaves the thief under the doorman's
+%     eyes; nothing sees into the vault, so nobody blinks in.
+%   - the braced sentry cannot be moved; a hook on him drags the hooker up
+%     onto the wall instead. taunt and hook serve both guards only after
+%     turnToMist.
+%   - a vortex draws in everyone next door, companions included, and roots
+%     them; a doorman drawn into the courtyard blocks the courtyard.
+%   - a doorman taunted into the courtyard blocks it, too: taunt him from
+%     the garden, or once the thief is through.
+%   - two sentry answers, or two movers without turnToMist: one guard stays.
 %
 % Victory: either companion is the thief (win/0).
 
 % === Regions ===
 region(yard).
 region(garden).
-region(court).
 region(wall).
+region(court).
 region(door).
-region(vault).
 region(cellar).
+region(vault).
 connected(yard, court).
 connected(court, yard).
 connected(yard, garden).
 connected(garden, yard).
+connected(yard, wall).
+connected(wall, yard).
+connected(door, cellar).
+connected(cellar, door).
 connected(court, door).
 connected(door, court).
 connected(door, vault).
@@ -50,36 +63,45 @@ connected(vault, door).
 
 lineOfSight(yard, court).
 lineOfSight(yard, wall).
-lineOfSight(garden, wall).
 lineOfSight(garden, door).
+lineOfSight(garden, cellar).
 lineOfSight(court, wall).
 lineOfSight(court, door).
-lineOfSight(door, vault).
+lineOfSight(court, cellar).
 
-% The only push line: a shove from the garden sends the doorman down the
-% cellar steps.
+% Push lines: from the garden or the courtyard, whatever is in the doorway
+% goes down the cellar steps.
 beyond(garden, door, cellar).
+beyond(court, door, cellar).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
 at(player, yard).
 at(mage, yard).
+mana(player, 4).
+mana(mage, 4).
 
 % === The watch ===
+% The sentry: braced on the battlement (heavy), watching the courtyard
+% while he stands there.
 role(sentry, enemy).
 at(sentry, wall).
-trait(sentry, living).
-immune(sentry, forcedMove).
-watches(sentry, court).
+tag(sentry, living).
+tag(sentry, heavy).
+watches(sentry, court) :- at(sentry, wall).
 
+% The doorman fills the doorway and, from it, watches the vault. The
+% lantern over the door: no flash blinds him.
 role(doorman, enemy).
 at(doorman, door).
-trait(doorman, living).
+tag(doorman, living).
 blocker(doorman).
+immune(doorman, blinded).
+watches(doorman, vault) :- at(doorman, door).
 
 % === Default kit (combos replans the whole matrix) ===
-knows(player, vanish).
+knows(player, blink).
 knows(mage, taunt).
 
 % === Getting somewhere unseen ===
@@ -87,27 +109,44 @@ knows(mage, taunt).
 % A watcher that can still see; a blocker still in the way.
 watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
 holding(?b) :- blocker(?b), not(gone(?b)).
-% A skill that hides its caster.
-selfHide(?a, ?ab) :- knows(?a, ?ab), reach(?ab, self), effect(?ab, self, grant(stealthed)).
+% A skill that carries its caster to a region: a teleport or a dash.
+carries(?ab) :- effect(?ab, target, teleport).
+carries(?ab) :- effect(?ab, target, dash).
+leap(?a, ?ab, ?to) :-
+    canAct(?a), knows(?a, ?ab), carries(?ab), region(?to), not(canReachNow(?a, ?to)),
+    ready(?a, ?ab, ?to), at(?a, ?cur), first(spot(?a, ?ab, ?to, ?from)).
 
-% ?a gets to ?r: walk if it can; else take one obstacle out of the way and
-% try again (at most ?n times).
+% ?a gets to ?r: walk if it can; else leap somewhere it cannot walk, stop a
+% watcher watching, or budge a blocker, and try again (at most ?n times).
 getTo(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
 getTo(?a, ?r, ?n) :-
-    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), not(has(?a, stealthed)),
-       selfHide(?a, ?ab)),
-    do(cast(?a, ?ab, ?a), getTo(?a, ?r, ?m)).
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), leap(?a, ?ab, ?to)),
+    do(cast(?a, ?ab, ?to), getTo(?a, ?r, ?m)).
 getTo(?a, ?r, ?n) :-
     if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watching(?g)),
-    do(blind(?g), getTo(?a, ?r, ?m)).
+    do(unwatch(?g), getTo(?a, ?r, ?m)).
 getTo(?a, ?r, ?n) :-
     if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), holding(?b)),
-    do(dislodge(?b), getTo(?a, ?r, ?m)).
+    do(budge(?b), getTo(?a, ?r, ?m)).
 
-% A watcher stops seeing: anything that lands blinded (a flash, a cloud of
-% smoke, sleep).
-blind(?g) :- if(canInflict(?c, ?ab, blinded, ?g)), do(cast(?c, ?ab, ?g), confirmBlind(?g)).
-confirmBlind(?g) :- if(forbidden(?g, watch)), do().
+% A watcher stops watching: blinded (a flash, a stun), moved off his post,
+% or turned to mist first and then moved.
+unwatch(?g) :-
+    if(canInflict(?c, ?ab, blinded, ?g)), do(cast(?c, ?ab, ?g), confirmUnwatched(?g)).
+unwatch(?g) :- if(), do(budge(?g), confirmUnwatched(?g)).
+unwatch(?g) :-
+    if(anchoredAgainst(?g), canAct(?c), knows(?c, ?ab), strips(?ab, heavy), ready(?c, ?ab, ?g)),
+    do(cast(?c, ?ab, ?g), budge(?g), confirmUnwatched(?g)).
+confirmUnwatched(?g) :- if(not(watching(?g))), do().
+
+% Something moves off its spot: dragged to someone (taunt, hook), pushed
+% along a line (fireball), or drawn into the next region (vortex).
+budge(?e) :-
+    if(at(?e, ?r), canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, ?e)),
+    do(cast(?a, ?ab, ?e), ensureMoved(?e, ?r)).
+budge(?e) :-
+    if(at(?e, ?r), placement(?a, ?ab, ?from, ?aim, ?e, ?to)),
+    do(castFrom(?a, ?ab, ?aim, ?from), ensureMoved(?e, ?r)).
 
 % === Victory: a thief in the vault ===
 win :- if(canAct(?t)), do(getTo(?t, vault, 3)).
@@ -117,14 +156,14 @@ funExpect(single_actor_plans, atMost, 0).
 % === Choice: one skill each, from eight (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(vanish).
-comboPool(smokeBomb).
-comboPool(flashbang).
-comboPool(sleepDart).
-comboPool(lullaby).
+comboPool(blink).
+comboPool(blindingFlash).
+comboPool(shieldBash).
+comboPool(turnToMist).
 comboPool(taunt).
-comboPool(magnetize).
-comboPool(gust).
+comboPool(hook).
+comboPool(vortex).
+comboPool(fireball).
 comboMinWins(10).
 comboMinMethods(3).
 

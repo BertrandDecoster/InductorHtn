@@ -15,14 +15,22 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 GOAL = "win."
-POOL = ["vanish", "smokeBomb", "flashbang", "sleepDart", "lullaby", "taunt", "magnetize", "gust"]
-SENTRY = ["vanish", "smokeBomb", "flashbang", "sleepDart", "lullaby"]
-DOORMAN = ["taunt", "magnetize", "gust"]
+POOL = ["blink", "blindingFlash", "shieldBash", "turnToMist", "taunt", "hook", "vortex", "fireball"]
+SENTRY = ["blink", "blindingFlash", "shieldBash"]
+DOORMAN = ["taunt", "hook", "vortex", "fireball"]
+# turnToMist takes the sentry's bracing for a moment; a mover that drags or
+# draws him then serves both guards (fireball has no line off the wall).
+MIST_MOVERS = ["taunt", "hook", "vortex"]
+
+
+def _both_ways(pairs):
+    return set(pairs) | {(b, a) for a, b in pairs}
+
 
 # The measured matrix (htn_components combos): a sentry answer and a doorman
-# answer, held by either companion - except that vanish only hides its
-# caster, and the thief is whoever holds it (still either seat).
-WINNING = {(s, d) for s in SENTRY for d in DOORMAN} | {(d, s) for s in SENTRY for d in DOORMAN}
+# answer, or turnToMist and a mover, held by either companion.
+WINNING = _both_ways([(s, d) for s in SENTRY for d in DOORMAN] +
+                     [("turnToMist", m) for m in MIST_MOVERS])
 
 _REPORT = None
 
@@ -78,33 +86,41 @@ class DoormanTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_sneak_and_shove(self):
-        plans = plans_with("vanish", "gust")
-        assert some_plan_has(plans, "opCast(player, vanish, player)",
+    def test_example_1_blink_and_taunt(self):
+        plans = plans_with("blink", "taunt")
+        assert some_plan_has(plans, "opTeleport(player, yard, court)",
                              "opNavigate(mage, yard, garden)",
+                             "opForcedMove(mage, doorman, door, garden)",
+                             "opNavigate(player, door, vault)"), plans[:2]
+        self._record(True, "Example 1: the player blinks into the courtyard; the mage taunts the doorman into the garden")
+
+    def test_example_2_bash_and_fireball(self):
+        plans = plans_with("shieldBash", "fireball")
+        assert some_plan_has(plans, "opGrant(player, sentry, stunned)",
                              "opForcedMove(mage, doorman, door, cellar)",
                              "opNavigate(player, door, vault)"), plans[:2]
-        self._record(True, "Example 1: the player vanishes; the mage shoves the doorman down the cellar steps")
+        self._record(True, "Example 2: a bash stuns the sentry; a fireball blows the doorman down the cellar steps")
 
-    def test_example_2_blind_and_lure(self):
-        plans = plans_with("flashbang", "taunt")
+    def test_example_3_mist_and_taunt(self):
+        plans = plans_with("turnToMist", "taunt")
+        assert some_plan_has(plans, "opRemove(player, sentry, heavy)",
+                             "opForcedMove(mage, sentry, wall, yard)",
+                             "opForcedMove(mage, doorman, door, garden)"), plans[:2]
+        self._record(True, "Example 3: the sentry turns to mist and is taunted down; the same taunt clears the door")
+
+    def test_example_4_flash_and_vortex(self):
+        plans = plans_with("blindingFlash", "vortex")
         assert some_plan_has(plans, "opGrant(player, sentry, blinded)",
-                             "opGrant(mage, doorman, taunted)",
-                             "opNavigate(mage, door, vault)"), plans[:2]
-        self._record(True, "Example 2: a flash on the wall; the mage taunts the doorman out and walks in")
-
-    def test_example_3_sleep_and_hook(self):
-        plans = plans_with("sleepDart", "magnetize")
-        assert some_plan_has(plans, "opGrant(player, sentry, asleep)",
-                             "opCast(mage, magnetize, doorman)"), plans[:2]
-        self._record(True, "Example 3: a dart puts the sentry to sleep; a hook drags the doorman out")
+                             "opCast(mage, vortex, cellar)",
+                             "opForcedMove(mage, doorman, door, cellar)"), plans[:2]
+        self._record(True, "Example 4: a flash blinds the sentry; a vortex draws the doorman down the cellar steps")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_single_skill_wins(self):
         report = combos_report()
         assert not report.singles_winning, report.singles_winning
-        for s in ["vanish", "flashbang", "taunt"]:
+        for s in ["blink", "taunt", "hook"]:
             assert not plans_with(s, s), s
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
@@ -115,20 +131,25 @@ class DoormanTest(HtnTestSuite):
         assert report.solo_plans == 0 and not report.dead_skills and not report.failures
         self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win, none solo")
 
-    def test_property_p3_vanish_makes_a_thief(self):
-        plans = plans_with("vanish", "taunt")
-        assert plans and all("opNavigate(player, door, vault)" in p for p in plans)
-        self._record(True, "P3: vanish hides only its caster - the vanisher is always the thief")
+    def test_property_p3_the_doorman_watches_the_vault(self):
+        # blink + blindingFlash: the thief can blink into the doorway, but
+        # nothing blinds the doorman, and nobody sees into the vault.
+        assert not plans_with("blink", "blindingFlash")
+        self._record(True, "P3: a blink into the doorway is still under the doorman's eyes")
 
-    def test_property_p4_a_blind_doorman_still_blocks(self):
-        assert not plans_with("flashbang", "sleepDart")
-        assert not plans_with("vanish", "lullaby")
-        self._record(True, "P4: blinding or sleeping the doorman never clears the door")
+    def test_property_p4_the_braced_sentry(self):
+        # Two movers leave the sentry on the wall; fireball has no line off it,
+        # even after turnToMist.
+        assert not plans_with("taunt", "vortex")
+        assert not plans_with("turnToMist", "fireball")
+        self._record(True, "P4: nothing moves the braced sentry unless he is mist and dragged or drawn")
 
-    def test_property_p5_nothing_moves_the_sentry(self):
-        assert not plans_with("taunt", "gust")
-        assert not plans_with("magnetize", "taunt")
-        self._record(True, "P5: two movers leave the sentry watching")
+    def test_property_p5_one_skill_two_roles(self):
+        plans = plans_with("turnToMist", "hook")
+        assert plans and all("opCast(player, turnToMist, sentry)" in p and
+                             "opCast(mage, hook, sentry)" in p and
+                             "opCast(mage, hook, doorman)" in p for p in plans), plans[:2]
+        self._record(True, "P5: with turnToMist, one hook clears both guards")
 
 
 def run_tests():
