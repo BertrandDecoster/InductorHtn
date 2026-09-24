@@ -33,7 +33,8 @@ and a chokepoint is two areas with a special link:
 
 Inside an area, **features**: a pit, lava, deep water - walked around, but a knockback sends its
 target in (a filler fills a pit) - and **pressure plates**, pressed by a companion stepping on or by
-whatever is knocked onto them; pressing opens a door, or fills an area with something.
+whatever is knocked onto them; pressing opens a door, or fills an area with something. A **chute** is a
+feature whose ability is `teleport(R)`: whatever is knocked onto it slides into area R.
 
 **Two kinds of movement.** Only a Hook (a pull from next door) or a Taunt (the NPC walks after you)
 moves an NPC into another area. Every other forced movement is a knockback that never leaves the

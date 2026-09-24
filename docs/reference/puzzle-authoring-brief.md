@@ -82,6 +82,9 @@ Also aim for:
   - `feature(?r, ?f, ?ab)`: a pit, lava, deep water inside an area (walked around, knocked into);
     `plate(?f)` makes it a pressure plate (a companion `stepOn`s it, or something is knocked onto
     it; pressing applies `?ab`: `open(D)` locally, or `spill(Z, R)` area-wide)
+  - a **chute** is a feature whose ability is `teleport(R)`: whatever is knocked onto it lands
+    in area ?R. It is the one way a knockback moves something to another area, and it is only
+    where a level puts one
   - **moving an NPC to another area** takes a hook (a pull from next door) or a taunt (it walks
     after you); **knockbacks never change the area**: a push (Fireball, Tidal Wave, Shield Bash,
     a slam) knocks its target into a feature of its area or a gap at its edge, and a Vortex aimed
