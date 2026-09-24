@@ -1,0 +1,163 @@
+% Sync: The Vault (two plates at once)
+%
+% The vault door opens only while both of its plates are weighed down at
+% the same moment. One plate stands on an island across a rift; the other
+% sits in a closet that a sentry keeps its eye on. Two companions, one skill
+% each from eight. Whoever holds the island plate is stranded there: the
+% other has to weigh the closet down - with themselves, or with the sentry.
+%
+%   foyer --- hall --- rim ~~rift~~ outcrop (pillar, barrel) --- island [plate]
+%              |  \
+%              |   post (sentry) --- closet [plate, watched]
+%              |
+%          vaultdoor (door) --- vault
+%
+% Obstacles and every method:
+%   the island   no walking over the rift. Leap it from the rim: pounce or
+%                charge onto the outcrop (a dash), magnetize the anchored
+%                pillar (the hook drags you over), or translocate with the
+%                barrel (you swap places). Then walk onto the plate.
+%   the closet   the sentry watches it: nobody walks in seen. Walk in
+%                stealthed (vanish), walk in once the sentry is blinded
+%                (flashbang, net), or weigh the plate down without walking
+%                in at all: gust the sentry itself off its post onto the
+%                plate - the enemy holds the door open for you.
+%   the vault    once both plates were held together, the door latches
+%                open; the closet holder (or the gust thrower) walks in.
+%
+% Traps:
+%   - there is no line of sight into the closet, so nothing dashes in;
+%   - the sentry is a boss: a stun (charge) or a confusion (translocate)
+%     does not land on it, so neither blinds it; flashbang and net land
+%     the blinding atom itself;
+%   - the sentry's watch is its own: swapping it off its post, dragging it
+%     away or dashing up to it leaves the closet watched;
+%   - the island holder cannot come back, so it cannot also do the closet;
+%   - the pillar and the barrel stand on the outcrop, off the plate, so the
+%     island plate is empty until someone walks onto it.
+%
+% Hypothesis (design.md): no single skill wins; 32 of 64 assignments win
+% (each island skill with each closet skill, either seat), by 16 methods.
+
+% === Regions ===
+region(foyer).
+region(hall).
+region(rim).
+region(rift).
+region(outcrop).
+region(island).
+region(post).
+region(closet).
+region(vaultdoor).
+region(vault).
+connected(foyer, hall).
+connected(hall, foyer).
+connected(hall, rim).
+connected(rim, hall).
+connected(rim, rift).
+connected(rift, rim).
+connected(rift, outcrop).
+connected(outcrop, rift).
+connected(outcrop, island).
+connected(island, outcrop).
+connected(hall, post).
+connected(post, hall).
+connected(post, closet).
+connected(closet, post).
+connected(hall, vaultdoor).
+connected(vaultdoor, hall).
+connected(vaultdoor, vault).
+connected(vault, vaultdoor).
+
+lineOfSight(foyer, hall).
+lineOfSight(hall, foyer).
+lineOfSight(hall, rim).
+lineOfSight(rim, hall).
+lineOfSight(rim, outcrop).
+lineOfSight(hall, post).
+lineOfSight(post, hall).
+
+% The route over the rift, for leaps: only forward.
+progress(foyer, 0).
+progress(hall, 1).
+progress(rim, 2).
+progress(rift, 3).
+progress(outcrop, 4).
+progress(island, 5).
+
+% A push from the hall on the post lands in the closet.
+beyond(hall, post, closet).
+
+% === Terrain ===
+onEnter(rift, chasm).
+door(vaultdoor).
+plateFor(island, vaultdoor).
+plateFor(closet, vaultdoor).
+onEnter(island, pressIsland).
+onEnter(closet, pressCloset).
+effect(pressIsland, target, openWhenHeld(vaultdoor)).
+effect(pressCloset, target, openWhenHeld(vaultdoor)).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, foyer).
+at(mage, foyer).
+mana(player, 4).
+mana(mage, 4).
+
+% === Things ===
+role(sentry, enemy).
+at(sentry, post).
+trait(sentry, living).
+rank(sentry, boss).
+watches(sentry, closet).
+
+role(pillar, object).
+at(pillar, outcrop).
+trait(pillar, heavy).
+
+role(barrel, object).
+at(barrel, outcrop).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, pounce).
+knows(mage, flashbang).
+
+% === Victory ===
+% Someone weighs the island down, someone weighs the closet down, and the
+% door must have opened; then someone walks into the vault.
+win :- if(), do(weighIsland, weighCloset, confirmOpen(vaultdoor), lootVault).
+
+weighIsland :- if(canAct(?a)), do(reach(?a, island)).
+
+% Walk in unseen: stealthed ...
+weighCloset :-
+    if(canAct(?b), knows(?b, ?ab), effect(?ab, self, grant(stealthed))),
+    do(cast(?b, ?ab, ?b), walkTo(?b, closet)).
+% ... or with the sentry blinded.
+weighCloset :-
+    if(canAct(?b), not(at(?b, island))),
+    do(inflict(blinded, sentry, none), walkTo(?b, closet)).
+% Shove the sentry itself onto the plate.
+weighCloset :- if(), do(place(sentry, closet, none)).
+
+lootVault :- if(canAct(?c)), do(walkTo(?c, vault)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(pounce).
+comboPool(charge).
+comboPool(magnetize).
+comboPool(translocate).
+comboPool(vanish).
+comboPool(flashbang).
+comboPool(net).
+comboPool(gust).
+comboMinWins(8).
+comboMinMethods(4).
+
+goals(win).

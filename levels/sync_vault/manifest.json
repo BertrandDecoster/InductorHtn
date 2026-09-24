@@ -1,0 +1,53 @@
+{
+  "name": "sync_vault",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "Sync: The Vault - a door with two plates held at once, one on an island across a rift, one in a watched closet; one skill each from eight",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/strategies/passage",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:35:58.348484"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "connected/2",
+    "door/1",
+    "effect/3",
+    "funExpect/3",
+    "knows/2",
+    "lineOfSight/2",
+    "lootVault/0",
+    "mana/2",
+    "onEnter/2",
+    "plateFor/2",
+    "progress/2",
+    "rank/2",
+    "region/1",
+    "role/2",
+    "trait/2",
+    "watches/2",
+    "weighCloset/0",
+    "weighIsland/0",
+    "win/0"
+  ],
+  "requires": [
+    "cast/3",
+    "confirmOpen/1",
+    "inflict/3",
+    "place/3",
+    "reach/2",
+    "walkTo/2"
+  ]
+}

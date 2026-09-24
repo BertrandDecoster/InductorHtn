@@ -1,0 +1,45 @@
+{
+  "name": "sync_drawbridge",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "Sync: The Drawbridge - one companion leaps the gulf and lowers the bridge, the others cross and drop or short the sentinel machine; one skill each from eight, plus a porter with rain",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/strategies/passage",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:45:21.448417"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "connected/2",
+    "door/1",
+    "effect/3",
+    "funExpect/3",
+    "knows/2",
+    "lineOfSight/2",
+    "lowerBridge/0",
+    "mana/2",
+    "onEnter/2",
+    "opened/1",
+    "progress/2",
+    "region/1",
+    "role/2",
+    "trait/2",
+    "win/0"
+  ],
+  "requires": [
+    "neutralize/1",
+    "reach/2"
+  ]
+}
