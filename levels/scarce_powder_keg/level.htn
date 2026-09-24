@@ -1,44 +1,52 @@
 % Powder Keg (resource scarcity: a spent reaction)
 %
-% A walled yard with one powder keg in it. A bruiser stands guard by the
-% keg; a lurker waits on the stair above. Nothing the team carries can hurt
-% either of them - only the keg's blast can, and the keg blows once. Two
-% companions, one skill each, from eight.
+% A walled yard with one powder keg in it, sunk over an old cellar. A
+% bruiser stands guard by the keg; a lurker waits on the stair above. The
+% team watches from the landing at the top of the stair. Nothing the team
+% carries can stop either enemy - only the keg can: it blows the yard's
+% floor into the cellar, and it blows once. Two companions, one skill each,
+% from six.
 %
-%   gate --- yard (keg, bruiser) --- stair (lurker) --- landing
-%     |                               |                   |
-%     +-------------------------------+-------------------+
-%                          well (a push from the yard side drops the lurker)
+%   gate --- yard (keg, bruiser) --- stair (lurker) --- landing (team)
+%     |                                                    |
+%     +-------------------- side path ---------------------+
 %
-% The keg goes off when it takes fire or a spark (burning, electrocuted):
-% everyone else in the yard is blasted, and the living die of it. Then it
-% is spent - nothing sets it off again.
+% The keg is a telegraphed heavy attack the team sets off on purpose. Fire
+% or a spark (burning, electrocuted) lights its fuse: it winds up a cave-in
+% on the yard (the catalogue's caveIn, physical - it cannot be stopped).
+% The team gets one cast; then the yard's floor gives way and everything
+% still in it falls into the cellar - the bruiser, the keg itself, and any
+% companion who did not get out. The keg is gone after that: it blows once.
 %
-% Methods:
-%   gather    bring the lurker down into the yard first - push it from the
-%             landing (gust, tidalWave), drag it down from the yard (taunt,
-%             magnetize), or trade places with it (translocate) - then light
-%             the keg (flameWall, zap, lightningFlash): one blast, both
-%   the well  push the lurker off the stair into the well from the yard
-%             (gust, tidalWave), then light the keg for the bruiser
+% Methods (bring the lurker down into the yard, then light the keg):
+%   gather   wash it down the stair from the landing (tidalWave), drag it
+%            down from the yard (hook, taunt - the puller then walks out),
+%            or draw it in (vortex on the yard, from the landing)
+%   light    a fireball on the keg from the landing: the fuse burns while
+%            nobody is in the yard
+%   spark    a lightning flash from the stair at the gate: it strikes the
+%            keg on its way through the yard and carries its caster out
+%            the far side before the floor goes
+% Or light the keg first, and wash or draw the lurker into the crater
+% (tidalWave, vortex).
 %
 % Traps:
-%   - lighting the keg first: the bruiser dies, the keg is spent, and with a
-%     puller or a swapper nothing else here can touch the lurker (a pusher
-%     still has the well);
-%   - the side you push from decides where the lurker lands: from the
-%     landing into the yard, from the yard into the well; the gate sees
-%     nothing of the stair at all.
+%   - lighting the keg first with a puller: the bruiser falls, the keg is
+%     spent, and nobody can stand in the yard to drag the lurker down;
+%   - a flash aimed at the keg itself carries its caster into the yard:
+%     it lands in the crater (the flash's strike sets the fuse off before
+%     its dash, so the caster arrives after the fall);
+%   - wading down to drag the lurker and staying there: the puller must be
+%     out before the fuse is lit.
 %
-% Hypothesis (design.md): no single skill wins; 15 of 28 pairs do, by two
-% methods of different kinds (the blast takes both, or the well takes one).
+% Hypothesis (design.md): no single skill wins; every gatherer with every
+% lighter wins, and no other pair does.
 
 % === Regions ===
 region(gate).
 region(yard).
 region(stair).
 region(landing).
-region(well).
 connected(gate, yard).
 connected(yard, gate).
 connected(yard, stair).
@@ -47,92 +55,99 @@ connected(stair, landing).
 connected(landing, stair).
 connected(gate, landing).
 connected(landing, gate).
+lineOfSight(landing, yard).
 lineOfSight(gate, yard).
+lineOfSight(yard, gate).
 lineOfSight(yard, stair).
 lineOfSight(stair, yard).
-lineOfSight(landing, stair).
+lineOfSight(stair, gate).
 
-% Push lines: from the landing, a push on the stair sends it down into the
-% yard; from the yard, off the stair and into the well.
+% Lines: from the landing, a push on the stair sends it down into the
+% yard; from the stair, the yard lies on the way to the gate (a flash from
+% the stair at the gate runs through the yard).
 beyond(landing, stair, yard).
-beyond(yard, stair, well).
+beyond(stair, yard, gate).
 
-onEnter(well, chasm).
-
-% === The keg: one blast ===
+% === The keg: one fuse, one cave-in ===
 role(keg, object).
 at(keg, yard).
-trait(keg, heavy).
-behavior(keg, burning, blast, here).
-behavior(keg, electrocuted, blast, here).
-effect(blast, area, grant(blasted)).
-effect(blast, self, grant(spent)).
-wards(spent, burning).
-wards(spent, electrocuted).
-% Blasted: harmless to the team; it kills the living enemies here.
-weakness(?e, blasted, none, dead) :- role(?e, enemy), trait(?e, living).
+tag(keg, heavy).
+behavior(keg, burning, caveIn, here).
+behavior(keg, electrocuted, caveIn, here).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
-at(player, gate).
-at(mage, gate).
+at(player, landing).
+at(mage, landing).
 mana(player, 2).
 mana(mage, 2).
 
 % === Enemies ===
 role(bruiser, enemy).
 at(bruiser, yard).
-trait(bruiser, living).
+tag(bruiser, living).
 
 role(lurker, enemy).
 at(lurker, stair).
-trait(lurker, living).
+tag(lurker, living).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, gust).
-knows(mage, zap).
+knows(player, tidalWave).
+knows(mage, fireball).
 
 % === Victory ===
-% Gather the lurker into the yard, then one blast; or drop it in the well
-% and blast the bruiser.
-win :- if(), do(herd(lurker, yard), detonate(keg), confirmStopped(bruiser), confirmStopped(lurker)).
-win :- if(), do(neutralize(lurker), detonate(keg), confirmStopped(bruiser)).
+% Gather the lurker into the yard, clear the yard, then one cave-in takes
+% both.
+win :-
+    if(),
+    do(herd(lurker, yard), clearOut(yard, landing), detonate(keg),
+       confirmStopped(bruiser), confirmStopped(lurker), confirmTeam()).
+win :- if(), do(detonate(keg), neutralize(lurker), confirmStopped(bruiser), confirmTeam()).
 
-% ?e ends up in ?r: pushed along a line, dragged to someone standing
-% there, or swapped with someone standing there.
+% Nobody of the team went down with the yard.
+confirmTeam() :- if(not(first(and(canAct(?a), gone(?a))))), do().
+
+% ?e ends up in ?r: pushed along a line or drawn in (placement), or dragged
+% to someone standing there.
 herd(?e, ?r) :- if(at(?e, ?r)), do().
 herd(?e, ?r) :-
-    if(not(at(?e, ?r)), canAct(?a), first(placement(?a, ?ab, ?from, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?e, ?from), confirmAt(?e, ?r)).
+    if(not(at(?e, ?r)), canAct(?a), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?aim, ?from), confirmAt(?e, ?r)).
 herd(?e, ?r) :-
     if(not(at(?e, ?r)), at(?e, ?er), puller(?a, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er)),
     do(castFrom(?a, ?ab, ?e, ?r), confirmAt(?e, ?r)).
-herd(?e, ?r) :-
-    if(not(at(?e, ?r)), at(?e, ?er), canAct(?a), knows(?a, ?ab), effect(?ab, target, swap),
-       ready(?a, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er)),
-    do(castFrom(?a, ?ab, ?e, ?r), confirmAt(?e, ?r)).
 confirmAt(?e, ?r) :- if(at(?e, ?r)), do().
 
-% Set the keg off: fire or a spark, from anyone; it must blow.
-detonate(?k) :- if(not(tag(?k, spent))), do(inflict(burning, ?k, none), confirmSpent(?k)).
-detonate(?k) :- if(not(tag(?k, spent))), do(inflict(electrocuted, ?k, none), confirmSpent(?k)).
-confirmSpent(?k) :- if(tag(?k, spent)), do().
+% Whoever can walk leaves ?r for ?safe before the keg is lit.
+walksOut(?a, ?r) :- canAct(?a), at(?a, ?r), not(forbidden(?a, move)).
+clearOut(?r, ?safe) :- if(not(first(walksOut(?a, ?r)))), do().
+clearOut(?r, ?safe) :- if(first(walksOut(?a, ?r))), do(leaveAll(?r, ?safe)).
+leaveAll(?r, ?safe) :- allOf, if(walksOut(?a, ?r)), do(walkTo(?a, ?safe)).
+
+% Light the keg: fire or a spark, from anyone; it must have blown.
+detonate(?k) :- if(not(gone(?k))), do(inflict(burning, ?k, none), confirmStopped(?k)).
+detonate(?k) :- if(not(gone(?k))), do(inflict(electrocuted, ?k, none), confirmStopped(?k)).
+% A skill that strikes its way, aimed past the keg: it lights the fuse on
+% the way and carries its caster out the far side.
+detonate(?k) :-
+    if(not(gone(?k)), at(?k, ?kr), canAct(?a), knows(?a, ?ab), effect(?ab, path, grant(?t)),
+       first(behavior(?k, ?t, ?m, ?aim)), beyond(?from, ?kr, ?to), reach(?ab, ?rk),
+       inRange(?rk, ?from, ?to), ready(?a, ?ab, ?to), canReachNow(?a, ?from)),
+    do(castFrom(?a, ?ab, ?to, ?from), confirmStopped(?k)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(gust).
 comboPool(tidalWave).
+comboPool(hook).
 comboPool(taunt).
-comboPool(magnetize).
-comboPool(translocate).
-comboPool(flameWall).
-comboPool(zap).
+comboPool(vortex).
+comboPool(fireball).
 comboPool(lightningFlash).
-comboMinWins(10).
-comboMinMethods(3).
+comboMinWins(8).
+comboMinMethods(4).
 
 goals(win).

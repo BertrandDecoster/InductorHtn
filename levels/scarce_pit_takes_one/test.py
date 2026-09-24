@@ -14,10 +14,10 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-PUSHERS = ["gust", "tidalWave"]          # off the ledge: either body into the pit
-PULLERS = ["taunt", "magnetize"]         # from the far side: only the beetle
-COLD = ["frostBolt", "glaciate"]         # the beetle freezes
-JOLTS = ["zap", "chainLightning"]        # the soaked drone dies
+PUSHERS = ["fireball", "tidalWave", "vortex"]  # from the ledge / on the pit: either body
+PULLERS = ["hook", "taunt"]                   # from the far side: only the beetle
+COLD = ["blizzard"]                           # the beetle dies of the cold
+JOLTS = ["lightningFlash"]                    # the soaked drone dies
 POOL = PUSHERS + PULLERS + COLD + JOLTS
 
 # The measured matrix (htn_components combos): these pairs win, nothing else does.
@@ -75,31 +75,32 @@ class PitTakesOneTest(HtnTestSuite):
     # ---------------------------------------------------------------- examples
 
     def test_example_1_beetle_first(self):
-        """The default kit: gust the beetle into the pit, zap the drone."""
+        """The default kit: a fireball knocks the beetle into the pit, the flash
+        kills the drone."""
         self.assert_plan("win.", contains=[
             "opForcedMove(player, beetle, bridge, pit)", "opExploit(player, beetle, chasm, fell)",
-            "opCast(mage, zap, drone)", "opExploit(mage, drone, electrocuted, dead)"],
+            "opCast(mage, lightningFlash, drone)", "opExploit(mage, drone, electrocuted, dead)"],
             not_contains=["opForcedMove(player, drone, walk, pit)"])
 
     def test_example_2_pull_across(self):
-        plans = plans_with("magnetize", "chainLightning")
+        plans = plans_with("hook", "lightningFlash")
         ops = text_of(plans)
         assert plans and "opNavigate(player, bridge, far)" in ops
         assert "opForcedMove(player, beetle, bridge, pit)" in ops
         self._record(True, "Example 2: hook the beetle across the pit from the far side")
 
     def test_example_3_freeze_and_drop_the_drone(self):
-        plans = plans_with("glaciate", "tidalWave")
+        plans = plans_with("blizzard", "vortex")
         ops = text_of(plans)
-        assert plans and "opExploit(player, beetle, chilled, frozen)" in ops
+        assert plans and "opExploit(player, beetle, chilled, dead)" in ops
         assert "opForcedMove(mage, drone, walk, pit)" in ops
-        self._record(True, "Example 3: freeze the beetle; the pit is free for the drone")
+        self._record(True, "Example 3: the cold kills the beetle; the vortex draws the drone in")
 
     def test_example_4_no_pit(self):
-        plans = plans_with("frostBolt", "zap")
+        plans = plans_with("blizzard", "lightningFlash")
         ops = text_of(plans)
-        assert plans and "pit" not in ops
-        self._record(True, "Example 4: freeze the beetle, jolt the drone - the pit stays empty")
+        assert plans and "chasm" not in ops
+        self._record(True, "Example 4: ice the beetle, jolt the drone - the pit stays empty")
 
     # -------------------------------------------------------------- properties
 
@@ -108,7 +109,7 @@ class PitTakesOneTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_sixteen_pairs_win(self):
+    def test_property_p2_nine_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
@@ -119,19 +120,20 @@ class PitTakesOneTest(HtnTestSuite):
             for plan in plans_with(a, b):
                 s = text_of([plan])
                 assert s.count(", chasm, fell)") <= 1, f"{a}+{b}: two falls in {s}"
-        # Two pushers: the second body finds the pit full.
-        assert not plans_with("gust", "tidalWave")
+        # Two movers: the second body finds the pit full.
+        assert not plans_with("fireball", "tidalWave")
+        assert not plans_with("hook", "vortex")
         self._record(True, "P3: the pit takes one body, never two")
 
     def test_property_p4_wrong_order_loses(self):
         """Drop the drone first (it is nearest) and the beetle can no longer be taken."""
-        assert plans_with("gust", "zap")
-        assert not plans_with("gust", "zap", "intoThePit(drone), neutralize(beetle).")
-        assert plans_with("gust", "zap", "intoThePit(beetle), neutralize(drone).")
+        assert plans_with("fireball", "lightningFlash")
+        assert not plans_with("fireball", "lightningFlash", "intoThePit(drone), neutralize(beetle).")
+        assert plans_with("fireball", "lightningFlash", "intoThePit(beetle), neutralize(drone).")
         self._record(True, "P4: the drone in the pit first loses; the beetle first wins")
 
     def test_property_p5_each_hand_matters(self):
-        assert plans_with("zap", "gust") and plans_with("tidalWave", "frostBolt")
+        assert plans_with("lightningFlash", "fireball") and plans_with("tidalWave", "blizzard")
         self._record(True, "P5: the pairs win whichever companion holds which half")
 
 

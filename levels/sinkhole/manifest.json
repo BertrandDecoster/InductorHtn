@@ -2,48 +2,55 @@
   "name": "sinkhole",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Sinkhole on the ability layer: a golem at a pit's rim, two mooks in water and oil, pick 2 of 6 abilities",
+  "description": "The Sinkhole on the ability catalogue: a golem whose stamp caves in the rim, two mooks in water and oil; one skill each from eight",
   "dependencies": [
-    "abilities/goals/neutralize"
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
   ],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T12:58:25.769259"
+    "last_checked": "2026-09-24T18:19:01.606961"
   },
   "provides": [
     "at/2",
+    "behavior/4",
     "beyond/3",
-    "blockedBy/3",
-    "bundles/2",
+    "clearOut/2",
     "clearSinkhole/0",
+    "collapse/1",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmAt/2",
+    "confirmTeam/0",
     "connected/2",
-    "effect/3",
     "funBlocker/1",
     "funBlockerGoal/2",
-    "funChoice/2",
-    "funChoiceFact/2",
-    "funChoiceSpace/2",
     "funExpect/3",
-    "group/2",
+    "golemDown/1",
+    "herd/2",
     "immune/2",
     "knows/2",
+    "leaveAll/2",
     "lineOfSight/2",
     "mana/2",
-    "manaCost/2",
     "onEnter/2",
-    "reach/2",
-    "reaction/3",
+    "provokeWith/1",
+    "rank/2",
     "region/1",
     "role/2",
-    "stops/2",
-    "suspends/2",
     "tag/2",
-    "vulnerable/2"
+    "walksOut/2"
   ],
   "requires": [
-    "neutralize/1"
+    "castFrom/4",
+    "confirmStopped/1",
+    "inflict/3",
+    "neutralize/1",
+    "walkTo/2"
   ]
 }

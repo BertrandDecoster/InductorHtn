@@ -1,19 +1,31 @@
 % Two Hands (ability catalogue)
 %
-% An armoured sentinel machine stands on a bridge over a pit. Two companions,
-% one skill each, from a pool of eight. No skill takes it alone - not even
-% when both companions hold it - and ten pairs do, by two methods.
+% A heavy sentinel machine stands on a bridge over a pit. Two companions,
+% one skill each, from a pool of seven catalogue skills. No skill takes it
+% alone - not even when both companions hold it - and several pairs do, by
+% two methods.
 %
 %   ledge --- bridge (sentinel) --- far
-%                |
-%               pit          (across the pit: overlook, reached by a path)
+%     |          |
+%     |         pit          (across the pit: overlook, reached by a path)
+%   path --- overlook
 %
 % Two ways to take it out, each needing two different things:
-%   drop it   its armour wards forced movement: strip the armour
-%             (sunder, dispel), then move it into the pit (push it from the
-%             ledge, or pull it across the pit from the overlook)
-%   short it  it is a machine: soak it (tidalWave, rainCall), then jolt it
-%             (zap) - one companion soaks, the other jolts
+%   drop it   it is heavy, and heavy wards forced movement: turn it to mist
+%             (turnToMist - for a moment it is not heavy), then, while the
+%             moment lasts, move it into the pit: push it from the ledge
+%             (fireball, tidalWave), pull it across the pit from the
+%             overlook (hook, taunt), or draw it down into the pit
+%             (vortex)
+%   short it  it is a machine: soak it (tidalWave), then jolt it
+%             (lightningFlash) - one companion soaks, the other jolts
+%
+% Traps:
+%   - any push, pull or vortex alone: the sentinel is heavy and does not
+%     budge; a hook on it drags the caster to the sentinel instead;
+%   - a jolt on the dry machine only stuns it; blizzard on the soaked one
+%     only freezes it (a stun, not out);
+%   - the mist lasts one more cast: whoever mists cannot also push.
 region(ledge).
 region(bridge).
 region(far).
@@ -24,13 +36,19 @@ connected(ledge, bridge).
 connected(bridge, ledge).
 connected(bridge, far).
 connected(far, bridge).
+connected(bridge, pit).
+connected(pit, bridge).
 connected(ledge, path).
 connected(path, ledge).
 connected(path, overlook).
 connected(overlook, path).
 lineOfSight(ledge, bridge).
+lineOfSight(ledge, pit).
 lineOfSight(overlook, bridge).
+lineOfSight(overlook, pit).
 
+% Push lines: from the ledge, a push on the bridge lands in the pit; from
+% the overlook, the pit lies between it and the bridge.
 beyond(ledge, bridge, pit).
 beyond(overlook, pit, bridge).
 onEnter(pit, chasm).
@@ -44,28 +62,28 @@ mana(mage, 4).
 
 role(sentinel, enemy).
 at(sentinel, bridge).
-trait(sentinel, machine).
-tag(sentinel, armored).
+tag(sentinel, machine).
+tag(sentinel, heavy).
 
 % === Default kit: one skill each (the test replans the whole matrix) ===
-knows(player, sunder).
-knows(mage, gust).
+knows(player, turnToMist).
+knows(mage, fireball).
 
 win :- if(), do(neutralize(sentinel)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(sunder).
-comboPool(dispel).
-comboPool(gust).
-comboPool(magnetize).
-comboPool(taunt).
+comboPool(turnToMist).
+comboPool(fireball).
 comboPool(tidalWave).
-comboPool(rainCall).
-comboPool(zap).
-comboMinWins(10).
+comboPool(hook).
+comboPool(taunt).
+comboPool(vortex).
+comboPool(lightningFlash).
+comboMinWins(12).
+comboMinMethods(6).
 
 goals(win).
