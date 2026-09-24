@@ -1,0 +1,154 @@
+% The Well (pure movement)
+%
+% A lock gate opens only while two plates are weighed down at once: a step
+% by the quay, and the floor of a well. The Golem is too heavy to leap or to
+% be moved - he is the counterweight on the step, and he walks out once the
+% lock is open. The well is the problem: it is seen into from the quay and
+% from the exit above, but from the bottom you cannot see out. Whoever goes
+% down cannot leap back up; a friend at the exit has to pull them out.
+% Lost Vikings: one companion is the weight, one goes down, one hauls out.
+%
+%   nook (crate) --- quay (player, mage, golem) --- step (plate)
+%                     |    \
+%                   brink   well (plate; wisp; seen from the quay and the exit)
+%                     |
+%                   lock (door: step + well held at once) --- exit
+%
+% Victory: all three companions reach the exit. The player and the mage
+% pick one skill each; the Golem knows nothing.
+%
+% The well, weighed two ways:
+%   go down      a dasher blinks in, or a swapper trades places with the
+%                wisp - and a friend with a hook or a taunt pulls them out
+%                from the exit
+%   the crate    it sits in the nook, where no push reaches it: someone
+%                draws it onto the brink (a hook or a taunt pulls it, a swap
+%                trades places with it), someone else throws it into the
+%                well from the quay
+%
+% Traps: a dasher or a swapper at the bottom cannot get out alone; a swap
+% from the exit only trades who is stuck; a pusher can throw a friend down,
+% but then the only one left to haul them out is the pusher; a pusher
+% cannot reach the crate in the nook; a puller alone brings the crate to
+% the brink and no further;
+% a friend who shadow-steps down is stealthed, and nobody can aim a pull at
+% them (which is why shadowStep is not in the pool).
+% The wisp in the well floats: it does not weigh the plate.
+
+% === Regions ===
+region(nook).
+region(quay).
+region(step).
+region(brink).
+region(well).
+region(lock).
+region(exit).
+connected(nook, quay).
+connected(quay, nook).
+connected(quay, step).
+connected(step, quay).
+connected(quay, brink).
+connected(brink, quay).
+connected(brink, lock).
+connected(lock, brink).
+connected(lock, exit).
+connected(exit, lock).
+
+lineOfSight(quay, nook).
+lineOfSight(brink, nook).
+lineOfSight(quay, brink).
+lineOfSight(quay, well).
+lineOfSight(brink, well).
+lineOfSight(exit, well).
+
+% The route, for leaps: only forward.
+progress(nook, 0).
+progress(quay, 0).
+progress(step, 1).
+progress(brink, 1).
+progress(well, 2).
+progress(lock, 3).
+progress(exit, 4).
+
+% Push lines: from the quay, what stands on the brink goes into the well.
+beyond(quay, brink, well).
+
+% === Terrain ===
+door(lock).
+plateFor(step, lock).
+plateFor(well, lock).
+onEnter(step, weigh).
+onEnter(well, weigh).
+effect(weigh, target, openWhenHeld(lock)).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+role(golem, companion).
+at(player, quay).
+at(mage, quay).
+at(golem, quay).
+trait(golem, heavy).
+
+% === Things ===
+role(crate, object).
+at(crate, nook).
+trait(crate, mindless).
+
+role(wisp, object).
+at(wisp, well).
+trait(wisp, flier).
+
+% === Default kit (a winning pair; combos strips these) ===
+knows(player, pounce).
+knows(mage, magnetize).
+
+% === Victory ===
+win :- if(), do(escape).
+
+escape :-
+    if(),
+    do(weighWell, walkTo(golem, step), confirmOpen(lock),
+       getOut(player), getOut(mage), walkTo(golem, exit)).
+
+% The well: someone goes down; the crate is fetched and thrown in; or a
+% friend is thrown in (it never pays: see the traps).
+weighWell :- if(canAct(?a), \==(?a, golem)), do(reach(?a, well)).
+weighWell :-
+    if(at(crate, ?r), landing(?from, ?spot, well), \==(?r, ?spot)),
+    do(fetch(crate, ?spot), place(crate, well, none)).
+weighWell :-
+    if(landing(?from, ?spot, well), canAct(?a), \==(?a, golem), canAct(?p), \==(?p, ?a),
+       knows(?p, ?ab), pusher(?ab)),
+    do(walkTo(?a, ?spot), castFrom(?p, ?ab, ?a, ?from), ensureAt(?a, well)).
+pusher(?ab) :- effect(?ab, target, push).
+
+% Draw something onto a spot: pulled to the caster's feet there, or swapped
+% with the caster standing there.
+fetch(?x, ?spot) :-
+    if(canAct(?a), knows(?a, ?ab), drawer(?ab), ready(?a, ?ab, ?x)),
+    do(castFrom(?a, ?ab, ?x, ?spot), ensureAt(?x, ?spot)).
+drawer(?ab) :- first(pullsAny(?ab)).
+drawer(?ab) :- effect(?ab, target, swap).
+ensureAt(?e, ?r) :- if(at(?e, ?r)), do().
+
+% Out: walk, or be pulled up by a friend standing at the exit.
+getOut(?a) :- if(canReachNow(?a, exit)), do(walkTo(?a, exit)).
+getOut(?a) :-
+    if(not(canReachNow(?a, exit)), canAct(?b), \==(?b, ?a), knows(?b, ?ab), pulls(?ab),
+       ready(?b, ?ab, ?a)),
+    do(walkTo(?b, exit), castFrom(?b, ?ab, ?a, exit), ensureAt(?a, exit)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from six (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(gust).
+comboPool(shieldBash).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(translocate).
+comboPool(pounce).
+
+goals(win).
