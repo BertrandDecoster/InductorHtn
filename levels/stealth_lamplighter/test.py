@@ -15,14 +15,23 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 GOAL = "escape."
-POOL = ["vanish", "smokeBomb", "flashbang", "sleepDart", "gust", "taunt", "pebble"]
-LEVER = ["vanish", "smokeBomb", "flashbang", "sleepDart", "gust"]
-HALL = ["gust", "taunt", "pebble"]
+POOL = ["blindingFlash", "shieldBash", "fireball", "tidalWave", "taunt", "hook", "vortex"]
+WARDEN = ["blindingFlash", "shieldBash"]          # the lever, by blinding the warden
+CRATE = ["fireball", "tidalWave"]                 # the crate: on the lever, or cover
+LURES = ["taunt", "hook"]                         # the lamplighter off his post
+HALL = LURES + ["vortex"] + CRATE
 
-# The measured matrix (htn_components combos): a lever answer and a hall
-# answer, held by either companion - but not gust twice: there is one crate.
-WINNING = ({(a, b) for a in LEVER for b in HALL if a != b}
-           | {(b, a) for a in LEVER for b in HALL if a != b})
+
+def _both_ways(pairs):
+    return set(pairs) | {(b, a) for a, b in pairs}
+
+
+# The measured matrix (htn_components combos): the warden blinded and any
+# hall answer, or the crate on the lever and a lure. A vortex on the lamps
+# needs the other companion on the lever, away from the street: it wins only
+# with a warden answer.
+WINNING = _both_ways([(w, h) for w in WARDEN for h in HALL] +
+                     [(c, l) for c in CRATE for l in LURES])
 
 _REPORT = None
 
@@ -78,36 +87,37 @@ class LamplighterTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_crate_on_the_lever_and_a_taunt(self):
-        plans = plans_with("gust", "taunt")
+    def test_example_1_the_crate_on_the_lever_and_a_taunt(self):
+        plans = plans_with("fireball", "taunt")
         assert some_plan_has(plans, "opForcedMove(player, crate, yard, guardroom)",
                              "opOpen(player, gate)",
-                             "opForcedMove(mage, lamplighter, post, start)",
-                             "opNavigate(player, gate, exit)", "opNavigate(mage, gate, exit)"), plans[:2]
-        self._record(True, "Example 1: the crate goes onto the lever; a taunt drags the lamplighter off his post")
-
-    def test_example_2_sneak_to_the_lever_and_a_pebble(self):
-        plans = plans_with("vanish", "pebble")
-        assert some_plan_has(plans, "opCast(player, vanish, player)",
-                             "opNavigate(player, start, guardroom)",
-                             "opProvoked(lamplighter, curious, lookDownWell)",
-                             "opForcedMove(lamplighter, lamplighter, post, well)"), plans[:2]
-        self._record(True, "Example 2: the player vanishes onto the lever; a pebble sends the lamplighter to the well")
-
-    def test_example_3_blind_the_warden_and_take_cover(self):
-        plans = plans_with("flashbang", "gust")
-        assert some_plan_has(plans, "opGrant(player, warden, blinded)",
-                             "opForcedMove(mage, crate, yard, hall)",
+                             "opForcedMove(mage, lamplighter, post, lamps)",
+                             "opNavigate(player, gate, exit)",
                              "opNavigate(mage, gate, exit)"), plans[:2]
-        self._record(True, "Example 3: a flash blinds the warden; the crate shoved into the hall is cover")
+        self._record(True, "Example 1: a fireball blows the crate onto the lever; a taunt drags the lamplighter off his post")
+
+    def test_example_2_a_flash_and_cover(self):
+        plans = plans_with("blindingFlash", "tidalWave")
+        assert some_plan_has(plans, "opGrant(player, warden, blinded)",
+                             "opNavigate(player, start, guardroom)",
+                             "opForcedMove(mage, crate, yard, hall)",
+                             "opNavigate(mage, hall, gate)"), plans[:2]
+        self._record(True, "Example 2: a flash blinds the warden; a wave from the lamps washes the crate into the hall as cover")
+
+    def test_example_3_a_bash_and_a_vortex(self):
+        plans = plans_with("shieldBash", "vortex")
+        assert some_plan_has(plans, "opGrant(player, warden, stunned)",
+                             "opCast(mage, vortex, lamps)",
+                             "opForcedMove(mage, lamplighter, post, lamps)"), plans[:2]
+        self._record(True, "Example 3: a bash stuns the warden; with the player on the lever, a vortex draws the lamplighter off his post")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_single_skill_wins(self):
         report = combos_report()
         assert not report.singles_winning, report.singles_winning
-        assert not plans_with("gust", "gust")
-        self._record(True, "P1: no skill wins alone, even held by both companions - not even gust")
+        assert not plans_with("fireball", "fireball")
+        self._record(True, "P1: no skill wins alone, even held by both companions - fireball twice included")
 
     def test_property_p2_measured_assignments_win(self):
         report = combos_report()
@@ -116,23 +126,29 @@ class LamplighterTest(HtnTestSuite):
         assert report.solo_plans == 0 and not report.dead_skills and not report.failures
         self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win, none solo")
 
-    def test_property_p3_the_lamps_undo_stealth(self):
-        assert not plans_with("vanish", "smokeBomb")
-        plans = plans_with("vanish", "taunt")
-        assert plans and all("opRemove(player, player, stealthed)" in p for p in plans)
-        self._record(True, "P3: two sneaks never cross the hall; the lamps strip the thief's stealth")
+    def test_property_p3_one_crate(self):
+        assert not plans_with("fireball", "tidalWave")
+        self._record(True, "P3: the crate cannot be on the lever and in the hall")
 
-    def test_property_p4_the_lantern_and_the_heavy_warden(self):
-        assert not plans_with("flashbang", "sleepDart")
-        assert not plans_with("taunt", "pebble")
-        self._record(True, "P4: nothing dazzles the lamplighter; nothing lures the warden")
+    def test_property_p4_the_lantern_and_the_blind_room(self):
+        # Nothing blinds or stuns the lamplighter; nobody sees into the
+        # guardroom, so no lure reaches the warden.
+        assert not plans_with("blindingFlash", "shieldBash")
+        assert not plans_with("taunt", "hook")
+        self._record(True, "P4: two warden answers or two lures leave one obstacle")
 
-    def test_property_p5_gust_has_two_roles(self):
-        lever = plans_with("gust", "pebble")
-        cover = plans_with("sleepDart", "gust")
+    def test_property_p5_the_vortex_trap(self):
+        # With the crate on the lever, the other companion has nowhere to
+        # stand clear of the street: a vortex on the lamps would root them.
+        assert not plans_with("fireball", "vortex")
+        self._record(True, "P5: fireball + vortex has no plan - the vortex would draw in and root a companion")
+
+    def test_property_p6_crate_two_roles(self):
+        lever = plans_with("fireball", "hook")
+        cover = plans_with("shieldBash", "fireball")
         assert lever and all("opForcedMove(player, crate, yard, guardroom)" in p for p in lever)
         assert cover and all("opForcedMove(mage, crate, yard, hall)" in p for p in cover)
-        self._record(True, "P5: gust puts the crate on the lever, or in the hall as cover")
+        self._record(True, "P6: fireball puts the crate on the lever, or in the hall as cover")
 
 
 def run_tests():

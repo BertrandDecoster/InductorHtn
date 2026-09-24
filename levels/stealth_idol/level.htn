@@ -1,34 +1,40 @@
 % The Idol (stealth and avoidance)
 %
 % A thief and a lookout, and a golden idol in a temple shrine. The way in
-% is the nave, watched from the altar by a keeper - with a second keeper
-% dozing beside him. The way out is a chute down to the crypt, where a
-% skeleton stands watch before the exit. The idol glows: whoever carries it
-% can hide no more. One companion must carry the idol out.
+% is the nave, watched from the altar by a keeper rooted in prayer. The
+% way out is a chute down to the crypt, where a skeleton stands watch
+% before the exit. The idol hushes whoever takes it: its bearer can cast
+% nothing more. One companion must carry the idol out.
 %
-%   ledge ................................ (sees down into the crypt)
-%     |                                     :
+%   ledge .............................. (sees down into the crypt)
+%     |                                    |
 %   entry ---- nave ---- shrine (idol) --> chute ---- crypt (skeleton) ---- exit
-%                :                                      :
-%              altar (keeper, dozer)                  ossuary (a pit)
+%     :          |                                      |
+%     :.......  altar (keeper)                        ossuary (a pit)
 %
-% Two obstacles, and the second cannot be sneaked:
-%   the nave    sneak in (vanish; shadowStep dashes in, hidden), put the
-%               keeper to sleep with a dart (sleepDart), or lure him off the
-%               altar (taunt drags him to the taunter).
-%   the crypt   the thief carries the glowing idol: no stealth. Dazzle the
-%               skeleton (flashbang), or shove it into the ossuary from the
-%               ledge (gust). It is mindless - no sleep - and deaf to taunts.
+% Two obstacles; once the thief holds the idol, only the other companion
+% can answer:
+%   the nave    the keeper is heavy (rooted in prayer): nothing drags him.
+%               Slip into the nave (blink teleports, lightningFlash dashes:
+%               both pass a watched region), or turn him to mist first
+%               (turnToMist takes `heavy` off for a moment) and then drag
+%               him off the altar (taunt, hook) or draw him into the nave
+%               (vortex). The altar is next to the nave alone: no flash or
+%               bash reaches him from outside.
+%   the crypt   the thief comes down the chute silenced by the idol, so the
+%               crypt is answered from the ledge - by the other companion,
+%               or by the thief before the idol is taken: blind the skeleton
+%               (blindingFlash), stun it (shieldBash), drag it up onto the
+%               ledge (taunt, hook), or draw it into the ossuary below
+%               (vortex).
 %
 % Traps:
-%   - a flash, a cloud of smoke or any hostile touch on the dozer rouses
-%     him, alarmed: no flash dazzles him after that. A flashbang at the
-%     altar blinds the keeper and wakes the dozer - the nave is still
-%     watched (a taunt can then drag the roused dozer away).
-%   - sneaking gets the thief in, never out: the idol strips stealth and
-%     wards it.
-%   - the ledge is the only place that sees into the crypt, and the chute
-%     runs one way.
+%   - whatever got the thief in is spent: the idol silences its bearer (and
+%     takes off blink's disjoint, so the hush lands).
+%   - a hook on the heavy keeper drags the hooker onto the altar instead.
+%   - a vortex draws in everyone next door, companions included, and roots
+%     them: the lookout must stand clear of the nave when it is cast.
+%   - the chute runs one way, and nobody in it sees into the crypt.
 %
 % Victory: either companion carries the idol to the exit (heist/0).
 
@@ -46,10 +52,16 @@ connected(entry, ledge).
 connected(ledge, entry).
 connected(entry, nave).
 connected(nave, entry).
+connected(nave, altar).
+connected(altar, nave).
 connected(nave, shrine).
 connected(shrine, nave).
 connected(shrine, chute).
 connected(chute, crypt).
+connected(ledge, crypt).
+connected(crypt, ledge).
+connected(crypt, ossuary).
+connected(ossuary, crypt).
 connected(crypt, exit).
 connected(exit, crypt).
 
@@ -58,6 +70,7 @@ lineOfSight(entry, altar).
 lineOfSight(nave, altar).
 lineOfSight(nave, shrine).
 lineOfSight(ledge, crypt).
+lineOfSight(ledge, ossuary).
 
 % The one push line: from the ledge, whatever is in the crypt goes into
 % the ossuary.
@@ -65,98 +78,94 @@ beyond(ledge, crypt, ossuary).
 
 % === Terrain ===
 onEnter(ossuary, chasm).
-% The idol: whoever enters the shrine takes it, and its glow undoes and
-% wards off stealth.
+% The idol: whoever enters the shrine takes it, is pinned to the world (no
+% disjoint) and hushed (silenced: no skills).
 onEnter(shrine, idol).
-effect(idol, target, remove(stealthed)).
-effect(idol, target, grant(laden)).
-wards(laden, stealthed).
+effect(idol, target, remove(disjoint)).
+effect(idol, target, grant(silenced)).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
 at(player, entry).
 at(mage, entry).
+mana(player, 4).
+mana(mage, 4).
 
 % === The watch ===
-% The keeper watches the nave from the altar; off the altar, he sees
-% nothing of it.
+% The keeper watches the nave from the altar; rooted in prayer, nothing
+% drags him off it - unless he is mist for a moment.
 role(keeper, enemy).
 at(keeper, altar).
-trait(keeper, living).
+tag(keeper, living).
+tag(keeper, heavy).
 watches(keeper, nave) :- at(keeper, altar).
 
-% The dozer: blind while he dozes; anything hostile rouses him, alarmed,
-% and nothing dazzles an alarmed guard.
-role(dozer, enemy).
-at(dozer, altar).
-trait(dozer, living).
-tag(dozer, dozing).
-bundles(dozing, blinded).
-reaction(dozing, hostile, rouse).
-effect(rouse, target, remove(dozing)).
-effect(rouse, target, grant(alarmed)).
-wards(alarmed, blinded).
-watches(dozer, nave) :- at(dozer, altar).
-
-% The skeleton: mindless, and deaf to taunts.
+% The skeleton watches the crypt while it stands there.
 role(skeleton, enemy).
 at(skeleton, crypt).
-trait(skeleton, mindless).
-immune(skeleton, taunted).
 watches(skeleton, crypt) :- at(skeleton, crypt).
 
 % === Default kit (combos replans the whole matrix) ===
-knows(player, vanish).
-knows(mage, gust).
+knows(player, blink).
+knows(mage, taunt).
 
 % === Getting somewhere unseen ===
 
 watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
-selfHide(?a, ?ab) :- knows(?a, ?ab), reach(?ab, self), effect(?ab, self, grant(stealthed)).
-% A dash that also hides the dasher, and where it lands.
-hideDash(?a, ?ab, ?r) :-
-    knows(?a, ?ab), effect(?ab, target, dash), effect(?ab, self, grant(stealthed)),
-    region(?r), not(at(?a, ?r)), ready(?a, ?ab, ?r), at(?a, ?from), canTarget(?from, ?r).
-% Anything someone can use on the watcher, from anywhere they can stand.
-tryOn(?c, ?ab, ?g, ?from) :-
-    canAct(?c), knows(?c, ?ab), ready(?c, ?ab, ?g), at(?g, ?r), reach(?ab, ?k), region(?from),
-    inRange(?k, ?from, ?r), canReachNow(?c, ?from).
+% A skill that carries its caster to a region: a teleport or a dash.
+carries(?ab) :- effect(?ab, target, teleport).
+carries(?ab) :- effect(?ab, target, dash).
+leap(?a, ?ab, ?to) :-
+    canAct(?a), knows(?a, ?ab), carries(?ab), region(?to), not(canReachNow(?a, ?to)),
+    ready(?a, ?ab, ?to), at(?a, ?cur), first(spot(?a, ?ab, ?to, ?from)).
 
-% ?a gets to ?r: walk if it can; else hide, dash in hidden, or stop a
-% watcher watching, and try again (at most ?n times).
+% ?a gets to ?r: walk if it can; else leap somewhere it cannot walk, or
+% stop a watcher watching, and try again (at most ?n times).
 getTo(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
 getTo(?a, ?r, ?n) :-
-    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), not(has(?a, stealthed)),
-       selfHide(?a, ?ab), receptive(?a, stealthed)),
-    do(cast(?a, ?ab, ?a), getTo(?a, ?r, ?m)).
-getTo(?a, ?r, ?n) :-
-    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), hideDash(?a, ?ab, ?land)),
-    do(cast(?a, ?ab, ?land), getTo(?a, ?r, ?m)).
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), leap(?a, ?ab, ?to)),
+    do(cast(?a, ?ab, ?to), getTo(?a, ?r, ?m)).
 getTo(?a, ?r, ?n) :-
     if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watching(?g)),
     do(unwatch(?g), getTo(?a, ?r, ?m)).
 
-% The watcher stops watching: blinded, asleep, lured off his post, or gone.
+% A watcher stops watching: blinded (a flash, a stun), moved off his post,
+% or turned to mist first and then moved.
 unwatch(?g) :-
-    if(tryOn(?c, ?ab, ?g, ?from)), do(castFrom(?c, ?ab, ?g, ?from), confirmUnwatched(?g)).
+    if(canInflict(?c, ?ab, blinded, ?g)), do(cast(?c, ?ab, ?g), confirmUnwatched(?g)).
+unwatch(?g) :- if(), do(budge(?g), confirmUnwatched(?g)).
+unwatch(?g) :-
+    if(anchoredAgainst(?g), canAct(?c), knows(?c, ?ab), strips(?ab, heavy), ready(?c, ?ab, ?g)),
+    do(cast(?c, ?ab, ?g), budge(?g), confirmUnwatched(?g)).
 confirmUnwatched(?g) :- if(not(watching(?g))), do().
 
+% Something moves off its spot: dragged to someone (taunt, hook), pushed
+% along a line, or drawn into the next region (vortex).
+budge(?e) :-
+    if(at(?e, ?r), canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, ?e)),
+    do(cast(?a, ?ab, ?e), ensureMoved(?e, ?r)).
+budge(?e) :-
+    if(at(?e, ?r), placement(?a, ?ab, ?from, ?aim, ?e, ?to)),
+    do(castFrom(?a, ?ab, ?aim, ?from), ensureMoved(?e, ?r)).
+
 % === Victory: the idol out ===
-carried(?t) :- if(has(?t, laden)), do().
-heist :- if(canAct(?t)), do(getTo(?t, shrine, 2), carried(?t), getTo(?t, exit, 2)).
+carried(?t) :- if(has(?t, silenced)), do().
+heist :- if(canAct(?t)), do(getTo(?t, shrine, 2), carried(?t), getTo(?t, exit, 1)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from eight (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(vanish).
-comboPool(shadowStep).
-comboPool(sleepDart).
+comboPool(blink).
+comboPool(lightningFlash).
+comboPool(turnToMist).
 comboPool(taunt).
-comboPool(flashbang).
-comboPool(gust).
+comboPool(hook).
+comboPool(vortex).
+comboPool(blindingFlash).
+comboPool(shieldBash).
 comboMinWins(10).
 comboMinMethods(3).
 

@@ -2,30 +2,31 @@
 
 ## Purpose
 
-A stealth level on the ability layer where **sneaking has a limit**. Everyone must get out through
-the town gate. The gate's lever lies in a guardroom under a warden's eyes; the road runs under the
-lamps, which strip stealth, and through a hall that a lamplighter watches from his post. Two
-companions pick one skill each from a pool of seven.
+A stealth level on the ability layer where **everyone has to get out, and there is one crate**.
+The gate's lever lies in a windowless guardroom under a warden's eyes; the road runs down the
+lamp-lit street and through a shuttered hall that the lamplighter watches from his post. Nobody sees
+into the guardroom or the hall, so nobody blinks or dashes in. Two companions pick one skill each
+from a pool of seven catalogue skills.
 
 | Obstacle | Who has to solve it | Answers |
 |----------|---------------------|---------|
-| **The lever** (`onEnter(guardroom, lever)` opens the gate for good) | one companion, or the crate | sneak in (`vanish`, `smokeBomb`'s cloud), blind the warden (`flashbang`, `smokeBomb`), put him to sleep (`sleepDart`), or shove the crate onto the lever from the start (`gust`) |
-| **The hall** (`watches(lamplighter, hall)` while he is on his post and nothing stands in the hall to hide behind) | everyone, after the lamps | lure him off his post (`taunt` drags him to the taunter; a `pebble` at his feet sends him to look down the well), or shove the crate into the hall from under the lamps (`gust`) and walk behind it |
+| **The lever** (`onEnter(guardroom, lever)` opens the gate for good; `watches(warden, guardroom)`) | one companion, or the crate | blind the warden from the start (`blindingFlash`), stun him (`shieldBash`), or push the crate from the yard onto the lever (`fireball` from the start, or `tidalWave` washing it in) |
+| **The hall** (`watches(lamplighter, hall)` while he is on his post and the crate is not in the hall) | everyone | drag him off his post (`taunt`, `hook`), draw him into the street (`vortex` on the lamps), or push the crate into the hall from the lamps (`fireball`, `tidalWave`) and walk behind it |
 
 Why no single skill works:
-- The lamps (`lamplight`: remove stealthed, grant `lit`, and `wards(lit, stealthed)`) undo any
-  stealth before the hall, and no one can hide again while lit. So sneaking gets one companion onto
-  the lever, never anyone across the hall.
-- The lamplighter's lantern: `immune(lamplighter, blinded)`, so no flash, cloud or sleep dart helps
-  with him.
-- The warden is heavy and has no behaviour for a pebble: no lure moves him.
-- **gust has two roles, and there is one crate.** It weighs down the lever, or it is cover in the
-  hall - not both. Two gusts leave one obstacle.
+- The lamplighter's lantern: `immune(lamplighter, blinded)`, so no flash and no stun (it bundles
+  `blinded`) helps with him.
+- Nobody sees into the guardroom: no lure, hook or vortex reaches the warden.
+- **fireball and tidalWave have two roles, and there is one crate.** It weighs down the lever, or it
+  is cover in the hall - not both. Two crate skills (or one twice) leave one obstacle.
+- **The vortex trap.** A vortex on the lamps draws in everyone next to the street, companions
+  included, and roots them for good. It works only when the other companion is on the lever, in the
+  guardroom - which needs the warden blinded. With the crate on the lever, there is nowhere to stand
+  clear.
 
-Level-local pieces: the lamps and the `lit` tag, the crate's `cover` trait (a watcher's positional
-rule reads it), the `pebble` skill (a tag, `curious`, and the lamplighter's `behavior` that answers
-it with a `teleport(well)`), and the recipe `getTo/3` (walk; else hide, stop a watcher watching with
-anyone's skill, or put cover in a watched region, and try again).
+Level-local pieces: the lever zone (`open(gate)`), the positional watch rule that reads the crate,
+and the recipes `getTo/3` (walk; else stop a watcher watching, or put the crate in a watched region,
+and try again), `unwatch/1`, `budge/1` and `openGate/0`.
 
 ## Layer
 
@@ -40,69 +41,73 @@ level
 
 ```
 guardroom (warden; the lever)      yard (a crate)
-     |                               :
-   start (player, mage) -------- lamps (lit) ---- hall ---- gate (shut) ---- exit
-                                                   :
-                                                  post (lamplighter)         well
+     |                         ___/    \___
+   start (player, mage) ------------ lamps ---- hall ---- gate (shut) ---- exit
+                                       |
+                                      post (lamplighter)
 ```
 
-- **Lines of sight:** the start sees the guardroom, the yard and the post; the lamps see the yard,
-  the hall and the post.
+- **Lines of sight:** the start sees the yard and the lamps; the lamps see the yard, the post and the
+  start. Nothing sees into the guardroom or the hall.
 - **Push lines:** from the start, the crate in the yard goes into the guardroom (onto the lever);
   from under the lamps, into the hall (cover).
-- **Warden:** living, heavy, watches the guardroom while he stands in it.
-- **Lamplighter:** living, cannot be blinded, watches the hall from the post unless the hall holds
-  cover. A taunt drags him to the taunter; a pebble sends him to the well.
+- **Warden:** living, watches the guardroom while he stands in it.
+- **Lamplighter:** living, cannot be blinded, watches the hall from the post unless the crate is in it.
+- **Mana:** 4 each (fireball and tidalWave cost 2).
 - **Victory:** `escape` - the gate open, then both companions at the exit.
 
 ## Hypothesis
 
 Measured by `htn_components combos stealth_lamplighter` (and pinned by `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 7 (gust twice included: one crate).
+- No single skill wins, even when both companions hold it: 0 of 7 (fireball twice included: one crate).
 - **28 of 49** assignments win, by **14** methods; no solo plans; no dead skill.
-  - a lever answer (`vanish`, `smokeBomb`, `flashbang`, `sleepDart`, `gust`) plus a different hall
-    answer (`gust`, `taunt`, `pebble`), either companion holding either: 14 pairs x 2 seats.
-- `gust` is in 12 winning assignments, in both roles. Usage otherwise: taunt, pebble 10; the four
-  lever-only skills 6 each.
-- The 21 losing assignments fail for nameable reasons: two lever answers (the lamps and the lantern
-  keep the hall shut), two hall answers other than gust (nobody reaches the lever), one skill twice.
+  - a warden answer (`blindingFlash`, `shieldBash`) and any hall answer (`taunt`, `hook`, `vortex`,
+    `fireball`, `tidalWave`): 2 x 5 x 2 = 20;
+  - a crate skill on the lever (`fireball`, `tidalWave`) and a lure (`taunt`, `hook`): 2 x 2 x 2 = 8.
+- The 21 losing assignments fail for nameable reasons: two warden answers or two lures (one obstacle
+  left), two crate skills (one crate), a crate skill with a vortex (nowhere to stand clear), one skill
+  twice.
+- Usage: blindingFlash, shieldBash 10; fireball, tidalWave, taunt, hook 8; vortex 4.
+- One skill, two roles: `fireball` and `tidalWave` each push the crate onto the lever or into the hall.
+- Every plan takes under 7 s.
 
 ## Examples
 
 ### Example 1: The crate on the lever, and a taunt
 
-**Given:** the player knows `gust`, the mage knows `taunt`.
+**Given:** the player knows `fireball`, the mage knows `taunt`.
 
 **When:** `escape`
 
-**Then:** the player shoves the crate from the yard into the guardroom and the gate opens; the mage
-taunts the lamplighter off his post to the start; both walk under the lamps, through the hall and out.
+**Then:** the player's fireball blows the crate from the yard into the guardroom and the gate opens;
+the mage taunts the lamplighter off his post into the street; both walk through the hall and out.
 
-### Example 2: Sneak onto the lever, and a pebble
+### Example 2: A flash, and cover
 
-**Given:** the player knows `vanish`, the mage knows `pebble`.
-
-**When:** `escape`
-
-**Then:** the player vanishes and walks onto the lever past the warden; the mage's pebble sends the
-lamplighter to look down the well; the lamps strip the player's stealth, but the hall is unwatched.
-
-### Example 3: Blind the warden, and take cover
-
-**Given:** the player knows `flashbang`, the mage knows `gust`.
+**Given:** the player knows `blindingFlash`, the mage knows `tidalWave`.
 
 **When:** `escape`
 
 **Then:** the player's flash blinds the warden and the player pulls the lever; the mage, under the
-lamps, shoves the crate into the hall, and both walk through behind it.
+lamps, washes the crate into the hall, and both walk through behind it.
+
+### Example 3: A bash, and a vortex
+
+**Given:** the player knows `shieldBash`, the mage knows `vortex`.
+
+**When:** `escape`
+
+**Then:** the player stuns the warden and stands on the lever; the mage's vortex on the lamps draws
+the lamplighter off his post (and the crate out of the yard) and roots them in the street.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the seven, held by both companions: no plan - gust twice included. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan - fireball twice included. |
 | P2 | The measured assignments win | Exactly the 28 measured assignments have a plan; none solo; no dead skill. |
-| P3 | The lamps undo stealth | vanish + smokeBomb has no plan; with vanish + taunt, every plan strips the thief's stealth under the lamps. |
-| P4 | The lantern and the heavy warden | flashbang + sleepDart (nothing dazzles the lamplighter) and taunt + pebble (nothing lures the warden) have no plan. |
-| P5 | gust has two roles | With gust + pebble, gust puts the crate on the lever; with sleepDart + gust, the crate is cover in the hall. |
+| P3 | One crate | fireball + tidalWave has no plan. |
+| P4 | The lantern and the blind room | blindingFlash + shieldBash and taunt + hook have no plan. |
+| P5 | The vortex trap | fireball + vortex has no plan: the vortex would draw in and root a companion. |
+| P6 | Two roles for the crate | With fireball + hook the crate goes on the lever; with shieldBash + fireball it is cover in the hall. |

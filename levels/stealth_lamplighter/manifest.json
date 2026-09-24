@@ -2,7 +2,7 @@
   "name": "stealth_lamplighter",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Lamplighter: the gate lever sits under a warden's eyes, the hall under a lamplighter's; lamps strip stealth, one crate is cover or a weight on the lever",
+  "description": "The Lamplighter: the gate lever sits under a warden's eyes, the hall under a lamplighter's; one crate is a weight on the lever or cover in the hall; a vortex roots whoever stands near",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,19 +12,18 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:46:16.765306"
+    "last_checked": "2026-09-24T18:14:38.873732"
   },
   "provides": [
     "at/2",
-    "behavior/4",
     "beyond/3",
+    "budge/1",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "confirmUnwatched/1",
     "connected/2",
-    "covered/1",
     "door/1",
     "effect/3",
     "escape/0",
@@ -33,16 +32,13 @@
     "immune/2",
     "knows/2",
     "lineOfSight/2",
+    "mana/2",
     "onEnter/2",
     "openGate/0",
-    "reach/2",
     "region/1",
     "role/2",
-    "selfHide/2",
-    "trait/2",
-    "tryOn/4",
+    "tag/2",
     "unwatch/1",
-    "wards/2",
     "watchedRegion/1",
     "watches/2",
     "watching/1"
@@ -50,6 +46,7 @@
   "requires": [
     "cast/3",
     "castFrom/4",
+    "ensureMoved/2",
     "place/3",
     "walkTo/2"
   ]
