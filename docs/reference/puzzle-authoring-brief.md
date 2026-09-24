@@ -77,21 +77,26 @@ Also aim for:
     cannot walk there, the taunt breaks. Companions cannot be taunted.
 - Map: **areas are large** - a small room, or a quarter of a large one - joined by links,
   each declared once, either way round. A chokepoint is two areas with a special link.
-  - `connected(?a, ?b)` walkable; `gap(?a, ?b)` a short pit (dash or teleport over it; forced
-    across, a walker falls in and a filler bridges it); `wall(?a, ?b)` (only a teleport goes
-    through); `doorway(?a, ?b, ?d)` (walkable while `open(?d)`)
-  - every movement goes **one link**: walk, dash (walkable or gap), teleport (any), push (to
-    any neighbouring area of the caster's choosing, never its own), pull and hook (from next
-    door), pullIn (everything next door into the area)
+  - `connected(?a, ?b)` walkable; `gap(?a, ?b)` a short pit (dash or teleport over it); `wall(?a,
+    ?b)` (only a teleport goes through); `doorway(?a, ?b, ?d)` (walkable while `open(?d)`)
+  - `feature(?r, ?f, ?ab)`: a pit, lava, deep water inside an area (walked around, knocked into);
+    `plate(?f)` makes it a pressure plate (a companion `stepOn`s it, or something is knocked onto
+    it; pressing applies `?ab`: `open(D)` locally, or `spill(Z, R)` area-wide)
+  - **moving an NPC to another area** takes a hook (a pull from next door) or a taunt (it walks
+    after you); **knockbacks never change the area**: a push (Fireball, Tidal Wave, Shield Bash,
+    a slam) knocks its target into a feature of its area or a gap at its edge, and a Vortex aimed
+    at a feature knocks everything in the area into it. So most plans bring the NPC to the right
+    area first (`bringTo`), then force the interaction (`knockInto`)
+  - dash (walkable or gap) and teleport (any link) move the caster next door
   - `lineOfSight(?a, ?b)` for ranged aims; melee reaches the same area or next door (not
     through a wall); `near` (Blink) reaches next door through any link
 - Terrain:
-  - `onEnter(?r, ?zoneAbility)` zones; hazard areas (`chasm`, `lava`, `deepWater`)
-  - a plate zone `open(D)` (latches), or `plateFor(?p, ?d)` plus `openWhenHeld(D)` (all plates
-    at once)
+  - `onEnter(?r, ?zoneAbility)` zones cover a whole area (flames, ice, shadows); an area-wide
+    hazard zone (all lava) cannot be walked into
+  - plates latch (`open(D)`), or `plateFor(?p, ?d)` plus `openWhenHeld(D)` (all at once)
   - `blocker(?e)` (nobody walks into its area)
   - `watches(?guard, ?r)` (no companion walks in unseen unless stealthed or the guard is blinded)
-  - `tag(?x, filler)` (fills a hazard area or a gap it falls into)
+  - `tag(?x, filler)` (fills a pit or a gap it is knocked into)
 - Walking is automatic (`walkTo`, shortest route of at most eight steps).
 - Sacrifice is allowed: a companion may be lost and the plan still win. Declare
   `mustSurvive(?x)` for an escort no heavy blow may catch.
@@ -108,11 +113,14 @@ Also aim for:
 - Acts you can call from your own methods:
   - casting: `cast(?a, ?ab, ?e)`, `castFrom(?a, ?ab, ?e, ?from)`
   - tags: `inflict(?t, ?e, ?not)`, `combo(?have, ?in, ?e)`, `unset(?t, ?e)`
-  - movement: `sendInto(?e, ?r, ?not)`, `dropInGap(?e, ?not)`, `sendDown(?e, ?not)`,
-    `place(?e, ?r, ?not)`, `dislodge(?e)`, `walkTo(?a, ?r)`; all of them know pushes, waves,
-    pulls, vortices and taunt lures through `forcing(?a, ?ab, ?from, ?aim, ?e, ?to, land|fall)`
-    (cast `?ab` at `?aim` from `?from`), with `placement/6` (lands) and `dropping/5` (falls)
-  - passage: `bridge(?a, ?b)` fills a gap with a filler
+  - movement: `bringTo(?e, ?r, ?not)` (a hook or a taunt brings it to area ?r),
+    `knockInto(?e, ?f, ?not)` (bring it to the feature's area, then knock it in),
+    `knockOn(?e, feature(?f)|gap(?n), ?not)`, `dropInGap(?e, ?not)`, `sendDown(?e, ?not)`,
+    `dislodge(?e)`, `walkTo(?a, ?r)`, `stepOn(?a, ?plate)`; the rules behind them are
+    `bringing/7` and `knocks/6` (cast `?ab` at `?aim` from `?from`)
+  - a knock is aimed by the caster, but the physics tries every aim: a recipe that wanted one
+    outcome confirms it (`confirmHas`, `confirmStopped`, `confirmOpen`)
+  - passage: `bridge(?a, ?b)` fills a gap with a filler; `span(?pit)` fills a pit
   - checks: `confirmStopped(?e)`
 
 **Level-local definitions are allowed.** You may declare new abilities, zones, weaknesses,

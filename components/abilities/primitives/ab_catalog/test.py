@@ -12,7 +12,8 @@ from htn_test_framework import HtnTestSuite
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src.htn")
 
 # A small arena: ledge - floor - far, walkable; a gap from the ledge to a
-# ridge. Companions on the ledge, a foe on the floor.
+# ridge; a pit and a pool in the floor, a plate by the far door.
+# Companions on the ledge, a foe on the floor.
 WORLD = [
     "region(ledge)", "region(floor)", "region(far)", "region(ridge)",
     "connected(ledge, floor)", "connected(floor, far)", "gap(ledge, ridge)",
@@ -21,6 +22,7 @@ WORLD = [
     "role(player, player)", "role(mage, companion)",
     "at(player, ledge)", "at(mage, ledge)",
     "role(foe, enemy)", "at(foe, floor)",
+    "feature(floor, pit, chasm)", "feature(floor, pond, puddle)",
 ]
 
 
@@ -143,37 +145,56 @@ class AbCatalogTest(HtnTestSuite):
         self.assert_state_after("cast(player, blizzard, floor).", has=["tag(foe,dead)"])
 
     def test_example_4_soak_then_freeze(self):
-        """The wave, cast in the foe's area, soaks it and washes it next door;
-        the blizzard there freezes it: stunned (it looks frozen)."""
+        """The wave, cast in the foe's area, soaks it (and may knock it
+        somewhere); the blizzard there freezes it: stunned (it looks frozen)."""
         self.set_state(["mana(player, 2)", "mana(mage, 2)",
                         "knows(player, tidalWave)", "knows(mage, blizzard)"])
-        self.assert_state_after("cast(player, tidalWave, foe), cast(mage, blizzard, far).",
-                                has=["at(player,floor)", "at(foe,far)", "tag(foe,stunned)",
-                                     "tag(foe,slowed)"],
-                                not_has=["tag(foe,wet)", "tag(foe,chilled)"])
+        self.assert_plan("cast(player, tidalWave, foe), cast(mage, blizzard, floor).",
+                         contains=["opGrant(player, foe, wet)",
+                                   "opReact(mage, foe, wet, chilled, freeze)",
+                                   "opGrant(mage, foe, stunned)"])
 
-    def test_example_5_the_vortex_roots_only_enemies(self):
-        self.set_state(["role(imp, enemy)", "at(imp, far)", "knows(player, vortex)"])
-        self.assert_state_after("cast(player, vortex, floor).",
-                                has=["at(imp,floor)", "at(mage,floor)", "at(player,ledge)",
-                                     "tag(imp,rooted)", "tag(foe,rooted)"],
-                                not_has=["tag(mage,rooted)"])
+    def test_example_5_the_vortex_gathers_into_a_feature(self):
+        """A vortex on the pond knocks everyone in the floor into it: all are
+        soaked; only the NPCs are rooted."""
+        self.set_state(["role(imp, enemy)", "at(imp, floor)", "role(ally, companion)",
+                        "at(ally, floor)", "knows(player, vortex)"])
+        self.assert_state_after("cast(player, vortex, pond).",
+                                has=["tag(imp,wet)", "tag(foe,wet)", "tag(ally,wet)",
+                                     "tag(imp,rooted)", "tag(foe,rooted)", "at(imp,floor)"],
+                                not_has=["tag(ally,rooted)"])
+        self.assert_state_after("cast(player, vortex, pit).", has=["tag(imp,fell)", "tag(foe,fell)"])
 
     def test_example_6_mist_then_push(self):
-        """For a moment the heavy foe is mist: the fireball throws it next door."""
+        """For a moment the heavy foe is mist: the fireball knocks it into the
+        pit."""
         self.set_state(["tag(foe, heavy)", "mana(player, 2)",
                         "knows(mage, turnToMist)", "knows(player, fireball)"])
-        self.assert_state_after("cast(mage, turnToMist, foe), cast(player, fireball, foe).",
-                                has=["at(foe,far)"])
-        self.assert_state_after("cast(player, fireball, foe).", has=["at(foe,floor)"])
+        self.assert_plan("cast(mage, turnToMist, foe), cast(player, fireball, foe).",
+                         contains=["opKnock(player, foe, pit)", "opExploit(player, foe, chasm, fell)"])
+        self.assert_plan("cast(player, fireball, foe).", not_contains=["opKnock"])
 
-    def test_example_7_a_fireball_throws_a_friend(self):
-        """Aimed at the mage, the blast throws it - wherever the caster likes."""
-        self.set_state(["mana(player, 2)", "knows(player, fireball)"])
-        self.assert_plan("cast(player, fireball, mage).",
-                         contains=["opForcedMove(player, mage, ledge, floor)"])
+    def test_example_7_a_blast_never_changes_the_area(self):
+        """A fireball on the mage knocks it - into the gap at the ledge's edge -
+        but never into another area; a hook does move an NPC next door."""
+        self.set_state(["mana(player, 2)", "knows(player, fireball)", "knows(mage, hook)"])
         self.assert_plan("cast(player, fireball, mage).",
                          contains=["opFall(player, mage, ledge, ridge)"])
+        self.assert_plan("cast(player, fireball, foe).",
+                         not_contains=["opForcedMove"])
+        self.assert_state_after("cast(mage, hook, foe).", has=["at(foe,ledge)"])
+
+    def test_example_8_a_plate_opens_a_door(self):
+        """A companion steps onto the plate (and off it, leaving the area: the
+        door stays open), or a crate is knocked onto it."""
+        self.set_state(["region(vault)", "doorway(far, vault, gate)", "feature(far, plate1, press)",
+                        "plate(plate1)", "effect(press, target, open(gate))",
+                        "role(crate, object)", "at(crate, far)", "mana(player, 2)",
+                        "knows(player, fireball)"])
+        self.assert_state_after("walkTo(mage, far), stepOn(mage, plate1), walkTo(mage, vault).",
+                                has=["open(gate)", "at(mage,vault)"], not_has=["on(mage,plate1)"])
+        self.assert_plan("cast(player, fireball, crate).",
+                         contains=["opKnock(player, crate, plate1)", "opOpen(player, gate)"])
 
     # -------------------------------------------------------------- properties
 
@@ -238,7 +259,7 @@ class AbCatalogTest(HtnTestSuite):
     def test_property_p9_fireball_sets_the_area_alight(self):
         self.set_state(["mana(player, 2)", "knows(player, fireball)"])
         self.assert_state_after("cast(player, fireball, foe).",
-                                has=["onEnter(floor,flames)", "tag(foe,burning)", "at(foe,far)"])
+                                has=["onEnter(floor,flames)", "tag(foe,burning)", "at(foe,floor)"])
 
     def test_property_p10_a_moment_lasts_one_more_cast(self):
         """Mist lasts through the next cast, then the foe is heavy again; a
@@ -297,13 +318,18 @@ class AbCatalogTest(HtnTestSuite):
         self.assert_state_after("cast(player, blindingFlash, player).",
                                 has=["tag(mage,stunned)", "tag(player,disjoint)"])
 
+    def test_property_p16_shield_bash_knocks_into_the_pit(self):
+        self.set_state(["knows(player, shieldBash)"])
+        self.assert_plan("cast(player, shieldBash, foe).",
+                         contains=["opKnock(player, foe, pit)", "opGrant(player, player, shielded)"])
+
     # ----------------------------------------------------------- heavy attacks
 
     ARENA = [f for f in WORLD if f != "at(mage, ledge)"] + [
         "at(mage, far)", "role(ogre, enemy)", "at(ogre, floor)", "tag(ogre, living)"]
     SLAM = ["behavior(ogre, taunted, groundSlam, source)", "knows(player, taunt)"]
 
-    def test_property_p16_a_blow_may_be_taken_unless_it_must_not(self):
+    def test_property_p17_a_blow_may_be_taken_unless_it_must_not(self):
         """Taunted, the ogre walks to the player and slams: the player may
         take it (stunned, thrown). If the player must survive, no plan."""
         self.fresh(self.ARENA, self.SLAM)
@@ -311,7 +337,7 @@ class AbCatalogTest(HtnTestSuite):
         self.fresh(self.ARENA, self.SLAM + ["mustSurvive(player)"])
         self.assert_no_plan("cast(player, taunt, ogre).")
 
-    def test_property_p17_a_shield_takes_the_blow(self):
+    def test_property_p18_a_shield_takes_the_blow(self):
         """A physical blow cannot be stopped - but the bash's shield takes it."""
         self.fresh(self.ARENA, self.SLAM + ["knows(player, shieldBash)", "mustSurvive(player)"])
         self.assert_plan("cast(player, taunt, ogre).",
@@ -319,19 +345,19 @@ class AbCatalogTest(HtnTestSuite):
                                    "opBlow(ogre, groundSlam, player, ledge)",
                                    "opRemove(ogre, player, shielded)"])
 
-    def test_property_p18_disjoint_and_it_misses(self):
+    def test_property_p19_disjoint_and_it_misses(self):
         self.fresh(self.ARENA, self.SLAM + ["knows(player, blindingFlash)", "mustSurvive(player)"])
         self.assert_plan("cast(player, taunt, ogre).",
                          contains=["opCast(player, blindingFlash, player)",
                                    "opMiss(ogre, groundSlam, player)"])
 
-    def test_property_p19_interrupt_a_spell(self):
+    def test_property_p20_interrupt_a_spell(self):
         self.fresh(self.ARENA, ["behavior(ogre, taunted, meteor, source)", "mustSurvive(player)",
                                 "knows(player, taunt)", "knows(player, hook)"])
         self.assert_plan("cast(player, taunt, ogre).",
                          contains=["opInterrupt(player, ogre, meteor, player)"])
 
-    def test_property_p20_leave_a_blow_on_an_area(self):
+    def test_property_p21_leave_a_blow_on_an_area(self):
         """Slammed where it stands: hook the pillar next door and get out - and
         the slam lands on the imp that was there."""
         self.fresh(self.ARENA, ["behavior(ogre, taunted, groundSlam, here)", "mustSurvive(player)",

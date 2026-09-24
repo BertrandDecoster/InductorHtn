@@ -10,15 +10,15 @@ from htn_test_framework import HtnTestSuite
 
 # A small arena: a ledge overlooking a pool, an oil slick, and a pit.
 WORLD = [
-    "region(ledge)", "region(rim)", "region(pool)", "region(slick)", "region(pit)",
+    "region(ledge)", "region(rim)", "region(pool)", "region(slick)",
     "connected(ledge, rim)", "connected(rim, ledge)",
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "connected(rim, pit)", "connected(slick, pool)",
+    "feature(rim, pit, fall)", "connected(slick, pool)", "feature(slick, pond, soak)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
-    "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
+    "effect(fall, target, grant(fell))",
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",
@@ -63,12 +63,12 @@ class IgniteTest(HtnTestSuite):
             "opCast(player, ignite, tender)",
             "opReact(player, tender, oiled, burning, blaze)"])
 
-    def test_example_2_walked_into_the_slick(self):
-        """Oiled is primed by a push into the slick, by the mage."""
-        self.set_state(["role(imp, enemy)", "at(imp, pool)",
+    def test_example_2_knocked_into_the_oil(self):
+        """Oiled is primed by a knock into the oil patch, by the mage."""
+        self.set_state(["role(imp, enemy)", "at(imp, pool)", "feature(pool, oilPatch, slicked)",
                         "knows(mage, gust)", "knows(player, ignite)"])
         self.assert_plan("ignite(imp).", contains=[
-            "opForcedMove(mage, imp, pool, slick)", "opCast(player, ignite, imp)",
+            "opKnock(mage, imp, oilPatch)", "opCast(player, ignite, imp)",
             "opGrant(player, imp, dead)"])
 
     # -------------------------------------------------------------- properties
@@ -79,7 +79,7 @@ class IgniteTest(HtnTestSuite):
         self.assert_no_plan("ignite(gob).")
 
     def test_property_p2_the_primer_never_pays_off(self):
-        self.set_state(["role(imp, enemy)", "at(imp, pool)",
+        self.set_state(["role(imp, enemy)", "at(imp, pool)", "feature(pool, oilPatch, slicked)",
                         "knows(player, gust)", "knows(player, ignite)"])
         self.assert_no_plan("ignite(imp).")
 

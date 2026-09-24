@@ -9,18 +9,18 @@ from htn_test_framework import HtnTestSuite
 
 
 WORLD = [
-    "region(ledge)", "region(pool)", "region(slick)", "region(pit)",
+    "region(ledge)", "region(pool)", "region(slick)",
     "connected(ledge, pool)", "connected(pool, ledge)",
     "connected(ledge, slick)", "connected(slick, ledge)",
     "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "connected(pool, pit)", "connected(slick, pool)",
+    "connected(slick, pool)", "feature(pool, pit, fall)", "feature(slick, pond, soak)",
     "role(player, player)", "role(mage, companion)",
     "role(gob, enemy)", "role(tender, enemy)", "role(golem, enemy)",
     "at(player, ledge)", "at(mage, ledge)",
     "at(gob, pool)", "at(tender, slick)", "at(golem, pool)",
     "group(dead, gone)", "group(fell, gone)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
-    "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
+    "effect(fall, target, grant(fell))",
     "immune(golem, forcedMove)",
     "reach(shock, ranged)", "effect(shock, target, grant(shocked))",
     "reach(douse, ranged)", "effect(douse, target, grant(wet))",
@@ -45,15 +45,15 @@ class AbActsTest(HtnTestSuite):
                          contains=["opCast(mage, shock, gob)"],
                          not_contains=["opCast(player, shock, gob)"])
 
-    def test_example_2_a_push_from_the_right_side(self):
-        self.assert_plan("place(gob, pit, none).", contains=[
-            "opCast(player, gust, gob)", "opForcedMove(player, gob, pool, pit)",
+    def test_example_2_knocked_into_the_pit(self):
+        self.assert_plan("knockInto(gob, pit, none).", contains=[
+            "opCast(player, gust, gob)", "opKnock(player, gob, pit)",
             "opGrant(player, gob, fell)"])
 
     def test_example_3_a_zone_primes(self):
-        """Wet by a push into the pool is priming too."""
+        """Wet by a knock into the pond is priming too."""
         self.assert_plan("primeAs(player, wet, tender).",
-                         contains=["opForcedMove(player, tender, slick, pool)",
+                         contains=["opKnock(player, tender, pond)",
                                    "opGrant(player, tender, wet)"])
 
     def test_example_4_what_is_there_needs_no_supplier(self):
@@ -63,9 +63,9 @@ class AbActsTest(HtnTestSuite):
     # -------------------------------------------------------------- properties
 
     def test_property_p1_an_act_never_makes_its_own_prerequisites(self):
-        """The golem cannot be moved; place does not go looking for a way to
+        """The golem cannot be moved; knockInto does not go looking for a way to
         unbalance it - that is a recipe's job."""
-        self.assert_no_plan("place(golem, pit, none).")
+        self.assert_no_plan("knockInto(golem, pit, none).")
 
     def test_property_p2_one_supplier_per_companion(self):
         self.compile_additional(
@@ -73,7 +73,7 @@ class AbActsTest(HtnTestSuite):
         self.assert_plan("soakBy(tender).", min_solutions=3, max_solutions=3,
                          contains=["opCast(mage, douse, tender)",
                                    "opCast(player, douse, tender)",
-                                   "opForcedMove(player, tender, slick, pool)"])
+                                   "opKnock(player, tender, pond)"])
 
     def test_property_p3_a_recipe_is_confirmed_against_the_world(self):
         self.assert_no_plan("confirmStopped(gob).")
@@ -91,8 +91,10 @@ class AbActsTest(HtnTestSuite):
                         "effect(dispel, target, remove(shielded))", "knows(mage, dispel)"])
         self.assert_state_after("unset(shielded, gob).", not_has=["tag(gob,shielded)"])
 
-    def test_property_p6_dislodge_moves_it_any_way(self):
-        self.assert_plan("dislodge(gob).", contains=["opForcedMove(player, gob, pool, pit)"])
+    def test_property_p6_dislodge_brings_it_elsewhere(self):
+        """Only a pull (or a taunt) moves it out of its area."""
+        self.set_state(["reach(hk, melee)", "effect(hk, target, hook)", "knows(mage, hk)"])
+        self.assert_plan("dislodge(gob).", contains=["opForcedMove(mage, gob, pool, ledge)"])
 
 def run_tests():
     suite = AbActsTest()

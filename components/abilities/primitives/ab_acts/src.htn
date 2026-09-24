@@ -44,38 +44,43 @@ pops(?ab, ?t) :- reach(?ab, ?k), first(popsAny(?ab, ?t)).
 canInflict(?a, ?ab, ?t, ?e) :-
     grants(?ab, ?t), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?e).
 
-% ?a can force ?e across one link, from its area into ?to, by casting ?ab
-% at ?aim from ?from (an area ?a can walk to); ?how is `land` (it ends in
-% ?to) or `fall` (it drops into the gap between). The ways:
-%   a push aimed at ?e, from anywhere in reach but ?to itself
-%   a wave around ?a, standing in ?e's area
-%   a pull or hook aimed at ?e, from ?to, next door
-%   a pull-in aimed at ?to, with ?e next door
-%   a taunt from ?to: the NPC walks there (it lands; it never falls)
-forcing(?a, ?ab, ?from, ?e, ?e, ?to, ?how) :-
-    receptive(?e, forcedMove), at(?e, ?over), forcedStep(?e, ?over, ?to, ?how),
-    knows(?a, ?ab), effect(?ab, target, push), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?e),
-    reach(?ab, ?k), \==(?k, self), first(and(spot(?a, ?ab, ?over, ?from), \==(?from, ?to))).
-forcing(?a, ?ab, ?over, ?a, ?e, ?to, ?how) :-
-    receptive(?e, forcedMove), at(?e, ?over), forcedStep(?e, ?over, ?to, ?how),
-    knows(?a, ?ab), reach(?ab, self), effect(?ab, around, push), canAct(?a), \==(?a, ?e),
-    ready(?a, ?ab, ?a), canReachNow(?a, ?over).
-forcing(?a, ?ab, ?to, ?e, ?e, ?to, ?how) :-
+% ?a can bring ?e into area ?to by casting ?ab at ?aim from ?from (an area
+% ?a can walk to). Only two things move an NPC to another area:
+%   a pull or hook aimed at ?e, from ?to, with ?e next door (across a
+%   gap it falls in instead: ?how is `fall`)
+%   a taunt from ?to: the NPC walks there (`land`)
+bringing(?a, ?ab, ?to, ?e, ?e, ?to, ?how) :-
     receptive(?e, forcedMove), at(?e, ?over), forcedStep(?e, ?over, ?to, ?how),
     knows(?a, ?ab), pullsAny(?ab), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?e),
     reach(?ab, ?k), inRange(?k, ?to, ?over), canReachNow(?a, ?to).
-forcing(?a, ?ab, ?from, ?to, ?e, ?to, ?how) :-
-    receptive(?e, forcedMove), at(?e, ?over), forcedStep(?e, ?over, ?to, ?how),
-    knows(?a, ?ab), effect(?ab, target, pullIn), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?to),
-    first(spot(?a, ?ab, ?to, ?from)).
-forcing(?a, ?ab, ?to, ?e, ?e, ?to, land) :-
+bringing(?a, ?ab, ?to, ?e, ?e, ?to, land) :-
     at(?e, ?over), \==(?over, ?to), knows(?a, ?ab), effect(?ab, target, grant(?t)),
     onGrant(?t, chase), canAct(?a), \==(?a, ?e), canReceive(?e, ?t), ready(?a, ?ab, ?e),
     canReach(?e, ?over, ?to), reach(?ab, ?k), inRange(?k, ?to, ?over), canReachNow(?a, ?to).
 
-% ?e ends in ?r; ?e drops into a gap next to it.
-placement(?a, ?ab, ?from, ?aim, ?e, ?r) :- forcing(?a, ?ab, ?from, ?aim, ?e, ?r, land).
-dropping(?a, ?ab, ?from, ?aim, ?e) :- forcing(?a, ?ab, ?from, ?aim, ?e, ?to, fall).
+% ?a can knock ?e into ?t - feature(?f) of its area, or gap(?n) at its
+% edge - by casting ?ab at ?aim from ?from. The ways:
+%   a push aimed at ?e, from anywhere in reach (fireball, shield bash)
+%   a wave around ?a, standing in ?e's area (tidal wave)
+%   a vortex aimed at the feature ?f, ?e in its area
+knocks(?a, ?ab, ?from, ?e, ?e, ?t) :-
+    receptive(?e, forcedMove), knockTarget(?e, ?t), at(?e, ?r),
+    knows(?a, ?ab), effect(?ab, target, push), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?e),
+    reach(?ab, ?k), \==(?k, self), first(spot(?a, ?ab, ?r, ?from)).
+knocks(?a, ?ab, ?r, ?a, ?e, ?t) :-
+    receptive(?e, forcedMove), knockTarget(?e, ?t), at(?e, ?r),
+    knows(?a, ?ab), reach(?ab, self), effect(?ab, around, push), canAct(?a), \==(?a, ?e),
+    ready(?a, ?ab, ?a), canReachNow(?a, ?r).
+knocks(?a, ?ab, ?from, ?f, ?e, feature(?f)) :-
+    receptive(?e, forcedMove), at(?e, ?r), feature(?r, ?f, ?fab),
+    knows(?a, ?ab), effect(?ab, target, pullIn), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?f),
+    first(spot(?a, ?ab, ?r, ?from)).
+
+% ?e ends in ?r (brought there); ?e drops into a gap next to it (brought
+% across it, or knocked in).
+placement(?a, ?ab, ?from, ?aim, ?e, ?r) :- bringing(?a, ?ab, ?from, ?aim, ?e, ?r, land).
+dropping(?a, ?ab, ?from, ?aim, ?e) :- bringing(?a, ?ab, ?from, ?aim, ?e, ?to, fall).
+dropping(?a, ?ab, ?from, ?aim, ?e) :- knocks(?a, ?ab, ?from, ?aim, ?e, gap(?n)), gapTakes(?e).
 
 % ?a can take ?t off ?e with ?ab, aimed at ?aim: ?e itself, or its region
 % when ?e cannot be aimed at and ?ab reaches everyone there.
@@ -97,6 +102,7 @@ canStrike(?a, ?ab, ?type, ?e) :-
 % ?a can make ?e carry ?t: cast it, or push ?e into a region that grants it.
 canPrime(?a, ?t, ?e) :- canInflict(?a, ?ab, ?t, ?e).
 canPrime(?a, ?t, ?e) :- zoneFor(?r, ?t), placement(?a, ?ab, ?from, ?aim, ?e, ?r).
+canPrime(?a, ?t, ?e) :- featureFor(?f, ?t), knocks(?a, ?ab, ?from, ?aim, ?e, feature(?f)).
 
 % Who supplies ?t on ?e: nobody if it is already there, else one answer per
 % companion who can prime it.
@@ -109,7 +115,6 @@ pullsAny(?ab) :- effect(?ab, target, pull).
 pullsAny(?ab) :- effect(?ab, target, hook).
 pulls(?ab) :- reach(?ab, ?k), first(pullsAny(?ab)).
 movesAny(?ab) :- pullsAny(?ab).
-movesAny(?ab) :- effect(?ab, ?w, push), aimed(?w).
 movesAny(?ab) :- effect(?ab, target, swap).
 movesAny(?ab) :- effect(?ab, target, grant(?t)), onGrant(?t, chase).
 moves(?ab) :- reach(?ab, ?k), first(movesAny(?ab)).
@@ -120,15 +125,23 @@ canReachNow(?a, ?r) :- at(?a, ?cur), canReach(?a, ?cur, ?r).
 
 % A gap next to ?e that it would fall into.
 gapNextTo(?e) :- at(?e, ?r), first(and(edge(?r, ?n, gap), gapTakes(?e))).
-% Somewhere ?e can go down: a hazard area, or a gap next to it.
-downFor(?e) :- first(dropFor(?r, ?e)).
-downFor(?e) :- not(first(dropFor(?r, ?e))), gapNextTo(?e).
-
-% An area whose arrival takes ?e out of the fight.
-dropFor(?r, ?e) :- zoneFor(?r, ?t), stops(?e, ?t).
-dropFor(?r, ?e) :-
-    onEnter(?r, ?ab), effect(?ab, target, hazard(?h)),
+% A feature that puts ?t on what is knocked into it (a pool: wet).
+featureFor(?f, ?t) :- feature(?r, ?f, ?ab), first(grantsAny(?ab, ?t)).
+% A pit that takes ?e out of the fight, somewhere: what it grants stops ?e,
+% or ?e is weak to its hazard.
+dropFor(?f, ?e) :-
+    feature(?r, ?f, ?ab), not(plate(?f)), not(filledFeature(?f)), first(grantsAny(?ab, ?t)),
+    stops(?e, ?t).
+dropFor(?f, ?e) :-
+    feature(?r, ?f, ?ab), effect(?ab, target, hazard(?h)), not(filledFeature(?f)),
     weakness(?e, ?h, none, ?out), stops(?e, ?out).
+% Somewhere ?e can go down: a pit, or a gap next to it.
+downFor(?e) :- first(dropFor(?f, ?e)).
+downFor(?e) :- not(first(dropFor(?f, ?e))), gapNextTo(?e).
+% Somewhere ?e can be brought, from where it stands (it is already there,
+% or a pull or a taunt can bring it).
+canBring(?e, ?r) :- at(?e, ?r).
+canBring(?e, ?r) :- not(at(?e, ?r)), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r)).
 
 % === Methods ===
 
@@ -140,36 +153,53 @@ inflictAs(?a, ?t, ?e) :-
 inflict(?t, ?e, ?not) :-
     if(canInflict(?a, ?ab, ?t, ?e), \==(?a, ?not)), do(cast(?a, ?ab, ?e)).
 
-% The need: ?e is in ?r, pushed there by ?a / by anyone but ?not.
+% The need: ?e is in ?r - it is, or ?a / anyone but ?not brings it there
+% with a pull or a taunt.
 placeAs(?a, ?e, ?r) :-
     if(first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))), do(castFrom(?a, ?ab, ?aim, ?from)).
 place(?e, ?r, ?not) :-
     if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
     do(castFrom(?a, ?ab, ?aim, ?from)).
+bringTo(?e, ?r, ?not) :- if(at(?e, ?r)), do().
+bringTo(?e, ?r, ?not) :- if(not(at(?e, ?r))), do(place(?e, ?r, ?not)).
+% sendInto/3 is bringTo/3 under its older name.
+sendInto(?e, ?r, ?not) :- if(), do(bringTo(?e, ?r, ?not)).
 
-% The need: ?e ends up in ?r, sent there by anyone but ?not.
-sendInto(?e, ?r, ?not) :-
-    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
+% The need: ?e is knocked into ?t (feature(?f) or gap(?n)), by anyone but ?not.
+knockOn(?e, ?t, ?not) :-
+    if(canAct(?a), \==(?a, ?not), first(knocks(?a, ?ab, ?from, ?aim, ?e, ?t))),
     do(castFrom(?a, ?ab, ?aim, ?from)).
 
-% The need: ?e falls into a gap next to it, forced by anyone but ?not.
+% The need: ?e is knocked into feature ?f - brought to its area first.
+knockInto(?e, ?f, ?not) :-
+    if(feature(?r, ?f, ?ab)), do(bringTo(?e, ?r, ?not), knockOn(?e, feature(?f), ?not)).
+
+% The need: ?e falls into a gap next to it - knocked in, or pulled across.
 dropInGap(?e, ?not) :-
     if(canAct(?a), \==(?a, ?not), first(dropping(?a, ?ab, ?from, ?aim, ?e))),
     do(castFrom(?a, ?ab, ?aim, ?from)).
 
-% The need: ?e goes down - into a hazard area it is weak to, or a gap.
-sendDown(?e, ?not) :- if(dropFor(?r, ?e)), do(sendInto(?e, ?r, ?not)).
+% The need: ?e goes down - brought to a pit it is weak to and knocked in,
+% or dropped in a gap.
+sendDown(?e, ?not) :- if(dropFor(?f, ?e), feature(?r, ?f, ?ab), canBring(?e, ?r)), do(knockInto(?e, ?f, ?not)).
 sendDown(?e, ?not) :- if(gapNextTo(?e)), do(dropInGap(?e, ?not)).
 
 % The need: ?e takes ?type damage from anyone but ?not.
 strike(?type, ?e, ?not) :-
     if(canStrike(?a, ?ab, ?type, ?e), \==(?a, ?not)), do(cast(?a, ?ab, ?e)).
 
-% The need: ?e carries ?t, primed by ?a - a cast, or a push into a zone.
+% The need: ?e carries ?t, primed by ?a - a cast, bringing it into a zone,
+% or knocking it into a feature that grants it (a pool).
 primeAs(?a, ?t, ?e) :- if(canInflict(?a, ?ab, ?t, ?e)), do(cast(?a, ?ab, ?e)).
 primeAs(?a, ?t, ?e) :-
     if(zoneFor(?r, ?t), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?aim, ?from)).
+    do(castFrom(?a, ?ab, ?aim, ?from), confirmHas(?e, ?t)).
+primeAs(?a, ?t, ?e) :-
+    if(featureFor(?f, ?t), first(knocks(?a, ?ab, ?from, ?aim, ?e, feature(?f)))),
+    do(castFrom(?a, ?ab, ?aim, ?from), confirmHas(?e, ?t)).
+% A knock is aimed by the caster, but the physics tries every aim: a recipe
+% that wanted one outcome confirms it.
+confirmHas(?e, ?t) :- if(holds(?e, ?t)), do().
 
 % The supplier found by supplier/3 does its part (nothing if it was there).
 supply(none, ?t, ?e) :- if(holds(?e, ?t)), do().
@@ -196,7 +226,7 @@ dislodge(?e) :-
     if(at(?e, ?r), canAct(?a), knows(?a, ?ab), moves(?ab), ready(?a, ?ab, ?e)),
     do(cast(?a, ?ab, ?e), ensureMoved(?e, ?r)).
 dislodge(?e) :-
-    if(at(?e, ?r), first(placement(?a, ?ab, ?from, ?aim, ?e, ?to)), \==(?aim, ?e)),
+    if(at(?e, ?r), first(placement(?a, ?ab, ?from, ?aim, ?e, ?to))),
     do(castFrom(?a, ?ab, ?aim, ?from), ensureMoved(?e, ?r)).
 ensureMoved(?e, ?r) :- if(not(at(?e, ?r))), do().
 

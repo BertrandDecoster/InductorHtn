@@ -10,15 +10,15 @@ from htn_test_framework import HtnTestSuite
 
 # A small arena: a ledge overlooking a pool, an oil slick, and a pit.
 WORLD = [
-    "region(ledge)", "region(rim)", "region(pool)", "region(slick)", "region(pit)",
+    "region(ledge)", "region(rim)", "region(pool)", "region(slick)",
     "connected(ledge, rim)", "connected(rim, ledge)",
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "connected(rim, pit)", "connected(slick, pool)",
+    "feature(rim, pit, fall)", "connected(slick, pool)", "feature(slick, pond, soak)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
-    "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
+    "effect(fall, target, grant(fell))",
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",
@@ -62,12 +62,12 @@ class NeutralizeTest(HtnTestSuite):
         self.assert_plan_complexity("neutralize(gob).", min_operators=0, max_operators=0)
 
     def test_example_2_each_recipe_is_a_plan(self):
-        self.set_state(["connected(pool, pit)", "stops(wader, frozen)",
+        self.set_state(["feature(pool, sump, fall)", "stops(wader, frozen)",
                         "knows(player, shock)", "knows(player, chill)", "knows(mage, gust)"])
         self.assert_plan("neutralize(wader).", min_solutions=3, contains=[
             "opReact(player, wader, wet, electrocuted, electrocution)",
             "opReact(player, wader, wet, chilled, freezeOver)",
-            "opForcedMove(mage, wader, pool, pit)"])
+            "opKnock(mage, wader, sump)"])
 
     def test_example_3_improvise_on_a_mook(self):
         self.set_state(["vulnerable(gob, fire)", "reach(bolt, ranged)",

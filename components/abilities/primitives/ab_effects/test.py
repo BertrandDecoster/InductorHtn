@@ -9,16 +9,15 @@ from htn_test_framework import HtnTestSuite
 
 
 WORLD = [
-    "region(ledge)", "region(pool)", "region(pit)",
-    "connected(ledge, pool)", "connected(pool, ledge)",
-    "connected(pool, pit)",
+    "region(ledge)", "region(pool)",
+    "connected(ledge, pool)", "feature(pool, pit, fall)",
     "role(player, player)", "role(gob, enemy)", "role(golem, enemy)",
     "at(player, ledge)", "at(gob, pool)", "at(golem, pool)",
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
-    "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
+    "effect(fall, target, grant(fell))",
     "reaction(wet, shocked, electrocution)",
     "effect(electrocution, target, remove(wet))", "effect(electrocution, target, grant(dead))",
     "reaction(wet, burning, steam)", "effect(steam, target, remove(wet))",
@@ -50,13 +49,14 @@ class AbEffectsTest(HtnTestSuite):
             "opGrant(player, gob, dead)",
         ], not_contains=["opGrant(player, gob, shocked)"])
 
-    def test_example_2_a_push_lands_in_a_zone(self):
+    def test_example_2_a_knockback_into_a_pit(self):
+        """A push never changes the area: it knocks the goblin into the pit in
+        the pool."""
         self.assert_plan("applyAbility(player, gust, gob, react).", contains=[
-            "opForcedMove(player, gob, pool, pit)",
-            "opGrant(player, gob, fell)",
-        ])
+            "opKnock(player, gob, pit)", "opGrant(player, gob, fell)",
+        ], not_contains=["opForcedMove"])
         self.assert_state_after("applyAbility(player, gust, gob, react).",
-                                has=["at(gob,pit)", "tag(gob,fell)"])
+                                has=["at(gob,pool)", "tag(gob,fell)"])
 
     def test_example_3_a_blunt_blow_shatters_the_frozen(self):
         self.set_state(["tag(gob, frozen)"])
@@ -74,7 +74,7 @@ class AbEffectsTest(HtnTestSuite):
         """Immune to shock but not to being moved once frozen: the push lands."""
         self.set_state(["tag(golem, frozen)"])
         self.assert_plan("applyAbility(player, zapPush, golem, react).",
-                         contains=["opForcedMove(player, golem, pool, pit)"],
+                         contains=["opKnock(player, golem, pit)"],
                          not_contains=["opGrant(player, golem, shocked)"])
 
     def test_property_p2_reactions_do_not_chain(self):
@@ -103,14 +103,14 @@ class AbEffectsTest(HtnTestSuite):
         self.assert_no_plan("applyAbility(player, hammer, gob, react), needFresh(player).")
 
     def test_property_p6_a_push_goes_where_the_caster_aims(self):
-        """Two neighbours of the pool: each is a plan; the caster's own area is
-        never one."""
-        self.set_state(["region(slick)", "connected(pool, slick)"])
+        """Two features in the pool: each is a plan, and so is knocking it into
+        nothing."""
+        self.set_state(["feature(pool, slickPatch, slicked)", "effect(slicked, target, grant(oiled))"])
         self.assert_plan("applyAbility(player, gust, gob, react).",
-                         contains=["opForcedMove(player, gob, pool, pit)"])
+                         contains=["opKnock(player, gob, pit)"])
         self.assert_plan("applyAbility(player, gust, gob, react).",
-                         contains=["opForcedMove(player, gob, pool, slick)"],
-                         not_contains=["opForcedMove(player, gob, pool, ledge)"], max_solutions=2)
+                         contains=["opKnock(player, gob, slickPatch)"],
+                         max_solutions=3)
 
 
     def test_property_p7_an_area_hits_everyone_but_the_source(self):
@@ -152,24 +152,23 @@ class AbEffectsTest(HtnTestSuite):
                                 has=["tag(golem,stunned)", "tag(gob,sparked)"], not_has=["tag(golem,dead)"])
 
     def test_property_p12_a_hazard_takes_only_the_weak(self):
-        """A gale on the pool throws everyone next door; into the chasm, the
-        goblin falls and the bat hovers."""
-        self.set_state(["region(chasm)", "region(cliff)", "at(storm, cliff)",
-                        "connected(pool, chasm)", "onEnter(chasm, drop)",
+        """A gale on the pool knocks everyone into its chasm: the goblin falls
+        and the bat hovers."""
+        self.set_state(["region(cliff)", "at(storm, cliff)", "feature(pool, chasm1, drop)",
                         "effect(drop, target, hazard(chasm))",
                         "weakness(?e, chasm, none, fell) :- not(has(?e, flying))",
                         "role(bat, enemy)", "at(bat, pool)", "tag(bat, flying)",
                         "effect(gale, area, push)"])
         self.assert_plan("applyAbility(storm, gale, pool, react).", contains=[
-            "opForcedMove(storm, gob, pool, chasm)", "opExploit(storm, gob, chasm, fell)",
-            "opForcedMove(storm, bat, pool, chasm)"])
+            "opKnock(storm, gob, chasm1)", "opExploit(storm, gob, chasm, fell)",
+            "opKnock(storm, bat, chasm1)"])
         self.assert_plan("applyAbility(storm, gale, pool, react).",
                          not_contains=["opExploit(storm, bat, chasm, fell)"])
 
     def test_property_p13_a_tag_can_move_its_bearer(self):
         self.set_state(["onGrant(feared, push)", "effect(scare, target, grant(feared))"])
         self.assert_state_after("applyAbility(player, scare, gob, react).",
-                                has=["tag(gob,feared)", "at(gob,pit)", "tag(gob,fell)"])
+                                has=["tag(gob,feared)", "tag(gob,fell)"])
 
     def test_property_p14_a_gap_takes_what_is_forced_across(self):
         """Pushed across a gap, the goblin falls in; a flyer crosses; a filler
@@ -258,20 +257,20 @@ class AbEffectsTest(HtnTestSuite):
         self.assert_query("canReach(player, ledge, pool).", min_solutions=1)
 
     def test_property_p24_two_plates_open_together(self):
-        self.set_state(["region(p1)", "region(p2)", "door(vault)",
-                        "plateFor(p1, vault)", "plateFor(p2, vault)",
-                        "onEnter(p1, press1)", "onEnter(p2, press2)",
-                        "effect(press1, target, openWhenHeld(vault))",
-                        "effect(press2, target, openWhenHeld(vault))",
-                        "role(mage, companion)", "at(mage, p1)", "connected(ledge, p2)"])
-        self.assert_state_after("walkTo(player, p2).", has=["open(vault)"])
+        self.set_state(["region(hall)", "connected(ledge, hall)", "doorway(hall, vault, gate)",
+                        "region(vault)", "feature(ledge, p1, press1)", "feature(hall, p2, press2)",
+                        "plate(p1)", "plate(p2)", "plateFor(p1, gate)", "plateFor(p2, gate)",
+                        "effect(press1, target, openWhenHeld(gate))",
+                        "effect(press2, target, openWhenHeld(gate))",
+                        "role(mage, companion)", "at(mage, ledge)", "on(mage, p1)"])
+        self.assert_state_after("walkTo(player, hall), stepOn(player, p2).", has=["open(gate)"])
 
     def test_property_p25_one_plate_is_not_enough(self):
-        self.set_state(["region(p1)", "region(p2)", "door(vault)",
-                        "plateFor(p1, vault)", "plateFor(p2, vault)",
-                        "onEnter(p2, press2)", "effect(press2, target, openWhenHeld(vault))",
-                        "connected(ledge, p2)"])
-        self.assert_state_after("walkTo(player, p2).", not_has=["open(vault)"])
+        self.set_state(["region(hall)", "connected(ledge, hall)", "doorway(hall, vault, gate)",
+                        "region(vault)", "feature(ledge, p1, press1)", "feature(hall, p2, press2)",
+                        "plate(p1)", "plate(p2)", "plateFor(p1, gate)", "plateFor(p2, gate)",
+                        "effect(press2, target, openWhenHeld(gate))"])
+        self.assert_state_after("walkTo(player, hall), stepOn(player, p2).", not_has=["open(gate)"])
 
     def test_property_p26_a_zone_reshapes_a_zone(self):
         self.set_state(["onEnter(pool, water)", "effect(water, target, grant(wet))",

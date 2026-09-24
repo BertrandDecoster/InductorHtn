@@ -11,24 +11,9 @@ Every skill is written with a handful of keywords, in three families, plus terra
 | Family | Keywords |
 |--------|----------|
 | **Tags** | grant or remove a tag, for good or **for a moment** |
-| **Movement** | forced movement (push to any neighbouring area, pull to the caster, pull into an area), dash, teleport, walk (a chase) |
+| **Movement** | between areas: pull (hook), dash, teleport, walk (a chase); within an area: knockback (into a pit, a plate, a gap), gather (a vortex into one feature) |
 | **Effects on actions** | **interrupt** (a magic heavy attack being wound up stops), **disjoint** (for a moment, nothing aimed at you lands) |
-| **Terrain** | a zone left on an area (whoever is there or walks in takes it); zones reacting to zones; doors opened or closed |
-
-**The map.** Areas are large: a small room, or a quarter of a large one. They are joined by links,
-and a chokepoint is two areas with a special link:
-
-| Link | Walk | Dash | Teleport | Forced movement |
-|------|------|------|----------|-----------------|
-| walkable (`connected`) | yes | yes | yes | passes |
-| `gap` (a short pit) | no | yes | yes | falls in, unless flying; a filler that falls in bridges it |
-| `wall` | no | no | yes | stopped |
-| `doorway` | while open | while open | yes | while open |
-
-Every movement goes **one link**. Ranged skills aim at anything in line of sight; melee reaches the
-same area or next door (not through a wall). A push sends its target to any neighbouring area but
-the caster's own: you aim the blast wherever you like, so you choose where it lands, a friend or
-yourself included. A dash or a teleport never lands its caster in a live hazard.
+| **Terrain** | a zone over a whole area (whoever is there or walks in takes it); zones reacting to zones; features in an area (pits, plates); doors opened or closed |
 
 **For a moment** is the only duration: an effect lasts through the next cast by anyone, then is
 undone, and never ends in the middle of a heavy attack's window.
@@ -36,23 +21,43 @@ undone, and never ends in the middle of a heavy attack's window.
 **What an entity is, is a tag.** Heavy, flying, machine, living, insect, wooden, fireElemental,
 waterElemental and filler are tags, so a skill can take one off (Turn to Mist removes heavy).
 
+**The map.** Areas are large: a small room, or a quarter of a large one. They are joined by links,
+and a chokepoint is two areas with a special link:
+
+| Link | Walk | Dash | Teleport | Knocked into |
+|------|------|------|----------|--------------|
+| walkable (`connected`) | yes | yes | yes | - |
+| `gap` (a short pit) | no | yes | yes | falls in, unless flying; a filler bridges it |
+| `wall` | no | no | yes | - |
+| `doorway` | while open | while open | yes | - |
+
+Inside an area, **features**: a pit, lava, deep water - walked around, but a knockback sends its
+target in (a filler fills a pit) - and **pressure plates**, pressed by a companion stepping on or by
+whatever is knocked onto them; pressing opens a door, or fills an area with something.
+
+**Two kinds of movement.** Only a Hook (a pull from next door) or a Taunt (the NPC walks after you)
+moves an NPC into another area. Every other forced movement is a knockback that never leaves the
+area: it forces an interaction with what is there. So a plan usually **brings the NPC** to the
+right area, then **knocks it** into the pit, onto the plate or into the gap. Dash and teleport move
+the caster one link; a dash or a teleport never lands in a live hazard.
+
 ## Skills
 
 "Around" means everyone else in the caster's area.
 
 | Skill | Reach | Tags applied | Movement | On actions | Description |
 |-------|-------|--------------|----------|------------|-------------|
-| **Hook** | melee | - | the target is pulled into the caster's area (an anchored, heavy target pulls the caster to it instead) | interrupts the target | Drag an enemy to you and break the spell it was casting. Across a gap, it falls in. Hooked to a pillar across a gap, you cross it. |
-| **Vortex** | ranged | `rooted` for a moment on the NPCs in the target area | everything next door is pulled into the target area | - | Suck everything into one area and pin the enemies there for a moment. Allies get pulled too, but not pinned. |
-| **Tidal Wave** | self | `wet` on everyone around | everyone around is pushed next door, each where the caster likes | - | A wave bursts from you, soaking everyone near and washing them out. |
+| **Hook** | melee | - | the target is pulled from next door into the caster's area - the only skill that moves an NPC to another area (an anchored, heavy target pulls the caster to it instead) | interrupts the target | Drag an enemy to you and break the spell it was casting. Across a gap, it falls in. Hooked to a pillar across a gap, you cross it. |
+| **Vortex** | ranged | `rooted` for a moment on the NPCs in the target area | aimed at a feature, everything movable in its area is knocked into it | - | Suck everyone in a room into the pit, the pool or onto the plate, and pin the enemies for a moment. Allies are pulled too, but not pinned. |
+| **Tidal Wave** | self | `wet` on everyone around | a knockback on everyone around, each where the caster aims | - | A wave bursts from you, soaking everyone near and washing them into whatever is there. |
 | **Blizzard** | ranged | `slowed` and `chilled` on everyone in the area, now and later (an ice sheet) | - | - | The area ices over. Chilled does nothing alone; on the wet it freezes them (stunned). It kills fire elementals and insects. Over deep water or lava, the ice is a floor. |
-| **Fireball** | ranged | `burning` on everyone in the area, now and later (flames) | the target is pushed next door, wherever the caster likes | - | The whole area catches fire and the target is blown out of it. Aimed at a friend or yourself, it throws them. |
+| **Fireball** | ranged | `burning` on everyone in the area, now and later (flames) | a knockback on the target, wherever the caster aims | - | The whole area catches fire and the target is blown into whatever is there. Aimed at a friend or yourself, it knocks them. |
 | **Lightning Flash** | melee | `electrocuted` on everyone in the target area | the caster dashes there | - | You become lightning and strike the area next door, landing in it. |
 | **Blink** | near | `disjoint` on the caster, for a moment | the caster teleports next door, through any link | disjoint | Vanish and reappear next door, even through a wall; whatever was coming at you misses. |
 | **Blinding Flash** | self | `disjoint` on the caster, for a moment; `blinded` and `electrocuted` on everyone around | - | disjoint | You flicker out in a flash of lightning that blinds and shocks everyone near you, friends included; the attack aimed at you misses. |
 | **Taunt** | ranged | `taunted` on the target (NPCs only) | the target walks after the caster, and keeps following | - | The enemy fixates on you and comes at you, through whatever lies on the way; if it cannot walk to you, the taunt breaks. |
 | **Turn to Mist** | ranged | `heavy` and `shielded` removed from the target, for a moment | - | - | The target turns to mist: for a moment nothing anchors it and nothing shields it. |
-| **Shield Bash** | melee | `stunned` on the target; `shielded` on the caster | - | interrupts the target | Stun a normal enemy, break its spell, and raise your shield: it takes the next hit, even a heavy blow. |
+| **Shield Bash** | melee | `stunned` on the target; `shielded` on the caster | a knockback on the target | interrupts the target | Stun a normal enemy, break its spell, knock it into what is behind it, and raise your shield: it takes the next hit, even a heavy blow. |
 
 ## Enemy moves
 
@@ -61,7 +66,7 @@ aimed at `source` follows that entity; one aimed at a region falls there.
 
 | Move | Heavy | Kind | On everyone in the struck region but the attacker |
 |------|-------|------|----------------------------------------------------|
-| `groundSlam` | yes | physical | `stunned`, and thrown next door |
+| `groundSlam` | yes | physical | `stunned`, and knocked back |
 | `caveIn` | yes | physical | the floor becomes a chasm: whoever is weak to it falls |
 | `meteor` | yes | magic | the region catches fire |
 
@@ -139,8 +144,8 @@ stopped. Whatever else stands in the struck area takes it, enemies included. The
 | `iceSheet` | slowed, chilled | Blizzard |
 | `slick` | oiled | - |
 | `shadows` | stealthed | - |
-| `chasm` | falls, if weak to it (anything not flying) | caveIn |
-| (a gap link) | falls in when forced across (anything not flying) | - |
+| `chasm` | falls, if weak to it (anything not flying): as a feature, what is knocked in; as a zone, what is there | caveIn |
+| (a gap link) | falls in when knocked into it or pulled across it (anything not flying) | - |
 | `lava` | falls, if weak to it (not flying, not fire) | - |
 | `deepWater` | wet; the heavy sink | - |
 
@@ -160,7 +165,9 @@ opens it (`open(D)`, or `openWhenHeld(D)` when every plate must be held at once)
 
 ```prolog
 connected(hall, brink).  gap(brink, ledge).  wall(hall, vault).  doorway(hall, crypt, gate).
-onEnter(crypt, shadows).  onEnter(abyss, chasm).  connected(brink, abyss).
+feature(brink, abyss, chasm).                      % a pit in the brink
+feature(hall, lever, press).  plate(lever).  effect(press, target, open(gate)).
+onEnter(crypt, shadows).
 knows(mage, blindingFlash).  knows(warden, shieldBash).  mana(player, 3).
 tag(sentry, machine).  tag(sentry, heavy).  tag(sentry, shielded).
 rank(brute, boss).  tag(brute, living).  tag(brute, heavy).

@@ -10,15 +10,15 @@ from htn_test_framework import HtnTestSuite
 
 # A small arena: a ledge overlooking a pool, an oil slick, and a pit.
 WORLD = [
-    "region(ledge)", "region(rim)", "region(pool)", "region(slick)", "region(pit)",
+    "region(ledge)", "region(rim)", "region(pool)", "region(slick)",
     "connected(ledge, rim)", "connected(rim, ledge)",
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "connected(rim, pit)", "connected(slick, pool)",
+    "feature(rim, pit, fall)", "connected(slick, pool)", "feature(slick, pond, soak)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
-    "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
+    "effect(fall, target, grant(fell))",
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",

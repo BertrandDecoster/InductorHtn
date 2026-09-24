@@ -12,36 +12,48 @@
 %   movement  push  pull  hook  pullIn  swap  dash  teleport  teleport(R)
 %             chase
 %   actions   interrupt
-%   terrain   spill(ZoneAbility)  hazard(H)  open(Door)  close(Door)
+%   terrain   spill(ZoneAbility)  spill(ZoneAbility, Area)  hazard(H)
+%             open(Door)  close(Door)
 % and one duration: moment(Atom) makes a grant or a remove last only for a
 % moment - through the next cast by anyone - and then undoes it.
 %
-% The map is areas joined by links, each of one kind:
+% The map is large areas (a small room, a quarter of a large one) joined by
+% links, each declared once, either way round:
 %   connected(?a, ?b)       walkable
-%   gap(?a, ?b)             a short pit: dash or teleport over it; whatever
-%                           is forced across falls in, unless it flies; a
-%                           filler that falls in bridges it (walkable)
+%   gap(?a, ?b)             a short pit: dash or teleport over it
 %   wall(?a, ?b)            only a teleport goes through
 %   doorway(?a, ?b, ?d)     walkable while open(?d), else a wall
-% A link is declared once, either way round. Every movement goes one link:
+% and features inside an area, each with the ability it applies:
+%   feature(?r, ?f, ?ab)    a pit, a pool of lava, deep water (?ab has
+%                           hazard(H)); walked around, never walked into
+%   plate(?f)               the feature is a pressure plate: a companion
+%                           stands on it on purpose (stepOn/2), or something
+%                           is knocked onto it; either presses it, which
+%                           applies ?ab (a door opens; an area fills with
+%                           poison)
+% Movement between areas goes one link:
 %   walk      over walkable links, one area at a time (a route)
-%   dash      the source to a neighbouring area, over a walkable link or a gap
-%   teleport  the source to a neighbouring area, over any link
-%   push      the target to a neighbouring area of the source's choosing,
-%             never into the source's own area (you aim where it lands)
+%   dash      the source next door, over a walkable link or a gap
+%   teleport  the source next door, over any link
 %   pull      the target into the source's area, from next door
 %   hook      a pull; an anchored target pulls the source to it instead,
 %             over a walkable link or a gap (a grappling hook)
-%   pullIn    everything next door is drawn into the target's area
 %   chase     the target walks after the source (see taunted), and follows
 %             it every time the source moves; if it cannot, it gives up
-% Forced movement (push, pull, hook, pullIn) stops at a wall and drops its
-% target into a gap. `interrupt` stops a magic heavy attack the target is
+% A pull across a gap drops its target in. Forced movement within an area
+% is a knockback - it never changes the area:
+%   push      the target is knocked into a feature of its area, or into a
+%             gap at its edge - wherever the source aims (every choice is a
+%             plan, and so is knocking it into nothing)
+%   pullIn    aimed at a feature, everything movable in its area is knocked
+%             into it (aimed at an area, it only gathers)
+% A filler knocked into a pit fills it; into a gap, it bridges it.
+% `interrupt` stops a magic heavy attack the target is
 % winding up (see ab_casting). A spill onto an area whose zone reacts to it
 % reshapes the zone instead (zoneReaction/3: ice over deep water is a
-% floor). An ability may target an area instead of an entity: only `area`,
-% `spill`, `dash`, `teleport`, `pullIn`, `open` and `close` do anything to
-% an area.
+% floor). An ability may target an area instead of an entity - only `area`,
+% `spill`, `dash`, `teleport`, `open` and `close` do anything to an area - or
+% a feature (a vortex on the pit; a fireball whose flames fill its area).
 % and the world rules they consult:
 %   reaction(?have, ?incoming, ?ab)  ?incoming (a tag, a damage type, or
 %                                    `damage` for any damageType/1) landing
@@ -128,6 +140,18 @@ opFall(?src, ?e, ?from, ?to) :-
 opBridge(?src, ?a, ?b) :-
     del(), add(bridged(?a, ?b)).
 
+opKnock(?src, ?e, ?f) :-
+    del(), add().
+
+opSink(?src, ?e, ?f) :-
+    del(), add(sunk(?e, ?f)).
+
+opStepOn(?src, ?e, ?f) :-
+    del(), add(on(?e, ?f)).
+
+opStepOff(?src, ?e, ?f) :-
+    del(on(?e, ?f)), add().
+
 opFollow(?src, ?npc) :-
     del(), add(follows(?npc, ?src)).
 
@@ -160,6 +184,7 @@ opInterrupt(?src, ?npc, ?ab, ?x) :-
 % Where an entity is, or a area itself.
 locus(?e, ?r) :- at(?e, ?r).
 locus(?r, ?r) :- region(?r).
+locus(?f, ?r) :- feature(?r, ?f, ?ab).
 
 % A reaction to exactly ?incoming, or to any damage / any hostile tag.
 matches(?have, ?incoming, ?ab) :- reaction(?have, ?incoming, ?ab).
@@ -236,10 +261,16 @@ forcedStep(?e, ?from, ?to, land) :- edge(?from, ?to, walk).
 forcedStep(?e, ?from, ?to, fall) :- edge(?from, ?to, gap), gapTakes(?e).
 forcedStep(?e, ?from, ?to, land) :- edge(?from, ?to, gap), not(gapTakes(?e)).
 
-% Where a push from ?src can send ?e: any neighbouring area but the
-% source's own. A pull brings it into the source's area from next door.
-pushable(?src, ?e, ?from, ?to, ?k) :-
-    not(anchoredAgainst(?e)), at(?e, ?from), forcedStep(?e, ?from, ?to, ?k), not(at(?src, ?to)).
+% Features: a pit is filled once a filler has sunk in it; it takes what is
+% weak to its hazard. A plate is held while anything that weighs is on it.
+filledFeature(?f) :- first(and(sunk(?x, ?f), has(?x, filler))).
+pitTakes(?e, ?f) :-
+    feature(?r, ?f, ?ab), effect(?ab, target, hazard(?h)), not(filledFeature(?f)),
+    first(and(weakness(?e, ?h, none, ?o), receptive(?e, ?o))).
+% Where a knockback can send ?e: a feature of its area, or a gap at its edge.
+knockTarget(?e, feature(?f)) :- at(?e, ?r), feature(?r, ?f, ?ab).
+knockTarget(?e, gap(?n)) :- at(?e, ?r), edge(?r, ?n, gap).
+% A pull brings ?e into the source's area from next door.
 pullable(?src, ?e, ?from, ?to, ?k) :-
     not(anchoredAgainst(?e)), at(?src, ?to), at(?e, ?from), \==(?from, ?to),
     forcedStep(?e, ?from, ?to, ?k).
@@ -254,10 +285,8 @@ teleLine(?src, ?e, ?from, ?to) :-
     at(?src, ?from), locus(?e, ?to), blinkEdge(?from, ?to), not(deadly(?src, ?to)).
 blinkLine(?e, ?r, ?from) :-
     not(anchoredAgainst(?e)), at(?e, ?from), \==(?from, ?r).
-% What a pull-in toward ?r draws: everything next door that can be moved.
-drawn(?src, ?r, ?x, ?n, ?k) :-
-    edge(?n, ?r, ?kind), at(?x, ?n), \==(?x, ?src), not(anchoredAgainst(?x)),
-    forcedStep(?x, ?n, ?r, ?k).
+% What a vortex on a feature in ?r gathers: everything movable there.
+drawnTo(?src, ?r, ?x) :- at(?x, ?r), \==(?x, ?src), not(anchoredAgainst(?x)), not(gone(?x)).
 
 % Walking: a blocker's area, a live hazard, a watched area - none is
 % passable (the last only to a companion).
@@ -267,8 +296,8 @@ spotted(?a, ?r) :-
     first(and(watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)))).
 passable(?a, ?r) :- not(heldAgainst(?a, ?r)), not(deadly(?a, ?r)), not(spotted(?a, ?r)).
 walkEdge(?a, ?b) :- edge(?a, ?b, walk).
-% A plate is held while anything that weighs stands on it.
-plateHeld(?p) :- first(and(at(?x, ?p), not(gone(?x)), not(has(?x, flying)))).
+% A plate is held while anything that weighs is on it.
+plateHeld(?p) :- first(and(on(?x, ?p), not(gone(?x)), not(has(?x, flying)))).
 allPlatesHeld(?d) :- not(first(and(plateFor(?p, ?d), not(plateHeld(?p))))).
 % Routes: iterative deepening over walkable links, at most eight steps,
 % never stepping straight back, so the first answer is a shortest route.
@@ -295,7 +324,6 @@ occupied(?r) :- first(at(?x, ?r)).
 regionAtom(spill(?z)).
 regionAtom(dash).
 regionAtom(teleport).
-regionAtom(pullIn).
 regionAtom(open(?d)).
 regionAtom(close(?d)).
 
@@ -355,6 +383,7 @@ effectOn(?src, ?e, grant(?t), ?mode) :- if(), do(grantTag(?src, ?e, ?t, ?mode)).
 effectOn(?src, ?e, remove(?t), ?mode) :- if(), do(removeTag(?src, ?e, ?t)).
 effectOn(?src, ?e, purge(?g), ?mode) :- if(), do(purgeGroup(?src, ?e, ?g)).
 effectOn(?src, ?e, spill(?z), ?mode) :- if(), do(spillZone(?src, ?e, ?z, ?mode)).
+effectOn(?src, ?e, spill(?z, ?r), ?mode) :- if(), do(spillZone(?src, ?r, ?z, ?mode)).
 effectOn(?src, ?e, damage(?type), ?mode) :- if(), do(takeDamage(?src, ?e, ?type, ?mode)).
 effectOn(?src, ?e, push, ?mode) :- if(), do(shove(?src, ?e, ?mode)).
 effectOn(?src, ?e, pull, ?mode) :- if(), do(drag(?src, ?e, ?mode)).
@@ -367,19 +396,50 @@ effectOn(?src, ?e, open(?d), ?mode) :- if(), do(openDoor(?src, ?d)).
 effectOn(?src, ?e, openWhenHeld(?d), ?mode) :- if(), do(openIfHeld(?src, ?d)).
 effectOn(?src, ?e, close(?d), ?mode) :- if(), do(closeDoor(?src, ?d)).
 effectOn(?src, ?e, teleport, ?mode) :- if(), do(teleportTo(?src, ?e, ?mode)).
-effectOn(?src, ?e, pullIn, ?mode) :- if(locus(?e, ?r)), do(suckIn(?src, ?r, ?mode)).
+effectOn(?src, ?e, pullIn, ?mode) :- if(feature(?r, ?e, ?ab)), do(gatherInto(?src, ?e, ?r, ?mode)).
+effectOn(?src, ?e, pullIn, ?mode) :- if(not(feature(?r, ?e, ?ab))), do().
 effectOn(?src, ?e, interrupt, ?mode) :- if(), do(interruptOn(?src, ?e)).
 effectOn(?src, ?e, chase, ?mode) :- if(), do(chase(?src, ?e)).
 effectOn(?src, ?e, moment(grant(?t)), ?mode) :- if(), do(grantFor(?src, ?e, ?t, ?mode)).
 effectOn(?src, ?e, moment(remove(?t)), ?mode) :- if(), do(removeFor(?src, ?e, ?t)).
 
-% Everything next to ?r is drawn into it, and takes what is there - or
-% falls into the gap on the way.
-suckIn(?src, ?r, ?mode) :-
-    if(first(drawn(?src, ?r, ?x, ?n, ?k))), do(suckAll(?src, ?r, ?mode)).
-suckIn(?src, ?r, ?mode) :- if(not(first(drawn(?src, ?r, ?x, ?n, ?k)))), do().
-suckAll(?src, ?r, ?mode) :-
-    allOf, if(drawn(?src, ?r, ?x, ?n, ?k)), do(moveBy(?src, ?x, ?n, ?r, ?k, ?mode)).
+% A vortex on feature ?f: everything movable in its area is knocked in.
+gatherInto(?src, ?f, ?r, ?mode) :-
+    if(first(drawnTo(?src, ?r, ?x))), do(gatherAll(?src, ?f, ?r, ?mode)).
+gatherInto(?src, ?f, ?r, ?mode) :- if(not(first(drawnTo(?src, ?r, ?x)))), do().
+gatherAll(?src, ?f, ?r, ?mode) :-
+    allOf, if(drawnTo(?src, ?r, ?x)), do(impact(?src, ?x, feature(?f), ?mode)).
+
+% Knocked into a feature: onto a plate, it presses it; into a pit, it meets
+% the hazard (a filler fills it; a filled pit is only floor); into a gap at
+% the edge of its area, it falls in (a flyer crosses).
+impact(?src, ?e, feature(?f), ?mode) :-
+    if(feature(?r, ?f, ?ab), plate(?f)), do(opKnock(?src, ?e, ?f), press(?src, ?e, ?f, ?ab, ?mode)).
+impact(?src, ?e, feature(?f), ?mode) :-
+    if(feature(?r, ?f, ?ab), not(plate(?f)), not(filledFeature(?f))),
+    do(opKnock(?src, ?e, ?f), applyAbility(?src, ?ab, ?e, ?mode), sinkIf(?src, ?e, ?f)).
+impact(?src, ?e, feature(?f), ?mode) :-
+    if(feature(?r, ?f, ?ab), not(plate(?f)), filledFeature(?f)), do(opKnock(?src, ?e, ?f)).
+impact(?src, ?e, gap(?n), ?mode) :-
+    if(at(?e, ?r), forcedStep(?e, ?r, ?n, ?k)), do(moveBy(?src, ?e, ?r, ?n, ?k, ?mode)).
+sinkIf(?src, ?e, ?f) :- if(tag(?e, fell), has(?e, filler)), do(opSink(?src, ?e, ?f)).
+sinkIf(?src, ?e, ?f) :- if(not(and(tag(?e, fell), has(?e, filler)))), do().
+
+% A plate pressed: whatever is on it presses it once.
+press(?src, ?e, ?f, ?ab, ?mode) :- if(on(?e, ?f)), do().
+press(?src, ?e, ?f, ?ab, ?mode) :-
+    if(not(on(?e, ?f))), do(opStepOn(?src, ?e, ?f), applyAbility(?src, ?ab, ?e, ?mode)).
+
+% A companion stands on a plate in its area, on purpose.
+stepOn(?a, ?f) :- if(on(?a, ?f)), do().
+stepOn(?a, ?f) :-
+    if(not(on(?a, ?f)), at(?a, ?r), feature(?r, ?f, ?ab), plate(?f)),
+    do(opStepOn(?a, ?a, ?f), applyAbility(?a, ?ab, ?a, react)).
+
+% Leaving an area leaves its plates.
+leavePlates(?e) :- if(first(on(?e, ?f))), do(leaveAll(?e)).
+leavePlates(?e) :- if(not(first(on(?e, ?f)))), do().
+leaveAll(?e) :- allOf, if(on(?e, ?f)), do(opStepOff(?e, ?e, ?f)).
 
 % The source appears in a neighbouring area, through any link.
 teleportTo(?src, ?e, ?mode) :-
@@ -562,11 +622,12 @@ takeDamage(?src, ?e, ?type, react) :-
 takeDamage(?src, ?e, ?type, raw) :- if(kills(?e, ?type)), do(opGrant(?src, ?e, dead)).
 takeDamage(?src, ?e, ?type, raw) :- if(not(kills(?e, ?type))), do().
 
-% Push: to a neighbouring area of the source's choosing (every choice is a
-% plan). Pull: into the source's area, from next door.
+% Push: a knockback into a feature of the target's area, or a gap at its
+% edge - or into nothing that matters. Every aim is a plan. Pull: into the
+% source's area, from next door.
 shove(?src, ?e, ?mode) :-
-    if(pushable(?src, ?e, ?from, ?to, ?k)), do(moveBy(?src, ?e, ?from, ?to, ?k, ?mode)).
-shove(?src, ?e, ?mode) :- if(not(first(pushable(?src, ?e, ?f, ?t, ?k)))), do().
+    if(not(anchoredAgainst(?e)), knockTarget(?e, ?t)), do(impact(?src, ?e, ?t, ?mode)).
+shove(?src, ?e, ?mode) :- if(), do().
 
 drag(?src, ?e, ?mode) :-
     if(pullable(?src, ?e, ?from, ?to, ?k)), do(moveBy(?src, ?e, ?from, ?to, ?k, ?mode)).
@@ -586,8 +647,9 @@ blink(?src, ?e, ?r, ?mode) :- if(not(blinkLine(?e, ?r, ?f))), do().
 % Whoever arrives in ?r takes what the area does. The one who moved ?e
 % there is the source: a push into the pit is the pusher's doing, and a
 % walk into the pool is the walker's. (A zone's ability has no `self`.)
-arrive(?src, ?e, ?r, ?mode) :- if(hasZone(?r)), do(enterZone(?src, ?r, ?e, ?mode), pursue(?e)).
-arrive(?src, ?e, ?r, ?mode) :- if(not(hasZone(?r))), do(pursue(?e)).
+arrive(?src, ?e, ?r, ?mode) :-
+    if(hasZone(?r)), do(leavePlates(?e), enterZone(?src, ?r, ?e, ?mode), pursue(?e)).
+arrive(?src, ?e, ?r, ?mode) :- if(not(hasZone(?r))), do(leavePlates(?e), pursue(?e)).
 
 enterZone(?src, ?r, ?e, ?mode) :-
     allOf, if(onEnter(?r, ?ab)), do(applyAbility(?src, ?ab, ?e, ?mode)).

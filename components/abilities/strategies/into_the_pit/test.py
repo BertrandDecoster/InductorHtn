@@ -10,15 +10,15 @@ from htn_test_framework import HtnTestSuite
 
 # A small arena: a ledge overlooking a pool, an oil slick, and a pit.
 WORLD = [
-    "region(ledge)", "region(rim)", "region(pool)", "region(slick)", "region(pit)",
+    "region(ledge)", "region(rim)", "region(pool)", "region(slick)",
     "connected(ledge, rim)", "connected(rim, ledge)",
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "connected(rim, pit)", "connected(slick, pool)",
+    "feature(rim, pit, fall)", "connected(slick, pool)", "feature(slick, pond, soak)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
-    "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
+    "effect(fall, target, grant(fell))",
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",
@@ -60,18 +60,18 @@ class IntoThePitTest(HtnTestSuite):
     def test_example_1_push_it_in(self):
         self.set_state(["knows(player, gust)"])
         self.assert_plan("intoThePit(gob).", contains=[
-            "opForcedMove(player, gob, rim, pit)", "opGrant(player, gob, fell)"])
+            "opKnock(player, gob, pit)", "opGrant(player, gob, fell)"])
 
     def test_example_2_unbalance_then_push(self):
         self.set_state(["knows(player, quake)", "knows(mage, gust)"])
         self.assert_plan("intoThePit(golem).", contains=[
-            "opCast(player, quake, golem)", "opForcedMove(mage, golem, rim, pit)"])
+            "opCast(player, quake, golem)", "opKnock(mage, golem, pit)"])
 
     def test_example_3_freeze_then_push(self):
         self.set_state(["knows(mage, douse)", "knows(player, chill)", "knows(player, gust)"])
         self.assert_plan("intoThePit(golem).", contains=[
             "opCast(mage, douse, golem)", "opCast(player, chill, golem)",
-            "opForcedMove(player, golem, rim, pit)"])
+            "opKnock(player, golem, pit)"])
 
     # -------------------------------------------------------------- properties
 
@@ -94,7 +94,7 @@ class IntoThePitTest(HtnTestSuite):
                         "reach(net, ranged)", "effect(net, target, remove(flying))",
                         "knows(mage, net)", "knows(player, gust)"])
         self.assert_plan("intoThePit(gob).", contains=[
-            "opCast(mage, net, gob)", "opForcedMove(player, gob, rim, pit)",
+            "opCast(mage, net, gob)", "opKnock(player, gob, pit)",
             "opGrant(player, gob, fell)"])
 
 
@@ -103,7 +103,7 @@ class IntoThePitTest(HtnTestSuite):
                         "reach(sunder, melee)", "effect(sunder, target, remove(armored))",
                         "knows(warden, sunder)", "knows(player, gust)"])
         self.assert_plan("intoThePit(gob).", contains=[
-            "opCast(warden, sunder, gob)", "opForcedMove(player, gob, rim, pit)"])
+            "opCast(warden, sunder, gob)", "opKnock(player, gob, pit)"])
 
     def test_property_p6_dragged_across_a_gap(self):
         """A hook from the rim on something across a gap drags it into the gap."""

@@ -8,14 +8,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from htn_test_framework import HtnTestSuite
 
 
-# a - b ~gap~ c =door d= e, with a plate p off b and a stone pillar at c.
+# a - b ~gap~ c =door d= e, with a plate in b and a stone pillar at c.
 WORLD = [
-    "region(a)", "region(b)", "region(c)", "region(e)", "region(p)",
-    "connected(a, b)", "gap(b, c)", "doorway(c, e, d)", "connected(b, p)",
-    "lineOfSight(a, b)", "lineOfSight(b, c)", "lineOfSight(c, b)", "lineOfSight(b, p)",
-    "lineOfSight(p, b)",
-    "progress(a, 0)", "progress(b, 1)", "progress(p, 1)", "progress(c, 3)", "progress(e, 5)",
-    "onEnter(p, press)", "effect(press, target, open(d))",
+    "region(a)", "region(b)", "region(c)", "region(e)",
+    "connected(a, b)", "gap(b, c)", "doorway(c, e, d)",
+    "lineOfSight(a, b)", "lineOfSight(b, c)", "lineOfSight(c, b)",
+    "progress(a, 0)", "progress(b, 1)", "progress(c, 3)", "progress(e, 5)",
+    "feature(b, plate1, press)", "plate(plate1)", "effect(press, target, open(d))",
     "role(player, player)", "at(player, a)", "mana(player, 4)",
     "role(pillar, object)", "tag(pillar, heavy)", "at(pillar, c)",
 ]
@@ -53,13 +52,13 @@ class PassageTest(HtnTestSuite):
         self.assert_plan("reach(player, c).", contains=["opCast(mage, swapper, player)"])
 
     def test_example_5_the_door_latches(self):
-        self.assert_state_after("openWay(d).", has=["open(d)", "at(player,p)"])
+        self.assert_state_after("openWay(d).", has=["open(d)", "at(player,b)", "on(player,plate1)"])
 
     def test_example_6_the_crate_bridges_the_gap(self):
-        """Drawn across the gap by a vortex, the crate falls in and bridges it."""
+        """Knocked into the gap by a fireball, the crate falls in and bridges it."""
         self.set_state(["role(crate, object)", "tag(crate, filler)", "at(crate, b)",
-                        "knows(player, vortex)", "lineOfSight(a, c)"])
-        self.assert_plan("bridge(b, c).", contains=["opCast(player, vortex, c)",
+                        "knows(player, fireball)"])
+        self.assert_plan("bridge(b, c).", contains=["opCast(player, fireball, crate)",
                                                      "opBridge(player, b, c)"])
         self.assert_state_after("bridge(b, c), reach(player, c).",
                                 has=["tag(crate,fell)", "at(player,c)"])

@@ -4,9 +4,10 @@
 % keywords, in three families:
 %   tags      what is applied to whom: grant, remove, for good or for a
 %             moment (moment(...): through the next cast by anyone)
-%   movement  forced movement (push anywhere next door, pull to the caster,
-%             draw into an area), dash, teleport, walk (a chase) - each
-%             one link: see ab_effects for walkable links, gaps and walls
+%   movement  knockback (into a pit, a plate or a gap in the target's own
+%             area), pull (from next door into the caster's area), gather
+%             (everything in an area into one feature), dash, teleport, walk
+%             (a chase): see ab_effects for areas, links and features
 %   actions   interrupt (a magic heavy attack stops) and disjoint (for a
 %             moment, untouchable: an attack aimed at you misses)
 % plus terrain: zones a skill leaves on a region, and how zones react.
@@ -210,21 +211,21 @@ weakness(?e, burning, none, dead) :- has(?e, wooden).
 
 kind(?ab, skill) :- reach(?ab, ?r).
 
-% Hook: forced movement of the target toward the caster, from next door
-% (an anchored target pulls the caster to it instead; across a gap, it
-% falls in) + interrupt.
+% Hook: the target is pulled from next door into the caster's area - the
+% one skill that moves an NPC to another area (an anchored target pulls the
+% caster to it instead; across a gap, it falls in) + interrupt.
 reach(hook, melee).
 effect(hook, target, interrupt).
 effect(hook, target, hook).
 
-% Vortex: forced movement of everything next door into the target area +
-% rooted, for a moment, on the NPCs there.
+% Vortex: aimed at a feature, everything movable in its area is knocked
+% into it + rooted, for a moment, on the NPCs there.
 reach(vortex, ranged).
 effect(vortex, target, pullIn).
 effect(vortex, foes, moment(grant(rooted))).
 
-% Tidal Wave: wet on everyone else in the caster's area + forced movement
-% of each to a neighbouring area.
+% Tidal Wave: wet on everyone else in the caster's area + a knockback on
+% each (into a pit, onto a plate, into a gap - wherever the caster aims).
 reach(tidalWave, self).
 manaCost(tidalWave, 2).
 effect(tidalWave, around, grant(wet)).
@@ -237,8 +238,8 @@ manaCost(blizzard, 2).
 effect(blizzard, target, spill(iceSheet)).
 
 % Fireball: the whole area catches fire - burning on everyone there and on
-% whoever walks in later - + forced movement of the target to a
-% neighbouring area (aim it anywhere: next to yourself, it throws you).
+% whoever walks in later - + a knockback on the target (aim it anywhere: at
+% a friend, or yourself, it knocks them too).
 reach(fireball, ranged).
 manaCost(fireball, 2).
 effect(fireball, target, spill(flames)).
@@ -272,11 +273,12 @@ reach(turnToMist, ranged).
 effect(turnToMist, target, moment(remove(heavy))).
 effect(turnToMist, target, moment(remove(shielded))).
 
-% Shield Bash: stunned + interrupt on the target; the caster is shielded
-% (it takes the next hostile tag, or the next heavy blow).
+% Shield Bash: stunned + interrupt + a knockback on the target; the caster
+% is shielded (it takes the next hostile tag, or the next heavy blow).
 reach(shieldBash, melee).
 effect(shieldBash, target, interrupt).
 effect(shieldBash, target, grant(stunned)).
+effect(shieldBash, target, push).
 effect(shieldBash, self, grant(shielded)).
 
 % === Enemy moves ===
@@ -284,7 +286,7 @@ effect(shieldBash, self, grant(shielded)).
 % magic ones can be interrupted, physical ones only survived. A blow's
 % effects land on each one it falls on; a spill, on the area.
 
-% Ground Slam (physical): stunned, and thrown to a neighbouring area.
+% Ground Slam (physical): stunned, and knocked back.
 heavy(groundSlam).
 effect(groundSlam, target, grant(stunned)).
 effect(groundSlam, target, push).
