@@ -1,38 +1,52 @@
 % Short Circuit (ability catalogue, crowd control)
 %
-% Three clockwork drones guard the foundry hall. Two stand in the yard, one
-% idles in the flooded sump beyond it (soaked already). The hall is a long
-% straight line seen whole from the gate:
+% Three clockwork drones guard the yard of an old foundry. The hall is one
+% long straight line, seen whole from the gate:
 %
-%   gate --- yard (cog1, cog2) --- sump (cog3, flooded) --- forge
+%   gate (player, mage) --- yard (cog1, cog2, cog3) --- sump (flooded) --- forge (ogre)
 %
 % A drone is a machine: a jolt on a dry one only stuns it, a jolt on a wet
-% one short-circuits it (dead). The jolts are dear - chainLightning and
-% lightningFlash cost 2 mana, and each companion has 2 - so ONE bolt has to
-% catch the whole crowd. Two companions, one skill each, from seven.
+% one short-circuits it (dead). The one jolt is dear - lightningFlash costs 2
+% mana, and each companion has 2 - so ONE bolt has to catch the whole crowd.
+% Or leave the jolts alone: the foundry floor is rotten, and the ogre at the
+% forge stamps it through (caveIn, a telegraphed physical heavy attack) when
+% it is taunted - dragged to its taunter first - or dazzled where it stands.
+% Whatever is in its region then falls; no plan may leave a companion there.
+%
+% Two companions, one skill each, from six.
 %
 % Obstacles:
-%   - the drones are dry (except cog3): something has to wet them;
-%   - they are split over two rooms, and one area bolt covers one room;
-%   - each companion can afford one expensive cast.
+%   - the drones are dry: something has to wet them before the bolt;
+%   - one bolt per companion, and only a line through the hall reaches the
+%     yard and the sump together;
+%   - the cave-in falls where the ogre stands: bring it to the drones (or
+%     the drones and it together), and be out of the region - or disjoint -
+%     when it lands.
 %
-% Methods (each: first wet the crowd, then one bolt that reaches it all):
-%   soak in place, then a line bolt   rainCall / glaciate on the yard, then
-%                                     lightningFlash from the gate down the
-%                                     hall: everyone between is struck
-%   wash them into the sump           tidalWave from the gate soaks the yard
-%                                     and washes it into the sump; then
-%                                     chainLightning on the sump, or a
-%                                     lightningFlash down the hall
-%   pull them into the sump           provoke (the whole yard, from the sump)
-%                                     or taunt (one at a time) drags them into
-%                                     the water; then the same bolt
+% Methods:
+%   short them (a weakness)
+%     wash them into the sump   tidalWave from the gate soaks the yard and
+%                               washes it into the sump; then lightningFlash
+%                               from the gate down the hall
+%     pull them into the sump   vortex on the sump (the whole yard at once),
+%                               or taunt / hook from the sump (one at a
+%                               time); then the same bolt
+%   drop them (a hazard)
+%     provoke the ogre          taunt it from the yard: it is dragged to the
+%                               drones and winds up; in the wind-up the other
+%                               companion hooks the taunter out
+%     gather and dazzle         vortex on the sump draws the drones AND the
+%                               ogre into it; a blinding flash from next door
+%                               sets the ogre off
 %
 % Traps:
-%   - rainCall or glaciate, then chainLightning: the yard dies, cog3 in the
-%     sump does not - one room per area bolt, and no mana for a second;
 %   - a bolt first: dry drones are only stunned;
-%   - two bolts, two soaks, two herders: each half alone does nothing.
+%   - two bolts, two soaks, two herders: each half alone does nothing;
+%   - flashing from inside the sump: the flash makes you disjoint, so the
+%     blow passes through you - but the floor still gives way under your
+%     feet;
+%   - a wave or a vortex to rescue the taunter takes the drones out with
+%     them. Companions cannot be taunted.
 
 % === Regions ===
 region(gate).
@@ -49,6 +63,8 @@ connected(forge, sump).
 lineOfSight(gate, yard).
 lineOfSight(gate, sump).
 lineOfSight(gate, forge).
+lineOfSight(yard, sump).
+lineOfSight(yard, forge).
 lineOfSight(sump, yard).
 lineOfSight(sump, forge).
 
@@ -68,6 +84,16 @@ at(player, gate).
 at(mage, gate).
 mana(player, 2).
 mana(mage, 2).
+% Companions keep their heads: nothing drags them by a taunt.
+immune(player, taunted).
+immune(mage, taunted).
+
+% === The ogre ===
+role(ogre, enemy).
+at(ogre, forge).
+tag(ogre, living).
+behavior(ogre, taunted, caveIn, here).
+behavior(ogre, blinded, caveIn, here).
 
 % === The crowd ===
 role(cog1, enemy).
@@ -75,85 +101,113 @@ role(cog2, enemy).
 role(cog3, enemy).
 at(cog1, yard).
 at(cog2, yard).
-at(cog3, sump).
-trait(cog1, machine).
-trait(cog2, machine).
-trait(cog3, machine).
-tag(cog3, wet).
+at(cog3, yard).
+tag(cog1, machine).
+tag(cog2, machine).
+tag(cog3, machine).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, provoke).
-knows(mage, chainLightning).
+knows(player, vortex).
+knows(mage, lightningFlash).
 
 % === The crowd, as a group ===
-% The need: every drone out of the fight. A drone dies of wet + a jolt, and
-% the jolts are dear: so wet them all (soak where they stand, or bring them
-% into the water), then one bolt that reaches all of them.
+% The need: every drone out of the fight. Either short them all (wet, then
+% one bolt that reaches all of them), or bring a heavy blow down on all of
+% them at once.
 
-standing(?e) :- role(?e, enemy), not(neutralized(?e)).
+crowd(?e) :- tag(?e, machine).
+standing(?e) :- crowd(?e), not(neutralized(?e)).
 cleared :- not(first(standing(?e))).
 dryMook(?t, ?e) :- standing(?e), not(holds(?e, ?t)).
-
-% An ability that lands ?t on everyone where it is aimed: an area grant, or a
-% zone it spills.
-blankets(?ab, ?t) :- effect(?ab, area, grant(?t)).
-blankets(?ab, ?t) :- effect(?ab, area, grant(?c)), bundles(?c, ?t).
-blankets(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?t)).
-blankets(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?c)), bundles(?c, ?t).
-% An ability that lands ?t on a line: everyone between the caster and the aim.
+% The crowd stands together in ?r.
+together(?r) :-
+    first(standing(?e)), at(?e, ?r), not(first(and(standing(?o), not(at(?o, ?r))))).
+% What kills ?e once it carries ?have.
+lethalCombo(?e, ?have, ?in) :- weakness(?e, ?in, ?have, dead), \==(?have, none).
+% An ability that lands ?t on everyone between the caster and the aim.
 lines(?ab, ?t) :- effect(?ab, path, grant(?t)).
-% What a bolt can use: a blanket or a line.
-bolt(?ab, ?t) :- blankets(?ab, ?t).
-bolt(?ab, ?t) :- lines(?ab, ?t).
 
-% An ability that brings its target to the caster (a pull, or a tag that
-% drags its bearer), or pushes everyone where it is aimed.
-drawsIn(?ab) :- effect(?ab, target, pull).
-drawsIn(?ab) :- effect(?ab, target, hook).
-drawsIn(?ab) :- effect(?ab, ?w, grant(?t)), aimed(?w), onGrant(?t, pull).
-shoves(?ab) :- effect(?ab, ?w, push), aimed(?w).
+win :- if(first(standing(?e)), lethalCombo(?e, ?have, ?in)), do(shortAll(?have, ?in), teamFit).
+win :- if(), do(dropAll, teamFit).
 
-win :- if(), do(rout).
-
-rout :- if(), do(primeAll(wet), boltAll(electrocuted)).
+shortAll(?have, ?in) :- if(), do(primeAll(?have), boltAll(?in)).
 
 % Every standing drone carries ?t: take the first one that does not, and
-% either blanket where it stands or bring it into a region that gives ?t.
+% lay ?t on it.
 primeAll(?t) :- if(not(first(dryMook(?t, ?e)))), do().
 primeAll(?t) :-
-    if(first(dryMook(?t, ?e)), at(?e, ?r), knows(?a, ?ab), blankets(?ab, ?t), canAct(?a),
-       ready(?a, ?ab, ?r)),
-    do(cast(?a, ?ab, ?r), ensureHolds(?e, ?t), primeAll(?t)).
-primeAll(?t) :-
-    if(first(dryMook(?t, ?e)), zoneFor(?w, ?t), knows(?a, ?ab), drawsIn(?ab), canAct(?a),
-       ready(?a, ?ab, ?e)),
-    do(castFrom(?a, ?ab, ?e, ?w), ensureHolds(?e, ?t), primeAll(?t)).
-primeAll(?t) :-
-    if(first(dryMook(?t, ?e)), at(?e, ?over), zoneFor(?w, ?t), landing(?from, ?over, ?w),
-       knows(?a, ?ab), shoves(?ab), canAct(?a), ready(?a, ?ab, ?e)),
-    do(castFrom(?a, ?ab, ?e, ?from), ensureHolds(?e, ?t), primeAll(?t)).
+    if(first(dryMook(?t, ?e))),
+    do(lay(?t, ?e), ensureHolds(?e, ?t), primeAll(?t)).
 
 ensureHolds(?e, ?t) :- if(holds(?e, ?t)), do().
 
-% One bolt, aimed at a region, that leaves nobody standing.
+% ?e takes ?t: a skill that gives ?t, cast on it (or on everyone around it);
+% a pull-in or a push into a region that gives ?t; or a drag into such a
+% region by someone standing in it.
+lay(?t, ?e) :- if(canInflict(?a, ?ab, ?t, ?e)), do(cast(?a, ?ab, ?e)).
+lay(?t, ?e) :-
+    if(zoneFor(?r, ?t), placement(?a, ?ab, ?from, ?aim, ?e, ?r)),
+    do(castFrom(?a, ?ab, ?aim, ?from)).
+lay(?t, ?e) :-
+    if(zoneFor(?r, ?t), at(?e, ?er), \==(?er, ?r), puller(?a, ?ab, ?e), reach(?ab, ?k),
+       inRange(?k, ?r, ?er), canReachNow(?a, ?r)),
+    do(castFrom(?a, ?ab, ?e, ?r)).
+
+% One bolt down a line that leaves nobody standing.
 boltAll(?t) :-
-    if(knows(?a, ?ab), bolt(?ab, ?t), canAct(?a), region(?r), ready(?a, ?ab, ?r)),
-    do(cast(?a, ?ab, ?r), confirmCleared).
+    if(knows(?a, ?ab), lines(?ab, ?t), canAct(?a), region(?r), ready(?a, ?ab, ?r),
+       reach(?ab, ?k), region(?from), inRange(?k, ?from, ?r), canReachNow(?a, ?from)),
+    do(castFrom(?a, ?ab, ?r, ?from), confirmCleared).
+
+% A heavy blow on the whole crowd: provoke, from the crowd's region, an enemy
+% whose provoked move is heavy and falls where it is dragged to (the team
+% gets the wind-up to get out); or gather that enemy and the crowd into one
+% region and set it off with a tag that does not move it, from next door or
+% disjoint.
+dropAll :-
+    if(together(?r), behavior(?npc, ?t, ?blow, here), heavy(?blow), onGrant(?t, pull),
+       knows(?a, ?ab), grants(?ab, ?t), canAct(?a), ready(?a, ?ab, ?npc), at(?npc, ?nr),
+       reach(?ab, ?k), inRange(?k, ?r, ?nr), canReachNow(?a, ?r)),
+    do(castFrom(?a, ?ab, ?npc, ?r), confirmCleared).
+dropAll :-
+    if(behavior(?npc, ?t, ?blow, here), heavy(?blow), not(onGrant(?t, pull))),
+    do(gatherWith(?npc), setOff(?t, ?npc), confirmCleared).
+
+% ?npc and the whole crowd in one region: already, or drawn there by one
+% pull-in.
+gatherWith(?npc) :- if(at(?npc, ?r), together(?r)), do().
+gatherWith(?npc) :-
+    if(region(?r), placement(?a, ?ab, ?from, ?r, ?npc, ?r)),
+    do(castFrom(?a, ?ab, ?r, ?from), ensureAt(?npc, ?r), ensureTogether(?r)).
+
+ensureAt(?x, ?r) :- if(at(?x, ?r)), do().
+ensureTogether(?r) :- if(together(?r)), do().
+
+% Set ?npc off with ?t: a cast on it, or a flash around the caster from any
+% spot that reaches it.
+setOff(?t, ?npc) :-
+    if(canInflict(?a, ?ab, ?t, ?npc), not(reach(?ab, self))), do(cast(?a, ?ab, ?npc)).
+setOff(?t, ?npc) :-
+    if(canInflict(?a, ?ab, ?t, ?npc), reach(?ab, self), at(?npc, ?nr), aroundSpot(?a, ?nr, ?from)),
+    do(castFrom(?a, ?ab, ?a, ?from)).
 
 confirmCleared :- if(cleared), do().
+% Nobody on the team is left stunned, or fallen.
+down(?a) :- tag(?a, stunned).
+down(?a) :- gone(?a).
+teamFit :- if(not(first(and(canAct(?a), down(?a))))), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from seven (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(rainCall).
-comboPool(glaciate).
 comboPool(tidalWave).
-comboPool(provoke).
+comboPool(vortex).
 comboPool(taunt).
-comboPool(chainLightning).
+comboPool(hook).
 comboPool(lightningFlash).
+comboPool(blindingFlash).
 comboMinWins(8).
 comboMinMethods(4).
 
