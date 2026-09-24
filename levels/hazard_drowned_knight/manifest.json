@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:40:29.788244"
+    "last_checked": "2026-09-24T18:07:04.529079"
   },
   "provides": [
     "at/2",
@@ -26,6 +26,7 @@
     "comboSeat/2",
     "confirmAt/2",
     "connected/2",
+    "door/1",
     "effect/3",
     "funExpect/3",
     "getInto/2",
@@ -35,9 +36,8 @@
     "onEnter/2",
     "region/1",
     "role/2",
+    "standing/0",
     "tag/2",
-    "trait/2",
-    "weakness/4",
     "win/0"
   ],
   "requires": [

@@ -14,18 +14,16 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["sunder", "dispel", "gust", "shieldBash", "tidalWave", "magnetize", "taunt", "enrage"]
+POOL = ["turnToMist", "taunt", "tidalWave", "fireball", "vortex", "hook"]
 
 # The measured matrix (htn_components combos): the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        # strip the armour, then drop it into the moat
-        ("sunder", "gust"), ("sunder", "shieldBash"), ("sunder", "tidalWave"),
-        ("sunder", "magnetize"), ("sunder", "taunt"),
-        ("dispel", "gust"), ("dispel", "shieldBash"), ("dispel", "tidalWave"),
-        ("dispel", "magnetize"), ("dispel", "taunt"),
-        # push a friend into the lake, who baits the armoured knight in after them
-        ("taunt", "gust"), ("taunt", "tidalWave"), ("enrage", "gust"), ("enrage", "tidalWave"),
+        # mist, then move it into the moat with the very next cast
+        ("turnToMist", "fireball"), ("turnToMist", "tidalWave"), ("turnToMist", "vortex"),
+        ("turnToMist", "hook"), ("turnToMist", "taunt"),
+        # put a friend in the lake, who taunts the heavy knight in after them
+        ("taunt", "tidalWave"), ("taunt", "fireball"), ("taunt", "vortex"),
     ]
 }
 
@@ -72,34 +70,34 @@ class DrownedKnightTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_bait_with_a_taunt(self):
-        plans = plans_with("gust", "taunt")
+    def test_example_1_bait_with_a_wave(self):
+        plans = plans_with("tidalWave", "taunt")
         ok = any(before(p, "opForcedMove(player,mage,quay,lake)", "opCast(mage,taunt,knight)")
                  and "opDash(knight,keep,lake)" in p
                  and "opExploit(knight,knight,deepWater,fell)" in p for p in plans)
-        assert ok, "the player should push the mage into the lake, and the taunted knight leap in"
-        self._record(True, "Example 1: gust a friend into the lake; the taunted knight leaps in and sinks")
+        assert ok, "the player should wash the mage into the lake, and the taunted knight leap in"
+        self._record(True, "Example 1: a wave washes a friend into the lake; the taunted knight leaps in and sinks")
 
-    def test_example_2_bait_with_rage(self):
-        plans = plans_with("tidalWave", "enrage")
-        ok = any("opForcedMove(player,mage,quay,lake)" in p and "opProvoked(knight,berserk,lunge)" in p
+    def test_example_2_bait_with_a_vortex(self):
+        plans = plans_with("vortex", "taunt")
+        ok = any("opCast(player,vortex,lake)" in p and "opForcedMove(player,mage,quay,lake)" in p
                  and "opExploit(knight,knight,deepWater,fell)" in p for p in plans)
-        assert ok, "a wave should wash the mage into the lake, and the enraged knight follow"
-        self._record(True, "Example 2: a wave washes the mage in; the enraged knight follows and sinks")
+        assert ok, "a vortex on the lake should suck the mage in, and the taunted knight follow"
+        self._record(True, "Example 2: a vortex sucks a friend into the lake; the taunted knight follows")
 
-    def test_example_3_strip_then_push(self):
-        plans = plans_with("sunder", "gust")
-        ok = any(before(p, "opRemove(player,knight,armored)", "opForcedMove(mage,knight,keep,moat)")
+    def test_example_3_mist_then_push(self):
+        plans = plans_with("turnToMist", "fireball")
+        ok = any(before(p, "opCast(player,turnToMist,knight)", "opForcedMove(mage,knight,keep,moat)")
                  for p in plans)
-        assert ok, "the player should sunder the armour, the mage push the knight into the moat"
-        self._record(True, "Example 3: sunder the armour, gust the knight into the moat")
+        assert ok, "the player should turn the knight to mist, the mage blast it into the moat"
+        self._record(True, "Example 3: mist the knight, fireball it off the keep into the moat")
 
-    def test_example_4_strip_then_pull_across(self):
-        plans = plans_with("dispel", "taunt")
+    def test_example_4_mist_then_pull_across(self):
+        plans = plans_with("turnToMist", "hook")
         ok = any("opNavigate(mage,gate,tower)" in p and "opForcedMove(mage,knight,keep,moat)" in p
                  for p in plans)
-        assert ok, "the mage should taunt from the tower and drag the knight across the moat"
-        self._record(True, "Example 4: dispel the armour, taunt it across the moat from the tower")
+        assert ok, "the mage should hook the misted knight across the moat from the tower"
+        self._record(True, "Example 4: mist the knight, hook it across the moat from the tower")
 
     # -------------------------------------------------------------- properties
 
@@ -108,23 +106,26 @@ class DrownedKnightTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_fourteen_pairs_win(self):
+    def test_property_p2_eight_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_each_hand_matters(self):
-        assert plans_with("taunt", "gust") and plans_with("gust", "sunder")
+        assert plans_with("taunt", "tidalWave") and plans_with("tidalWave", "taunt")
+        assert plans_with("turnToMist", "hook") and plans_with("hook", "turnToMist")
         self._record(True, "P3: the pairs win whichever companion holds which half")
 
-    def test_property_p4_a_bashed_friend_cannot_taunt(self):
-        assert not plans_with("shieldBash", "taunt") and not plans_with("shieldBash", "enrage")
-        self._record(True, "P4: a friend shield-bashed into the lake is stunned and cannot bait")
-
-    def test_property_p5_stripped_it_does_not_drown(self):
-        plans = plans_with("sunder", "gust")
+    def test_property_p4_misted_it_does_not_drown(self):
+        plans = plans_with("turnToMist", "tidalWave")
         assert plans and not any("deepWater" in " ".join(p) for p in plans)
-        self._record(True, "P5: once the armour is off, only the moat takes the knight")
+        self._record(True, "P4: once misted, only the moat takes the knight")
+
+    def test_property_p5_heavy_it_cannot_be_moved(self):
+        """Hooked while heavy, the knight drags the hooker onto the keep; a
+        taunt from dry land only brings it over: neither drops it."""
+        assert not plans_with("hook", "tidalWave") and not plans_with("hook", "taunt")
+        self._record(True, "P5: heavy, the knight is neither hooked nor taunted into the moat")
 
 
 def run_tests():

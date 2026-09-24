@@ -2,27 +2,30 @@
 %
 % A knight in full plate holds a keep on a spit of rock. On one side the
 % keep drops into a moat (a chasm); below the quay wall lies a deep lake.
-% Nobody can hurt the knight: the terrain can. Its armour is the puzzle - it
-% keeps the knight from being moved, and it would drag it to the bottom of
-% the lake. Two companions, one skill each, from eight.
+% Nobody can hurt the knight: the terrain can. Its plate is the puzzle - it
+% is heavy: nothing pushes or pulls it, and it would drag the knight to the
+% bottom of the lake. Two companions, one skill each, from six.
 %
-%   gate --- quay --- causeway --- keep (knight) ::: moat
+%   gate --- quay --- causeway --- keep (knight) --- moat
 %    |        :                      :
 %   tower    lake (below the wall; no way down but a fall)
 %
 % Two ways, opposite in kind:
-%   drown it   keep the armour on and make the knight move itself: it lunges
-%              at whoever taunts or enrages it. Someone has to be down in
-%              the lake first - pushed off the quay by a friend (gust,
-%              tidalWave) - and taunt or enrage it from the water. The knight
-%              leaps in after them and sinks in its plate.
-%   drop it    take the armour off (sunder, dispel) - now it floats, but it
-%              can be moved: push it off the keep into the moat from the
-%              causeway (gust, shieldBash, tidalWave), or pull it across the
-%              moat from the tower (magnetize, taunt).
-% Traps: stripped, it no longer drowns; a knight taunted from dry land just
-% lunges over to you (a leap never falls); a friend shield-bashed into the
-% lake is stunned and cannot taunt; nobody can walk down to the water.
+%   drown it   keep it heavy and make the knight move itself: taunted, it
+%              leaps at its taunter (a dash, which no plate stops). Someone
+%              has to be down in the lake first - put there by a friend:
+%              washed off the quay (tidalWave), blasted off it (fireball),
+%              or sucked down into the water (vortex on the lake) - and taunt
+%              from the water. The knight leaps in after them and sinks.
+%   drop it    turn it to mist (turnToMist): for a moment it is not heavy,
+%              and the very next cast can move it - push it off the keep into
+%              the moat from the causeway (fireball, tidalWave), suck it into
+%              the moat (vortex), or pull it across the moat from the tower
+%              (hook, taunt).
+% Traps: misted, it no longer drowns (and the mist lasts one cast only); a
+% knight taunted from dry land just leaps over to you (a leap never falls);
+% hooked while heavy, it drags you onto the keep instead; nobody can walk
+% down to the water (the quay wall is a door that never opens).
 region(gate).
 region(quay).
 region(lake).
@@ -38,9 +41,20 @@ connected(causeway, keep).
 connected(keep, causeway).
 connected(gate, tower).
 connected(tower, gate).
+% The lake lies below the quay and the moat below the keep: next to them
+% (a vortex draws from there), but no way down on foot - the moat is a
+% chasm, and the quay wall is a door that never opens.
+connected(quay, lake).
+connected(lake, quay).
+connected(keep, moat).
+connected(moat, keep).
+door(lake).
 lineOfSight(gate, quay).
+lineOfSight(gate, lake).
 lineOfSight(causeway, keep).
+lineOfSight(causeway, moat).
 lineOfSight(tower, keep).
+lineOfSight(tower, moat).
 lineOfSight(lake, keep).
 
 % Push lines (and what lies between): from the gate, whoever stands on the
@@ -63,54 +77,53 @@ mana(player, 2).
 mana(mage, 2).
 
 % === The knight ===
+% Heavy: no push or pull moves it, and the catalogue sinks the heavy in deep
+% water. Taunted, it leaps at whoever did it (a dash).
 role(knight, enemy).
 at(knight, keep).
-trait(knight, living).
-tag(knight, armored).
+tag(knight, living).
+tag(knight, heavy).
 blocker(knight).
-% It sinks in its plate; out of it, it swims.
-weakness(knight, deepWater, armored, fell).
-% Taunted or enraged, it leaps at whoever did it.
 behavior(knight, taunted, lunge, source).
-behavior(knight, berserk, lunge, source).
 effect(lunge, target, dash).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, gust).
+knows(player, tidalWave).
 knows(mage, taunt).
 
 % === Victory ===
-win :- if(), do(neutralize(knight)).
-win :- if(), do(bait(knight)).
+win :- if(), do(neutralize(knight), standing()).
+win :- if(), do(bait(knight), standing()).
 
 % Bait: a companion gets into water that drowns ?e, then provokes it from
 % there, and ?e leaps in after them.
 bait(?e) :-
     if(behavior(?e, ?t, lunge, source), onEnter(?r, ?z), effect(?z, target, hazard(?h)),
-       weakness(?e, ?h, ?have, ?out), stops(?e, ?out), canAct(?b), first(canInflict(?b, ?ab, ?t, ?e))),
+       weakness(?e, ?h, none, ?out), stops(?e, ?out), receptive(?e, ?h), canAct(?b),
+       first(canInflict(?b, ?ab, ?t, ?e))),
     do(getInto(?b, ?r), inflictAs(?b, ?t, ?e), confirmStopped(?e)).
 
-% ?b ends up in ?r: already there, or pushed in by someone else from the
-% line's near side.
+% ?b ends up in ?r, sent there by someone else from the side of the water.
 getInto(?b, ?r) :- if(at(?b, ?r)), do().
 getInto(?b, ?r) :-
     if(not(at(?b, ?r)), landing(?from, ?over, ?r)),
     do(walkTo(?b, ?over), place(?b, ?r, ?b), confirmAt(?b, ?r)).
 confirmAt(?x, ?r) :- if(at(?x, ?r)), do().
 
+% Nobody the team needs is lost on the way.
+standing() :- if(not(first(and(canAct(?a), gone(?a))))), do().
+
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(sunder).
-comboPool(dispel).
-comboPool(gust).
-comboPool(shieldBash).
-comboPool(tidalWave).
-comboPool(magnetize).
+comboPool(turnToMist).
 comboPool(taunt).
-comboPool(enrage).
+comboPool(tidalWave).
+comboPool(fireball).
+comboPool(vortex).
+comboPool(hook).
 comboMinWins(10).
 comboMinMethods(4).
 

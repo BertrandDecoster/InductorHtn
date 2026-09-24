@@ -14,14 +14,19 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["net", "entangle", "sleepDart", "rainCall", "magnetize", "taunt", "gust", "collapse"]
-GROUNDERS = ["net", "entangle", "sleepDart", "rainCall"]
-DROPPERS = ["magnetize", "taunt", "gust", "collapse"]
+POOL = ["blizzard", "lightningFlash", "tidalWave", "fireball", "hook", "taunt"]
 
 # The measured matrix (htn_components combos): the pairs that win, and nothing else does.
 WINNING = {
-    frozenset((g, d)) for g in GROUNDERS for d in DROPPERS
-    if (g, d) != ("sleepDart", "taunt")          # a taunt wakes a sleeper instead
+    frozenset(p) for p in [
+        # ground it (frost, lightning), then pull it across the lava or blast it over the cliff
+        ("blizzard", "hook"), ("blizzard", "taunt"), ("blizzard", "fireball"),
+        ("lightningFlash", "hook"), ("lightningFlash", "taunt"), ("lightningFlash", "fireball"),
+        # fetch the flyer onto the ledge, then a wave soaks it and washes it into the lava
+        ("hook", "tidalWave"), ("taunt", "tidalWave"),
+        # cool the lava into rock, wade out, wash it over the cliff
+        ("blizzard", "tidalWave"),
+    ]
 }
 
 
@@ -31,7 +36,7 @@ def _op_text(op):
     return f"{name}({','.join(args)})"
 
 
-def plans_with(player, mage, goal="win.", extra=""):
+def plans_with(player, mage):
     """Every winning plan, as lists of operator strings, with the player knowing
     `player` and the mage `mage` - on a fresh planner (a failed search locks the
     rule set)."""
@@ -43,9 +48,9 @@ def plans_with(player, mage, goal="win.", extra=""):
     loader = ComponentLoader(planner, ROOT)
     loader.load("abilities/goals/neutralize")
     loader.load("abilities/primitives/ab_catalog")
-    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n" + extra
+    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    error, result = planner.FindAllPlansCustomVariables(goal)
+    error, result = planner.FindAllPlansCustomVariables("win.")
     assert error is None, error
     sols = json.loads(result)
     if not sols or (isinstance(sols[0], dict) and "false" in sols[0]):
@@ -67,39 +72,34 @@ class WyvernRoostTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_net_then_pull_across_the_lava(self):
-        plans = plans_with("net", "magnetize")
-        ok = any(before(p, "opRemove(player,wyvern,flying)", "opForcedMove(mage,wyvern,crag,lava)")
+    def test_example_1_frost_then_hook(self):
+        plans = plans_with("blizzard", "hook")
+        ok = any(before(p, "opRemove(player,wyvern,flying)", "opCast(mage,hook,wyvern)")
                  and "opExploit(mage,wyvern,lava,fell)" in p for p in plans)
-        assert ok, "the net should bring it down, then the hook drag it into the lava"
-        self._record(True, "Example 1: net it, then hook it across the lava")
+        assert ok, "the blizzard should frost its wings, then the hook drag it into the lava"
+        self._record(True, "Example 1: a blizzard frosts its wings; a hook drags it across the lava, and it falls")
 
-    def test_example_2_net_then_off_the_cliff(self):
-        plans = plans_with("net", "gust")
-        ok = any("opForcedMove(mage,wyvern,crag,cliff)" in p and "opExploit(mage,wyvern,chasm,fell)" in p
-                 for p in plans)
-        assert ok, "the mage should gust the grounded wyvern off the crag from the overlook"
-        self._record(True, "Example 2: net it, then gust it off the crag into the cliff")
-
-    def test_example_3_net_then_rockslide(self):
-        plans = plans_with("net", "gust")
-        ok = any(before(p, "opForcedMove(mage,boulder,overlook,crag)", "opSpill(mage,crag,chasm)")
+    def test_example_2_ice_melts_under_the_fireball(self):
+        plans = plans_with("blizzard", "fireball")
+        ok = any(before(p, "opSpill(player,crag,iceSheet)", "opReshape(mage,crag,iceSheet,puddle)")
+                 and "opReact(mage,wyvern,chilled,wet,freezeOver)" in p
                  and "opExploit(mage,wyvern,chasm,fell)" in p for p in plans)
-        assert ok, "the boulder gusted onto the crag should break it under the wyvern"
-        self._record(True, "Example 3: net it, then gust the boulder down to break the crag")
+        assert ok, "the fireball should melt the ice into a puddle, freeze the wyvern and blow it over"
+        self._record(True, "Example 2: ice, then fire: the puddle freezes the frosted wyvern as it goes over the cliff")
 
-    def test_example_4_sleep_then_collapse(self):
-        plans = plans_with("sleepDart", "collapse")
-        ok = any(before(p, "opGrant(player,wyvern,asleep)", "opSpill(mage,crag,chasm)") for p in plans)
-        assert ok, "the sleeping wyvern should fall with the collapsed crag"
-        self._record(True, "Example 4: put it to sleep, then collapse the crag")
+    def test_example_3_fetch_and_wash_back(self):
+        plans = plans_with("hook", "tidalWave")
+        ok = any(before(p, "opForcedMove(player,wyvern,crag,ledge)", "opCast(mage,tidalWave,mage)")
+                 and "opExploit(mage,wyvern,lava,fell)" in p for p in plans)
+        assert ok, "the hook should fetch the flyer onto the ledge, and the wave wash it into the lava"
+        self._record(True, "Example 3: hook the flyer over the lava, step aside, and a wave washes it back in")
 
-    def test_example_5_soak_then_taunt(self):
-        plans = plans_with("rainCall", "taunt")
-        ok = any("opReact(player,wyvern,flying,wet,sodden)" in p
-                 and "opForcedMove(mage,wyvern,crag,lava)" in p for p in plans)
-        assert ok, "soaked wings bring it down; the taunt drags it into the lava"
-        self._record(True, "Example 5: soak its wings, then taunt it across the lava")
+    def test_example_4_cool_the_lava(self):
+        plans = plans_with("blizzard", "tidalWave")
+        ok = any(before(p, "opErase(player,lava,lava)", "opNavigate(mage,ledge,lava)")
+                 and "opForcedMove(mage,wyvern,crag,cliff)" in p for p in plans)
+        assert ok, "the blizzard should cool the lava, and the mage wade out and wave it over the cliff"
+        self._record(True, "Example 4: a blizzard cools the lava to rock; a wave from it washes the wyvern over the cliff")
 
     # -------------------------------------------------------------- properties
 
@@ -108,40 +108,32 @@ class WyvernRoostTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_fifteen_pairs_win(self):
+    def test_property_p2_nine_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_each_hand_matters(self):
-        assert plans_with("collapse", "entangle") and plans_with("taunt", "net")
-        self._record(True, "P3: the pairs win whichever companion holds which half")
+    def test_property_p3_a_flyer_just_hovers(self):
+        """Pulled over the lava or blasted over the cliff while flying, it
+        hovers: movers alone never win."""
+        for kit in [("hook", "fireball"), ("taunt", "fireball"), ("hook", "taunt")]:
+            assert not plans_with(*kit), kit
+        self._record(True, "P3: a flyer pulled over the lava or pushed over the cliff just hovers")
 
-    def test_property_p4_a_taunt_wakes_a_sleeper(self):
-        assert not plans_with("sleepDart", "taunt") and not plans_with("taunt", "sleepDart")
-        self._record(True, "P4: sleepDart and taunt lose - the taunt wakes it instead of pulling")
+    def test_property_p4_blizzard_two_roles(self):
+        """The blizzard frosts the wings (on the crag) or makes rock of the lava
+        (on the channel)."""
+        frost = plans_with("blizzard", "taunt")
+        cool = plans_with("blizzard", "tidalWave")
+        assert frost and all("opCast(player,blizzard,wyvern)" in p for p in frost)
+        assert cool and all("opErase(player,lava,lava)" in p for p in cool)
+        self._record(True, "P4: the blizzard grounds the wyvern, or turns the lava into ground")
 
-    def test_property_p5_grounded_before_it_falls(self):
-        for g, d in [("net", "gust"), ("rainCall", "collapse"), ("entangle", "magnetize")]:
-            for p in plans_with(g, d):
-                fell = next(i for i, op in enumerate(p) if op.startswith("opExploit(") and "wyvern" in op)
-                off = next(i for i, op in enumerate(p) if op == "opRemove(player,wyvern,flying)")
-                assert off < fell, p
-        self._record(True, "P5: in every plan the wyvern is brought down before a hazard takes it")
-
-    def test_property_p6_aloft_it_hovers(self):
-        """Pulled over the lava, pushed over the drop, or with the crag gone under
-        it, a flying wyvern is still in the fight."""
-        probe = ("hookIt :- if(), do(castFrom(mage, magnetize, wyvern, ledge), confirmStopped(wyvern)).\n"
-                 "shoveIt :- if(), do(castFrom(mage, gust, wyvern, overlook), confirmStopped(wyvern)).\n"
-                 "dropIt :- if(), do(cast(mage, collapse, wyvern), confirmStopped(wyvern)).\n")
-        assert not plans_with("net", "magnetize", "hookIt.", probe)
-        assert not plans_with("net", "gust", "shoveIt.", probe)
-        assert not plans_with("net", "collapse", "dropIt.", probe)
-        # ... and the same moves on a grounded wyvern do take it.
-        assert plans_with("net", "magnetize", "grounded.",
-                          probe + "grounded :- if(), do(cast(player, net, wyvern), hookIt).\n")
-        self._record(True, "P6: while it flies, no hazard takes it")
+    def test_property_p5_nobody_falls(self):
+        for kit in [("hook", "tidalWave"), ("taunt", "tidalWave"), ("blizzard", "tidalWave")]:
+            for p in plans_with(*kit):
+                assert not any(re.match(r"opExploit\(\w+,(player|mage),\w+,fell\)", o) for o in p), kit
+        self._record(True, "P5: no winning plan washes a companion into the lava")
 
 
 def run_tests():

@@ -14,15 +14,20 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["flameWall", "zap", "gust", "magnetize", "taunt", "shieldBash", "tidalWave", "rainCall"]
+POOL = ["fireball", "lightningFlash", "tidalWave", "vortex", "hook", "taunt"]
 
 # The measured matrix (htn_components combos): the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        ("flameWall", "gust"), ("flameWall", "magnetize"), ("flameWall", "taunt"),
-        ("flameWall", "shieldBash"), ("flameWall", "tidalWave"),
-        ("zap", "gust"), ("zap", "magnetize"), ("zap", "taunt"),
-        ("zap", "shieldBash"), ("zap", "tidalWave"), ("zap", "rainCall"),
+        # open the gallery (light the keg, or strike through it), then pull the golem across
+        ("fireball", "hook"), ("fireball", "taunt"),
+        ("lightningFlash", "hook"), ("lightningFlash", "taunt"),
+        # bring golem and keg onto one floor, then blow it
+        ("vortex", "fireball"), ("vortex", "lightningFlash"),
+        # lure the golem into stamping, and pull the taunter out of the blow
+        ("taunt", "hook"),
+        # soak it, jolt it
+        ("tidalWave", "lightningFlash"),
     ]
 }
 
@@ -69,31 +74,33 @@ class PowderGalleryTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_open_then_pull_across(self):
-        plans = plans_with("zap", "taunt")
-        ok = any(before(p, "opSpill(keg,gallery,chasm)", "opForcedMove(mage,golem,nave,gallery)")
-                 and "opExploit(mage,golem,chasm,fell)" in p for p in plans)
-        assert ok, "the keg should open the gallery, then the taunt drag the golem into it"
-        self._record(True, "Example 1: zap blows the keg, a taunt drags the golem into the new chasm")
+    def test_example_1_lure_it_into_stamping(self):
+        plans = plans_with("taunt", "hook")
+        ok = any(before(p, "opWindUp(golem,caveIn,hall)", "opCast(mage,hook,player)")
+                 and before(p, "opCast(mage,hook,player)", "opBlow(golem,caveIn,hall,hall)")
+                 and "opExploit(golem,golem,chasm,fell)" in p for p in plans)
+        assert ok, "the taunted golem should stamp the hall, and the mage hook the player out first"
+        self._record(True, "Example 1: taunt the golem into the hall; the mage hooks the player out of its stamp")
 
-    def test_example_2_floor_under_it(self):
-        plans = plans_with("flameWall", "gust")
-        ok = any(before(p, "opForcedMove(mage,golem,nave,gallery)", "opSpill(keg,gallery,chasm)")
-                 and "opExploit(keg,golem,chasm,fell)" in p for p in plans)
-        assert ok, "the golem should be pushed onto the powder floor, then the floor blown"
-        self._record(True, "Example 2: gust the golem onto the keg's floor, then blow it")
+    def test_example_2_strike_through_the_keg(self):
+        plans = plans_with("lightningFlash", "hook")
+        ok = any(before(p, "opCast(player,lightningFlash,nave)", "opSpill(keg,gallery,chasm)")
+                 and before(p, "opSpill(keg,gallery,chasm)", "opForcedMove(mage,golem,nave,gallery)")
+                 and "opExploit(mage,golem,chasm,fell)" in p for p in plans)
+        assert ok, "a flash over the keg should open the gallery, then the hook drag the golem in"
+        self._record(True, "Example 2: a lightning flash over the keg opens the gallery; a hook drags the golem in")
 
     def test_example_3_bomb_to_it(self):
-        plans = plans_with("flameWall", "gust")
-        ok = any(before(p, "opForcedMove(mage,keg,gallery,nave)", "opSpill(keg,nave,chasm)")
+        plans = plans_with("vortex", "fireball")
+        ok = any(before(p, "opForcedMove(player,keg,gallery,nave)", "opSpill(keg,nave,chasm)")
                  and "opExploit(keg,golem,chasm,fell)" in p for p in plans)
-        assert ok, "the keg should be pushed into the nave and blown there"
-        self._record(True, "Example 3: gust the keg into the nave, then blow it under the golem")
+        assert ok, "a vortex should draw the keg into the nave, and the fireball blow it there"
+        self._record(True, "Example 3: a vortex draws the keg into the nave; a fireball blows it under the golem")
 
     def test_example_4_short_it(self):
-        plans = plans_with("rainCall", "zap")
+        plans = plans_with("tidalWave", "lightningFlash")
         assert plans and all("opExploit(mage,golem,electrocuted,dead)" in p for p in plans)
-        self._record(True, "Example 4: rain, then a jolt, short-circuits the golem")
+        self._record(True, "Example 4: a wave from the apse, then a jolt, short-circuits the golem")
 
     # -------------------------------------------------------------- properties
 
@@ -102,19 +109,26 @@ class PowderGalleryTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_eleven_pairs_win(self):
+    def test_property_p2_eight_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_each_hand_matters(self):
-        assert plans_with("gust", "flameWall") and plans_with("rainCall", "zap")
-        self._record(True, "P3: the pairs win whichever companion holds which half")
+    def test_property_p3_a_rescue_that_takes_the_golem_too(self):
+        """A wave or a vortex gets the taunter out of the stamp - and the golem
+        with it."""
+        assert not plans_with("taunt", "tidalWave") and not plans_with("taunt", "vortex")
+        self._record(True, "P3: a wave or a vortex rescue drags the golem out of its own blow")
 
-    def test_property_p4_default_kit_three_ways(self):
-        plans = plans_with("flameWall", "gust")
-        assert len({" ".join(p) for p in plans}) >= 3, plans
-        self._record(True, "P4: flameWall + gust wins three ways (open then drop, floor, bomb)")
+    def test_property_p4_a_wet_keg_does_not_light(self):
+        assert not plans_with("tidalWave", "fireball")
+        self._record(True, "P4: washed into the nave, the keg is wet: the fireball only steams it")
+
+    def test_property_p5_nobody_falls(self):
+        for kit in [("lightningFlash", "hook"), ("vortex", "lightningFlash"), ("taunt", "fireball")]:
+            for p in plans_with(*kit):
+                assert not any(re.match(r"opExploit\(\w+,(player|mage),chasm,fell\)", o) for o in p), kit
+        self._record(True, "P5: no winning plan drops a companion into a pit")
 
 
 def run_tests():
