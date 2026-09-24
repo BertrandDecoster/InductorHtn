@@ -1,8 +1,8 @@
 {
   "name": "versus_powder_keg",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "layer": "level",
-  "description": "Powder Keg: bring a clockwork powder-mule and a wooden ent together, then knock the mule flat so its keg sets the ent alight; one skill each from eight",
+  "description": "Powder Keg: jolt, startle or goad a powder-mule and its keg blows (a heavy blow that sets its region on fire); bring it down to a rooted ent, and get the taunter out; one skill each from six",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,35 +12,39 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:43:05.085230"
+    "last_checked": "2026-09-24T18:23:24.334129"
   },
   "provides": [
+    "arrived/2",
     "at/2",
     "behavior/4",
     "beyond/3",
+    "bring/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
-    "detonate/2",
     "effect/3",
     "funExpect/3",
-    "gather/3",
+    "heavy/1",
     "immune/2",
     "knows/2",
     "lineOfSight/2",
     "mana/2",
-    "reach/2",
     "region/1",
     "role/2",
     "setOff/2",
-    "trait/2",
+    "standBy/2",
+    "stepAside/2",
+    "tag/2",
+    "trigger/2",
     "win/0"
   ],
   "requires": [
     "castFrom/4",
     "confirmStopped/1",
-    "inflict/3"
+    "inflictAs/3",
+    "walkTo/2"
   ]
 }

@@ -1,8 +1,8 @@
 {
   "name": "versus_lightning_rod",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "layer": "level",
-  "description": "Lightning Rod: soak a sentry robot, then lure a storm golem onto it - taunted it is dragged to you, feared it bolts along a line, and either way it discharges where it lands; one skill each from eight",
+  "description": "Lightning Rod: soak a sentry robot and bring a storm golem to it; taunted or blinded, the golem winds up a heavy discharge on its region - hook the taunter out, or flash from inside; one skill each from six",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,12 +12,14 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:42:32.311765"
+    "last_checked": "2026-09-24T18:22:40.755178"
   },
   "provides": [
+    "arrived/2",
     "at/2",
     "behavior/4",
     "beyond/3",
+    "bring/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
@@ -25,24 +27,26 @@
     "connected/2",
     "effect/3",
     "funExpect/3",
+    "heavy/1",
     "immune/2",
     "knows/2",
     "lineOfSight/2",
-    "lure/3",
     "mana/2",
     "onEnter/2",
-    "reach/2",
     "region/1",
     "role/2",
-    "shortOut/1",
-    "soak/2",
-    "trait/2",
+    "setOff/2",
+    "soak/1",
+    "stepAside/2",
+    "tag/2",
+    "trigger/2",
+    "wetNow/1",
     "win/0"
   ],
   "requires": [
     "castFrom/4",
     "confirmStopped/1",
     "inflictAs/3",
-    "placeAs/3"
+    "walkTo/2"
   ]
 }

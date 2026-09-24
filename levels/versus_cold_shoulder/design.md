@@ -2,34 +2,37 @@
 
 ## Purpose
 
-Category: **an enemy's area ability turned on its allies, through its moods** (fear it so it flees
-where you want, charm it so it acts where it stands, taunt it so it comes to you). Two fire imps keep a
-goblin foundry hot, one in the forge and one in the kiln; a chilled imp freezes solid (its catalogue
-weakness), but nobody in the party carries cold. The frost troll in the cave does: every new mood makes
-it breathe frost on everything around it (`behavior(troll, taunted|feared|charmed, frost, here)`).
+Category: **an enemy's area ability turned on its allies, through its moods**. Two fire imps keep a
+goblin foundry hot, one in the forge and one in the kiln; a chilled imp dies (it is a
+`fireElemental`: its catalogue weakness), but nobody in the party carries cold. The frost troll in the
+cave does. Taunted, it is dragged to whoever taunted it; blinded, it lashes out where it stands. Either
+way it winds up a **frost breath**, a telegraphed heavy blow on its region: everyone there but the
+troll is chilled, and the floor ices over (`behavior(troll, taunted|blinded, frostBreath, here)`,
+`heavy(frostBreath)`, `effect(frostBreath, area, grant(chilled))`,
+`effect(frostBreath, target, spill(iceSheet))`). **The ice stays**: an imp that arrives on it later is
+chilled too. Each mood works once (the tag stays stored). Two companions, one skill each from six.
 
-- **taunted:** it is dragged to whoever taunted it, and breathes there.
-- **feared:** it bolts along the line away from whoever frightened it, and breathes where it lands.
-- **charmed:** it breathes where it stands.
-
-Each mood works once (the tag stays stored). A taunted troll cannot be frightened (`wards(taunted,
-feared)`), and a charmed troll wakes at the next hostile tag instead of taking it. Two companions, one
-skill each from eight.
-
-| Method | First | Then |
-|--------|-------|------|
-| **Two moods** | frighten it from the vent (`terrify`, `roar`): it bolts into the kiln | drag it into the forge (`taunt` from the forge, `provoke` from the forge next door) |
-| **Gather, then one mood** | put both imps in one room: hook or swap one across (`magnetize`, `translocate`), or blow the forge imp into the kiln from the hall (`gust`) | any mood that lands the troll there |
-| **Bring them to the troll** | hook or swap both imps into the cave (`magnetize`, `translocate`) | `charm` it where it stands |
+| Shape | First | Then |
+|-------|-------|------|
+| **Gather, then one breath** | both imps in one room: hook one across (`hook`), draw everything into the hall (`vortex`), wash or blast one along a line (`tidalWave`, `fireball`) | the troll there: brought and flashed (`blindingFlash`), or taunted from that room (`taunt`) |
+| **Breathe first, then deliver** | flash the troll where it stands (`blindingFlash`) | send the imps onto the ice it leaves (`hook`, `fireball`) |
+| **Get the taunter out** | a taunter is inside its own lure's breath | a friend's one cast: `hook` drags it out; `fireball` knocks it clear; `vortex` draws everyone (imps too) out of the room - and a second vortex draws the imps back onto the ice |
 
 Why no single skill works:
-- The same mood twice is one breath, and the imps are apart.
-- The imps are mindless and have no temper: no mood lands on them, so no mood skill moves them.
-- A mover alone brings imps together and nothing breathes.
+- Nothing in the pool chills (no `blizzard`). The only cold is the troll's.
+- The imps are mindless (`immune(imp, taunted)`): a taunt cannot move them.
+- A taunter is always in the breath and cannot save itself with a taunt; a flash or a wave cannot save
+  it either (a wave washes the imps away with it).
+- Movers alone gather the imps and nothing breathes; a flash alone leaves the imps apart.
 
-Skills with two roles: `magnetize` and `translocate` gather the imps in either imp's room, or both in
-the troll's cave; `provoke` is a second mood (after a fear) or the mood that fetches the troll to a
-gathered pair.
+Traps: a soaked imp that arrives on the ice only freezes over (wet meets chilled: stunned, not dead) -
+only the breath itself (applied raw) kills a wet imp; fire on the iced room leaves a puddle (a fireball
+rescue turns the ice under the breath to water, so nothing can be delivered there later); taunting from
+a room with one imp spends the taunt.
+
+Skills with two roles: `fireball` gathers (blasts an imp or the troll along a line) and rescues (knocks
+the taunter clear); `vortex` gathers and, cast twice, rescues then delivers; `hook` gathers, delivers
+onto the ice, and rescues.
 
 ## Layer
 
@@ -53,69 +56,71 @@ gate --- hall ----+------ cave (troll) --- vent
 - **Walks:** the hall joins the gate, forge, kiln and cave; forge-kiln; cave-vent.
 - **Line of sight:** the hall sees everything next to it; forge-kiln; forge and kiln both see the cave;
   the vent sees the cave.
-- **Lines:** from the vent, a push on the cave lands in the kiln; from the hall, in the vent (the
-  trap). From the hall, a push on the forge lands in the kiln; from the forge, a push on the kiln
-  lands in the cave.
-- **Imps:** element fire, mindless, immune to taunts. **Troll:** living; its frost is
-  `area: grant(chilled)`.
+- **Lines:** from the vent, a push on the cave lands in the kiln; from the hall, in the vent. From the
+  hall, a push on the forge lands in the kiln; from the forge, a push on the kiln lands in the cave.
+- **Imps:** `fireElemental`, immune to taunts, light. **Troll:** living, light, immune to chilled.
 - Both companions start at the gate with 4 mana.
-- **Level-local recipes:** `bringTo(?e, ?r, ?p)` (pull, push or swap an imp into a region, then
-  confirm it arrived) and `lure(?npc, ?v, ?not)` (a mood that drags it, drives it along a line, or
-  sets it off in place, so that it breathes where ?v stands). `win` has five alternatives: two moods
-  in either order, one imp brought to the other then one mood, both brought to the troll then one
-  mood.
+- **Level-local recipes:** `bring(?e, ?r)` (pulled by someone standing in ?r, or pushed, washed or
+  drawn - `placement/6`), `trigger(?npc, ?r)` (a lure given from ?r, or a trigger in place),
+  `standBy(?r, ?a)` / `stepAside(?r, ?a)` (before a lure, the other companion leaves ?r, or a pusher
+  takes a stand on a line that would knock the lurer clear), `breatheOn(?npc, ?r)`, and
+  `before`/`after` (an imp brought to the room before the breath, or delivered onto the ice after).
+  `win` picks the room (`floor/1`: hall, forge, kiln, cave), optionally brings the troll first, then
+  the imps, the breath, the rest onto the ice.
 
 ## Hypothesis
 
 Measured with `htn_components combos versus_cold_shoulder`:
 
-- No single skill wins, even held by both companions: 0 of 8.
-- 34 of 64 assignments win (17 unordered pairs), 17 methods, 0 solo plans, no dead skills:
-  - two moods: `terrify` or `roar`, plus `taunt` or `provoke` (4 pairs);
-  - gather, then one mood: `gust` + `taunt`, `terrify`, `roar`; `magnetize` or `translocate` + `taunt`,
-    `provoke`, `terrify`, `roar` (11 pairs);
-  - bring them to the troll: `magnetize` or `translocate` + `charm` (2 pairs).
-- The 11 losing pairs, each for a named reason: the same mood twice (`taunt`+`provoke`,
-  `terrify`+`roar`); two movers (nothing breathes); `charm` with anything but a two-imp mover (it
-  breathes where it stands, and nothing follows a charm); `gust`+`provoke` (provoke drags the troll
-  into the hall, not the kiln).
-- Skill usage: taunt 10, terrify 10, roar 10, magnetize 10, translocate 10, provoke 8, gust 6, charm 4.
-- One `FindAllPlans` takes about 0.5-1.5 s.
+- No single skill wins, even held by both companions: 0 of 6.
+- 14 of 36 assignments win (7 unordered pairs), 7 methods, 0 solo plans, no dead skills:
+  - taunt, and a friend who gets the taunter out: `hook`, `fireball`, `vortex` (3 pairs);
+  - a flash, and a gatherer or deliverer: `hook`, `vortex`, `tidalWave`, `fireball` (4 pairs).
+- Losing pairs, each for a named reason: `taunt` + `blindingFlash` / `tidalWave` (nobody gets the
+  taunter out: a wave washes the imps away too), two movers (nothing breathes).
+- Skill usage: blindingFlash 8, taunt 6, hook 4, vortex 4, fireball 4, tidalWave 2.
+- One `FindAllPlans` takes 1-13 s (hook + taunt is the slowest: 30 plans).
 
 ## Examples
 
-### Example 1: Fear, then taunt
+### Example 1: Breathe first, then hook the other imp onto the ice
 
-**Given:** the player knows `terrify`, the mage knows `taunt`.
-
-**When:** `win`
-
-**Then:** the player goes round to the vent and frightens the troll, which bolts into the kiln and
-freezes the kiln imp; the mage taunts it from the forge, it is dragged in and freezes the forge imp.
-
-### Example 2: Blow one imp over, then scare the troll in
-
-**Given:** the player knows `gust`, the mage knows `roar`.
+**Given:** the player knows `hook`, the mage knows `blindingFlash`.
 
 **When:** `win`
 
-**Then:** from the hall the player blows the forge imp into the kiln; the mage roars at the troll from
-the vent, it bolts into the kiln and its frost freezes both imps.
+**Then:** among the plans: the player hooks one imp into the cave and steps out; the mage flashes the
+troll, which breathes on the cave (that imp dies, the cave ices over); the player then hooks the other
+imp onto the ice, where it dies too.
 
-### Example 3: Hook both, then charm
+### Example 2: Fireball the imp over, taunt, knock the taunter clear
 
-**Given:** the player knows `magnetize`, the mage knows `charm`.
+**Given:** the player knows `fireball`, the mage knows `taunt`.
 
 **When:** `win`
 
-**Then:** the player walks into the cave and hooks both imps in; the mage charms the troll, which
-breathes where it stands and freezes both.
+**Then:** from the hall the player's fireball blasts the forge imp into the kiln and takes a stand in
+the forge; the mage taunts the troll from the kiln, it is dragged in and winds up; the player's second
+fireball knocks the mage clear into the cave; the breath kills both imps, and the ice meets the fire
+the fireball left: the kiln is a puddle.
+
+### Example 3: Vortex out, then back onto the ice
+
+**Given:** the player knows `taunt`, the mage knows `vortex`.
+
+**When:** `win`
+
+**Then:** among the plans: the player taunts the troll into the hall and it winds up; the mage vortexes
+the gate, drawing the player (and the troll) out; the breath ices the empty hall; a second vortex on
+the hall draws both imps onto the ice.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
-| P2 | Measured pairs win | Exactly the seventeen measured pairs have a plan. |
-| P3 | One breath per mood | taunt + provoke, terrify + roar: no plan. |
-| P4 | Charm does not travel | charm with a mood skill or with gust: no plan. |
+| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
+| P2 | Measured pairs win | Exactly the seven measured pairs have a plan. |
+| P3 | The taunter is answered | Every taunt plan has the partner cast between the wind-up and the breath. |
+| P4 | The ice stays | An imp sent onto the ice after the breath dies there (fireball + blindingFlash). |
+| P5 | A soaked imp only freezes | With imp1 wet, no plan kills it by arrival on the ice. |
+| P6 | A taunt with no rescue | taunt + blindingFlash, taunt + tidalWave: no plan. |

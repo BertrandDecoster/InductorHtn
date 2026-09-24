@@ -14,12 +14,19 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["taunt", "magnetize", "translocate", "gust", "concuss", "shieldBash", "charge", "thunderclap"]
-MOVERS = ["taunt", "magnetize", "translocate", "gust", "concuss"]
-STUNNERS = ["shieldBash", "charge", "thunderclap"]
+POOL = ["lightningFlash", "blindingFlash", "taunt", "hook", "vortex", "tidalWave"]
 
-# The measured matrix: every mover with every stunner, and nothing else.
-WINNING = {frozenset((m, s)) for m in MOVERS for s in STUNNERS}
+# The measured matrix: the pairs that win, and nothing else does.
+WINNING = {
+    frozenset(p) for p in [
+        # the keg brought to the ent, then jolted from outside
+        ("lightningFlash", "hook"), ("lightningFlash", "vortex"),
+        # the keg brought to the ent, then startled (the flasher may stay: disjoint)
+        ("blindingFlash", "hook"), ("blindingFlash", "vortex"), ("blindingFlash", "tidalWave"),
+        # goaded into the grove, and the taunter got out of the blast: the rooted ent stays
+        ("taunt", "hook"), ("taunt", "vortex"), ("taunt", "tidalWave"),
+    ]
+}
 
 
 def _solutions(planner, goal):
@@ -39,7 +46,7 @@ def plans_with(player, mage):
     text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     planner = HtnPlanner(False)
     planner.SetMemoryBudget(256 * 1024 * 1024)
-    loader = ComponentLoader(planner, ROOT)
+    loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
     loader.load("abilities/goals/neutralize")
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
@@ -47,15 +54,18 @@ def plans_with(player, mage):
     return _solutions(planner, "win.")
 
 
+def ops_list(plan):
+    out = []
+    for op in plan:
+        name = list(op.keys())[0]
+        args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
+        out.append(f"{name}({','.join(args)})")
+    return out
+
+
 def ops_text(plans):
     """Every operator of every plan, as `name(a,b,...)` strings joined by spaces."""
-    out = []
-    for plan in plans:
-        for op in plan:
-            name = list(op.keys())[0]
-            args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
-            out.append(f"{name}({','.join(args)})")
-    return " ".join(out)
+    return " ".join(" ".join(ops_list(p)) for p in plans)
 
 
 class PowderKegTest(HtnTestSuite):
@@ -68,26 +78,29 @@ class PowderKegTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_taunt_the_mule_down_then_bash_it(self):
-        self.assert_plan("win.", contains=[
-            "opCast(player, taunt, mule)", "opForcedMove(player, mule, ridge, grove)",
-            "opCast(mage, shieldBash, mule)", "opProvoked(mule, stunned, keg)",
-            "opExploit(mule, ent, burning, dead)"])
+    def test_example_1_hook_the_keg_down_and_jolt_it(self):
+        ops = ops_text(plans_with("hook", "lightningFlash"))
+        for op in ["opForcedMove(player,mule,ridge,grove)", "opCast(mage,lightningFlash,mule)",
+                   "opProvoked(mule,electrocuted,blast)", "opWindUp(mule,blast,grove)",
+                   "opSpill(mule,grove,flames)", "opExploit(mule,ent,burning,dead)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 1: hook the mule into the grove, jolt it from the road")
 
-    def test_example_2_swap_the_ent_up_to_the_keg(self):
-        plans = plans_with("translocate", "charge")
-        ops = ops_text(plans)
-        assert plans and "opSwap(player,ent,ridge,grove)" in ops, ops[:400]
-        assert "opCast(mage,charge,mule)" in ops and "opExploit(mule,ent,burning,dead)" in ops
-        self._record(True, "Example 2: swap the ent up onto the ridge, charge the mule")
+    def test_example_2_goad_it_and_wash_the_taunter_out(self):
+        ops = ops_text(plans_with("taunt", "tidalWave"))
+        for op in ["opCast(player,taunt,mule)", "opForcedMove(player,mule,ridge,grove)",
+                   "opWindUp(mule,blast,grove)", "opCast(mage,tidalWave,mage)",
+                   "opForcedMove(mage,player,grove,hollow)", "opForcedMove(mage,mule,grove,hollow)",
+                   "opBlow(mule,blast,grove,grove)", "opExploit(mule,ent,burning,dead)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 2: taunt from the grove, the wave washes the taunter out")
 
-    def test_example_3_shove_it_off_the_crag(self):
-        plans = plans_with("thunderclap", "concuss")
-        ops = ops_text(plans)
-        assert plans and "opNavigate(mage,ridge,crag)" in ops
-        assert "opForcedMove(mage,mule,ridge,grove)" in ops
-        assert "opCast(player,thunderclap,mule)" in ops
-        self._record(True, "Example 3: shove the mule down from the crag, thunderclap it")
+    def test_example_3_wash_it_down_the_slope_and_flash_it(self):
+        ops = ops_text(plans_with("tidalWave", "blindingFlash"))
+        for op in ["opForcedMove(player,mule,ridge,grove)", "opCast(mage,blindingFlash,mage)",
+                   "opProvoked(mule,blinded,blast)", "opExploit(mule,ent,burning,dead)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 3: wash the mule down from the crag, flash it")
 
     # -------------------------------------------------------------- properties
 
@@ -101,15 +114,23 @@ class PowderKegTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_the_keg_blows_once(self):
-        """Two stunners: the first knocks the mule down on the ridge, the keg is spent."""
-        assert not plans_with("shieldBash", "charge") and not plans_with("thunderclap", "shieldBash")
-        self._record(True, "P3: two stunners and no mover: the keg goes off on the ridge")
+    def test_property_p3_a_soaked_fuse(self):
+        """Washed down the slope, the mule is wet: lightning only makes it seize up."""
+        assert not plans_with("lightningFlash", "tidalWave")
+        self._record(True, "P3: lightningFlash + tidalWave: no plan")
 
-    def test_property_p4_nobody_burns_the_ent(self):
-        """Two movers: keg and ent meet, and nothing knocks the mule down."""
-        assert not plans_with("taunt", "gust") and not plans_with("magnetize", "translocate")
-        self._record(True, "P4: two movers and no stun: nothing goes off")
+    def test_property_p4_the_rooted_ent_stays(self):
+        """Whatever gets the taunter out, the ent never moves: it is heavy."""
+        for other in ["hook", "vortex", "tidalWave"]:
+            ops = ops_text(plans_with("taunt", other))
+            assert ops and not re.search(r"opForcedMove\(\w+,ent,", ops), other
+        self._record(True, "P4: the ent stays rooted in every taunt plan")
+
+    def test_property_p5_the_keg_blows_once(self):
+        """Two triggers and no mover: the first spends the keg on the ridge."""
+        assert not plans_with("lightningFlash", "blindingFlash")
+        assert not plans_with("lightningFlash", "taunt") and not plans_with("blindingFlash", "taunt")
+        self._record(True, "P5: two triggers and no mover: no plan")
 
 
 def run_tests():
