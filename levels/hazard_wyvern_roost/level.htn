@@ -1,0 +1,130 @@
+% The Wyvern Roost (hazard terrain and physics objects)
+%
+% A wyvern roosts on a crag across a channel of lava, above a sheer cliff.
+% While it flies, neither the lava nor the drop can take it. Nobody can hurt
+% it: the mountain can, once it is on the ground. Two companions, one skill
+% each, from eight.
+%
+%   camp --- ledge  ~~ lava ~~  crag (wyvern) ::: cliff
+%              |                  :
+%             path --- overlook --'   (the overlook, with a loose boulder,
+%                                      looks down on the crag)
+%
+% The crag's crust gives way under anything that lands on it: a boulder
+% pushed off the overlook breaks it into a chasm.
+%
+% Always two steps, by two companions:
+%   bring it down   net it or entangle it (rooted), put it to sleep
+%                   (sleepDart), or soak its wings (rainCall)
+%   let the mountain have it
+%                   pull it across the lava from the ledge (magnetize,
+%                   taunt), push it off the crag into the cliff from the
+%                   overlook (gust), or drop the crag from under it
+%                   (collapse, or gust the boulder down onto it from the
+%                   path)
+% Traps: flying, it is pulled over the lava or pushed over the drop and
+% simply hovers there; a floor collapsed under a flying wyvern leaves it in
+% the air; a sleeping wyvern that is taunted wakes up instead (a taunt is a
+% blow), so sleepDart and taunt do not go together.
+region(camp).
+region(ledge).
+region(lava).
+region(crag).
+region(cliff).
+region(path).
+region(overlook).
+connected(camp, ledge).
+connected(ledge, camp).
+connected(ledge, path).
+connected(path, ledge).
+connected(path, overlook).
+connected(overlook, path).
+lineOfSight(ledge, crag).
+lineOfSight(overlook, crag).
+lineOfSight(path, overlook).
+
+% Push lines (and what lies between): a pull from the ledge on the crag
+% crosses the lava; a push from the overlook on the crag goes over the cliff.
+beyond(ledge, lava, crag).
+beyond(overlook, crag, cliff).
+beyond(path, overlook, crag).
+
+% === Terrain ===
+onEnter(lava, lava).
+onEnter(cliff, chasm).
+% The crust: whatever lands on the crag breaks it.
+onEnter(crag, crust).
+effect(crust, target, spill(chasm)).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, camp).
+at(mage, camp).
+
+% === The wyvern ===
+role(wyvern, enemy).
+at(wyvern, crag).
+trait(wyvern, living).
+tag(wyvern, flying).
+% Aloft, nothing makes it fall.
+wards(flying, fell).
+% What brings it down: a snare, sleep, or soaked wings.
+reaction(flying, rooted, snared).
+effect(snared, target, remove(flying)).
+effect(snared, target, grant(rooted)).
+reaction(flying, asleep, dozes).
+effect(dozes, target, remove(flying)).
+effect(dozes, target, grant(asleep)).
+reaction(flying, wet, sodden).
+effect(sodden, target, remove(flying)).
+effect(sodden, target, grant(wet)).
+
+% === The boulder ===
+role(boulder, object).
+at(boulder, overlook).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, net).
+knows(mage, gust).
+
+% === Victory: bring it down, then let the mountain have it ===
+win :- if(), do(ground(wyvern), neutralize(wyvern)).
+win :- if(), do(ground(wyvern), dropFloor(wyvern)).
+win :- if(), do(ground(wyvern), rockslide(wyvern)).
+
+% Something it answers by landing: whoever can put that on it does.
+ground(?e) :-
+    if(tag(?e, flying), reaction(flying, ?t, ?rab), effect(?rab, target, remove(flying)),
+       canInflict(?a, ?ab, ?t, ?e)),
+    do(cast(?a, ?ab, ?e), ensureOff(flying, ?e)).
+
+% The floor under it becomes a hazard it is weak to.
+dropFloor(?e) :-
+    if(at(?e, ?r), canAct(?a), knows(?a, ?ab), effect(?ab, target, spill(?z)),
+       effect(?z, target, hazard(?h)), weakness(?e, ?h, none, ?o), stops(?e, ?o),
+       ready(?a, ?ab, ?e)),
+    do(cast(?a, ?ab, ?e), confirmStopped(?e)).
+
+% Something pushed onto its floor breaks it.
+rockslide(?e) :-
+    if(at(?e, ?r), onEnter(?r, ?z), effect(?z, target, spill(?s)), role(?x, object)),
+    do(place(?x, ?r, none), confirmStopped(?e)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(net).
+comboPool(entangle).
+comboPool(sleepDart).
+comboPool(rainCall).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(gust).
+comboPool(collapse).
+comboMinWins(10).
+comboMinMethods(4).
+
+goals(win).

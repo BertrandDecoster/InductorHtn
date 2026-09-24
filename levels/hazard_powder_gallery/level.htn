@@ -1,0 +1,112 @@
+% The Powder Gallery (hazard terrain and physics objects)
+%
+% A siege golem holds the nave of a ruined chapel. Between it and the hall
+% the gallery floor is cracked, and a powder keg sits on it. Nobody can hurt
+% the golem: the floor can. Two companions, one skill each, from eight.
+%
+%   entry --- hall ------ gallery (keg) ------ nave (golem) --- apse
+%               \______________ cloister ______________________/
+%
+% The keg blows when it catches fire or a spark (burning or electrocuted),
+% and the blast drops the floor it stands on into a chasm. So there are
+% three ways to use the level, and one way around it:
+%   open, then drop   blow the keg where it stands; the gallery is now a
+%                     chasm between the hall and the nave. Pull the golem
+%                     across it from the hall (magnetize, taunt), or push it
+%                     in from the apse (gust, shieldBash, tidalWave).
+%   floor under it    push the golem onto the powder floor from the apse,
+%                     then blow the keg: floor, keg and golem go down.
+%   bomb to it        push the keg from the hall into the nave, then blow it
+%                     there: the nave floor goes, and the golem with it.
+%   short it          it is a machine: soak it (rainCall, tidalWave), then
+%                     jolt it (zap). zap is also a detonator.
+% Traps: a detonator alone opens a pit nobody delivers the golem to; a mover
+% alone shoves it about on a sound floor; a wet keg does not light
+% (steam); the golem holds the nave, so the apse is reached by the cloister.
+region(entry).
+region(hall).
+region(gallery).
+region(nave).
+region(apse).
+region(cloister).
+connected(entry, hall).
+connected(hall, entry).
+connected(hall, gallery).
+connected(gallery, hall).
+connected(gallery, nave).
+connected(nave, gallery).
+connected(nave, apse).
+connected(apse, nave).
+connected(hall, cloister).
+connected(cloister, hall).
+connected(cloister, apse).
+connected(apse, cloister).
+lineOfSight(hall, gallery).
+lineOfSight(hall, nave).
+lineOfSight(apse, nave).
+
+% Push lines (and what lies between): from the apse the golem goes onto the
+% gallery; from the hall the keg rolls into the nave, and a pull from the
+% hall on the nave crosses the gallery.
+beyond(apse, nave, gallery).
+beyond(hall, gallery, nave).
+
+% === The keg: a spark or a flame, and the floor under it gives way ===
+behavior(keg, burning, blast, here).
+behavior(keg, electrocuted, blast, here).
+effect(blast, target, spill(chasm)).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, entry).
+at(mage, entry).
+mana(player, 2).
+mana(mage, 2).
+
+% === Things ===
+role(golem, enemy).
+at(golem, nave).
+trait(golem, machine).
+blocker(golem).
+
+role(keg, object).
+at(keg, gallery).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, flameWall).
+knows(mage, gust).
+
+% === Victory ===
+win :- if(), do(neutralize(golem)).
+win :- if(), do(detonate(keg), neutralize(golem)).
+win :- if(), do(together(golem, keg), detonate(keg), confirmStopped(golem)).
+
+% Light the keg: anything that lands a tag it answers.
+detonate(?k) :- if(behavior(?k, ?t, blast, here)), do(inflict(?t, ?k, none), confirmBlown(?k)).
+confirmBlown(?k) :- if(gone(?k)), do().
+
+% The golem and the keg share a floor: already, the golem pushed onto the
+% keg's floor, or the keg pushed onto the golem's.
+together(?e, ?k) :- if(at(?e, ?r), at(?k, ?r)), do().
+together(?e, ?k) :- if(at(?k, ?r), not(at(?e, ?r))), do(place(?e, ?r, none), confirmAt(?e, ?r)).
+together(?e, ?k) :- if(at(?e, ?r), not(at(?k, ?r))), do(place(?k, ?r, none), confirmAt(?k, ?r)).
+confirmAt(?x, ?r) :- if(at(?x, ?r)), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(flameWall).
+comboPool(zap).
+comboPool(gust).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(shieldBash).
+comboPool(tidalWave).
+comboPool(rainCall).
+comboMinWins(10).
+comboMinMethods(4).
+
+goals(win).
