@@ -1,0 +1,145 @@
+% The Envoy (escort, protect, rescue)
+%
+% An envoy who cannot fight must reach the gate road. Between the camp and
+% the lawn lie briars: the companions wade through them, but the envoy
+% (frail) would never come out. Past the lawn, an armoured sentry on a
+% tower watches the gatehouse: nobody walks through it under its eyes.
+%
+%   camp --- yard (crate) --- briars --- lawn --- gatehouse --- exit
+%                                          |          (watched)
+%                                        tower (sentry) --- moat (chasm)
+%
+% Obstacles, and the answers to each:
+%   the briars    fill them with the crate: push it in from the camp
+%                 (gust, tidalWave), or drag it across them from the lawn
+%                 (magnetize, or taunt - a taunted crate comes to its
+%                 taunter). Nothing carries the envoy over.
+%   the sentry    blind it (net, flashbang), or drop it: strip the armour
+%                 (sunder), then push it off the tower into the moat from
+%                 the lawn (gust, tidalWave).
+% Then the envoy walks out on its own.
+%
+% Traps:
+%   - pulling the envoy across the lawn (magnetize, taunt) drops it in the
+%     briars: a pull falls into the first live hazard on the way;
+%   - a push on the armoured sentry does nothing; a hook on it drags the
+%     caster up the tower instead;
+%   - one companion cannot do both halves: no pool skill fills the briars
+%     and deals with the sentry (tidalWave's push is warded by the armour).
+
+% === Regions ===
+region(camp).
+region(yard).
+region(briars).
+region(lawn).
+region(gatehouse).
+region(exit).
+region(tower).
+region(moat).
+connected(camp, yard).
+connected(yard, camp).
+connected(yard, briars).
+connected(briars, yard).
+connected(briars, lawn).
+connected(lawn, briars).
+connected(lawn, gatehouse).
+connected(gatehouse, lawn).
+connected(gatehouse, exit).
+connected(exit, gatehouse).
+connected(lawn, tower).
+connected(tower, lawn).
+
+lineOfSight(camp, yard).
+lineOfSight(camp, briars).
+lineOfSight(camp, lawn).
+lineOfSight(camp, tower).
+lineOfSight(yard, camp).
+lineOfSight(yard, lawn).
+lineOfSight(lawn, yard).
+lineOfSight(lawn, camp).
+lineOfSight(lawn, tower).
+lineOfSight(lawn, gatehouse).
+lineOfSight(tower, lawn).
+lineOfSight(tower, gatehouse).
+lineOfSight(gatehouse, exit).
+
+% Push lines (and what lies between).
+beyond(camp, yard, briars).
+beyond(lawn, briars, yard).
+beyond(lawn, briars, camp).
+beyond(lawn, tower, moat).
+
+% === Terrain ===
+% Briars: a hazard only the frail (and the crate, which sinks in and fills
+% them) are weak to.
+onEnter(briars, thorns).
+effect(thorns, target, hazard(thorns)).
+weakness(?e, thorns, none, fell) :- trait(?e, frail).
+weakness(?e, thorns, none, fell) :- trait(?e, filler).
+onEnter(moat, chasm).
+watches(sentry, gatehouse).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, camp).
+at(mage, camp).
+mana(player, 4).
+mana(mage, 4).
+
+% === The envoy: cannot act, walks when the way is clear ===
+role(envoy, ward).
+at(envoy, camp).
+trait(envoy, frail).
+trait(envoy, living).
+
+% === Things ===
+role(crate, object).
+at(crate, yard).
+trait(crate, filler).
+
+role(sentry, enemy).
+at(sentry, tower).
+trait(sentry, living).
+tag(sentry, armored).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, net).
+
+% === Victory: the envoy stands at the exit, whole ===
+win :- if(), do(crossBriars, passSentry, bringOut(envoy, exit)).
+
+% The briars: already filled, or the crate goes in (pushed or dragged).
+crossBriars :- if(filled(briars)), do().
+crossBriars :- if(not(filled(briars))), do(span(briars), confirmFilled(briars)).
+
+% The sentry: blind or gone already; blinded; or dropped from its tower.
+passSentry :- if(sentryDown), do().
+passSentry :- if(not(sentryDown)), do(inflict(blinded, sentry, none), confirmSentryDown).
+passSentry :- if(not(sentryDown)), do(neutralize(sentry)).
+sentryDown :- gone(sentry).
+sentryDown :- forbidden(sentry, watch).
+confirmSentryDown :- if(sentryDown), do().
+
+% The envoy walks out, and must arrive whole.
+bringOut(?v, ?r) :- if(), do(walkTo(?v, ?r), confirmSafe(?v, ?r)).
+confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v))), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(gust).
+comboPool(tidalWave).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(net).
+comboPool(flashbang).
+comboPool(sunder).
+comboPool(sleepDart).
+comboMinWins(4).
+comboMinMethods(3).
+
+goals(win).
