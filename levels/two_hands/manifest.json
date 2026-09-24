@@ -12,11 +12,15 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T14:39:38.806803"
+    "last_checked": "2026-09-24T17:55:46.645845"
   },
   "provides": [
     "at/2",
     "beyond/3",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
     "connected/2",
     "funExpect/3",
     "knows/2",
@@ -26,7 +30,6 @@
     "region/1",
     "role/2",
     "tag/2",
-    "trait/2",
     "win/0"
   ],
   "requires": [

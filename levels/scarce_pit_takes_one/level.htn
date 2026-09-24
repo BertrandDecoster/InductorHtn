@@ -3,34 +3,37 @@
 % A ledge over a narrow pit. On the bridge across it squats a giant beetle;
 % on the flooded walk beside it, a drone - a machine, already soaked. Both
 % are bulky: the first body that falls into the pit fills it, and after
-% that the pit takes nobody. Two companions, one skill each, from eight.
+% that the pit takes nobody. Two companions, one skill each, from seven.
 %
 %   ledge (team) --- bridge (beetle) --- far
-%     |
-%    walk (drone, flooded)          pit: under the bridge and the walk
+%     |                 |
+%    walk (drone, flooded) --- pit (under the bridge and the walk)
 %
-% The beetle is an insect: the cold freezes it, and the pit takes it.
-% Nothing else does. The drone is a wet machine: any jolt kills it, and the
-% pit takes it too. The pit is the scarce thing: it can take only one.
+% The beetle is an insect: the cold kills it (blizzard), and the pit takes
+% it. Nothing else does. The drone is a wet machine: any jolt kills it
+% (lightningFlash), and the pit takes it too. The pit is the scarce thing:
+% it can take only one.
 %
 % Methods:
-%   beetle in the pit   push it off the bridge from the ledge (gust,
-%                       tidalWave), or drag it across the pit from the far
-%                       side (taunt, magnetize); then jolt the drone (zap,
-%                       chainLightning)
-%   freeze the beetle   chill it (frostBolt, glaciate), and the pit is free
-%                       for the drone (gust, tidalWave from the ledge) - or
-%                       jolt the drone
+%   beetle in the pit   knock it off the bridge from the ledge (fireball),
+%                       drag it across the pit from the far side (hook,
+%                       taunt), or draw it down (vortex on the pit); then
+%                       jolt the drone (lightningFlash)
+%   freeze the beetle   ice the bridge (blizzard), and the pit is free for
+%                       the drone - knocked or washed in from the ledge
+%                       (fireball, tidalWave), drawn in (vortex) - or jolt
+%                       the drone
 %
 % Traps:
 %   - the drone is nearest the ledge and a push drops it: that fills the
 %     pit, and with a mover and a jolt the beetle can no longer be taken;
-%   - a wave aimed at the walk soaks the drone - it already is - and washes
-%     it into the pit.
+%   - a wave from the ledge washes BOTH into the pit, and a vortex on the
+%     pit draws both: whichever lands first fills it;
+%   - blizzard on the flooded walk freezes the drone (a stun), not out.
 %
-% Hypothesis (design.md): no single skill wins; 16 of 28 pairs do, by
-% three methods of different kinds; with a mover and a jolt, the order is
-% the puzzle.
+% Hypothesis (design.md): no single skill wins; several pairs do, by
+% methods of different kinds; with a mover and a jolt, the order is the
+% puzzle.
 
 % === Regions ===
 region(ledge).
@@ -44,9 +47,15 @@ connected(bridge, far).
 connected(far, bridge).
 connected(ledge, walk).
 connected(walk, ledge).
+connected(bridge, pit).
+connected(pit, bridge).
+connected(walk, pit).
+connected(pit, walk).
 lineOfSight(ledge, bridge).
 lineOfSight(ledge, walk).
+lineOfSight(ledge, pit).
 lineOfSight(far, bridge).
+lineOfSight(far, pit).
 
 % Push lines: from the ledge, off the bridge or off the walk, into the pit.
 % From the far side, the pit lies between it and the bridge: a pull drops
@@ -69,18 +78,18 @@ mana(mage, 2).
 % === Enemies: both fill the pit when they fall ===
 role(beetle, enemy).
 at(beetle, bridge).
-trait(beetle, insect).
-trait(beetle, filler).
+tag(beetle, insect).
+tag(beetle, filler).
 
 role(drone, enemy).
 at(drone, walk).
-trait(drone, machine).
-trait(drone, filler).
+tag(drone, machine).
+tag(drone, filler).
 tag(drone, wet).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, gust).
-knows(mage, zap).
+knows(player, fireball).
+knows(mage, lightningFlash).
 
 % === Victory: both, in either order ===
 win :- if(), do(neutralize(beetle), neutralize(drone)).
@@ -88,17 +97,16 @@ win :- if(), do(neutralize(drone), neutralize(beetle)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(gust).
+comboPool(fireball).
 comboPool(tidalWave).
+comboPool(hook).
 comboPool(taunt).
-comboPool(magnetize).
-comboPool(frostBolt).
-comboPool(glaciate).
-comboPool(zap).
-comboPool(chainLightning).
+comboPool(vortex).
+comboPool(blizzard).
+comboPool(lightningFlash).
 comboMinWins(10).
 comboMinMethods(3).
 

@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:44:55.047876"
+    "last_checked": "2026-09-24T17:59:15.549589"
   },
   "provides": [
     "at/2",
@@ -32,7 +32,6 @@
     "region/1",
     "role/2",
     "tag/2",
-    "trait/2",
     "win/0"
   ],
   "requires": [
