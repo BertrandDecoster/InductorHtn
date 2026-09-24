@@ -4,39 +4,46 @@
 
 A crowd-control level (category 8): **too many enemies to take one by one; shape them as a group,
 then one blow takes the group.** Three clockwork drones guard the yard of an old foundry. A drone is
-a machine: a jolt on a dry one only stuns it, a jolt on a wet one short-circuits it. The one jolt,
-`lightningFlash`, costs 2 mana and each companion has 2, so exactly **one bolt** has to catch the
-whole crowd - a flash down the hall electrocutes everyone on its path. Or leave the jolts alone: the
-foundry floor is rotten, and the ogre at the forge stamps it through (`caveIn`, the catalogue's
-physical heavy attack) when it is taunted (dragged to its taunter first) or dazzled (`blinded`)
-where it stands. Everything in its region falls; no plan may leave a companion there.
+a machine: a jolt on a dry one only stuns it, a jolt on a wet one short-circuits it (dead). A jolt is
+an area effect - `lightningFlash` electrocutes everyone in the area it strikes, `blindingFlash`
+everyone around the caster - so once the crowd is soaked, one jolt takes it. `lightningFlash` costs
+all of a companion's mana: a bolt on dry drones is spent. Or leave the jolts alone:
 
-Two companions, the player and the mage, pick one skill each from a pool of six. Nothing grants an
-outcome: `dead` comes only from the catalogue's machine weakness, `fell` only from the chasm.
+- **the slag pit** in the forge (a `lava` feature): drones knocked in are lost;
+- **the ogre** who works the forge stamps the rotten floor through (`caveIn`, the catalogue's
+  physical heavy attack) when it is dazzled (`blinded`) or jolted (`electrocuted`). Whatever is in its
+  area falls - the drones, the ogre itself, and any companion who stayed there (sacrifice is
+  allowed).
 
-The level's goal is spelled out top-down from the need, with two kinds of victory:
+Two companions, the player and the mage, pick one skill each from a pool of seven. Nothing grants an
+outcome: `dead` comes only from the catalogue's machine weakness, `fell` only from the lava and the
+chasm.
+
+The map is four coarse areas around a hub: the yard (the drones, and a coolant pool: wet), the gate
+(the companions), the sump (flooded: whoever walks in is soaked) and the forge (the ogre, the slag).
+Only a taunt (the drone walks after you) or a hook (one area at a time) moves a drone or the ogre to
+another area; a knockback only throws it into a feature of its own area.
+
+The level's goal is spelled out top-down from the need: take the first drone still standing out of
+the fight (`takeOut`), and repeat - an area effect takes the rest with it. `takeOut` is one of:
 
 | Method | First | Then |
 |--------|-------|------|
-| **Short them** (a weakness) | every drone wet (`primeAll(wet)`): `tidalWave` (from the gate it soaks the yard and washes it into the sump; from the yard it soaks in place), `vortex` on the sump (the whole yard is sucked into the water), `taunt` or `hook` from the sump (one drone at a time) | one `lightningFlash` down the hall (`boltAll`): everyone on the path is electrocuted |
-| **Drop them, provoked** (a hazard) | `taunt` the ogre from the yard: it is dragged to the drones and winds up a cave-in on the yard | in the wind-up the other companion `hook`s the taunter out; the yard falls in |
-| **Drop them, dazzled** | `vortex` on the sump: the drones AND the ogre are sucked in | `blindingFlash` from the yard or the forge: the dazzled ogre stamps the sump through |
+| **Short them** (a weakness) | soak the whole crowd (`primeCrowd(wet)`): `tidalWave` among them, `vortex` on the coolant pool, `shieldBash` each into the pool, or herd them into the sump (`taunt`, `hook`) | one jolt: `lightningFlash` into their area, or `blindingFlash` among them |
+| **Drop them** (a hazard) | herd the crowd into the forge (`herdCrowd`: `taunt`, `hook`) | knock them into the slag: `vortex` (the whole forge), `tidalWave` (everyone around), `shieldBash` (one at a time) |
+| **Turn the ogre on them** (a heavy blow) | bring the ogre among the drones (`taunt`, `hook`) - or the drones to the ogre | set it off: `blindingFlash` among them (the flasher is disjoint, but the floor still gives way under it), `lightningFlash` into their area (the caster's dash never lands in the chasm) |
 
-Why no single skill works: a soak or a herd leaves the drones alive; a bolt on dry drones only stuns
-them, and nobody can afford a second one; the taunter is always in the cave-in's region, and a wave
-or a vortex that pulls them out takes the drones out too; companions cannot be taunted, so no friend
-can taunt you out of the way.
+Why no single skill works: a soak or a herd leaves the drones standing; a jolt on dry drones only
+stuns them; a knock throws nothing that matters out of the yard; the slag and the ogre are in the
+forge, and only a mover brings the drones there (or the ogre here).
 
-Skills serving several roles: `vortex` soaks the crowd (into the sump) for the bolt, or gathers the
-crowd and the ogre for the cave-in; `taunt` herds drones into the water, or provokes the ogre;
-`hook` herds drones, or rescues the taunter; `tidalWave` soaks in place or washes into the sump.
+Skills serving two roles: `vortex`, `tidalWave` and `shieldBash` soak in the yard in one plan and
+knock into the slag in another; `taunt` and `hook` herd into the water, into the forge, or bring the
+ogre; the two flashes jolt the soaked crowd or set the ogre off.
 
-The traps: a bolt first (dry drones are only stunned); two bolts, two soaks, two herders; a wave or a
-vortex to rescue the taunter (the drones go too); hooking the ogre in and flashing (the hooker is
-caught in the cave-in); flashing from inside the sump - the flash makes you disjoint, so the blow
-passes through you, but the floor still gives way under your feet (the plan is refused).
-
-Level-local facts (wishlist evidence): `immune(player, taunted)` and `immune(mage, taunted)`.
+The traps: two soaks, two herders, two jolts (each half alone does nothing); a bolt first (dry drones
+are only stunned, and there is no second bolt); jolting the ogre alone in its forge (the floor gives
+way under nobody that matters).
 
 ## Layer
 
@@ -50,85 +57,86 @@ level
 ## World
 
 ```
-gate (player, mage) --- yard (cog1, cog2, cog3; machines) --- sump (puddle) --- forge (ogre)
+                     sump (puddle)
+                        |
+gate (player, mage) --- yard (cog1, cog2, cog3; coolant) --- forge (ogre; slag)
 ```
 
-- **Line of sight:** the gate sees the whole hall (yard, sump, forge); the yard sees the sump and the
-  forge; the sump sees the yard and the forge.
-- **Lines:** a push from the gate on the yard lands in the sump; the yard and the sump lie between
-  the gate and the forge (a lightning flash from the gate to the forge strikes both).
-- **Zones:** the sump is a `puddle` (wet).
-- **Ogre:** an enemy, `living`; `behavior(ogre, taunted, caveIn, here)`,
-  `behavior(ogre, blinded, caveIn, here)`.
-- **Companions:** 2 mana each (one wave or flash); immune to `taunted`.
-- **The team:** a plan that leaves a companion stunned or fallen is refused (`teamFit`).
+- **Links:** all walkable (`connected`); the yard is the hub.
+- **Line of sight:** the gate sees the yard; the yard, the sump and the forge see each other.
+- **Zones:** the sump is a `puddle`.
+- **Features:** `feature(yard, coolant, puddle)` (wet); `feature(forge, slag, lava)` (a pit).
+- **Drones:** `machine`. **Ogre:** `living`; `behavior(ogre, blinded, caveIn, here)`,
+  `behavior(ogre, electrocuted, caveIn, here)`.
+- **Companions:** 2 mana each (one wave or one lightning flash). Sacrifice is allowed.
 
 ## Hypothesis
 
 Measured with `htn_components combos crowd_short_circuit` (and this level's `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 6.
-- 12 of 36 assignments win (6 unordered pairs, whichever companion holds which half):
-  `lightningFlash` with `tidalWave`, `vortex`, `taunt` or `hook` (short them); `taunt` with `hook`,
-  and `vortex` with `blindingFlash` (drop them).
-- 6 methods, in two kinds (a weakness, a hazard drop by an enemy's heavy attack). Skill usage:
-  `lightningFlash` 8, `vortex` 4, `taunt` 4, `hook` 4, `tidalWave` 2, `blindingFlash` 2. No dead
-  skill.
-- No solo plans. One replan takes under a second.
+- No single skill wins, even when both companions hold it: 0 of 7.
+- 32 of 49 assignments win (16 unordered pairs, whichever companion holds which half): the pool is
+  three kinds - soakers/knockers (`tidalWave`, `vortex`, `shieldBash`), movers (`taunt`, `hook`) and
+  jolts (`lightningFlash`, `blindingFlash`) - and every pair of two different kinds wins; no pair of
+  the same kind does.
+- 16 methods (distinct skill sets cast), in three kinds: a short (a weakness), a drop into the slag
+  (a hazard), and the ogre's cave-in (a heavy blow turned on the crowd).
+- Skill usage: `taunt` 10, `hook` 10, `lightningFlash` 10, `blindingFlash` 10, `tidalWave` 8,
+  `vortex` 8, `shieldBash` 8. No dead skills. No solo plans. One replan takes 0.2 to 12 s.
 
 ## Examples
 
-### Example 1: Vortex into the sump, one flash
+### Example 1: Soak the yard, then one bolt
 
 **Given:** the player knows `vortex`, the mage knows `lightningFlash` (the default kit).
 
 **When:** `win`
 
-**Then:** the vortex on the sump sucks the three drones (and the ogre) into the flooded sump. The mage
-flashes from the gate to the forge: the path crosses the sump, and all three short-circuit.
+**Then:** the vortex on the coolant pool knocks the whole yard into it: three soaked drones. The
+mage's flash of lightning into the yard short-circuits all three.
 
-### Example 2: A wave, one flash
+### Example 2: Herded into the slag
 
-**Given:** the player knows `tidalWave`, the mage knows `lightningFlash`.
-
-**When:** `win`
-
-**Then:** from the gate the wave soaks the yard and washes it into the sump; from inside the yard it
-soaks the drones where they stand. Either way one flash down the hall takes all three.
-
-### Example 3: Taunt the ogre, be hooked out
-
-**Given:** the player knows `taunt`, the mage knows `hook`.
+**Given:** the player knows `taunt`, the mage knows `tidalWave`.
 
 **When:** `win`
 
-**Then:** the player walks into the yard and taunts the ogre: it is dragged in among the drones and
-winds up a cave-in. The mage hooks the player back to the gate. The yard falls in: all three drones
-fall.
+**Then:** the player taunts the drones from the forge: they walk after it. The mage walks into the
+forge and bursts a wave: everyone around is soaked and thrown into the slag (the ogre, and perhaps
+the player, too).
 
-### Example 4: Gather and dazzle
+### Example 3: The floor gives way
 
-**Given:** the player knows `vortex`, the mage knows `blindingFlash`.
+**Given:** `hook` and `blindingFlash`; `taunt` and `lightningFlash`.
 
 **When:** `win`
 
-**Then:** the vortex draws the drones and the ogre into the sump. The mage flashes from the yard or
-the forge (never from inside the sump); the ogre stamps the sump through.
+**Then:** the ogre is hooked (or taunted) out of its forge into the yard. The flash dazzles it (or the
+bolt jolts it, and the drones, only stunned): it stamps the yard through, and everything in it falls.
+
+### Example 4: One skill, two roles
+
+**Given:** `vortex`, `shieldBash` or `tidalWave` for the player; a jolt or a mover for the mage.
+
+**When:** `win`
+
+**Then:** with a jolt, they soak the drones in the yard (the coolant pool, the wave); with a mover,
+they throw the herded drones into the slag.
 
 ### Example 5: Traps
 
-**Given:** `lightningFlash` twice; `taunt` twice; `taunt` and `tidalWave`; `hook` and
-`blindingFlash`.
+**Given:** `lightningFlash` and `blindingFlash`; `tidalWave` and `vortex`; `taunt` and `hook`.
 
 **When:** `win`
 
-**Then:** no plan.
+**Then:** no plan. The dry drones are only stunned (and the ogre is alone in its forge); nothing jolts;
+nothing knocks or jolts.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
-| P2 | Six pairs win | Exactly the six measured pairs have a plan. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
+| P2 | Sixteen pairs win | Exactly the measured pairs have a plan: every pair of two different kinds. |
 | P3 | Each hand matters | Every winning pair wins whichever companion holds which half. |
-| P4 | One blow | Every winning plan takes the crowd with exactly one flash or one cave-in; no companion is under the blow, stunned or fallen. |
+| P4 | Shorted wet, or dropped | In every winning plan all three drones are out: electrocuted (wet), or fallen into the lava or the chasm. |

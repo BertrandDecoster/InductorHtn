@@ -4,42 +4,47 @@
 
 A crowd-control level (category 8): **one fire that spreads through the whole group - and a heavy
 blow turned on the crowd.** Three old treants stand rooted in a rain-soaked grove. Wood burns (the
-catalogue's `wooden` weakness), but they are drenched: fire cast on one only steams it dry
-(`steam`), and a region that has caught fire does not catch again. They are `heavy`: nothing drags
-or pushes them. Two things burn hot enough to take them through the wet:
+catalogue's `wooden` weakness), but they are drenched: fire cast on one only steams it dry (`steam`),
+and an area that has caught fire does not catch again. They are `heavy` (nothing knocks or hooks
+them) and `rooted` (a taunt cannot walk them anywhere). Two things burn hot enough to take them
+through the wet, raw - the steam never gets a say:
 
-- **The keg** of lamp oil up the ramp. Oil that catches fire blazes (`blaze`), and a blaze sets
-  everyone else in the region alight at once, raw: the steam never gets a say.
-- **The cinder priest's meteor**, the catalogue's magic heavy attack. Taunted, the priest is dragged
-  to its taunter; taunted or dazzled (`blinded`), it winds up a meteor on the region it stands in.
-  The team gets one cast, then the region burns, raw. No plan may leave a companion in it.
+- **The keg** of lamp oil on the ramp above the grove. Oil that catches fire blazes (`blaze`), and a
+  blaze sets everyone else in its area alight at once.
+- **The cinder priest's meteor**, the catalogue's magic heavy attack. Dazzled (`blinded`) or jolted
+  (`electrocuted`), the priest calls it down on the area it stands in; the team gets one cast, then
+  the blow falls on everyone there but the priest, and the area burns.
 
-The player and the mage pick one skill each from a pool of six. Nothing grants an outcome: `dead`
+The player and the mage pick one skill each from a pool of seven. Nothing grants an outcome: `dead`
 is the treants' catalogue weakness to burning.
 
-The level's goal is spelled out top-down from the need, "burn out the crowd's region":
+The map is four coarse areas in a line: camp, ramp, grove, shrine. Only a hook or a taunt moves
+something into another area, so the keg (an object: never taunted) comes down by a hook from the
+grove - or over the **lip**, a feature of the ramp: a chute whose ability is `teleport(grove)`, so
+whatever is knocked over it slides down into the grove. The priest (it walks) comes by a taunt or a
+hook.
+
+The level's goal is spelled out top-down from the need, "burn out the crowd's area":
 
 | Method | First | Then |
 |--------|-------|------|
-| **Keg** | bring the fuse (anything a flame sets blazing over its region, read from `reactionFor/4`) to the crowd: `tidalWave` from the camp (it rolls down the ramp), `vortex` on the grove, `hook` or `taunt` from the grove | `fireball` the grove: the keg blazes, all three burn. Or lay the fire first and bring the keg into it. |
-| **Meteor, provoked** | `taunt` the priest from the grove: it is dragged in and winds up on the grove | in the wind-up the other companion pulls the taunter out: `hook` (the taunter is dragged to the camp) or `vortex` on the ramp (the taunter and the priest are sucked out; the heavy treants stay) |
-| **Meteor, dazzled** | `vortex` on the grove: the keg and the priest are sucked in | `blindingFlash` from the grove (disjoint: the meteor passes through the flasher), the ramp or the shrine |
+| **Keg** | bring the fuse (anything a flame sets blazing over its area, read from `reactionFor/4`) to the crowd: `hook` it from the grove; `vortex` on the lip (everything on the ramp goes over); `tidalWave` on the ramp (the wave washes it over) | `fireball` the grove: the keg blazes, all three burn. Or lay the fire first and bring the keg into the flames. |
+| **Meteor** | bring the striker (an enemy whose heavy blow burns where it stands) among the trees: `taunt` it (it walks after you) or `hook` it from the grove | set it off: `blindingFlash` in the grove (the flasher is disjoint: the meteor passes through), or `lightningFlash` into the grove from the ramp (the jolt sets it off at once; the caster dashes into the burning grove afterwards) |
 
 Why no single skill works: a mover lights nothing; a fireball lights the crowd or the keg where they
-stand, never both (on the keg from the camp it blazes alone on the ramp before its push rolls it
-down); the taunter is always in the meteor's region and has no second skill to leave it;
-companions cannot be taunted, so no friend can taunt you out of the way.
+stand, never both (on the keg it blazes alone on the ramp, and the spent keg that rolls down is only
+burning, no longer oiled); the priest in its shrine, dazzled or jolted, burns only the shrine.
 
-Skills serving several roles: `vortex` fetches the keg, fetches the priest, or pulls a friend out
-from under the meteor; `taunt` fetches the keg or provokes the priest; `hook` fetches the keg or
-rescues the taunter.
+Skills serving two roles: `hook` fetches the keg or the priest; the two flashes each dazzle or jolt
+the priest. `vortex` and `tidalWave` both knock the keg over the lip, and `taunt` herds the priest.
 
-The traps: fire on the keg first (it blazes alone on the ramp); two movers or two fires; hooking the
-priest into the grove and flashing it (the hooker is still under the meteor); taunting the priest
-from anywhere but the grove (the meteor falls on the taunter's region, not on the trees).
+The traps: fire on the keg first (it blazes alone on the ramp); two movers or two fires; the wrong
+mover (a taunt on the keg, a vortex on the priest); setting the priest off at home.
 
-Level-local facts (wishlist evidence): `immune(player, taunted)` and `immune(mage, taunted)` - without
-them a second taunter drags the first out of the wind-up, and taunt alone wins.
+Level-local definitions (wishlist evidence): the lip, `effect(chute, target, teleport(grove))` - a
+feature that moves what is knocked into it to another area, built from the existing `teleport(R)`
+atom, because a knockback never changes the area and the keg is not an NPC a taunt can move;
+`immune(keg, taunted)` - an object would otherwise chase its taunter.
 
 ## Layer
 
@@ -53,77 +58,80 @@ level
 ## World
 
 ```
-camp (player, mage) --- ramp (keg, oiled) --- grove (t1, t2, t3; wooden, wet, heavy) --- shrine (priest)
+camp (player, mage) --- ramp (keg, oiled; lip) --- grove (t1, t2, t3) --- shrine (priest)
 ```
 
-- **Line of sight:** the camp sees the ramp and the grove; the ramp and the grove see each other;
-  the grove sees the shrine.
-- **Lines:** a push from the camp on the ramp lands in the grove (the keg rolls down).
-- **Keg:** an object, `oiled`. **Treants:** `wooden`, `wet`, `heavy`.
-- **Priest:** an enemy, `fireElemental` (its own fire does not touch it);
-  `behavior(priest, taunted, meteor, here)` and `behavior(priest, blinded, meteor, here)`.
-- **Companions:** 2 mana each (one wave or fireball); immune to `taunted`.
-- **The team:** a plan that leaves a companion stunned is refused (`teamFit`).
+- **Links:** all walkable (`connected`).
+- **Line of sight:** the camp sees the ramp and the grove; the ramp and the grove see each other; the
+  grove sees the shrine.
+- **Features:** `feature(ramp, lip, chute)`: whatever is knocked in lands in the grove.
+- **Treants:** `wooden`, `wet`, `heavy`, `rooted`.
+- **Priest:** `fireElemental` (the meteor does not burn it); `behavior(priest, blinded, meteor, here)`
+  and `behavior(priest, electrocuted, meteor, here)`. The meteor is magic: a hook or a bash would
+  interrupt it.
+- **Companions:** 2 mana each (one wave, fireball or lightning flash). Sacrifice is allowed: a
+  companion under the meteor burns, and the plan goes on.
 
 ## Hypothesis
 
 Measured with `htn_components combos crowd_powder_keg` (and this level's `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 6.
-- 14 of 36 assignments win (7 unordered pairs, whichever companion holds which half): `fireball`
-  with `tidalWave`, `vortex`, `hook` or `taunt` (the keg); `taunt` with `hook` or `vortex`, and
-  `vortex` with `blindingFlash` (the meteor).
-- 7 methods, in two kinds (a reaction spread by a fuse; an enemy's heavy attack turned on its
-  allies). Skill usage: `fireball` 8, `vortex` 6, `taunt` 6, `hook` 4, `tidalWave` 2,
-  `blindingFlash` 2. No dead skill.
-- No solo plans. One replan takes under a second.
+- No single skill wins, even when both companions hold it: 0 of 7.
+- 14 of 49 assignments win (7 unordered pairs, whichever companion holds which half): `fireball`
+  with `hook`, `vortex` or `tidalWave` (the keg); `blindingFlash` or `lightningFlash` with `hook` or
+  `taunt` (the meteor).
+- 7 methods (distinct skill sets cast), in two kinds: a blaze (a fuse brought and lit) and a heavy
+  blow turned on the crowd.
+- Skill usage: `hook` 6, `fireball` 6, `taunt` 4, `blindingFlash` 4, `lightningFlash` 4, `vortex` 2,
+  `tidalWave` 2. No dead skills. No solo plans. One replan takes 0.3 to 8 s (the meteor's window
+  multiplies the answers).
 
 ## Examples
 
-### Example 1: Roll the keg down, then light it
+### Example 1: Over the lip, then light it
 
-**Given:** the player knows `tidalWave`, the mage knows `fireball` (the default kit).
-
-**When:** `win`
-
-**Then:** the wave from the camp soaks the keg and rolls it down into the grove. The fireball on the
-grove steams the treants, then reaches the keg: it blazes (the oil was there first), and all three
-treants burn.
-
-### Example 2: Taunt the priest, be hooked out
-
-**Given:** the player knows `taunt`, the mage knows `hook`.
+**Given:** the player knows `vortex`, the mage knows `fireball` (the default kit).
 
 **When:** `win`
 
-**Then:** the player walks into the grove and taunts the priest: it is dragged in and winds up a
-meteor on the grove. In the wind-up the mage hooks the player back to the camp. The meteor falls:
-all three treants burn.
+**Then:** the player's vortex on the lip knocks the keg over: it slides down into the grove. The
+mage's fireball sets the grove alight: the treants only steam, but the keg blazes and all three burn.
+(Or the fireball first, and the keg slides down into the flames.)
 
-### Example 3: Gather and dazzle
+### Example 2: The meteor on the grove
 
-**Given:** the player knows `vortex`, the mage knows `blindingFlash`.
+**Given:** the player knows `taunt`, the mage knows `blindingFlash`.
 
 **When:** `win`
 
-**Then:** the vortex on the grove sucks in the keg and the priest. The mage flashes from the grove
-(disjoint: the meteor passes through), the ramp or the shrine; the dazzled priest calls the meteor
-down on the grove.
+**Then:** the player taunts the priest from the grove: it walks in among the trees. The mage walks
+into the grove and flashes: dazzled, the priest winds up its meteor on the grove; the flasher is
+disjoint, the meteor passes through it and burns the treants (and the player).
+
+### Example 3: The hook, two roles
+
+**Given:** the player knows `hook`; the mage `fireball`, `blindingFlash` or `lightningFlash`.
+
+**When:** `win`
+
+**Then:** with `fireball`, the hook drags the keg down from the ramp; with a flash, it drags the priest
+out of its shrine.
 
 ### Example 4: Traps
 
-**Given:** `fireball` twice; `taunt` twice; `hook` and `blindingFlash`; `tidalWave` and `vortex`.
+**Given:** `fireball` twice; `hook` twice; `taunt` and `fireball`; `vortex` and `blindingFlash`;
+`lightningFlash` twice.
 
 **When:** `win`
 
-**Then:** no plan.
+**Then:** no plan. The keg lit on the ramp blazes alone; nothing lit; the keg does not walk; the vortex
+moves nothing out of its area; the jolted priest burns its own shrine.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
 | P2 | Seven pairs win | Exactly the seven measured pairs have a plan. |
 | P3 | Each hand matters | Every winning pair wins whichever companion holds which half. |
-| P4 | One fire takes the crowd | Every winning plan has exactly one blaze or one meteor, all three treants die of it, and no companion stands under a blow unless disjoint. |
-| P5 | The meteor needs two hands | Every meteor plan has a wind-up and casts by both companions. |
+| P4 | Through the wet | In every winning plan the treants die only after a blaze or a meteor blow. |

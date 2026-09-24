@@ -2,7 +2,7 @@
   "name": "crowd_powder_keg",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Powder Keg: three rooted wet treants; burn them through the wet with a blazing keg, or bring the cinder priest's meteor down on them and get out",
+  "description": "Powder Keg: three rooted wet treants; burn them through the wet with the oil keg brought down into the grove and lit, or bring the cinder priest among them and set its meteor off",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,12 +12,11 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:17:20.506885"
+    "last_checked": "2026-09-24T20:34:14.150742"
   },
   "provides": [
     "at/2",
     "behavior/4",
-    "beyond/3",
     "bring/2",
     "burnOut/1",
     "cleared/0",
@@ -29,7 +28,9 @@
     "connected/2",
     "crowd/1",
     "crowdAt/1",
+    "effect/3",
     "ensureAt/2",
+    "feature/3",
     "funExpect/3",
     "fuse/1",
     "immune/2",
@@ -41,12 +42,13 @@
     "role/2",
     "setOff/2",
     "standing/1",
+    "striker/2",
     "tag/2",
-    "teamFit/0",
     "win/0"
   ],
   "requires": [
+    "bringTo/3",
     "cast/3",
-    "castFrom/4"
+    "knockOn/3"
   ]
 }

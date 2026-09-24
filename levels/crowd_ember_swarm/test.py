@@ -1,5 +1,6 @@
 """Tests for the Ember Swarm level (crowd control)."""
 
+import functools
 import itertools
 import json
 import os
@@ -14,18 +15,18 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["tidalWave", "blizzard", "vortex", "taunt", "hook", "fireball"]
+POOL = ["tidalWave", "blizzard", "vortex", "taunt", "hook", "shieldBash"]
 
-# The measured matrix (htn_components combos: 14 of 36). A douse and a freeze:
-# tidalWave only douses; taunt and hook only freeze (they drag into the ice);
-# blizzard and vortex do either - blizzard quenches the nest or ices the
-# doused swarm, vortex sucks the swarm into the brook or into the ice - but
-# never both halves alone. Fireball wins nothing (it relights the nest).
+# The measured matrix (htn_components combos: 18 of 36). A douse and a chill:
+# tidalWave only douses; blizzard only chills (a first blizzard on the burning
+# nest only quenches it, and the nest ices once); vortex and shieldBash douse
+# (into the spring) or chill (into the frost vent); taunt and hook herd the
+# swarm through the ford (a douse) and up to the vent.
 WINNING = {
     frozenset(p) for p in [
-        ("tidalWave", "blizzard"), ("tidalWave", "vortex"), ("tidalWave", "taunt"),
-        ("tidalWave", "hook"), ("blizzard", "vortex"), ("blizzard", "taunt"),
-        ("blizzard", "hook"),
+        ("tidalWave", "blizzard"), ("blizzard", "vortex"), ("blizzard", "taunt"),
+        ("blizzard", "hook"), ("blizzard", "shieldBash"), ("vortex", "taunt"),
+        ("vortex", "hook"), ("taunt", "shieldBash"), ("hook", "shieldBash"),
     ]
 }
 
@@ -39,6 +40,7 @@ def _solutions(planner, goal):
     return solutions
 
 
+@functools.lru_cache(maxsize=None)
 def plans_with(player, mage):
     """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
     planner (a failed search locks the rule set)."""
@@ -52,11 +54,7 @@ def plans_with(player, mage):
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
-
-
-def ops_text(plans):
-    return " ".join(json.dumps(p) for p in plans)
+    return tuple(_solutions(planner, "win."))
 
 
 def op_list(plan):
@@ -66,6 +64,10 @@ def op_list(plan):
         name = list(op.keys())[0]
         out.append((name, [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]))
     return out
+
+
+def has_op(plans, name, args):
+    return any((name, args) in op_list(p) for p in plans)
 
 
 class EmberSwarmTest(HtnTestSuite):
@@ -78,38 +80,35 @@ class EmberSwarmTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_wave_then_vortex_into_the_ice(self):
+    def test_example_1_wave_then_blizzard(self):
         self.assert_plan("win.", contains=[
             "opCast(player, tidalWave, player)", "opReact(player, b1, burning, wet, extinguish)",
-            "opCast(mage, vortex, icecave)", "opForcedMove(mage, b1, nest, icecave)",
+            "opReact(player, b3, burning, wet, extinguish)", "opCast(mage, blizzard, b1)",
             "opExploit(mage, b1, chilled, dead)", "opExploit(mage, b3, chilled, dead)"])
 
-    def test_example_2_quench_then_drag_into_the_ice(self):
-        plans = plans_with("blizzard", "taunt")
-        ops = ops_text(plans)
-        assert plans and "quench" in ops and ops.count('"taunt"') >= 3 and "icecave" in ops
-        self._record(True, "Example 2: the blizzard quenches the nest; three taunts drag them into the ice")
+    def test_example_2_herd_through_the_ford_into_the_vent(self):
+        plans = plans_with("taunt", "vortex")
+        assert plans
+        for b in ("b1", "b2", "b3"):
+            assert has_op(plans, "opNavigate", [b, "nest", "ford"]), b
+            assert has_op(plans, "opReact", [b, b, "burning", "wet", "extinguish"]), b
+            assert has_op(plans, "opExploit", ["mage", b, "chilled", "dead"]), b
+        assert has_op(plans, "opCast", ["mage", "vortex", "frostVent"])
+        self._record(True, "Example 2: the taunted swarm wades the ford, then the vortex throws it into the vent")
 
-    def test_example_3_vortex_into_the_brook_then_ice_it(self):
-        plans = plans_with("vortex", "blizzard")
-        routes = set()
-        for plan in plans:
-            ops = op_list(plan)
-            if ("opCast", ["player", "vortex", "brook"]) in ops and \
-                    any(n == "opReshape" and a[1:] == ["brook", "deepWater", "iceSheet"] for n, a in ops):
-                routes.add("brook")
-            if ("opCast", ["player", "vortex", "icecave"]) in ops:
-                routes.add("icecave")
-        assert routes == {"brook", "icecave"}, routes
-        self._record(True, "Example 3: vortex douses (into the brook) or freezes (into the ice)")
+    def test_example_3_one_skill_two_roles(self):
+        assert has_op(plans_with("vortex", "blizzard"), "opCast", ["player", "vortex", "spring"])
+        assert has_op(plans_with("vortex", "taunt"), "opCast", ["player", "vortex", "frostVent"])
+        assert has_op(plans_with("shieldBash", "blizzard"), "opKnock", ["player", "b1", "spring"])
+        assert has_op(plans_with("shieldBash", "taunt"), "opKnock", ["player", "b1", "frostVent"])
+        self._record(True, "Example 3: vortex and shieldBash douse (spring) or chill (vent)")
 
     def test_example_4_traps(self):
-        assert not plans_with("blizzard", "blizzard"), "the nest ices once: the second chill is lost"
-        assert not plans_with("vortex", "vortex"), "a vortexed swarm is pinned"
-        assert not plans_with("taunt", "hook"), "the brook and the ice cave do not see each other"
-        assert not plans_with("tidalWave", "tidalWave"), "wet beetles only freeze"
-        assert not plans_with("fireball", "blizzard"), "fire relights the nest"
-        self._record(True, "Example 4: cold twice, two vortices, two draggers, two waves, fire")
+        assert not plans_with("blizzard", "blizzard"), "the nest ices once"
+        assert not plans_with("tidalWave", "taunt"), "herded through the ford after the wave: wet"
+        assert not plans_with("tidalWave", "vortex"), "nothing chills"
+        assert not plans_with("taunt", "hook"), "two movers: nothing chills"
+        self._record(True, "Example 4: cold twice, wet after the douse, two movers")
 
     # -------------------------------------------------------------- properties
 
@@ -118,7 +117,7 @@ class EmberSwarmTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_seven_pairs_win(self):
+    def test_property_p2_the_measured_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
@@ -128,20 +127,18 @@ class EmberSwarmTest(HtnTestSuite):
             assert plans_with(a, b) and plans_with(b, a), f"{a}+{b}"
         self._record(True, "P3: the pairs win whichever companion holds which half")
 
-    def test_property_p4_douse_before_freeze(self):
+    def test_property_p4_douse_before_chill(self):
         """In every winning plan the whole swarm's fire is out before the first beetle dies,
-        and no companion is left frozen."""
-        douse = {"extinguish", "quench"}
+        and every beetle dies of the cold."""
         for a, b in [tuple(p) for p in WINNING]:
             for plan in plans_with(a, b):
                 ops = op_list(plan)
-                doused = [i for i, (n, args) in enumerate(ops) if n == "opReact" and args[-1] in douse]
-                dead = [i for i, (n, args) in enumerate(ops) if n == "opExploit" and args[-1] == "dead"]
+                doused = [i for i, (n, args) in enumerate(ops)
+                          if n == "opReact" and args[-1] in ("extinguish", "quench")]
+                dead = [i for i, (n, args) in enumerate(ops)
+                        if n == "opExploit" and args[2:] == ["chilled", "dead"]]
                 assert len(dead) == 3 and len(doused) >= 3 and max(doused) < min(dead), f"{a}+{b}"
-                stunned = [args for n, args in ops if n == "opGrant" and args[1] in ("player", "mage")
-                           and args[2] == "stunned"]
-                assert not stunned, f"{a}+{b}: {stunned}"
-        self._record(True, "P4: every plan douses all three before any dies; nobody on the team frozen")
+        self._record(True, "P4: every plan douses all three before any dies, then chills them")
 
 
 def run_tests():

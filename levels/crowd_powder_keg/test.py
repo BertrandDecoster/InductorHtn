@@ -1,5 +1,6 @@
 """Tests for the Powder Keg level (crowd control)."""
 
+import functools
 import itertools
 import json
 import os
@@ -14,15 +15,20 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["tidalWave", "vortex", "hook", "taunt", "fireball", "blindingFlash"]
+POOL = ["hook", "taunt", "vortex", "tidalWave", "fireball", "blindingFlash", "lightningFlash"]
 
-# The measured matrix (htn_components combos: 14 of 36).
-#   keg:    a mover brings the keg down to the rooted crowd, and a fireball lights it;
-#   meteor: taunt the priest from the grove and be pulled out in the wind-up (hook,
-#           vortex), or gather the priest into the grove and dazzle it (vortex + flash).
-KEG = {frozenset((m, "fireball")) for m in ["tidalWave", "vortex", "hook", "taunt"]}
-METEOR = {frozenset(p) for p in [("taunt", "hook"), ("taunt", "vortex"), ("vortex", "blindingFlash")]}
-WINNING = KEG | METEOR
+# The measured matrix (htn_components combos: 14 of 49). The keg: brought
+# into the grove (hook it from the grove; vortex, or a wave on the ramp,
+# knocks it over the lip) and lit by a fireball. The meteor: the priest
+# brought among the trees (taunt, hook) and set off (blindingFlash,
+# lightningFlash).
+WINNING = {
+    frozenset(p) for p in [
+        ("hook", "fireball"), ("vortex", "fireball"), ("tidalWave", "fireball"),
+        ("hook", "blindingFlash"), ("hook", "lightningFlash"),
+        ("taunt", "blindingFlash"), ("taunt", "lightningFlash"),
+    ]
+}
 
 
 def _solutions(planner, goal):
@@ -34,6 +40,7 @@ def _solutions(planner, goal):
     return solutions
 
 
+@functools.lru_cache(maxsize=None)
 def plans_with(player, mage):
     """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
     planner (a failed search locks the rule set)."""
@@ -47,29 +54,7 @@ def plans_with(player, mage):
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
-
-
-def ops_text(plans):
-    return " ".join(json.dumps(p) for p in plans)
-
-
-START = {"player": "camp", "mage": "camp"}
-
-
-def where(ops, start):
-    """Each companion's region after `ops`, and who is disjoint right then."""
-    pos, phased = dict(start), set()
-    for n, args in ops:
-        if n in ("opNavigate", "opDash", "opTeleport") and args[0] in pos:
-            pos[args[0]] = args[2]
-        elif n == "opForcedMove" and args[1] in pos:
-            pos[args[1]] = args[3]
-        elif n == "opGrant" and args[2] == "disjoint":
-            phased.add(args[1])
-        elif n == "opRemove" and args[2] == "disjoint":
-            phased.discard(args[1])
-    return pos, phased
+    return tuple(_solutions(planner, "win."))
 
 
 def op_list(plan):
@@ -79,6 +64,10 @@ def op_list(plan):
         name = list(op.keys())[0]
         out.append((name, [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]))
     return out
+
+
+def has_op(plans, name, args):
+    return any((name, args) in op_list(p) for p in plans)
 
 
 class PowderKegTest(HtnTestSuite):
@@ -91,39 +80,37 @@ class PowderKegTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_roll_the_keg_down_then_light_it(self):
+    def test_example_1_over_the_lip_then_light_it(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, tidalWave, player)", "opForcedMove(player, keg, ramp, grove)",
-            "opCast(mage, fireball, grove)", "opReact(mage, keg, oiled, burning, blaze)",
+            "opCast(player, vortex, lip)", "opKnock(player, keg, lip)",
+            "opForcedMove(player, keg, ramp, grove)", "opCast(mage, fireball, grove)",
+            "opReact(mage, keg, oiled, burning, blaze)",
             "opExploit(mage, t1, burning, dead)", "opExploit(mage, t3, burning, dead)"])
 
-    def test_example_2_taunt_the_priest_and_be_hooked_out(self):
-        plans = plans_with("taunt", "hook")
+    def test_example_2_the_meteor_on_the_grove(self):
+        plans = plans_with("taunt", "blindingFlash")
         assert plans
-        ops = op_list(plans[0])
-        assert ("opWindUp", ["priest", "meteor", "grove"]) in ops
-        assert ("opCast", ["mage", "hook", "player"]) in ops
-        assert ("opForcedMove", ["mage", "player", "grove", "camp"]) in ops
-        assert ("opBlow", ["priest", "meteor", "grove", "grove"]) in ops
-        assert ("opExploit", ["priest", "t2", "burning", "dead"]) in ops
-        self._record(True, "Example 2: the priest winds up on the grove; the hook pulls the taunter out")
+        assert has_op(plans, "opNavigate", ["priest", "shrine", "grove"])
+        assert has_op(plans, "opCast", ["mage", "blindingFlash", "mage"])
+        assert has_op(plans, "opBlow", ["priest", "meteor", "grove", "grove"])
+        for t in ("t1", "t2", "t3"):
+            assert has_op(plans, "opExploit", ["priest", t, "burning", "dead"]), t
+        self._record(True, "Example 2: the taunted priest walks among the trees; dazzled, its meteor burns them")
 
-    def test_example_3_gather_and_dazzle(self):
-        plans = plans_with("vortex", "blindingFlash")
-        ops = ops_text(plans)
-        assert plans and '"priest"' in ops and "opMiss" not in ops
-        for plan in plans:
-            o = op_list(plan)
-            assert ("opForcedMove", ["player", "priest", "shrine", "grove"]) in o
-            assert ("opProvoked", ["priest", "blinded", "meteor"]) in o
-        self._record(True, "Example 3: the vortex draws keg and priest in; a flash sets the meteor off")
+    def test_example_3_hook_two_roles(self):
+        assert has_op(plans_with("hook", "fireball"), "opForcedMove", ["player", "keg", "ramp", "grove"])
+        assert has_op(plans_with("hook", "blindingFlash"),
+                      "opForcedMove", ["player", "priest", "shrine", "grove"])
+        assert has_op(plans_with("hook", "lightningFlash"), "opBlow", ["priest", "meteor", "grove", "grove"])
+        self._record(True, "Example 3: the hook fetches the keg, or the priest")
 
     def test_example_4_traps(self):
-        assert not plans_with("fireball", "fireball"), "fire lights the keg on the ramp, or steams"
-        assert not plans_with("taunt", "taunt"), "companions cannot be taunted out"
-        assert not plans_with("hook", "blindingFlash"), "the hooker is caught under the meteor"
-        assert not plans_with("tidalWave", "vortex"), "two movers light nothing"
-        self._record(True, "Example 4: two fires, two taunts, hook + flash, two movers")
+        assert not plans_with("fireball", "fireball"), "fire on the keg first: it blazes alone"
+        assert not plans_with("hook", "hook"), "nothing lit"
+        assert not plans_with("taunt", "fireball"), "the keg does not walk; the priest is not set off"
+        assert not plans_with("vortex", "blindingFlash"), "the vortex moves nothing out of its area"
+        assert not plans_with("lightningFlash", "lightningFlash"), "the meteor falls on the shrine"
+        self._record(True, "Example 4: fire first, two movers, the wrong mover, the priest at home")
 
     # -------------------------------------------------------------- properties
 
@@ -132,7 +119,7 @@ class PowderKegTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_seven_pairs_win(self):
+    def test_property_p2_the_measured_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
@@ -142,32 +129,18 @@ class PowderKegTest(HtnTestSuite):
             assert plans_with(a, b) and plans_with(b, a), f"{a}+{b}"
         self._record(True, "P3: the pairs win whichever companion holds which half")
 
-    def test_property_p4_one_fire_takes_the_crowd(self):
-        """Every winning plan burns the whole crowd in one go - a blaze or a meteor - and no
-        meteor lands on a companion."""
+    def test_property_p4_through_the_wet(self):
+        """In every winning plan the treants burn only after a blaze or a meteor: fire cast on
+        them only steams them."""
         for a, b in [tuple(p) for p in WINNING]:
             for plan in plans_with(a, b):
                 ops = op_list(plan)
-                fires = [n for n, args in ops if (n == "opReact" and args[-1] == "blaze") or n == "opBlow"]
-                deaths = [args[1] for n, args in ops if n == "opExploit" and args[-1] == "dead"]
-                assert len(fires) == 1 and sorted(deaths) == ["t1", "t2", "t3"], f"{a}+{b}"
-                for i, (n, args) in enumerate(ops):
-                    if n == "opBlow":
-                        pos, phased = where(ops[:i], START)
-                        caught = [c for c in ("player", "mage") if pos[c] == args[3] and c not in phased]
-                        assert not caught, f"{a}+{b}: {caught} under the blow"
-        self._record(True, "P4: one blaze or one meteor burns all three; nobody is left under it")
-
-    def test_property_p5_the_meteor_needs_a_second_hand(self):
-        """The meteor route always has a wind-up answered, or a flash, by the companion who
-        did not bring the priest."""
-        for a, b in [tuple(p) for p in METEOR]:
-            for plan in plans_with(a, b):
-                ops = op_list(plan)
-                assert any(n == "opWindUp" for n, _ in ops), f"{a}+{b}"
-                casters = {args[0] for n, args in ops if n == "opCast"}
-                assert casters == {"player", "mage"}, f"{a}+{b}: {casters}"
-        self._record(True, "P5: every meteor plan needs both companions")
+                hot = [i for i, (n, args) in enumerate(ops)
+                       if (n == "opReact" and args[-1] == "blaze") or n == "opBlow"]
+                dead = [i for i, (n, args) in enumerate(ops)
+                        if n == "opExploit" and args[1] in ("t1", "t2", "t3") and args[-1] == "dead"]
+                assert len(dead) == 3 and hot and min(hot) < min(dead), f"{a}+{b}"
+        self._record(True, "P4: every plan burns the grove with a blaze or a meteor, never a fireball alone")
 
 
 def run_tests():

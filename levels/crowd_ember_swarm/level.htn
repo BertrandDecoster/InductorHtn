@@ -1,79 +1,80 @@
 % Ember Swarm (ability catalogue, crowd control)
 %
-% Three ember beetles swarm in a nest below the gate, still aflame. They are
-% insects: the cold kills them - but not while they burn. A chill on a
-% burning beetle only quenches the fire (the catalogue's `quench`), and a
-% region ices over only once. So the whole swarm has to be doused first,
-% then frozen: two steps, two companions.
+% Three ember beetles swarm in a nest at the bottom of a ravine, still
+% aflame. They are insects: the cold kills them - but not while they burn. A
+% chill on a burning beetle only quenches it (the catalogue's `quench`), an
+% area ices over only once, and a wet beetle chilled only freezes (stunned)
+% instead of dying. So the whole swarm has to be doused and left dry first,
+% then chilled: two steps, two companions.
 %
-%   camp (player, mage) --- gate --- nest (b1, b2, b3) --- ice cave (iceSheet)
-%                                     |
-%                                   brook (deepWater)
+%   camp (player, mage) --- ridge (frostVent) --- ford (puddle) --- nest (spring; b1 b2 b3)
 %
-% The gate overlooks the nest, the brook and the ice cave; the brook and the
-% ice cave each see the nest, not each other.
+% Four areas in a line, all walkable. The ford is shallow water: whoever
+% wades through it is soaked. Features: a spring in the nest (a pool: wet)
+% and a frost vent on the ridge (a crevasse breathing cold: slowed and
+% chilled, whoever is knocked into it). The ridge overlooks the ford and the
+% nest; the camp sees the ridge.
 %
-% Two companions, one skill each, from six. Each has mana for one wave,
-% blizzard or fireball.
+% Two companions, one skill each, from six. Each has mana for one wave or
+% one blizzard.
 %
 % Obstacles:
 %   - the beetles burn: the first cold only quenches them;
-%   - each region ices once: a second chill on the nest does nothing;
-%   - a vortex pins what it gathers (rooted wards forced movement here), so
-%     nothing fetches the swarm back out of the ice, or the brook, for a
-%     second go;
-%   - a wet beetle chilled only freezes (stunned), it does not die: the
-%     douse must leave it dry (fire and water cancel out, and so do fire and
-%     cold).
+%   - the nest ices once: a second blizzard there does nothing;
+%   - the cold that kills is on the ridge (the vent) or wherever a blizzard
+%     falls; the swarm is in the nest, and only a taunt (it walks after you,
+%     through the ford) or a hook (one area at a time) moves it;
+%   - a beetle soaked after its fire is out stays wet, and a wet beetle
+%     chilled only freezes.
 %
-% Methods (douse the whole swarm, then freeze the whole swarm):
-%   douse in place      tidalWave from the nest (the fires go out)
-%   douse by cold       blizzard on the nest (quenched; the nest is iced now
-%                       and will not chill again)
-%   douse in the brook  vortex on the brook: the swarm is sucked into the
-%                       water and pinned there
-%   freeze in place     blizzard on the doused swarm: on the nest, or on the
-%                       brook, whose water ices into a floor
-%   drag into the ice   vortex on the ice cave (the whole nest), or taunt /
-%                       hook from inside it (one at a time)
-% So blizzard and vortex each play both halves, in different plans.
+% Methods (douse the whole swarm, then chill the whole swarm):
+%   douse   tidalWave in the nest (all soaked, the fires go out);
+%           vortex on the spring (the whole swarm knocked into the water);
+%           shieldBash each beetle into the spring;
+%           herd them through the ford: taunt (they walk after you) or hook
+%           (pull each into the ford)
+%   chill   blizzard on wherever the doused swarm stands (the nest, or the
+%           ford - its water ices over);
+%           bring the swarm up to the ridge (taunted, it follows you; or
+%           hooked out of the ford) and knock it into the frost vent: vortex
+%           (the whole crowd at once) or shieldBash (one at a time)
+% So vortex and shieldBash each play both halves, in different plans, and
+% taunt and hook herd the crowd through the water and up to the vent.
 %
 % Traps:
-%   - cold twice: the first quenches, the second finds the nest iced;
-%   - a vortex into the ice first: the swarm is quenched and pinned there;
-%   - two waves: the second soaks the doused swarm, and wet beetles only
-%     freeze (stunned) instead of dying of the cold;
-%   - dragging the beetles into the brook yourself (taunt, hook): the
-%     blizzard that freezes them freezes you too, and the ice cave cannot
-%     see the brook;
-%   - fireball: it relights the nest, and its push throws nobody anywhere
-%     useful.
+%   - cold first: blizzard on the burning nest only quenches it, and the
+%     nest ices once - the swarm cannot be chilled there again, and leaving
+%     it means wading the ford (wet: they would only freeze);
+%   - a wave after the douse, or a herd through the ford after it: the
+%     beetles are wet, and wet beetles only freeze;
+%   - a wave on the ridge to throw the swarm into the vent: it soaks them
+%     first;
+%   - two movers, two knocks, two waves: nothing chills without a blizzard
+%     or the vent;
+%   - whoever waded the ford is wet: the vortex that throws the swarm into
+%     the vent throws the herder in too, and freezes it (a sacrifice, not a
+%     failure - unless it still had work to do).
 
-% === Regions ===
+% === Areas ===
 region(camp).
-region(gate).
+region(ridge).
+region(ford).
 region(nest).
-region(icecave).
-region(brook).
-connected(camp, gate).
-connected(gate, camp).
-connected(gate, nest).
-connected(nest, gate).
-connected(nest, icecave).
-connected(icecave, nest).
-connected(nest, brook).
-connected(brook, nest).
-lineOfSight(gate, nest).
-lineOfSight(gate, icecave).
-lineOfSight(gate, brook).
-lineOfSight(icecave, nest).
-lineOfSight(brook, nest).
+connected(camp, ridge).
+connected(ridge, ford).
+connected(ford, nest).
+lineOfSight(camp, ridge).
+lineOfSight(ridge, ford).
+lineOfSight(ridge, nest).
+lineOfSight(ford, nest).
+lineOfSight(ford, ridge).
+lineOfSight(nest, ford).
 
-onEnter(icecave, iceSheet).
-onEnter(brook, deepWater).
+onEnter(ford, puddle).
 
-% A vortex pins what it gathers: rooted things cannot be dragged away.
-wards(rooted, forcedMove).
+% Features: the spring soaks, the vent chills whatever is knocked in.
+feature(nest, spring, puddle).
+feature(ridge, frostVent, iceSheet).
 
 % === Companions ===
 role(player, player).
@@ -99,12 +100,12 @@ tag(b3, burning).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
 knows(player, tidalWave).
-knows(mage, vortex).
+knows(mage, blizzard).
 
 % === The swarm, as a group ===
 % The need: every beetle out of the fight. The cold kills an insect, but a
 % chill on a burning one only quenches it: douse the whole swarm, then
-% freeze the whole swarm.
+% chill the whole swarm.
 
 standing(?e) :- role(?e, enemy), not(neutralized(?e)).
 aflame(?e) :- standing(?e), holds(?e, burning).
@@ -113,12 +114,7 @@ dousedBy(?t) :- reaction(burning, ?t, ?ab), effect(?ab, target, remove(burning))
 % What kills ?e outright.
 lethal(?e, ?t) :- weakness(?e, ?t, none, dead).
 
-win :- if(), do(rout).
-
-rout :- if(), do(douseAll, freezeAll, teamFit).
-
-% Nobody on the team is left frozen by a friend's blizzard.
-teamFit :- if(not(first(and(canAct(?a), tag(?a, stunned))))), do().
+win :- if(), do(douseAll, freezeAll).
 
 % Every beetle's fire out: take the first that burns, and put out its fire.
 douseAll :- if(not(first(aflame(?e)))), do().
@@ -128,23 +124,39 @@ douseAll :-
 
 ensureOut(?e) :- if(not(holds(?e, burning))), do().
 
-% Every beetle frozen: take the first still standing, and chill it.
+% Every beetle dead: take the first still standing, and lay on it what it is
+% lethally weak to.
 freezeAll :- if(not(first(standing(?e)))), do().
 freezeAll :-
     if(first(standing(?e)), lethal(?e, ?t)),
     do(lay(?t, ?e), confirmStopped(?e), freezeAll).
 
-% ?e takes ?t: a skill that gives ?t, cast on it (or on everyone around it);
-% a pull-in or a push into a region that gives ?t; or a drag into such a
-% region by someone standing in it.
+% ?e takes ?t: a skill that gives ?t, cast on it (or its area, or everyone
+% around the caster); brought into an area whose zone gives ?t; or the whole
+% swarm brought to a feature that gives ?t, and ?e knocked into it.
 lay(?t, ?e) :- if(canInflict(?a, ?ab, ?t, ?e)), do(cast(?a, ?ab, ?e)).
 lay(?t, ?e) :-
-    if(zoneFor(?r, ?t), placement(?a, ?ab, ?from, ?aim, ?e, ?r)),
-    do(castFrom(?a, ?ab, ?aim, ?from)).
+    if(zoneFor(?r, ?t), not(at(?e, ?r))), do(herd(?e, ?r)).
 lay(?t, ?e) :-
-    if(zoneFor(?r, ?t), at(?e, ?er), \==(?er, ?r), puller(?a, ?ab, ?e), reach(?ab, ?k),
-       inRange(?k, ?r, ?er), canReachNow(?a, ?r)),
-    do(castFrom(?a, ?ab, ?e, ?r)).
+    if(featureFor(?f, ?t), feature(?r, ?f, ?ab)),
+    do(herdSwarm(?r), knockOn(?e, feature(?f), none)).
+
+% Every standing beetle in ?r: take the first that is not, and bring it.
+herdSwarm(?r) :- if(not(first(and(standing(?x), not(at(?x, ?r)))))), do().
+herdSwarm(?r) :-
+    if(first(and(standing(?x), not(at(?x, ?r))))), do(herd(?x, ?r), herdSwarm(?r)).
+
+% ?e ends up in ?r: it is there; it follows its taunter, who walks there; or
+% a hook or a taunt brings it.
+herd(?e, ?r) :- if(at(?e, ?r)), do().
+herd(?e, ?r) :-
+    if(not(at(?e, ?r)), follows(?e, ?a), tag(?e, taunted), canAct(?a)),
+    do(walkTo(?a, ?r), ensureAt(?e, ?r)).
+herd(?e, ?r) :-
+    if(not(at(?e, ?r)), not(first(and(follows(?e, ?x), tag(?e, taunted))))),
+    do(bringTo(?e, ?r, none), ensureAt(?e, ?r)).
+
+ensureAt(?e, ?r) :- if(at(?e, ?r)), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
@@ -156,8 +168,8 @@ comboPool(blizzard).
 comboPool(vortex).
 comboPool(taunt).
 comboPool(hook).
-comboPool(fireball).
-comboMinWins(8).
-comboMinMethods(4).
+comboPool(shieldBash).
+comboMinWins(12).
+comboMinMethods(6).
 
 goals(win).

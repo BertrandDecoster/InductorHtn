@@ -2,7 +2,7 @@
   "name": "crowd_ember_swarm",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Ember Swarm: three burning insect beetles; douse the whole swarm (wave, quench, brook), then freeze it (blizzard, or drag it into the ice)",
+  "description": "Ember Swarm: three burning insect beetles; douse the whole swarm (a wave, the spring, a herd through the ford), then chill it (a blizzard, or the frost vent on the ridge)",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:16:32.950098"
+    "last_checked": "2026-09-24T20:33:11.192107"
   },
   "provides": [
     "aflame/1",
@@ -24,9 +24,13 @@
     "connected/2",
     "douseAll/0",
     "dousedBy/1",
+    "ensureAt/2",
     "ensureOut/1",
+    "feature/3",
     "freezeAll/0",
     "funExpect/3",
+    "herd/2",
+    "herdSwarm/1",
     "knows/2",
     "lay/2",
     "lethal/2",
@@ -35,16 +39,15 @@
     "onEnter/2",
     "region/1",
     "role/2",
-    "rout/0",
     "standing/1",
     "tag/2",
-    "teamFit/0",
-    "wards/2",
     "win/0"
   ],
   "requires": [
+    "bringTo/3",
     "cast/3",
-    "castFrom/4",
-    "confirmStopped/1"
+    "confirmStopped/1",
+    "knockOn/3",
+    "walkTo/2"
   ]
 }
