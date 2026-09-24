@@ -1,103 +1,83 @@
 % The Sinkhole (ability catalogue)
 %
-% A ledge above a collapsing floor. At the rim stands a stone golem; beside
-% the rim, a pump automaton wades in a flooded pool and a wicker tender
-% minds an oil slick. Past the rim, the floor has already fallen into a
-% pit. Two companions, one skill each, from seven.
+% A ledge above a collapsing floor. On the rim stands a stone golem, by a
+% hole where the floor has already fallen in. Beside the rim, a pump
+% automaton wades in a flooded pool that drains into the sinkhole, and a
+% wicker tender minds an oil slick. Two companions, one skill each, from
+% six.
 %
-%            ledge (player, mage; a stone pillar)
+%            ledge (player, mage)
 %              |
-%   slick --- rim (golem) --- pool
-%               \
-%                pit
+%   slick --- rim (golem; the hole) --- pool (wader; the drain)
 %
-%   golem    a boss: heavy (nothing moves it), and it cannot be stunned.
-%            Provoke it - taunt it, or pin it (rooted) - and it stamps: a
-%            telegraphed cave-in on its own rim (the catalogue's caveIn,
-%            physical, unstoppable). The rim falls into the sinkhole with
-%            the golem and everything else on it. Or turn it to mist and
-%            wash it off the rim into the pit.
-%   wader    a machine, soaked: a jolt would kill it; a push from the rim
-%            drops it in the pit; or it goes down with the rim.
-%   tender   wooden and oiled: fire kills it (the oil blazes); a push from
-%            the rim drops it; or it goes down with the rim. It and the
-%            wader ignore taunts.
+%   golem    a boss: heavy (nothing knocks it), no stun. It will not be
+%            baited. Pin it (rooted: a vortex) or jolt it (electrocuted: a
+%            lightning flash) and it stamps: a telegraphed cave-in on its
+%            own rim (the catalogue's caveIn, physical, unstoppable). The
+%            whole rim becomes a chasm, and everything on it falls - the
+%            golem, any mook brought there, any companion still standing
+%            there. Or turn it to mist and knock it into the hole.
+%   wader    a machine, soaked: a jolt kills it; knocked into the drain,
+%            it falls; brought onto the rim, it goes down with it.
+%   tender   wooden and oiled: fire kills it (the oil blazes); brought
+%            onto the rim, it goes down with it.
 %
 % Methods:
-%   the sinkhole   a vortex on the rim draws both mooks onto it and pins
-%                  the golem, which stamps at once - but the vortex also
-%                  draws the other companion off the ledge, pinned. The
-%                  team has one cast: the pinned companion blinks out or
-%                  hooks the pillar and is dragged to it (vortex + blink,
-%                  vortex + hook)
-%   gather first   drag the mooks onto the rim (hook, from the rim), step
-%                  off, then provoke the golem (hook + taunt)
-%   mooks first    clear the mooks from the rim - a wave washes both into
-%                  the pit (tidalWave), or a fireball knocks the wader in
-%                  and another burns the tender (fireball) - step off, then
-%                  provoke the golem (taunt or vortex)
-%   mist           turn the golem to mist, wash it off the rim into the
-%                  pit, then wash both mooks off (turnToMist + tidalWave)
+%   the sinkhole   bring both mooks onto the rim - hook them in from the
+%                  rim, or taunt them from it (they walk after the
+%                  taunter) - then make the golem stamp from the ledge
+%                  (vortex, lightningFlash): one cave-in takes all three
+%                  (hook + vortex, hook + lightningFlash, taunt + vortex,
+%                  taunt + lightningFlash)
+%   one by one     the fireball burns the tender and knocks the wader into
+%                  the drain; the golem is made to stamp on its empty rim
+%                  (fireball + vortex, fireball + lightningFlash), or is
+%                  misted and knocked into the hole (fireball + turnToMist)
+%   mixed          the vortex on the drain and the flash in the pool take
+%                  the wader where it stands; the tender still has to be
+%                  brought onto the rim for the cave-in
 %
 % Traps:
-%   - provoking the golem first cuts the rim: the mooks are out of reach
-%     of anything that must stand on it;
-%   - the vortex takes friends too: without an escape, the pinned
-%     companion falls with the rim (and a vortex on the pit, to pull them
-%     out, drops them in it);
-%   - fire on the soaked wader only makes steam, and dries it.
+%   - making the golem stamp first cuts the rim: nobody can stand on it
+%     to bring the tender in, and nothing else reaches it but fire;
+%   - the taunted mooks follow their taunter: if it walks off the rim,
+%     they walk off with it - the taunter stays and goes down with the
+%     rim (a sacrifice), a hooker can walk away;
+%   - the cave-in and a vortex on the hole take friends too;
+%   - fire on the soaked wader only makes steam (the blast still knocks).
 %
-% Hypothesis (design.md): no single skill wins; 16 of 49 assignments do,
-% by 8 methods of four kinds; the golem's cave-in is both the weapon and
-% the danger.
+% Hypothesis (design.md): no single skill wins; 14 of 36 assignments do
+% (7 pairs, either way round), by 7 methods of three kinds; the golem's
+% cave-in is both the weapon and the danger.
 
-% === Regions ===
+% === Map: four areas; features inside the rim and the pool ===
 region(ledge).
 region(rim).
 region(pool).
 region(slick).
-region(pit).
 connected(ledge, rim).
-connected(rim, ledge).
 connected(rim, pool).
-connected(pool, rim).
 connected(rim, slick).
-connected(slick, rim).
-connected(rim, pit).
-connected(pit, rim).
 lineOfSight(ledge, rim).
 lineOfSight(ledge, pool).
 lineOfSight(ledge, slick).
-lineOfSight(ledge, pit).
-lineOfSight(rim, ledge).
 lineOfSight(rim, pool).
 lineOfSight(rim, slick).
 lineOfSight(pool, rim).
 lineOfSight(slick, rim).
 
-% Push lines: from the ledge, off the rim into the pit; from the rim, off
-% the pool or the slick into the pit.
-beyond(ledge, rim, pit).
-beyond(rim, pool, pit).
-beyond(rim, slick, pit).
-
-% === Zones ===
+feature(rim, hole, chasm).
+feature(pool, drain, chasm).
 onEnter(pool, puddle).
 onEnter(slick, slick).
-onEnter(pit, chasm).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
 at(player, ledge).
 at(mage, ledge).
-mana(player, 4).
-mana(mage, 4).
-
-% A stone pillar on the ledge: something heavy to hook onto.
-role(pillar, object).
-at(pillar, ledge).
-tag(pillar, heavy).
+mana(player, 6).
+mana(mage, 6).
 
 % === Enemies ===
 role(golem, enemy).
@@ -105,71 +85,57 @@ at(golem, rim).
 rank(golem, boss).
 tag(golem, heavy).
 tag(golem, living).
-behavior(golem, taunted, caveIn, here).
+immune(golem, taunted).
 behavior(golem, rooted, caveIn, here).
+behavior(golem, electrocuted, caveIn, here).
 
 role(wader, enemy).
 at(wader, pool).
 tag(wader, machine).
 tag(wader, wet).
-immune(wader, taunted).
 
 role(tender, enemy).
 at(tender, slick).
 tag(tender, wooden).
 tag(tender, oiled).
-immune(tender, taunted).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, vortex).
-knows(mage, blink).
+knows(player, hook).
+knows(mage, vortex).
 
 % === The encounter ===
-% One by one, the golem last or first; or gather the mooks onto the rim
-% and bring it down under all three; or pin it with everything on the rim.
+% Each mook is brought onto the rim for the cave-in, or taken where it
+% stands; whoever stands on the rim may walk off it (or stay); then the
+% golem goes down - its own stamp, or the mist and the hole.
 clearSinkhole :-
     if(),
-    do(neutralize(wader), neutralize(tender), clearOut(rim, ledge), golemDown(golem), confirmTeam()).
-clearSinkhole :- if(), do(golemDown(golem), neutralize(wader), neutralize(tender), confirmTeam()).
-clearSinkhole :-
-    if(),
-    do(herd(wader, rim), herd(tender, rim), clearOut(rim, ledge), collapse(golem),
-       confirmStopped(wader), confirmStopped(tender), confirmTeam()).
-clearSinkhole :-
-    if(),
-    do(collapse(golem), confirmStopped(wader), confirmStopped(tender), confirmTeam()).
+    do(mook(wader), mook(tender), stepOff(), golemDown(golem),
+       confirmStopped(wader), confirmStopped(tender)).
 
-% The golem goes down: by the recipes (mist, then a push), or by its own
-% cave-in.
+mook(?e) :- if(not(gone(?e))), do(bringTo(?e, rim, none)).
+mook(?e) :- if(), do(neutralize(?e)).
+
+% Before the stamp, the companions on the rim walk back to the ledge - or
+% stay, and go down with it (sacrifice is allowed). A taunted mook follows
+% its taunter off the rim.
+onRim(?a) :- canAct(?a), at(?a, rim), not(gone(?a)).
+stepOff() :- if(not(first(onRim(?a)))), do().
+stepOff() :- if(first(onRim(?a))), do(leaveRim()).
+stepOff() :- if(first(onRim(?a))), do().
+leaveRim() :- allOf, if(onRim(?a)), do(walkTo(?a, ledge)).
+
+% The golem goes down: made to stamp (anyone casts a skill that lands a
+% tag it answers with its cave-in - on it, on its area, or on the NPCs
+% there, as a vortex's pin does), or by the recipes (mist, then a knock
+% into the hole).
+golemDown(?g) :- if(not(gone(?g))), do(provoke(?g), confirmStopped(?g)).
 golemDown(?g) :- if(), do(neutralize(?g)).
-golemDown(?g) :- if(not(gone(?g))), do(collapse(?g)).
-
-% Provoke it: anyone lands a tag it answers with its cave-in.
-collapse(?g) :-
-    if(not(gone(?g)), first(behavior(?g, ?t, caveIn, here))),
-    do(provokeWith(?g), confirmStopped(?g)).
-provokeWith(?g) :- if(behavior(?g, ?t, caveIn, here)), do(inflict(?t, ?g, none)).
-
-% ?e ends up in ?r: pushed along a line or drawn in, or dragged to someone
-% standing there.
-herd(?e, ?r) :- if(at(?e, ?r)), do().
-herd(?e, ?r) :-
-    if(not(at(?e, ?r)), canAct(?a), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?aim, ?from), confirmAt(?e, ?r)).
-herd(?e, ?r) :-
-    if(not(at(?e, ?r)), at(?e, ?er), puller(?a, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er)),
-    do(castFrom(?a, ?ab, ?e, ?r), confirmAt(?e, ?r)).
-confirmAt(?e, ?r) :- if(at(?e, ?r)), do().
-
-% Whoever can walk leaves ?r for ?safe before the rim is brought down.
-walksOut(?a, ?r) :- canAct(?a), at(?a, ?r), not(forbidden(?a, move)).
-clearOut(?r, ?safe) :- if(not(first(walksOut(?a, ?r)))), do().
-clearOut(?r, ?safe) :- if(first(walksOut(?a, ?r))), do(leaveAll(?r, ?safe)).
-leaveAll(?r, ?safe) :- allOf, if(walksOut(?a, ?r)), do(walkTo(?a, ?safe)).
-
-% Nobody of the team went down with the rim (a dash can carry a caster
-% into the new sinkhole: the engine does not stop it).
-confirmTeam() :- if(not(first(and(canAct(?a), gone(?a))))), do().
+landsOn(?ab, ?t) :- effect(?ab, ?w, grant(?t)).
+landsOn(?ab, ?t) :- effect(?ab, ?w, moment(grant(?t))).
+provoke(?g) :-
+    if(behavior(?g, ?t, caveIn, here), canAct(?a), knows(?a, ?ab), landsOn(?ab, ?t),
+       ready(?a, ?ab, ?g)),
+    do(cast(?a, ?ab, ?g)).
 
 funBlocker(golem).
 funBlocker(wader).
@@ -179,17 +145,16 @@ funBlockerGoal(wader, neutralize(wader)).
 funBlockerGoal(tender, neutralize(tender)).
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from seven (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(vortex).
-comboPool(blink).
 comboPool(hook).
 comboPool(taunt).
+comboPool(vortex).
+comboPool(lightningFlash).
 comboPool(fireball).
 comboPool(turnToMist).
-comboPool(tidalWave).
-comboMinWins(8).
-comboMinMethods(4).
+comboMinWins(10).
+comboMinMethods(5).
 
 goals(clearSinkhole).

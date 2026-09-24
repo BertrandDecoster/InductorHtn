@@ -12,38 +12,38 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:21:04.364340"
+    "last_checked": "2026-09-24T20:38:12.017887"
   },
   "provides": [
     "at/2",
     "behavior/4",
-    "beyond/3",
-    "clearOut/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
-    "confirmAt/2",
-    "confirmTeam/0",
     "connected/2",
     "detonate/1",
+    "effect/3",
+    "feature/3",
+    "funBlocker/1",
     "funExpect/3",
-    "herd/2",
+    "inYard/1",
     "knows/2",
-    "leaveAll/2",
+    "leaveYard/0",
     "lineOfSight/2",
     "mana/2",
+    "plate/1",
     "region/1",
     "role/2",
+    "stepOut/0",
     "tag/2",
-    "walksOut/2",
     "win/0"
   ],
   "requires": [
-    "castFrom/4",
+    "bringTo/3",
     "confirmStopped/1",
     "inflict/3",
-    "neutralize/1",
+    "knockOn/3",
     "walkTo/2"
   ]
 }

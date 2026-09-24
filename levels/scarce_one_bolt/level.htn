@@ -1,81 +1,56 @@
 % One Bolt (resource scarcity: a mana budget)
 %
-% A flooded chapel. In the hall stands a sentry drone; behind the flooded
-% nave, in the apse, squats the pump engine - a heavy machine, soaked in its
-% own sump. Both must go. Everyone has 2 mana, and a lightning flash costs
-% 2: whoever holds it gets ONE bolt. It has to take both machines at once.
+% A flooded chapel. In the hall stands a sentry drone, by an open shaft;
+% past it, in the flooded nave, squats the pump engine - a heavy machine,
+% soaked. Both must go. Everyone has 2 mana, and a lightning flash costs 2:
+% whoever holds it gets ONE bolt. A bolt strikes everyone in one area.
 %
-%   porch --- hall (drone) --- nave (flooded) --- apse (engine, sump)
-%     |        |
-%   gallery ---+        pit   (off the hall: a push from the gallery)
+%   porch (team) --- hall (drone; the shaft) --- nave (engine; flooded)
+%     |               ~gap~
+%   gallery ---------'          (a balcony over the hall)
 %
-% A lightning flash strikes its target and everything on its way. From the
-% porch at the engine it runs through the hall and the nave. The engine is
-% wet: the flash kills it. The drone is dry: a jolt only stuns it. So the
-% one bolt must meet a wet drone on its way, or the drone must go some
-% other way first.
+% The engine is wet: the bolt kills it. The drone is dry: a bolt only
+% stuns it. So either the one bolt meets the drone soaked, in the engine's
+% area, or the drone goes some other way first.
 %
 % Methods:
-%   line up     soak the drone where it stands (tidalWave), then flash from
-%               the porch at the engine: the bolt runs through the hall and
-%               kills both
-%   the flood   put the drone in the flooded nave, on the bolt's way: wash
-%               it in from the porch (tidalWave), drag it in from the nave
-%               (hook, taunt) or draw it in (vortex on the nave); it
-%               arrives soaked, and one flash takes both
-%   the pit     knock the drone into the pit from the gallery (fireball,
-%               tidalWave), then flash the engine
+%   the flood   bring the drone into the flooded nave - hook it in from
+%               the nave, or taunt it from there (it walks in after the
+%               taunter); it arrives soaked, and one bolt on the nave
+%               takes both machines (hook, taunt + lightningFlash)
+%   the drop    knock the drone into the shaft - a fireball or a shield
+%               bash from the porch, a wave in the hall, a vortex on the
+%               shaft - or hook it off the hall from the gallery, across
+%               the gap; then the bolt on the engine alone
 %
 % Traps (each spends the only bolt, or wastes the soak):
-%   - jolting before the drone is wet: it is only stunned, and the mana is
-%     gone (the obvious order - soak it, jolt it, then the engine - never
-%     works: the bolt spent on the drone cannot reach the engine);
-%   - a fireball from the porch throws the drone into the flood burning:
-%     the water only puts it out, and it arrives dry;
-%   - a fireball on the engine dries it (steam); a vortex on the hall
-%     roots the drone where it is, dry.
+%   - jolting before the drone is soaked: it is only stunned, and the mana
+%     is gone;
+%   - soaking the drone where it stands (a wave in the hall): it is wet,
+%     but in the hall - the bolt on the nave does not reach it, and the
+%     bolt on the hall does not reach the engine;
+%   - a taunt from the gallery: the drone walks round to the gallery, dry.
 %
 % Hypothesis (design.md): no single skill wins; every winning pair holds
-% the flash, and the partner decides the method; every winning plan
-% casts exactly one bolt.
+% the flash, and the partner decides the method; every winning plan casts
+% exactly one bolt.
 
-% === Regions ===
+% === Map: four areas; the balcony looks over the hall across a gap ===
 region(porch).
 region(gallery).
 region(hall).
 region(nave).
-region(apse).
-region(pit).
 connected(porch, hall).
-connected(hall, porch).
 connected(porch, gallery).
-connected(gallery, porch).
-connected(gallery, hall).
-connected(hall, gallery).
 connected(hall, nave).
-connected(nave, hall).
-connected(nave, apse).
-connected(apse, nave).
+gap(gallery, hall).
 lineOfSight(porch, hall).
-lineOfSight(porch, nave).
-lineOfSight(porch, apse).
 lineOfSight(gallery, hall).
 lineOfSight(hall, nave).
 lineOfSight(nave, hall).
-lineOfSight(nave, apse).
 
-% Lines: from the porch, a push on the hall lands in the nave, and the
-% hall and the nave lie on the way to the apse; from the gallery, a push on
-% the hall goes into the pit.
-beyond(porch, hall, nave).
-beyond(porch, hall, apse).
-beyond(porch, nave, apse).
-beyond(gallery, hall, pit).
-
-% === Terrain ===
+feature(hall, shaft, chasm).
 onEnter(nave, puddle).
-onEnter(apse, puddle).
-onEnter(pit, chasm).
 
 % === Companions ===
 role(player, player).
@@ -91,45 +66,38 @@ at(drone, hall).
 tag(drone, machine).
 
 role(engine, enemy).
-at(engine, apse).
+at(engine, nave).
 tag(engine, machine).
 tag(engine, heavy).
 tag(engine, wet).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, tidalWave).
+knows(player, hook).
 knows(mage, lightningFlash).
 
 % === Victory ===
-% Each machine on its own (the pit), or the drone soaked first so one bolt
-% takes both.
+% The drone is brought to the engine and one bolt takes both; or each
+% machine goes on its own.
+win :- if(), do(bringTo(drone, nave, none), neutralize(engine), confirmStopped(drone)).
 win :- if(), do(neutralize(drone), neutralize(engine)).
-win :- if(), do(douse(drone), neutralize(engine), neutralize(drone)).
 
-% The drone carries wet: it already does; someone soaks it, washes it into
-% the flood or draws it in; or someone in the flood drags it in.
-douse(?e) :- if(holds(?e, wet)), do().
-douse(?e) :-
-    if(not(holds(?e, wet)), supplier(?p, wet, ?e), \==(?p, none)),
-    do(supply(?p, wet, ?e)).
-douse(?e) :-
-    if(not(holds(?e, wet)), zoneFor(?r, wet), at(?e, ?er), \==(?r, ?er), puller(?a, ?ab, ?e),
-       reach(?ab, ?k), inRange(?k, ?r, ?er)),
-    do(castFrom(?a, ?ab, ?e, ?r), confirmWet(?e)).
-confirmWet(?e) :- if(holds(?e, wet)), do().
-
+funBlocker(drone).
+funBlocker(engine).
+funBlockerGoal(drone, neutralize(drone)).
+funBlockerGoal(engine, neutralize(engine)).
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(tidalWave).
-comboPool(fireball).
+comboPool(lightningFlash).
 comboPool(hook).
 comboPool(taunt).
+comboPool(fireball).
+comboPool(tidalWave).
+comboPool(shieldBash).
 comboPool(vortex).
-comboPool(lightningFlash).
-comboMinWins(8).
-comboMinMethods(3).
+comboMinWins(10).
+comboMinMethods(5).
 
 goals(win).

@@ -14,11 +14,12 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["tidalWave", "fireball", "hook", "taunt", "vortex", "lightningFlash"]
+POOL = ["lightningFlash", "hook", "taunt", "fireball", "tidalWave", "shieldBash", "vortex"]
 
 # The measured matrix (htn_components combos): these pairs win, nothing else does.
 WINNING = {
-    frozenset(("lightningFlash", p)) for p in ["tidalWave", "fireball", "hook", "taunt", "vortex"]
+    frozenset(("lightningFlash", p))
+    for p in ["hook", "taunt", "fireball", "tidalWave", "shieldBash", "vortex"]
 }
 
 
@@ -48,7 +49,7 @@ def plans_with(player, mage, goal="win."):
 
 
 def text_of(plans):
-    """The plans as operator strings, e.g. `opCast(player, gust, drone)`."""
+    """The plans as operator strings, e.g. `opCast(player, hook, drone)`."""
     out = []
     for plan in plans:
         for op in plan:
@@ -68,37 +69,31 @@ class OneBoltTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_line_them_up(self):
-        plans = plans_with("tidalWave", "lightningFlash")
-        ops = text_of(plans)
-        assert plans, "a wave, then one flash through the hall, should take both"
-        line = [p for p in plans if "opForcedMove" not in json.dumps(p)]
-        assert line, "a plan soaks the drone where it stands"
-        s = text_of(line)
-        assert "opExploit(mage, drone, electrocuted, dead)" in s
-        assert "opExploit(mage, engine, electrocuted, dead)" in s
-        self._record(True, "Example 1: soak the drone, then one flash through the hall takes both")
-
-    def test_example_2_into_the_flood(self):
-        plans = plans_with("hook", "lightningFlash")
-        ops = text_of(plans)
-        assert plans, "a hook from the nave, then one flash, should take both"
-        assert "opCast(player, hook, drone)" in ops
-        assert "opForcedMove(player, drone, hall, nave)" in ops, "dragged into the flooded nave"
-        assert "opExploit(mage, drone, electrocuted, dead)" in ops
-        self._record(True, "Example 2: drag the drone into the flood, one flash through the nave")
-
-    def test_example_3_the_pit(self):
-        plans = plans_with("fireball", "lightningFlash")
-        ops = text_of(plans)
-        assert plans and "opForcedMove(player, drone, hall, pit)" in ops and "gallery" in ops
-        self._record(True, "Example 3: a fireball from the gallery knocks the drone into the pit")
-
-    def test_example_4_default_kit(self):
-        """The default kit: the wave soaks (or washes) the drone, one flash takes both."""
+    def test_example_1_into_the_flood(self):
+        """The default kit: the player hooks the drone into the flooded nave;
+        one bolt on the nave takes both machines."""
         self.assert_plan("win.", contains=[
-            "opCast(player, tidalWave, player)", "opCast(mage, lightningFlash, engine)",
-            "opExploit(mage, engine, electrocuted, dead)"])
+            "opCast(player, hook, drone)", "opForcedMove(player, drone, hall, nave)",
+            "opGrant(player, drone, wet)", "opCast(mage, lightningFlash, engine)",
+            "opExploit(mage, engine, electrocuted, dead)", "opExploit(mage, drone, electrocuted, dead)"])
+
+    def test_example_2_lured_into_the_flood(self):
+        ops = text_of(plans_with("taunt", "lightningFlash"))
+        assert "opNavigate(drone, hall, nave)" in ops and "opGrant(drone, drone, wet)" in ops, ops
+        assert "opExploit(mage, drone, electrocuted, dead)" in ops, ops
+        self._record(True, "Example 2: taunted from the nave, the drone wades in; one bolt")
+
+    def test_example_3_the_shaft(self):
+        ops = text_of(plans_with("fireball", "lightningFlash"))
+        assert "opKnock(player, drone, shaft)" in ops and "opExploit(player, drone, chasm, fell)" in ops
+        assert "opExploit(mage, engine, electrocuted, dead)" in ops, ops
+        self._record(True, "Example 3: a fireball knocks the drone into the shaft; the bolt takes the engine")
+
+    def test_example_4_off_the_balcony(self):
+        ops = text_of(plans_with("hook", "lightningFlash"))
+        assert "opNavigate(player, porch, gallery)" in ops, ops
+        assert "opFall(player, drone, hall, gallery)" in ops, ops
+        self._record(True, "Example 4: hooked from the gallery, the drone falls in the gap")
 
     # -------------------------------------------------------------- properties
 
@@ -107,38 +102,37 @@ class OneBoltTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_five_pairs_win(self):
+    def test_property_p2_six_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_one_bolt(self):
-        """Every winning plan casts exactly one jolt: the mana buys one."""
+        """Every winning plan casts exactly one bolt: the mana buys one."""
         for a, b in [tuple(p) for p in WINNING]:
             for plan in plans_with(a, b):
                 s = json.dumps(plan)
                 bolts = s.count('"lightningFlash"')
-                assert bolts == 1, f"{a}+{b}: {bolts} jolts in {s}"
+                assert bolts == 1, f"{a}+{b}: {bolts} bolts in {s}"
         self._record(True, "P3: every winning plan spends exactly one bolt")
 
-    def test_property_p4_wrong_order_loses(self):
-        """With a hook and the flash: jolting the drone first, or the engine
-        before the drone is in the flood, loses."""
-        assert plans_with("hook", "lightningFlash")
-        assert not plans_with("hook", "lightningFlash", "neutralize(drone), neutralize(engine).")
-        assert not plans_with("hook", "lightningFlash", "neutralize(engine), neutralize(drone).")
-        self._record(True, "P4: jolting before the drone is wet and on the line loses")
+    def test_property_p4_a_bolt_on_the_dry_drone_is_wasted(self):
+        """Jolting the drone first only stuns it, and the mana is gone."""
+        assert not plans_with("hook", "lightningFlash",
+                              "cast(mage, lightningFlash, drone), win.")
+        assert not plans_with("lightningFlash", "lightningFlash")
+        self._record(True, "P4: a bolt on the dry drone only stuns it; two bolts still lose")
 
-    def test_property_p5_each_hand_matters(self):
+    def test_property_p5_soaked_in_the_wrong_area(self):
+        """A wave in the hall soaks the drone where it stands: wet, but not in
+        the engine's area - one bolt cannot take both."""
+        plans = plans_with("tidalWave", "lightningFlash")
+        assert plans and all("opGrant(player, drone, fell)" in text_of([p]) for p in plans)
+        self._record(True, "P5: with a wave, the drone only ever falls (the shaft or the gap)")
+
+    def test_property_p6_each_hand_matters(self):
         assert plans_with("lightningFlash", "vortex") and plans_with("taunt", "lightningFlash")
-        self._record(True, "P5: the pairs win whichever companion holds which half")
-
-    def test_property_p6_fire_does_not_soak(self):
-        """A fireball into the flood arrives dry (the water puts the fire out):
-        with a fireball, the drone only ever goes into the pit."""
-        plans = plans_with("fireball", "lightningFlash")
-        assert plans and all("pit" in json.dumps(p) for p in plans)
-        self._record(True, "P6: fire and water cancel; the fireball's only road is the pit")
+        self._record(True, "P6: the pairs win whichever companion holds which half")
 
 
 def run_tests():

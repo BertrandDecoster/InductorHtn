@@ -2,34 +2,37 @@
 
 ## Purpose
 
-A **resource scarcity** level where the resource is a **heavy attack that can be spent**. A walled
-yard, sunk over an old cellar, holds one powder keg. A bruiser guards the keg, and a lurker waits on
-the stair above. The team watches from the landing at the top of the stair. Nothing the team
-carries can stop either enemy. Only the keg can: it blows the yard's floor into the cellar, and it
-blows once. The player and the mage pick one skill each from six.
+A resource-scarcity level: **a spent reaction**. A walled yard with one powder keg in it, sunk over
+an old cellar, and a tripwire across the yard. A bruiser stands guard by the keg; a lurker waits on
+the stair above. The team watches from the landing. Nothing the team carries stops either enemy -
+only the keg does, and it blows once.
 
 The keg is a **telegraphed heavy attack the team sets off on purpose**. Fire or a spark (`burning`,
-`electrocuted`) lights its fuse: `behavior(keg, burning | electrocuted, caveIn, here)`. The catalogue's
-`caveIn` is physical, so nothing stops it once lit. The team gets one cast, then the yard's floor gives
-way. Everything still in the yard falls into the cellar: the bruiser, the keg itself, and any companion
-who did not get out. With the keg gone, it cannot blow again. No level-local ability, tag or
-weakness is needed: a keg, two catalogue triggers and the catalogue's cave-in.
+`electrocuted`) lights its fuse: it winds up the catalogue's `caveIn` on the yard (physical, so it
+cannot be stopped). The yard's floor becomes a chasm and everything still in it falls - the bruiser,
+the keg, and any companion who stayed. The tripwire is a **plate**: whatever is knocked onto it
+throws a spark into the powder trail and the whole yard catches fire (`spill(flames, yard)`), the keg
+with it.
 
-| Method | First | Then |
-|--------|-------|------|
-| **Gather, then burn** | bring the lurker down into the yard: wash it down the stair from the landing (`tidalWave`), drag it down from the yard and walk out (`hook`, `taunt`), or draw it in with a vortex on the yard from the landing (`vortex`) | a fireball on the keg from the landing (`fireball`) |
-| **Gather, then spark** | the same | a lightning flash from the stair at the gate (`lightningFlash`): it strikes the keg on its way through the yard and carries its caster out the far side |
-| **Burn, then the crater** | light the keg first (`fireball`, `lightningFlash`) | wash (`tidalWave`) or draw (`vortex`) the lurker into the crater |
+So the lurker has to be brought down into the yard first, and only a hook or a taunt changes its
+area; then the keg is lit.
+
+| Step | Skills | How |
+|------|--------|-----|
+| **Gather** | `hook` | from the yard, hook the lurker down off the stair; the hooker walks out (it stays where it landed) |
+| | `taunt` | from the yard, taunt it: it walks down after the taunter and follows it, so the taunter stays - and goes down with the yard |
+| **Light** | `fireball` | on anything in the yard, from the landing: the yard burns |
+| | `lightningFlash` | from the stair or the gate: it jolts the keg, and its dash never lands in the new chasm |
+| | `shieldBash` | from the stair: knocks the bruiser (or the lurker) onto the tripwire |
+| | `vortex` | on the tripwire, from the landing: everything in the yard is knocked onto it |
+| | `blindingFlash` | inside the yard: the shock lights the keg; disjoint passes the blow, but the chasm takes the caster |
 
 Why no single skill works:
-- A gatherer alone kills nothing: only the keg's cave-in stops anyone.
-- A lighter alone drops the bruiser and leaves the lurker on the stair, out of reach. Two fireballs
-  can't move it: a fireball's push needs a line, and none leads from where it can be seen.
+- A lighter alone takes the bruiser and spends the keg; the lurker is then out of reach for good.
+- A gatherer alone never lights the keg.
+- The primer (the gatherer) and the payoff (the lighter) are two companions.
 
-The order is the puzzle for a puller. Lighting the keg is the obvious first move, and it leaves a
-crater where the puller would have to stand. The lighter has a trap of its own: a flash aimed at
-the keg carries its caster into the yard, and it lands in the crater. The flash has to be aimed
-*through* the yard, at the gate, from the stair.
+The scarce thing is the keg's one reaction, and - for a taunter or a blinding flash - a companion.
 
 ## Layer
 
@@ -43,85 +46,82 @@ level
 ## World
 
 ```
-gate --- yard (keg, bruiser) --- stair (lurker) --- landing (player, mage)
-  |                                                    |
-  +------------------------ side path -----------------+
+landing (player, mage) --- stair (lurker) --- yard (keg, bruiser; tripwire)
+    |                                            |
+    +------------------ side path ------------- gate
 ```
 
-- **Lines:** from the landing, a push on the stair lands in the yard. From the stair, the yard lies on
-  the way to the gate, so a flash from the stair at the gate strikes whatever is in the yard.
-- **Line of sight:** landing and gate to the yard; yard and stair to each other; yard to the gate;
-  stair to the gate. The landing cannot see the stair (it winds under it).
-- **Keg:** an object, `heavy`; `behavior(keg, burning, caveIn, here)`,
-  `behavior(keg, electrocuted, caveIn, here)`.
-- **Enemies:** bruiser (yard) and lurker (stair), both `living`.
-- Both companions have 2 mana (`tidalWave`, `fireball` and `lightningFlash` cost 2).
-- **Goal:** `win`. Either `herd(lurker, yard)`, `clearOut(yard, landing)` (whoever can walk leaves the
-  yard), then `detonate(keg)`, and confirm both enemies fell. Or `detonate(keg)` first, then
-  neutralize the lurker (into the crater). Both methods end with `confirmTeam` (no companion went
-  down). `detonate` lands fire or a spark on the keg, or casts a skill that strikes its path through
-  the keg's region (the flash through the yard).
+- **Areas and links:** four areas round a walkable loop.
+- **Features:** the tripwire, a plate (`plate(tripwire)`) in the yard; its ability `spark` is
+  `spill(flames, yard)`.
+- **Line of sight:** the landing sees the stair and the yard; the stair, the yard and the gate see
+  each other through the yard.
+- **Keg:** an object, `heavy`; `behavior(keg, burning, caveIn, here)` and `behavior(keg,
+  electrocuted, caveIn, here)`.
+- **Bruiser, lurker:** `living`. Both companions have 2 mana: one fireball or one flash.
+
+The goal `win` spells out the stages: `bringTo(lurker, yard)`, whoever stands in the yard walks out
+or stays, then `detonate(keg)` (land its fuse tag, or knock something onto the tripwire), then
+confirm both enemies fell.
 
 ## Hypothesis
 
-Measured by `htn_components combos scarce_powder_keg` (and pinned by `test.py`):
+Measured by `htn_components combos scarce_powder_keg` (and this level's `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 6.
-- 16 of 36 assignments win, i.e. 8 of the 15 pairs, whichever companion holds which half. The winners
-  are exactly one gatherer (`tidalWave`, `hook`, `taunt`, `vortex`) and one lighter (`fireball`,
-  `lightningFlash`).
-- 8 methods (distinct skill sets). No dead skills, and no plan carried by one companion.
-- Every winning plan blows the keg exactly once, and no companion is in the yard when it goes.
-- The 7 losing pairs are two gatherers (nothing lights the keg) or two lighters (nothing moves the
-  lurker).
+- No single skill wins, even when both companions hold it: 0 of 7.
+- 20 of the 49 assignments win: every gatherer (hook, taunt) with every lighter (fireball,
+  lightningFlash, shieldBash, vortex, blindingFlash), either way round - 10 pairs, 10 methods; no
+  other pair wins; no solo plans; no dead skills.
+- Every taunt plan and every blinding-flash plan spends a companion; a hook plan with a lighter from
+  outside keeps the whole team.
+- Lighting the keg first loses.
+- A tidal wave in the yard soaks the keg: knocked onto the tripwire, the bruiser only makes steam.
 
 ## Examples
 
-### Example 1: Wash down, then burn
+### Example 1: Hook, then fire
 
-**Given:** the default kit: the player knows `tidalWave`, the mage knows `fireball`.
+**Given:** the player knows `hook`, the mage knows `fireball` (the default kit).
 
 **When:** `win`
 
-**Then:** the player's wave from the landing washes the lurker down the stair into the yard. The
-mage's fireball lights the keg; it winds up its cave-in, and the yard's floor takes the keg, the
+**Then:** the player walks down into the yard, hooks the lurker off the stair, and walks out by the
+gate; the mage's fireball sets the yard alight; the keg winds up and the yard caves in under the
 bruiser and the lurker.
 
-### Example 2: Drag down, step out, then burn
+### Example 2: The tripwire
 
-**Given:** the player knows `taunt`, the mage knows `fireball`.
-
-**When:** `win`
-
-**Then:** the player walks into the yard and taunts the lurker, which is dragged down to them. The
-player walks out, and the mage lights the keg.
-
-### Example 3: Spark through the yard
-
-**Given:** the player knows `vortex`, the mage knows `lightningFlash`.
+**Given:** the player knows `hook`, the mage knows `shieldBash`.
 
 **When:** `win`
 
-**Then:** the player's vortex on the yard draws the lurker in. The mage goes down to the stair and
-flashes at the gate: the strike lights the keg on the way through the yard, and the mage comes out at
-the gate (`opDash(mage, stair, gate)`) as the floor falls.
+**Then:** after the gather, the mage bashes the bruiser from the stair onto the tripwire: the yard
+catches fire, and the keg with it.
 
-### Example 4: Burn, then the crater
+### Example 3: The taunter holds the yard
 
-**Given:** the player knows `tidalWave`, the mage knows `fireball`.
+**Given:** the player knows `taunt`, the mage knows `lightningFlash`.
 
 **When:** `win`
 
-**Then:** one plan lights the keg first: the bruiser falls with the floor. The wave then washes the
-lurker down the stair into the crater (`opExploit(player, lurker, chasm, fell)`).
+**Then:** the lurker walks down after the player and follows it; the player stays; the mage's flash
+lights the keg, and the player goes down with the yard.
+
+### Example 4: The flash from the stair
+
+**Given:** the player knows `hook`, the mage knows `lightningFlash`.
+
+**When:** `win`
+
+**Then:** the flash jolts the keg; the cave-in lands before the flash's dash, which then has nowhere
+to land: its caster stays out.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
-| P2 | A gatherer and a lighter win | Exactly the eight measured pairs have a plan. |
-| P3 | One blast | Every winning plan sets the keg off exactly once, and no companion falls. |
-| P4 | Wrong order loses for a puller | With `taunt` and `fireball`, lighting the keg first has no plan. The keg is gone with the floor, so it cannot be set off again. |
-| P5 | A spark on the keg buries its caster | No winning plan flashes the keg itself. |
-| P6 | Each hand matters | A pair wins whichever companion holds which half. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
+| P2 | Ten pairs win | Exactly every gatherer with every lighter. |
+| P3 | The keg blows once | Lit first, the lurker is lost. |
+| P4 | A blinding flash spends its caster | Every blinding-flash plan loses the flasher. |
+| P5 | The wave drowns the fuse | A soaked keg only steams. |

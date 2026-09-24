@@ -2,35 +2,27 @@
 
 ## Purpose
 
-A **resource scarcity** level: a mana budget buys exactly one jolt, and two machines have to die by
-it. A sentry drone stands in the hall of a flooded chapel; beyond the flooded nave, in the apse, a
-heavy pump engine squats in its own sump, already soaked. The player and the mage pick one skill each
-from six. Both have 2 mana, and the one jolt in the pool, `lightningFlash`, costs 2. Whoever holds it
-gets one cast.
+A resource-scarcity level: **a mana budget**. A flooded chapel. In the hall stands a sentry drone,
+by an open shaft; past it, in the flooded nave, squats the pump engine - a heavy machine, soaked.
+Both must go. Everyone has 2 mana and a lightning flash costs 2: whoever holds it gets **one bolt**,
+and a bolt strikes everyone in one area.
 
-A lightning flash strikes its target and everything on its way. The engine is wet, so the flash
-kills it. The drone is dry, and a jolt only stuns it. So the one bolt has to meet a *wet* drone on
-its way, or the drone has to go some other way first.
+The engine is wet, so the bolt kills it. The drone is dry, so a bolt only stuns it. The one bolt has
+to meet the drone soaked in the engine's area - or the drone has to go some other way first.
 
-| Method | First (the partner) | Then (the one bolt) |
-|--------|---------------------|---------------------|
-| **Line up**: the flash runs through the hall | soak the drone where it stands: `tidalWave` | `lightningFlash` from the porch at the engine: the drone is on its path |
-| **The flood**: the drone in the flooded nave, on the bolt's way | wash it in from the porch (`tidalWave`), drag it in from the nave (`hook`, `taunt`), or draw it in (`vortex` on the nave): it arrives soaked | the same flash, through the nave |
-| **The pit**: the drone goes another way | knock it into the pit from the gallery: `fireball`, `tidalWave` | the flash at the engine |
+| Method | Skills | How |
+|--------|--------|-----|
+| **The flood** | `hook` or `taunt`, + `lightningFlash` | from the nave, hook the drone in, or taunt it (it wades in after the taunter); it arrives soaked, and one bolt on the nave takes both machines |
+| **The drop** | `fireball`, `shieldBash`, `tidalWave`, `vortex` or `hook`, + `lightningFlash` | knock the drone into the shaft (a fireball or a bash from the porch, a wave in the hall, a vortex on the shaft - or the gap under the balcony), or hook it off the hall from the gallery across the gap; then the bolt on the engine |
 
 Why no single skill works:
-- The flash alone kills the engine and only stuns the dry drone. Both companions holding it doesn't
-  help: a stunned drone is still dry.
-- A soaker or a mover alone kills nothing: only a jolt stops the engine, and the heavy engine cannot
-  be moved into the pit.
+- Only a bolt stops the engine: it is heavy (nothing knocks it) and nothing else in the pool lands a
+  tag it cares about.
+- A bolt on the dry drone only stuns it; two bolts (both companions holding the flash) spend one on
+  the drone and still leave it standing.
+- Nothing else moves or knocks the engine; the knockers and movers only deal with the drone.
 
-The order is the puzzle. Soak the drone, jolt it, then turn to the engine: that is the obvious
-order, and it never works, because the bolt spent on the drone cannot reach the engine. The
-drone has to be wet, on the line (or gone) before the only bolt is cast. Some skills play two roles:
-- `tidalWave` soaks where it stands, washes the drone into the flood from the porch, and into the pit
-  from the gallery.
-- `fireball` is a push, but its fire and the flood cancel: thrown into the nave burning, the drone
-  arrives dry. Its only road is the pit.
+The scarce thing is the bolt: the flash is a mandatory pick, and the partner decides the method.
 
 ## Layer
 
@@ -44,82 +36,78 @@ level
 ## World
 
 ```
-porch (player, mage) --- hall (drone) --- nave (flooded) --- apse (engine; sump)
-  |                       |
-gallery ------------------+          pit (chasm): a push on the hall from the gallery
+porch (player, mage) --- hall (drone; the shaft) --- nave (engine; flooded)
+  |                       ~gap~
+gallery -----------------'           (a balcony over the hall)
 ```
 
-- **Lines:** from the porch, a push on the hall lands in the nave, and the hall and the nave lie on
-  the way to the apse (a flash from the porch at the engine strikes both). From the gallery, a push
-  on the hall lands in the pit.
-- **Zones:** the nave and the apse are puddles (wet); the pit is a chasm.
-- **Line of sight:** porch to hall, nave and apse; gallery to hall; hall and nave to each other;
-  nave to apse.
-- **Drone:** `machine`, dry. **Engine:** `machine`, `heavy`, `wet`. Both companions have 2 mana.
-- **Goal:** `win`. Either neutralize each machine in turn (the pit route), or `douse(drone)` first
-  (a soak, a wash or a vortex into the flood, or a drag into the flood), then neutralize the engine:
-  the one bolt takes both.
+- **Areas and links:** four areas. The porch is walkable to the hall and to the gallery; the hall is
+  walkable to the nave; the gallery overlooks the hall across a gap (the chokepoint).
+- **Features:** the shaft (`chasm`) inside the hall. The nave is a `puddle` zone.
+- **Line of sight:** the porch and the gallery see the hall; the hall and the nave see each other.
+- **Drone:** `machine`. **Engine:** `machine`, `heavy`, `wet`.
+- Both companions have 2 mana.
+
+The goal `win` has two stages: bring the drone into the nave (`bringTo`), then take the engine
+(and the drone with it); or each machine on its own (`neutralize`).
 
 ## Hypothesis
 
-Measured by `htn_components combos scarce_one_bolt` (and pinned by `test.py`):
+Measured by `htn_components combos scarce_one_bolt` (and this level's `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 6.
-- 10 of 36 assignments win, i.e. 5 of the 15 pairs, whichever companion holds which half: the flash,
-  plus `tidalWave`, `fireball`, `hook`, `taunt` or `vortex`.
-- 5 methods (distinct skill sets), of three kinds: a line, a gathering into the flood, a hazard. No
-  dead skills, and no plan carried by one companion. The flash is in every winning pair: it is the
-  bolt.
-- Every winning plan casts exactly one jolt.
-- The losing pairs each lose for a reason you can name:
-  - two flashes: the drone is dry, and a stunned drone is still dry;
-  - two non-jolts: nothing kills the engine.
+- No single skill wins, even when both companions hold it: 0 of 7.
+- 12 of the 49 assignments win: `lightningFlash` with each of the six others, either way round, by 6
+  methods; no solo plans; no dead skills.
+- Every winning plan casts exactly one bolt.
+- `hook` plays two roles: it drags the drone into the flood (from the nave) or drops it into the
+  gap (from the gallery).
+- A wave in the hall soaks the drone where it stands - wet but in the wrong area - so with a wave the
+  drone only ever falls.
 
 ## Examples
 
-### Example 1: Line them up
+### Example 1: Into the flood
 
-**Given:** the player knows `tidalWave`, the mage knows `lightningFlash`.
-
-**When:** `win`
-
-**Then:** the player's wave soaks the drone in the hall. The mage's flash from the porch at the
-engine runs through the hall, and both machines short-circuit (`dead`). It is one bolt.
-
-### Example 2: Into the flood
-
-**Given:** the player knows `hook`, the mage knows `lightningFlash`.
+**Given:** the player knows `hook`, the mage knows `lightningFlash` (the default kit).
 
 **When:** `win`
 
-**Then:** the player wades into the nave and hooks the drone in from the hall. It arrives soaked.
-One flash from the porch runs through the nave and kills both.
+**Then:** the player wades into the nave and hooks the drone in from the hall; it arrives soaked. The
+mage flashes the nave from the hall: both machines short-circuit (`dead`).
 
-### Example 3: The pit
+### Example 2: Lured into the flood
+
+**Given:** the player knows `taunt`, the mage knows `lightningFlash`.
+
+**When:** `win`
+
+**Then:** the player taunts the drone from the nave; it wades in after the player, soaked. One bolt.
+
+### Example 3: The shaft
 
 **Given:** the player knows `fireball`, the mage knows `lightningFlash`.
 
 **When:** `win`
 
-**Then:** the player goes round to the gallery, and the fireball knocks the drone off into the pit
-(`opForcedMove(player, drone, hall, pit)`, `fell`). The mage's flash kills the soaked engine.
+**Then:** the fireball knocks the drone into the shaft (`fell`); the mage's bolt on the nave takes the
+engine alone.
 
-### Example 4: The default kit
+### Example 4: Off the balcony
 
-**Given:** the default kit: the player knows `tidalWave`, the mage knows `lightningFlash`.
+**Given:** the player knows `hook`, the mage knows `lightningFlash`.
 
 **When:** `win`
 
-**Then:** the player's wave (from the gallery, the porch or the hall) drops, washes or soaks the
-drone; the mage's one flash at the engine finishes it.
+**Then:** the player walks to the gallery and hooks the drone across the gap: it falls in. The bolt
+takes the engine.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
-| P2 | Five pairs win | Exactly the five measured pairs have a plan. |
-| P3 | One bolt | Every winning plan casts exactly one jolt. |
-| P4 | Wrong order loses | With a hook and the flash: the drone first has no plan; the engine first, before the drone is in the flood, has none either. |
-| P5 | Each hand matters | A pair wins whichever companion holds which half. |
-| P6 | Fire does not soak | With a fireball, every winning plan drops the drone in the pit: thrown into the flood burning, it arrives dry. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
+| P2 | Six pairs win | Exactly `lightningFlash` with each other skill. |
+| P3 | One bolt | Every winning plan casts exactly one `lightningFlash`. |
+| P4 | A bolt on the dry drone is wasted | Jolting it first loses; two bolts still lose. |
+| P5 | Soaked in the wrong area | With a wave, the drone only ever falls. |
+| P6 | Each hand matters | The pairs win whichever companion holds which half. |

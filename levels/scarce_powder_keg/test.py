@@ -14,12 +14,11 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-GATHERERS = ["tidalWave", "hook", "taunt", "vortex"]
-LIGHTERS = ["fireball", "lightningFlash"]
+GATHERERS = ["hook", "taunt"]
+LIGHTERS = ["fireball", "lightningFlash", "shieldBash", "vortex", "blindingFlash"]
 POOL = GATHERERS + LIGHTERS
 
-# The measured matrix (htn_components combos): one gatherer and one lighter
-# win, nothing else does.
+# The measured matrix (htn_components combos): every gatherer with every lighter.
 WINNING = {frozenset((g, l)) for g in GATHERERS for l in LIGHTERS}
 
 
@@ -49,7 +48,7 @@ def plans_with(player, mage, goal="win."):
 
 
 def text_of(plans):
-    """The plans as operator strings, e.g. `opCast(player, gust, drone)`."""
+    """The plans as operator strings, e.g. `opCast(player, hook, lurker)`."""
     out = []
     for plan in plans:
         for op in plan:
@@ -69,36 +68,41 @@ class PowderKegTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_wash_down_then_burn(self):
-        """The default kit: a wave from the landing washes the lurker into the
-        yard, a fireball lights the keg, the floor takes both."""
+    def test_example_1_hook_then_fire(self):
+        """The default kit: the player hooks the lurker down into the yard and
+        walks out; the mage's fireball lights the keg; the cave-in takes both."""
         self.assert_plan("win.", contains=[
-            "opForcedMove(player, lurker, stair, yard)", "opCast(mage, fireball, keg)",
-            "opWindUp(keg, caveIn, yard)", "opBlow(keg, caveIn, yard, yard)",
+            "opForcedMove(player, lurker, stair, yard)", "opNavigate(player, gate, landing)",
+            "opCast(mage, fireball", "opWindUp(keg, caveIn, yard)",
             "opExploit(keg, bruiser, chasm, fell)", "opExploit(keg, lurker, chasm, fell)"])
+        assert any("player, fell)" not in text_of([p]) and "mage, fell)" not in text_of([p])
+                   for p in plans_with("hook", "fireball")), "a hook plan keeps the whole team"
 
-    def test_example_2_drag_down_then_step_out(self):
-        plans = plans_with("taunt", "fireball")
-        ops = text_of(plans)
-        assert plans, "a taunt from the yard, then fire on the keg, should take both"
-        assert "opForcedMove(player, lurker, stair, yard)" in ops
-        assert "opNavigate(player, yard," in ops, "the taunter walks out before the fuse"
-        assert "opExploit(keg, lurker, chasm, fell)" in ops
-        self._record(True, "Example 2: drag the lurker into the yard, step out, set the keg alight")
+    def test_example_2_the_tripwire(self):
+        """A shield bash from the stair knocks the bruiser onto the tripwire:
+        the yard catches fire, and the keg with it."""
+        ops = text_of(plans_with("hook", "shieldBash"))
+        assert "opKnock(mage, bruiser, tripwire)" in ops and "opSpill(mage, yard, flames)" in ops, ops
+        assert "opProvoked(keg, burning, caveIn)" in ops, ops
+        self._record(True, "Example 2: bashed onto the tripwire, the bruiser sets the yard alight")
 
-    def test_example_3_spark_through_the_yard(self):
-        plans = plans_with("vortex", "lightningFlash")
-        ops = text_of(plans)
-        assert plans and "opCast(mage, lightningFlash, gate)" in ops
-        assert "opDash(mage, stair, gate)" in ops
-        assert "opExploit(keg, lurker, chasm, fell)" in ops
-        self._record(True, "Example 3: draw the lurker in, flash through the yard from the stair")
+    def test_example_3_the_taunter_holds_the_yard(self):
+        """Taunted, the lurker walks down after the player and follows it: the
+        player stays in the yard and goes down with it."""
+        plans = plans_with("taunt", "lightningFlash")
+        assert plans
+        for plan in plans:
+            s = text_of([plan])
+            assert "opNavigate(lurker, stair, yard)" in s and "opExploit(keg, player, chasm, fell)" in s, s
+        self._record(True, "Example 3: the taunter holds the lurker in the yard, and falls with it")
 
-    def test_example_4_light_first_then_into_the_crater(self):
-        plans = plans_with("tidalWave", "fireball")
-        ops = text_of(plans)
-        assert "opExploit(player, lurker, chasm, fell)" in ops, "washed into the crater"
-        self._record(True, "Example 4: light the keg first, then wash the lurker into the crater")
+    def test_example_4_the_flash_from_the_stair(self):
+        """A flash from the stair lights the keg; its dash does not land in the
+        new chasm."""
+        ops = text_of(plans_with("hook", "lightningFlash"))
+        assert "opCast(mage, lightningFlash" in ops and "opProvoked(keg, electrocuted, caveIn)" in ops
+        assert "opDash(mage" not in ops, ops
+        self._record(True, "Example 4: the flash lights the keg and its caster stays out")
 
     # -------------------------------------------------------------- properties
 
@@ -107,42 +111,35 @@ class PowderKegTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_gatherer_and_lighter_win(self):
+    def test_property_p2_ten_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
-        self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
+        self._record(True, f"P2: exactly the {len(WINNING)} gatherer-lighter pairs win")
 
-    def test_property_p3_one_blast(self):
-        """Every winning plan sets the keg off exactly once, and nobody of the
-        team falls."""
-        for g, l in [("tidalWave", "fireball"), ("hook", "lightningFlash"), ("vortex", "fireball")]:
-            for plan in plans_with(g, l):
-                s = text_of([plan])
-                assert s.count("opProvoked(") == 1, f"{g}+{l}: not one blast in {s}"
-                assert "player, chasm, fell" not in s and "mage, chasm, fell" not in s, s
-        self._record(True, "P3: the keg blows once per plan, and the team stays out of it")
-
-    def test_property_p4_wrong_order_loses(self):
-        """Light the keg first: a puller can no longer take the lurker."""
-        assert plans_with("taunt", "fireball")
-        assert not plans_with("taunt", "fireball", "detonate(keg), neutralize(lurker).")
+    def test_property_p3_the_keg_blows_once(self):
+        """Light the keg first: the bruiser falls, and the lurker is out of
+        reach for good."""
         assert not plans_with("hook", "fireball",
-                              "detonate(keg), herd(lurker, yard), confirmStopped(lurker).")
-        # Spent means spent: the keg is gone with the floor.
-        assert not plans_with("tidalWave", "fireball", "detonate(keg), detonate(keg).")
-        self._record(True, "P4: lighting the keg before the lurker is down loses for a puller")
+                              "detonate(keg), bringTo(lurker, yard, none), confirmStopped(lurker).")
+        self._record(True, "P3: the keg blows once; lit first, the lurker is lost")
 
-    def test_property_p5_a_spark_on_the_keg_buries_its_caster(self):
-        """Aimed at the keg, the flash carries its caster into the crater: only
-        the shot through the yard, from the stair, wins."""
-        for plan in plans_with("hook", "lightningFlash"):
-            s = text_of([plan])
-            assert "opCast(mage, lightningFlash, keg)" not in s, s
-        self._record(True, "P5: no winning plan flashes the keg itself")
+    def test_property_p4_a_blinding_flash_spends_its_caster(self):
+        """The blinding flash lights the keg from inside the yard: disjoint
+        passes the blow, but the chasm takes its caster."""
+        for plan in plans_with("hook", "blindingFlash"):
+            assert "opExploit(keg, mage, chasm, fell)" in text_of([plan])
+        self._record(True, "P4: every blinding-flash plan loses its caster")
 
-    def test_property_p6_each_hand_matters(self):
-        assert plans_with("fireball", "tidalWave") and plans_with("lightningFlash", "hook")
-        self._record(True, "P6: the pairs win whichever companion holds which half")
+    def test_property_p5_the_wave_drowns_the_fuse(self):
+        """A tidal wave in the yard soaks the keg: the tripwire's fire then
+        only makes steam, and the keg does not blow."""
+        wave = plans_with("tidalWave", "shieldBash", "cast(player, tidalWave, bruiser).")
+        assert any("opKnock(player, bruiser, tripwire)" in text_of([p]) for p in wave)
+        assert all("opReact(player, keg, wet, burning, steam)" in text_of([p]) or
+                   "tripwire" not in text_of([p]) for p in wave)
+        assert not plans_with("tidalWave", "shieldBash",
+                              "cast(player, tidalWave, bruiser), confirmStopped(keg).")
+        self._record(True, "P5: a wave onto the tripwire only steams the soaked keg")
 
 
 def run_tests():

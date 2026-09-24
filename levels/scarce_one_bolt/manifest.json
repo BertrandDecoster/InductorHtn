@@ -12,19 +12,20 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T17:59:15.549589"
+    "last_checked": "2026-09-24T20:36:51.149535"
   },
   "provides": [
     "at/2",
-    "beyond/3",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
-    "confirmWet/1",
     "connected/2",
-    "douse/1",
+    "feature/3",
+    "funBlocker/1",
+    "funBlockerGoal/2",
     "funExpect/3",
+    "gap/2",
     "knows/2",
     "lineOfSight/2",
     "mana/2",
@@ -35,8 +36,8 @@
     "win/0"
   ],
   "requires": [
-    "castFrom/4",
-    "neutralize/1",
-    "supply/3"
+    "bringTo/3",
+    "confirmStopped/1",
+    "neutralize/1"
   ]
 }

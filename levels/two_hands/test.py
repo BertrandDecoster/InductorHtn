@@ -14,14 +14,15 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["turnToMist", "fireball", "tidalWave", "hook", "taunt", "vortex", "lightningFlash"]
+POOL = ["turnToMist", "fireball", "tidalWave", "shieldBash", "vortex", "hook", "taunt",
+        "lightningFlash"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        ("turnToMist", "fireball"), ("turnToMist", "tidalWave"), ("turnToMist", "hook"),
-        ("turnToMist", "taunt"), ("turnToMist", "vortex"),
-        ("tidalWave", "lightningFlash"),
+        ("turnToMist", "fireball"), ("turnToMist", "tidalWave"), ("turnToMist", "shieldBash"),
+        ("turnToMist", "vortex"), ("turnToMist", "hook"),                     # drop it
+        ("tidalWave", "lightningFlash"), ("taunt", "lightningFlash"),         # short it
     ]
 }
 
@@ -50,6 +51,17 @@ def plans_with(player, mage):
     return _solutions(planner, "win.")
 
 
+def text_of(plans):
+    """The plans as operator strings, e.g. `opCast(player, taunt, sentinel)`."""
+    out = []
+    for plan in plans:
+        for op in plan:
+            name = list(op.keys())[0]
+            args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
+            out.append(f"{name}({', '.join(args)})")
+    return " ".join(out)
+
+
 class TwoHandsTest(HtnTestSuite):
 
     def setup(self):
@@ -60,28 +72,34 @@ class TwoHandsTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_mist_then_push(self):
+    def test_example_1_mist_then_knock(self):
         self.assert_plan("win.", contains=[
             "opCast(player, turnToMist, sentinel)", "opCast(mage, fireball, sentinel)",
-            "opForcedMove(mage, sentinel, bridge, pit)", "opExploit(mage, sentinel, chasm, fell)"])
+            "opKnock(mage, sentinel, abyss)", "opExploit(mage, sentinel, chasm, fell)"])
 
-    def test_example_2_mist_then_pull_across(self):
-        plans = plans_with("turnToMist", "hook")
-        ops = " ".join(json.dumps(p) for p in plans)
-        assert plans and "overlook" in ops, "the mage should hook it across the pit from the overlook"
-        self._record(True, "Example 2: mist, then a hook from the overlook drops it")
+    def test_example_2_mist_then_hook_across_the_gap(self):
+        ops = text_of(plans_with("turnToMist", "hook"))
+        assert "opNavigate(mage, ledge, overlook)" in ops, ops
+        assert "opFall(mage, sentinel, bridge, overlook)" in ops, ops
+        self._record(True, "Example 2: mist, then a hook from the overlook drops it in the gap")
 
     def test_example_3_soak_then_jolt(self):
-        plans = plans_with("tidalWave", "lightningFlash")
-        ops = " ".join(json.dumps(p) for p in plans)
-        assert plans and "electrocuted" in ops and "dead" in ops
-        self._record(True, "Example 3: a wave soaks it, the flash short-circuits it")
+        ops = text_of(plans_with("tidalWave", "lightningFlash"))
+        assert "opCast(player, tidalWave, player)" in ops and "opGrant(player, sentinel, wet)" in ops
+        assert "opExploit(mage, sentinel, electrocuted, dead)" in ops, ops
+        self._record(True, "Example 3: a wave on the bridge soaks it, the flash short-circuits it")
 
-    def test_example_4_draw_it_down(self):
-        plans = plans_with("turnToMist", "vortex")
-        ops = " ".join(json.dumps(p) for p in plans)
-        assert plans and '"pit"' in ops and "fell" in ops
-        self._record(True, "Example 4: mist, then a vortex on the pit draws it in")
+    def test_example_4_lure_it_into_the_ford(self):
+        ops = text_of(plans_with("taunt", "lightningFlash"))
+        assert "opCast(player, taunt, sentinel)" in ops
+        assert "opNavigate(sentinel, ledge, ford)" in ops and "opGrant(sentinel, sentinel, wet)" in ops
+        assert "opExploit(mage, sentinel, electrocuted, dead)" in ops, ops
+        self._record(True, "Example 4: taunted from the ford, it walks in soaked; the flash kills it")
+
+    def test_example_5_mist_then_vortex(self):
+        ops = text_of(plans_with("turnToMist", "vortex"))
+        assert "opCast(mage, vortex, abyss)" in ops and "opKnock(mage, sentinel, abyss)" in ops, ops
+        self._record(True, "Example 5: mist, then a vortex on the abyss draws it in")
 
     # -------------------------------------------------------------- properties
 
@@ -90,7 +108,7 @@ class TwoHandsTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_six_pairs_win(self):
+    def test_property_p2_seven_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
@@ -98,15 +116,23 @@ class TwoHandsTest(HtnTestSuite):
     def test_property_p3_each_hand_matters(self):
         """Swapping who holds which skill still wins: the combo is about the
         pair, not the seat."""
-        assert plans_with("fireball", "turnToMist") and plans_with("lightningFlash", "tidalWave")
+        assert plans_with("fireball", "turnToMist") and plans_with("lightningFlash", "taunt")
         self._record(True, "P3: the pairs win whichever companion holds which half")
 
     def test_property_p4_the_mist_is_a_moment(self):
-        """The mist lasts through one more cast: a push then lands. With the
+        """The mist lasts through one more cast: a knock then lands. With the
         sentinel heavy again, nothing moves it."""
         assert not plans_with("fireball", "fireball")
         assert not plans_with("turnToMist", "turnToMist")
-        self._record(True, "P4: mist alone or a push alone leaves the sentinel standing")
+        self._record(True, "P4: mist alone or a knock alone leaves the sentinel standing")
+
+    def test_property_p5_heavy_and_dry(self):
+        """A hook on the heavy sentinel drags the caster onto the bridge; a
+        flash on the dry machine only stuns it."""
+        assert not plans_with("hook", "lightningFlash")
+        self.assert_state_after("cast(mage, fireball, sentinel), cast(player, turnToMist, sentinel).",
+                                has=["at(sentinel,bridge)"], not_has=["tag(sentinel,fell)"])
+        self._record(True, "P5: a hook and a flash leave it standing; a knock before the mist too")
 
 
 def run_tests():

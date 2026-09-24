@@ -2,7 +2,7 @@
   "name": "two_hands",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Two Hands: an armoured machine on a bridge over a pit; one skill each from eight - no single skill wins, ten pairs do, by two methods",
+  "description": "Two Hands: a heavy machine on a bridge over an abyss; one skill each from eight - no single skill wins, seven pairs do, by two kinds of method",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,17 +12,20 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T17:55:46.645845"
+    "last_checked": "2026-09-24T20:34:55.250237"
   },
   "provides": [
     "at/2",
-    "beyond/3",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
+    "feature/3",
+    "funBlocker/1",
+    "funBlockerGoal/2",
     "funExpect/3",
+    "gap/2",
     "knows/2",
     "lineOfSight/2",
     "mana/2",
