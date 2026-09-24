@@ -1,0 +1,159 @@
+% Powder Keg (ability catalogue, crowd control)
+%
+% Three treants shamble in a rain-soaked grove. Wood burns (the catalogue's
+% wooden weakness), but these are drenched: fire cast on one only steams it
+% dry, and a burning room goes up only once. Up the ramp sits a keg of lamp
+% oil. Oil that catches fire blazes (the catalogue's `blaze`), and a blaze
+% sets everyone around it alight at once - hot enough to burn wood straight
+% through the wet.
+%
+%   camp (player, mage) --- ramp (keg) --- grove (t1, t2, t3; wet)
+%
+% The ramp runs down into the grove: a push from the camp on the ramp rolls
+% whatever is there into the grove. Two companions, one skill each, from
+% seven.
+%
+% Obstacles:
+%   - the treants are wet: fire on them only steams them;
+%   - the keg is on the ramp, and the treants are in the grove: lit where it
+%     stands, it burns alone;
+%   - a burning room ignites once: its fire is already down.
+%
+% Methods (keg and crowd in one room, then light the keg):
+%   roll the keg down    gust or tidalWave from the camp: the keg rolls into
+%                        the grove
+%   drag the keg in      magnetize, or taunt, from the grove: the keg comes to
+%                        the caster
+%   drag the crowd up    provoke from the ramp (the whole grove at once), or
+%                        taunt / magnetize from there (one at a time): the
+%                        treants gather round the keg
+%   then light it        flameWall or fireball on the room: the keg blazes,
+%                        and the whole crowd burns
+%
+% Traps:
+%   - fire first: flameWall or fireball on the grove steams the treants, and
+%     the grove's fire is spent; fireball on the keg lights it on the ramp
+%     before its push rolls it down;
+%   - two movers, or two fires: nothing to light, or nothing gathered.
+
+% === Regions ===
+region(camp).
+region(ramp).
+region(grove).
+connected(camp, ramp).
+connected(ramp, camp).
+connected(ramp, grove).
+connected(grove, ramp).
+lineOfSight(camp, ramp).
+lineOfSight(camp, grove).
+lineOfSight(ramp, grove).
+lineOfSight(grove, ramp).
+
+% The ramp runs down into the grove.
+beyond(camp, ramp, grove).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, camp).
+at(mage, camp).
+mana(player, 2).
+mana(mage, 2).
+
+% === The keg ===
+role(keg, object).
+at(keg, ramp).
+tag(keg, oiled).
+
+% === The crowd ===
+role(t1, enemy).
+role(t2, enemy).
+role(t3, enemy).
+at(t1, grove).
+at(t2, grove).
+at(t3, grove).
+trait(t1, wooden).
+trait(t2, wooden).
+trait(t3, wooden).
+tag(t1, wet).
+tag(t2, wet).
+tag(t3, wet).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, flameWall).
+
+% === The crowd, as a group ===
+% The need: every treant burnt. Fire cast on a wet treant only steams it, so
+% the burning has to come from a blaze in their midst: find the fuse (what a
+% flame would set blazing over everyone around it), put it and the crowd in
+% one room, and light it.
+
+standing(?e) :- role(?e, enemy), not(neutralized(?e)).
+cleared :- not(first(standing(?e))).
+
+% A fuse: the reaction a flame would set off on it spreads fire over its room.
+fuse(?x) :-
+    at(?x, ?r), not(role(?x, enemy)), reactionFor(?x, burning, ?have, ?ab),
+    effect(?ab, area, grant(burning)).
+% A standing treant not in the fuse's room.
+apart(?k, ?e) :- standing(?e), at(?k, ?r), not(at(?e, ?r)).
+% The crowd stands together in ?r.
+together(?r) :- first(standing(?e)), at(?e, ?r), not(first(and(standing(?o), not(at(?o, ?r))))).
+
+% An ability that brings its target to the caster, or pushes it away.
+drawsIn(?ab) :- effect(?ab, target, pull).
+drawsIn(?ab) :- effect(?ab, target, hook).
+drawsIn(?ab) :- effect(?ab, ?w, grant(?t)), aimed(?w), onGrant(?t, pull).
+shoves(?ab) :- effect(?ab, ?w, push), aimed(?w).
+shoves(?ab) :- effect(?ab, ?w, grant(?t)), aimed(?w), onGrant(?t, push).
+
+win :- if(), do(rout).
+
+rout :- if(first(fuse(?k))), do(gather(?k), light(?k), confirmCleared).
+
+% The fuse and the crowd in one room: already; the fuse brought to the crowd;
+% or the crowd brought to the fuse, one straggler at a time.
+gather(?k) :- if(not(first(apart(?k, ?e)))), do().
+gather(?k) :-
+    if(first(apart(?k, ?e)), together(?r)),
+    do(bring(?k, ?r)).
+gather(?k) :-
+    if(first(apart(?k, ?e)), at(?k, ?r)),
+    do(bring(?e, ?r), gather(?k)).
+
+% ?x ends up in ?r: dragged there by someone standing in ?r, or pushed along
+% a line that lands in ?r.
+bring(?x, ?r) :-
+    if(knows(?a, ?ab), drawsIn(?ab), canAct(?a), ready(?a, ?ab, ?x)),
+    do(castFrom(?a, ?ab, ?x, ?r), ensureAt(?x, ?r)).
+bring(?x, ?r) :-
+    if(at(?x, ?over), landing(?from, ?over, ?r), knows(?a, ?ab), shoves(?ab), canAct(?a),
+       ready(?a, ?ab, ?x)),
+    do(castFrom(?a, ?ab, ?x, ?from), ensureAt(?x, ?r)).
+
+ensureAt(?x, ?r) :- if(at(?x, ?r)), do().
+
+% Set fire to the fuse's room.
+light(?k) :-
+    if(at(?k, ?r), knows(?a, ?ab), grants(?ab, burning), canAct(?a), ready(?a, ?ab, ?r)),
+    do(cast(?a, ?ab, ?r)).
+
+confirmCleared :- if(cleared), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from seven (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(gust).
+comboPool(tidalWave).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(provoke).
+comboPool(flameWall).
+comboPool(fireball).
+comboMinWins(8).
+comboMinMethods(4).
+
+goals(win).

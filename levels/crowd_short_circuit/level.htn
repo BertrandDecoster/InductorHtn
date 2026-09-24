@@ -1,0 +1,160 @@
+% Short Circuit (ability catalogue, crowd control)
+%
+% Three clockwork drones guard the foundry hall. Two stand in the yard, one
+% idles in the flooded sump beyond it (soaked already). The hall is a long
+% straight line seen whole from the gate:
+%
+%   gate --- yard (cog1, cog2) --- sump (cog3, flooded) --- forge
+%
+% A drone is a machine: a jolt on a dry one only stuns it, a jolt on a wet
+% one short-circuits it (dead). The jolts are dear - chainLightning and
+% lightningFlash cost 2 mana, and each companion has 2 - so ONE bolt has to
+% catch the whole crowd. Two companions, one skill each, from seven.
+%
+% Obstacles:
+%   - the drones are dry (except cog3): something has to wet them;
+%   - they are split over two rooms, and one area bolt covers one room;
+%   - each companion can afford one expensive cast.
+%
+% Methods (each: first wet the crowd, then one bolt that reaches it all):
+%   soak in place, then a line bolt   rainCall / glaciate on the yard, then
+%                                     lightningFlash from the gate down the
+%                                     hall: everyone between is struck
+%   wash them into the sump           tidalWave from the gate soaks the yard
+%                                     and washes it into the sump; then
+%                                     chainLightning on the sump, or a
+%                                     lightningFlash down the hall
+%   pull them into the sump           provoke (the whole yard, from the sump)
+%                                     or taunt (one at a time) drags them into
+%                                     the water; then the same bolt
+%
+% Traps:
+%   - rainCall or glaciate, then chainLightning: the yard dies, cog3 in the
+%     sump does not - one room per area bolt, and no mana for a second;
+%   - a bolt first: dry drones are only stunned;
+%   - two bolts, two soaks, two herders: each half alone does nothing.
+
+% === Regions ===
+region(gate).
+region(yard).
+region(sump).
+region(forge).
+connected(gate, yard).
+connected(yard, gate).
+connected(yard, sump).
+connected(sump, yard).
+connected(sump, forge).
+connected(forge, sump).
+% The hall is one straight line: the gate sees all of it.
+lineOfSight(gate, yard).
+lineOfSight(gate, sump).
+lineOfSight(gate, forge).
+lineOfSight(sump, yard).
+lineOfSight(sump, forge).
+
+% Push lines (the first per pair is where a push lands); together they say
+% what lies between the gate and the far end.
+beyond(gate, yard, sump).
+beyond(gate, sump, forge).
+beyond(gate, yard, forge).
+
+% The sump is flooded: whoever arrives is soaked.
+onEnter(sump, puddle).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, gate).
+at(mage, gate).
+mana(player, 2).
+mana(mage, 2).
+
+% === The crowd ===
+role(cog1, enemy).
+role(cog2, enemy).
+role(cog3, enemy).
+at(cog1, yard).
+at(cog2, yard).
+at(cog3, sump).
+trait(cog1, machine).
+trait(cog2, machine).
+trait(cog3, machine).
+tag(cog3, wet).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, provoke).
+knows(mage, chainLightning).
+
+% === The crowd, as a group ===
+% The need: every drone out of the fight. A drone dies of wet + a jolt, and
+% the jolts are dear: so wet them all (soak where they stand, or bring them
+% into the water), then one bolt that reaches all of them.
+
+standing(?e) :- role(?e, enemy), not(neutralized(?e)).
+cleared :- not(first(standing(?e))).
+dryMook(?t, ?e) :- standing(?e), not(holds(?e, ?t)).
+
+% An ability that lands ?t on everyone where it is aimed: an area grant, or a
+% zone it spills.
+blankets(?ab, ?t) :- effect(?ab, area, grant(?t)).
+blankets(?ab, ?t) :- effect(?ab, area, grant(?c)), bundles(?c, ?t).
+blankets(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?t)).
+blankets(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?c)), bundles(?c, ?t).
+% An ability that lands ?t on a line: everyone between the caster and the aim.
+lines(?ab, ?t) :- effect(?ab, path, grant(?t)).
+% What a bolt can use: a blanket or a line.
+bolt(?ab, ?t) :- blankets(?ab, ?t).
+bolt(?ab, ?t) :- lines(?ab, ?t).
+
+% An ability that brings its target to the caster (a pull, or a tag that
+% drags its bearer), or pushes everyone where it is aimed.
+drawsIn(?ab) :- effect(?ab, target, pull).
+drawsIn(?ab) :- effect(?ab, target, hook).
+drawsIn(?ab) :- effect(?ab, ?w, grant(?t)), aimed(?w), onGrant(?t, pull).
+shoves(?ab) :- effect(?ab, ?w, push), aimed(?w).
+
+win :- if(), do(rout).
+
+rout :- if(), do(primeAll(wet), boltAll(electrocuted)).
+
+% Every standing drone carries ?t: take the first one that does not, and
+% either blanket where it stands or bring it into a region that gives ?t.
+primeAll(?t) :- if(not(first(dryMook(?t, ?e)))), do().
+primeAll(?t) :-
+    if(first(dryMook(?t, ?e)), at(?e, ?r), knows(?a, ?ab), blankets(?ab, ?t), canAct(?a),
+       ready(?a, ?ab, ?r)),
+    do(cast(?a, ?ab, ?r), ensureHolds(?e, ?t), primeAll(?t)).
+primeAll(?t) :-
+    if(first(dryMook(?t, ?e)), zoneFor(?w, ?t), knows(?a, ?ab), drawsIn(?ab), canAct(?a),
+       ready(?a, ?ab, ?e)),
+    do(castFrom(?a, ?ab, ?e, ?w), ensureHolds(?e, ?t), primeAll(?t)).
+primeAll(?t) :-
+    if(first(dryMook(?t, ?e)), at(?e, ?over), zoneFor(?w, ?t), landing(?from, ?over, ?w),
+       knows(?a, ?ab), shoves(?ab), canAct(?a), ready(?a, ?ab, ?e)),
+    do(castFrom(?a, ?ab, ?e, ?from), ensureHolds(?e, ?t), primeAll(?t)).
+
+ensureHolds(?e, ?t) :- if(holds(?e, ?t)), do().
+
+% One bolt, aimed at a region, that leaves nobody standing.
+boltAll(?t) :-
+    if(knows(?a, ?ab), bolt(?ab, ?t), canAct(?a), region(?r), ready(?a, ?ab, ?r)),
+    do(cast(?a, ?ab, ?r), confirmCleared).
+
+confirmCleared :- if(cleared), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from seven (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(rainCall).
+comboPool(glaciate).
+comboPool(tidalWave).
+comboPool(provoke).
+comboPool(taunt).
+comboPool(chainLightning).
+comboPool(lightningFlash).
+comboMinWins(8).
+comboMinMethods(4).
+
+goals(win).
