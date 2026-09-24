@@ -1,0 +1,133 @@
+% Cinder (elemental chemistry)
+%
+% A fire imp, wreathed in flame, holds the cloister yard. Things of fire
+% freeze solid when chilled - but cold on a burning thing only quenches the
+% flame. Put the fire out first, then freeze it. The cloister keeps a
+% fountain (a basin nobody can walk into) and a frozen pond. Two
+% companions, one skill each, from a pool of eight.
+%
+%   court (player, mage) ---- yard (imp: fire, burning)
+%     |      \                  |  \
+%   cloister   (sees)        fountain (puddle; only a push lands there)
+%     |
+%   pond (iceSheet: whoever arrives is chilled)   gate (off the yard)
+%
+% Obstacles:
+%   burning    cold on it quenches the flame instead of freezing it (quench)
+%   fire       fire on it does nothing (immune to burning)
+%   a spilled zone does not land again where it already lies: a second
+%   cold spell on the same ice does nothing
+%
+% Methods (each needs two different companions):
+%   douse, then chill   rain or a wave puts the fire out (extinguish);
+%                       then frost (glaciate, iceStorm) freezes it
+%   quench, then drag   anything wet or cold puts the fire out; then
+%                       someone on the frozen pond drags it onto the ice
+%                       (magnetize) or trades places with it (translocate)
+%   dunk, then freeze   a blast from the court throws it into the fountain
+%                       (gust; fireball, whose fire does nothing to it but
+%                       whose blast still lands), which puts the fire out;
+%                       then frost it there, or drag it out onto the ice
+%
+% Traps:
+%   frost first only quenches it, and the ice then lies under it: a second
+%   frost there does nothing. Dragging it onto the pond first quenches it
+%   on the ice, and it cannot arrive there again. A wave that soaks it also
+%   throws it into the fountain - that is fine, it is still only wet.
+%   Rain after frost only wets it. Nothing sees the pond, so once the imp
+%   stands on the ice, nobody can bring it there a second time.
+%
+% Not in the pool: taunt. Its pull comes from onGrant(taunted, pull), which
+% the engine applies raw, so a taunted imp dragged onto the ice skips the
+% quench and freezes while still burning - one skill, one companion.
+
+% === Regions ===
+region(court).
+region(yard).
+region(fountain).
+region(cloister).
+region(pond).
+region(gate).
+connected(court, yard).
+connected(yard, court).
+connected(yard, gate).
+connected(gate, yard).
+connected(court, cloister).
+connected(cloister, court).
+connected(cloister, pond).
+connected(pond, cloister).
+lineOfSight(court, yard).
+lineOfSight(court, fountain).
+lineOfSight(pond, yard).
+lineOfSight(pond, fountain).
+
+% Push line: from the court, the yard tips into the fountain.
+beyond(court, yard, fountain).
+
+% === Zones ===
+onEnter(fountain, puddle).
+onEnter(pond, iceSheet).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, court).
+at(mage, court).
+mana(player, 4).
+mana(mage, 4).
+
+% === Enemy ===
+role(imp, enemy).
+at(imp, yard).
+element(imp, fire).
+tag(imp, burning).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, rainCall).
+knows(mage, glaciate).
+
+% === The goal: the imp freezes ===
+win :- if(), do(neutralize(imp)).
+win :- if(), do(putOutAndFreeze(imp)).
+
+% The fire goes out (by one companion), then the cold lands (by the other).
+putOutAndFreeze(?e) :-
+    if(holds(?e, burning), canAct(?p)),
+    do(putOut(?p, ?e), ensureOff(burning, ?e), freeze(?e, ?p), confirmStopped(?e)).
+
+% Water or cold on it - cast, or a push into water - or a drag onto it.
+putOut(?p, ?e) :- if(), do(primeAs(?p, wet, ?e)).
+putOut(?p, ?e) :- if(zoneFor(?r, wet)), do(pullOnto(?p, ?e, ?r)).
+
+% Cold on it - cast, or a drag onto the ice - by anyone but ?not.
+freeze(?e, ?not) :- if(), do(inflict(chilled, ?e, ?not)).
+freeze(?e, ?not) :-
+    if(canAct(?a), \==(?a, ?not), zoneFor(?r, chilled)), do(pullOnto(?a, ?e, ?r)).
+
+% ?a, standing in ?r, brings ?e there: drags it, or trades places with it.
+pullOnto(?a, ?e, ?r) :-
+    if(puller(?a, ?ab, ?e), at(?e, ?er), \==(?er, ?r), reach(?ab, ?k), inRange(?k, ?r, ?er),
+       canReachNow(?a, ?r)),
+    do(castFrom(?a, ?ab, ?e, ?r)).
+pullOnto(?a, ?e, ?r) :-
+    if(canAct(?a), knows(?a, ?ab), effect(?ab, target, swap), ready(?a, ?ab, ?e), at(?e, ?er), \==(?er, ?r),
+       reach(?ab, ?k), inRange(?k, ?r, ?er), canReachNow(?a, ?r)),
+    do(castFrom(?a, ?ab, ?e, ?r)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from eight (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(rainCall).
+comboPool(tidalWave).
+comboPool(glaciate).
+comboPool(iceStorm).
+comboPool(gust).
+comboPool(fireball).
+comboPool(magnetize).
+comboPool(translocate).
+comboMinWins(4).
+comboMinMethods(3).
+
+goals(win).
