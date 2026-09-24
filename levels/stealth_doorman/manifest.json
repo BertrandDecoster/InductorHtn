@@ -1,0 +1,47 @@
+{
+  "name": "stealth_doorman",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Doorman: a sentry watches the courtyard, a doorman fills the vault door; sneak, blind or sleep past one, lure, hook or shove the other",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:45:04.833264"
+  },
+  "provides": [
+    "at/2",
+    "beyond/3",
+    "blind/1",
+    "blocker/1",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmBlind/1",
+    "connected/2",
+    "funExpect/3",
+    "getTo/3",
+    "holding/1",
+    "immune/2",
+    "knows/2",
+    "lineOfSight/2",
+    "region/1",
+    "role/2",
+    "selfHide/2",
+    "trait/2",
+    "watches/2",
+    "watching/1",
+    "win/0"
+  ],
+  "requires": [
+    "cast/3",
+    "dislodge/1",
+    "walkTo/2"
+  ]
+}

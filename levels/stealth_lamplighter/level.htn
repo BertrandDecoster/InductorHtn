@@ -1,0 +1,177 @@
+% The Lamplighter (stealth and avoidance)
+%
+% Everyone out through the town gate. The gate is shut; its lever lies in
+% the guardroom, under an armoured warden's eyes. The road to the gate runs
+% under the lamps, then through the hall, which a lamplighter watches from
+% his post. His lamps undo any stealth - whoever walks under them is lit
+% and cannot hide until they are out - and his own lantern means no flash
+% or smoke dazzles him.
+%
+%   guardroom (warden; the lever)     yard (a crate)
+%        |                              :
+%      start ------------------------ lamps (lit) ---- hall ---- gate ---- exit
+%                                                       :
+%                                                      post (lamplighter)   well
+%
+% Two obstacles:
+%   the lever      someone on it, or something: sneak in (vanish,
+%                  smokeBomb's cloud), blind the warden (flashbang,
+%                  smokeBomb), put him to sleep (sleepDart), or shove the
+%                  crate in from the start (gust). The warden is too heavy
+%                  to move and never leaves the room.
+%   the hall       everyone crosses it lit, so sneaking is out: lure the
+%                  lamplighter off his post (taunt drags him to the taunter;
+%                  a pebble at his feet sends him to look down the well), or
+%                  shove the crate into the hall from the lamps (gust) and
+%                  walk behind it - cover.
+%
+% gust has two roles - the crate on the lever, or the crate as cover - but
+% there is one crate: two gusts still leave one obstacle.
+%
+% Traps:
+%   - stealth is per caster and the lamps strip it: vanish or smokeBomb's
+%     cloud gets one companion onto the lever, never anyone across the hall.
+%   - dazzling the lamplighter does nothing (his lantern); taunting the
+%     warden does nothing (too heavy to drag).
+%   - a pebble at the warden does nothing: he never leaves his post.
+%
+% Victory: both companions at the exit (escape/0).
+
+% === Regions ===
+region(start).
+region(guardroom).
+region(yard).
+region(lamps).
+region(hall).
+region(post).
+region(well).
+region(gate).
+region(exit).
+connected(start, guardroom).
+connected(guardroom, start).
+connected(start, lamps).
+connected(lamps, start).
+connected(lamps, hall).
+connected(hall, lamps).
+connected(hall, gate).
+connected(gate, hall).
+connected(gate, exit).
+connected(exit, gate).
+
+lineOfSight(start, guardroom).
+lineOfSight(start, yard).
+lineOfSight(start, post).
+lineOfSight(lamps, yard).
+lineOfSight(lamps, hall).
+lineOfSight(lamps, post).
+lineOfSight(hall, post).
+lineOfSight(hall, gate).
+lineOfSight(gate, exit).
+
+% Push lines for the crate: from the start into the guardroom (onto the
+% lever); from under the lamps into the hall (cover).
+beyond(start, yard, guardroom).
+beyond(lamps, yard, hall).
+
+% === Terrain ===
+door(gate).
+onEnter(guardroom, lever).
+effect(lever, target, open(gate)).
+
+% The lamps: whoever walks under them loses any stealth, and cannot hide
+% again while lit.
+onEnter(lamps, lamplight).
+effect(lamplight, target, remove(stealthed)).
+effect(lamplight, target, grant(lit)).
+wards(lit, stealthed).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, start).
+at(mage, start).
+
+% === The watch ===
+role(warden, enemy).
+at(warden, guardroom).
+trait(warden, living).
+trait(warden, heavy).
+watches(warden, guardroom) :- at(warden, guardroom).
+
+% The lamplighter watches the hall from his post - unless something stands
+% in the hall to hide behind. His lantern: nothing dazzles him.
+role(lamplighter, enemy).
+at(lamplighter, post).
+trait(lamplighter, living).
+immune(lamplighter, blinded).
+watches(lamplighter, hall) :- at(lamplighter, post), not(covered(hall)).
+covered(?r) :- first(and(at(?c, ?r), trait(?c, cover))).
+
+role(crate, object).
+at(crate, yard).
+trait(crate, cover).
+
+% A pebble at a guard's feet: he goes to look (a level-local lure). Only
+% the lamplighter answers it; the warden never leaves his post.
+reach(pebble, ranged).
+effect(pebble, target, grant(curious)).
+behavior(lamplighter, curious, lookDownWell, self).
+effect(lookDownWell, target, teleport(well)).
+
+% === Default kit (combos replans the whole matrix) ===
+knows(player, gust).
+knows(mage, taunt).
+
+% === Getting somewhere unseen ===
+
+watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
+watchedRegion(?r) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
+selfHide(?a, ?ab) :- knows(?a, ?ab), reach(?ab, self), effect(?ab, self, grant(stealthed)).
+% Anything someone can use on the watcher, from anywhere they can stand.
+tryOn(?c, ?ab, ?g, ?from) :-
+    canAct(?c), knows(?c, ?ab), ready(?c, ?ab, ?g), at(?g, ?r), reach(?ab, ?k), region(?from),
+    inRange(?k, ?from, ?r), canReachNow(?c, ?from).
+
+% ?a gets to ?r: walk if it can; else hide, stop a watcher watching, or put
+% cover in a watched region, and try again (at most ?n times).
+getTo(?a, ?r, ?n) :- if(canReachNow(?a, ?r)), do(walkTo(?a, ?r)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), not(has(?a, stealthed)),
+       selfHide(?a, ?ab), receptive(?a, stealthed)),
+    do(cast(?a, ?ab, ?a), getTo(?a, ?r, ?m)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watching(?g)),
+    do(unwatch(?g), getTo(?a, ?r, ?m)).
+getTo(?a, ?r, ?n) :-
+    if(not(canReachNow(?a, ?r)), >(?n, 0), is(?m, -(?n, 1)), watchedRegion(?w),
+       trait(?c, cover), not(at(?c, ?w))),
+    do(place(?c, ?w, none), getTo(?a, ?r, ?m)).
+
+% The watcher stops watching: blinded, asleep, lured off his post.
+unwatch(?g) :-
+    if(tryOn(?c, ?ab, ?g, ?from)), do(castFrom(?c, ?ab, ?g, ?from), confirmUnwatched(?g)).
+confirmUnwatched(?g) :- if(not(watching(?g))), do().
+
+% === Victory: everyone out ===
+openGate :- if(open(gate)), do().
+openGate :- if(not(open(gate)), canAct(?a)), do(getTo(?a, guardroom, 2)).
+openGate :- if(not(open(gate))), do(place(crate, guardroom, none)).
+
+escape :- if(), do(openGate, getTo(player, exit, 2), getTo(mage, exit, 2)).
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from seven (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(vanish).
+comboPool(smokeBomb).
+comboPool(flashbang).
+comboPool(sleepDart).
+comboPool(gust).
+comboPool(taunt).
+comboPool(pebble).
+comboMinWins(10).
+comboMinMethods(3).
+
+goals(escape).
