@@ -2,42 +2,36 @@
 
 ## Purpose
 
-An escort level with an enemy behaviour to survive. A **scholar** who cannot act must get from the
-library to the exit. It is not a companion: it never casts, and it walks on its own when the way is
-clear. The only door runs through the hall, where a clockwork **brute** (a heavy machine) stands as
-a blocker. The other way is round by the balcony and across a flooded **cistern**, but the scholar
-cannot swim, and the brute's searchlight eye sweeps the cistern (nobody wades in under it). Two
-companions, the player and the mage, pick one skill each from a pool of eight catalogue skills.
+An escort level with two roads and a blow aimed at the escort. A **scholar** who cannot fight must
+get from the library to the exit. The short way runs through the hall, where a clockwork **brute**
+(a heavy machine) stands in the doorway: nobody walks past it. The long way is round by the balcony
+and across the flooded **cistern**, but the scholar cannot swim, and the brute's searchlight eye
+sweeps the cistern: no companion wades in under it. Two companions, the player and the mage, pick
+one skill each from a pool of seven:
 
-Three families of method, each needing both companions:
+| Way | Answers |
+|-----|---------|
+| **Drop it** (the hall) | `turnToMist` (for a moment it is not heavy), then knock it down the shaft (`fireball`, `shieldBash`, `vortex` on the shaft), or hook it out of the doorway into the library (`hook`) |
+| **Ice the way** (the cistern) | put the eye out - `shieldBash` (stunned: blind) or `lightningFlash` (a dry machine is stunned by a jolt; the flash lands its caster in the hall) - then wade the cistern to the exit and `blizzard` it from there: the scholar crosses on the ice |
 
-| Method | First | Then |
-|--------|-------|------|
-| **Short it** (the scholar walks through the hall) | soak it: `tidalWave` from the library. Soaked, the brute sparks and winds up a `groundSlam` on the soaker - and on the scholar standing beside it | jolt it in that window: `lightningFlash` (a wet machine electrocuted is dead, and a dead brute's blow misses) |
-| **Drop it** (the scholar walks through the hall) | turn it to mist: `turnToMist` (for a moment it is not heavy) | move it out of the doorway on the very next cast: suck it into the pit (`vortex` on the pit), or hook it into the library or onto the balcony (`hook`) |
-| **Ice the way** (the scholar never passes the brute) | switch the eye off: `shieldBash` (stunned), `blindingFlash` (blinded), or a dry `lightningFlash` (a machine jolted is stunned) | `blizzard` on the cistern: ice over deep water is a floor, and the scholar walks across |
-
-`lightningFlash` plays two roles: on a wet brute it kills, on a dry one it stuns. `blizzard` is the
-bridge, never a weapon here.
+**The heavy blow.** Set alight, the brute lashes out at the library doorway:
+`behavior(brute, burning, groundSlam, there(library))`, a telegraphed physical slam on the library,
+where the scholar waits. A fireball that drops the misted brute sets it alight first: the slam
+winds up, and in that one cast the fireballer throws a second fireball that knocks it down the
+shaft (a fallen brute's blow misses). The slam cannot be interrupted, and `mustSurvive(scholar)`
+forbids letting it land.
 
 Why no single skill works:
-- `tidalWave` alone soaks the brute and brings the slam down on the library: nobody can stop a
-  physical blow, so there is no plan.
-- A dry `lightningFlash`, `shieldBash` or `blindingFlash` only switches the eye off: the hall is
-  still blocked, and the cistern is still deep water.
-- `turnToMist` alone moves nothing; `hook` or `vortex` alone meets the heavy brute (a hook drags the
-  caster in instead; a vortex draws nothing that is anchored).
-- `blizzard` alone ices the cistern under the brute's eye.
+- A mover cannot shift the heavy brute; mist alone moves nothing.
+- The blizzard needs a caster at the far side of the cistern, and no companion walks in under the
+  eye; the eye-stunners do nothing to the water.
 
-The protect traps:
-- The heavy attack: `behavior(brute, wet, groundSlam, source)`. The slam follows the soaker, and
-  the wave was cast from the library, where the scholar stands (`mustSurvive(scholar)`). A
-  physical blow cannot be interrupted (`shieldBash` does not help), mist does not move it, and a
-  flash disjoints only its caster: only killing the brute in the window saves the scholar.
-- A wave from the library soaks the scholar too: walking onto the ice it freezes (wet + chilled:
-  stunned) and cannot go on. So `tidalWave` + `blizzard` has no plan.
-- Hooking the scholar over the cistern, or a vortex on the cistern, drops it in the water.
-- A frozen or stunned brute still fills the doorway.
+The traps:
+- A stunned brute still fills the doorway: only the ice route gets past it.
+- A hook on the heavy brute drags the caster into the hall; mist lasts one cast, so the knock must
+  be the very next one.
+- Only the exit (and the cistern itself) sees the water: the blizzard cannot be cast from the
+  balcony.
 
 ## Layer
 
@@ -51,71 +45,82 @@ level
 ## World
 
 ```
-library (scholar, player, mage) --- hall (brute) --- exit (pillar)
-   |                                  |                |
-balcony ------------ cistern (deep water) -------------+
-                                      pit (chasm, below the hall)
+library (scholar, player, mage) --- hall (brute, shaft) --- exit
+   |                                                        |
+balcony ------------------ cistern (deep water) -------------+
 ```
 
-- **Walking:** library-hall-exit, library-balcony-cistern-exit, hall-pit. The hall is the brute's
-  (a blocker); the pit is a chasm.
-- **Lines:** the cistern lies between the balcony and the exit, both ways.
-- **Line of sight:** library-hall, library-balcony, balcony-hall, balcony-cistern, balcony-exit,
-  exit-hall (both ways); library to the pit, exit to the cistern.
-- **Brute:** machine, heavy, blocker, `watches(brute, cistern)`, and its wet behaviour above.
-  **Pillar:** heavy.
-- **Scholar:** living, `mustSurvive`, `weakness(scholar, deepWater, none, fell)`.
-- **Goal:** `win` = `clearWay(brute)` (neutralize it; soak it and let the window finish it; or
-  mist it and shift it), then the scholar walks out; or `iceOver(cistern, brute)` (the eye off,
-  then the blizzard), then the scholar walks out. Both end with `confirmSafe` (the scholar at the
-  exit and whole, and no companion lost).
+- **Areas (5):** library, hall, exit, balcony, cistern.
+- **Links:** walkable library-hall, hall-exit, library-balcony, balcony-cistern, cistern-exit.
+- **Terrain:** the cistern is `deepWater` (a zone): the scholar (`weakness(scholar, deepWater,
+  none, fell)`) and the heavy sink in it; companions wade and get wet. Iced, it is a floor.
+- **Features:** `shaft` (chasm) in the hall.
+- **Line of sight:** library-hall, hall-exit, library-balcony, exit-cistern (both ways).
+- **Brute:** machine, heavy, `blocker`, `watches(brute, cistern)`, the burning slam above.
+- **Scholar:** living, `mustSurvive`; walks.
+- **Mana:** four each.
+- **Goal:** `win` = `dropBrute(brute)` (`intoThePit`: mist, then a knock; or mist, then `bringTo`
+  the library) then the scholar walks out; or `iceOver(cistern, brute)` (`lookAway`: blinded or
+  electrocuted, confirmed by the watch being forbidden; then a blizzard on the cistern) then the
+  scholar walks out, whole.
 
 ## Hypothesis
 
 Measured with `htn_components combos escort_scholar`:
 
-- No single skill wins, even when both companions hold it: 0 of 8.
-- 12 of 64 assignments win (6 pairs, either way round), by 6 methods:
-  `tidalWave` + `lightningFlash`; `turnToMist` + `hook` / `vortex`; `blizzard` + `shieldBash` /
-  `blindingFlash` / `lightningFlash`.
-- No solo plan; no dead skill. Every plan takes under a second.
+- No single skill wins, even when both companions hold it: 0 of 7.
+- 12 of 49 assignments win (6 pairs, either way round), by 6 methods:
+  `turnToMist` + `fireball` / `shieldBash` / `vortex` / `hook`;
+  `blizzard` + `shieldBash` / `lightningFlash`.
+- No solo plan; no dead skill. `shieldBash` plays two roles (the knock on the misted brute, the
+  stun on its eye); `fireball` is both the trigger of the slam and its answer.
+- The whole matrix replans in under three seconds.
 
 ## Examples
 
-### Example 1: Soak, and jolt in the window
+### Example 1: Mist, and fireball twice
 
-**Given:** the player knows `tidalWave`, the mage knows `lightningFlash`.
+**Given:** the player knows `turnToMist`, the mage knows `fireball`.
 
 **When:** `win`
 
-**Then:** the player's wave soaks the brute (and the scholar). The brute winds up a ground slam on
-the player's region. In that window the mage's lightning flash kills the wet machine (`dead`); the
-slam misses. The scholar walks through the hall.
+**Then:** the player turns the brute to mist; the mage's fireball sets it alight, and its slam
+winds up on the library. In the window the mage throws a second fireball: the brute is knocked
+down the shaft, and the slam misses. The scholar walks through the hall.
 
-### Example 2: Mist and vortex
+### Example 2: Mist and hook
+
+**Given:** the player knows `turnToMist`, the mage knows `hook`.
+
+**When:** `win`
+
+**Then:** the misted brute is hooked out of the doorway into the library; the scholar walks through
+the empty hall.
+
+### Example 3: Jolt the eye, ice the cistern
+
+**Given:** the player knows `lightningFlash`, the mage knows `blizzard`.
+
+**When:** `win`
+
+**Then:** the player's flash stuns the dry brute and lands the player in the hall. The mage wades
+the cistern to the exit and ices it from there; the scholar walks round by the balcony and over the
+ice.
+
+### Example 4: Mist and vortex
 
 **Given:** the player knows `turnToMist`, the mage knows `vortex`.
 
 **When:** `win`
 
-**Then:** the brute turns to mist; the mage's vortex on the pit sucks it in (`fell`). The scholar
-walks through the hall.
-
-### Example 3: Ice the cistern
-
-**Given:** the player knows `shieldBash`, the mage knows `blizzard`.
-
-**When:** `win`
-
-**Then:** the player bashes the brute (stunned: its eye is off); the mage steps onto the balcony
-and ices the cistern. The scholar walks round and across the ice.
+**Then:** a vortex on the shaft takes the misted brute.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
+| P1 | No single skill wins | Each of the seven, held by both companions: no plan. |
 | P2 | The measured pairs win either way | Exactly the 6 measured pairs have a plan, whichever companion holds which half. |
-| P3 | The traps have no plan | Wave + blizzard (the scholar freezes on the ice), wave + bash and wave + mist (the slam lands), a dry jolt alone. |
-| P4 | The slam never lands | No winning plan has a blow; every wind-up ends with the brute dead and the blow missing. |
-| P5 | Two companions cast | Both companions cast in every winning plan. |
+| P3 | The slam never lands | No winning plan has a blow. |
+| P4 | The scholar walks on ice | It is never moved by force, and steps into the cistern only after the blizzard. |
+| P5 | Two companions cast | Both cast in every winning plan. |

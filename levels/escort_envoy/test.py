@@ -1,68 +1,44 @@
 """Tests for The Envoy (escort) level."""
 
 import itertools
-import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src/Python")))
 
 from htn_test_framework import HtnTestSuite
-from indhtnpy import HtnPlanner
-from htn_components.loader import ComponentLoader
+from htn_components.combos import ComboSpec, _plan
 from htn_components.manifest import Manifest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-SEATS = ("player", "mage")
-POOL = ["tidalWave", "fireball", "hook", "vortex", "blindingFlash", "shieldBash", "blizzard",
-        "turnToMist"]
+POOL = ["fireball", "shieldBash", "tidalWave", "hook", "taunt", "turnToMist"]
 
 # The measured matrix (htn_components combos): these pairs win, whichever
-# companion holds which half, and nothing else does. Any filler with a
-# blinder or a basher; the soaker with the blizzard; mist with a mover.
-FILLERS = ["tidalWave", "fireball", "hook", "vortex"]
-WINNING = {frozenset((f, s)) for f in FILLERS for s in ("blindingFlash", "shieldBash")} | {
-    frozenset(("tidalWave", "blizzard")), frozenset(("turnToMist", "tidalWave")),
-    frozenset(("turnToMist", "fireball")), frozenset(("turnToMist", "vortex"))}
+# companion holds which half, and nothing else does. Any bridger with the
+# taunt; mist with a knock that also bridges.
+BRIDGERS = ["fireball", "shieldBash", "tidalWave", "hook"]
+WINNING = ({frozenset((b, "taunt")) for b in BRIDGERS}
+           | {frozenset(("turnToMist", "fireball")), frozenset(("turnToMist", "shieldBash"))})
 
 
 def plans_with(player, mage):
-    """All winning plans (as operator strings) with the player knowing `player`
-    and the mage `mage`, on a fresh planner (a failed search locks the rule set)."""
-    with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
-        text = f.read()
-    text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
-    planner = HtnPlanner(False)
-    planner.SetMemoryBudget(256 * 1024 * 1024)
-    loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
-    for dep in Manifest.load(os.path.join(HERE, "manifest.json")).dependencies:
-        loader.load(dep)
-    assert planner.HtnCompileCustomVariables(
-        text + f"knows(player, {player}).\nknows(mage, {mage}).\n") is None
-    error, result = planner.FindAllPlansCustomVariables("win.")
-    assert error is None, error
-    sols = json.loads(result)
-    if not sols or (isinstance(sols[0], dict) and "false" in sols[0]):
-        return []
-    plans = []
-    for sol in sols:
-        ops = []
-        for op in sol:
-            name = list(op.keys())[0]
-            args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
-            ops.append(f"{name}({','.join(args)})")
-        plans.append(ops)
-    return plans
+    """All winning plans (as operator strings, no spaces) with the player knowing
+    `player` and the mage `mage`, on a fresh planner (a failed search locks the
+    rule set)."""
+    spec = ComboSpec.load(HERE)
+    res = _plan(ROOT, HERE, spec.stripped(), f"knows(player, {player}).\nknows(mage, {mage}).\n",
+                spec.goal)
+    assert "error" not in res, res.get("error")
+    return [[f"{n}({','.join(a)})" for n, a in plan] for plan in res["plans"]]
 
 
 def has(plan, *ops):
     return all(op in plan for op in ops)
 
 
-def index(plan, prefix):
-    return min(i for i, op in enumerate(plan) if op.startswith(prefix))
+def casters(plan):
+    return {op[len("opCast("):].split(",")[0] for op in plan if op.startswith("opCast(")}
 
 
 class EscortEnvoyTest(HtnTestSuite):
@@ -75,33 +51,32 @@ class EscortEnvoyTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_wash_and_blind(self):
+    def test_example_1_blast_the_crate_and_lure_the_sentry(self):
         self.assert_plan("win.", contains=[
-            "opCast(player, tidalWave, player)", "opForcedMove(player, crate, yard, briars)",
-            "opCast(mage, blindingFlash, mage)", "opGrant(mage, sentry, blinded)",
-            "opNavigate(envoy, gatehouse, exit)"])
+            "opCast(player, fireball, crate)", "opBridge(player, yard, lawn)",
+            "opCast(mage, taunt, sentry)", "opNavigate(sentry, lawn, tower)",
+            "opNavigate(envoy, gatehouse, road)"])
 
-    def test_example_2_hook_the_crate_over(self):
-        plans = plans_with("hook", "shieldBash")
-        assert plans and all(has(p, "opCast(player,hook,crate)",
-                                 "opForcedMove(player,crate,yard,briars)",
-                                 "opCast(mage,shieldBash,sentry)") for p in plans)
-        self._record(True, "Example 2: the crate is hooked into the briars from the lawn; the sentry is bashed")
+    def test_example_2_grapple_over_and_drag_the_crate(self):
+        plans = plans_with("hook", "taunt")
+        assert plans and all(has(p, "opCast(player,hook,statue)", "opDash(player,yard,lawn)",
+                                 "opCast(player,hook,crate)", "opFall(player,crate,yard,lawn)",
+                                 "opBridge(player,yard,lawn)") for p in plans)
+        self._record(True, "Example 2: the hook grapples to the statue, then drags the crate into the briars")
 
-    def test_example_3_mist_and_drop(self):
-        plans = plans_with("vortex", "turnToMist")
-        assert plans and all(has(p, "opCast(player,vortex,briars)", "opCast(mage,turnToMist,sentry)",
-                                 "opCast(player,vortex,moat)",
-                                 "opForcedMove(player,sentry,tower,moat)",
-                                 "opExploit(player,sentry,chasm,fell)") for p in plans)
-        self._record(True, "Example 3: one vortex fills the briars; the sentry turns to mist and a second drops it in the moat")
+    def test_example_3_mist_and_bash(self):
+        plans = plans_with("turnToMist", "shieldBash")
+        assert plans and all(has(p, "opCast(mage,shieldBash,crate)", "opBridge(mage,yard,lawn)",
+                                 "opCast(player,turnToMist,sentry)",
+                                 "opKnock(mage,sentry,trapdoor)",
+                                 "opExploit(mage,sentry,chasm,fell)") for p in plans)
+        self._record(True, "Example 3: one bash bridges the briars, a second drops the misted sentry")
 
-    def test_example_4_soak_and_freeze(self):
-        plans = plans_with("tidalWave", "blizzard")
-        assert plans and all(has(p, "opForcedMove(player,crate,yard,briars)",
-                                 "opCast(mage,blizzard,sentry)",
-                                 "opReact(mage,sentry,wet,chilled,freeze)") for p in plans)
-        self._record(True, "Example 4: one wave fills the briars, a second soaks the sentry, the blizzard freezes it")
+    def test_example_4_wash_the_crate_in(self):
+        plans = plans_with("tidalWave", "taunt")
+        assert plans and all(has(p, "opCast(player,tidalWave,player)",
+                                 "opFall(player,crate,yard,lawn)") for p in plans)
+        self._record(True, "Example 4: a wave in the yard washes the crate into the briars")
 
     # -------------------------------------------------------------- properties
 
@@ -121,29 +96,28 @@ class EscortEnvoyTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win, either way round")
 
     def test_property_p3_envoy_is_never_dragged(self):
-        """Pulling the envoy across the briars drops it: no winning plan moves it
-        by force - it always walks."""
+        """Pulled over the briars it would fall: no winning plan moves it by
+        force - it always walks out."""
         for a, b in WINNING:
             for p in plans_with(a, b):
-                assert not any(op.startswith("opForcedMove") and ",envoy," in op for op in p), p
-                assert "opNavigate(envoy,gatehouse,exit)" in p
+                assert not any(op.startswith(("opForcedMove", "opFall")) and ",envoy," in op
+                               for op in p), p
+                assert "opNavigate(envoy,gatehouse,road)" in p
         self._record(True, "P3: the envoy walks out; nobody drags it over the briars")
 
     def test_property_p4_mist_is_a_moment(self):
-        """The push that drops the misted sentry is the very next cast."""
-        for a, b in [("turnToMist", "tidalWave"), ("turnToMist", "fireball"), ("turnToMist", "vortex")]:
-            for p in plans_with(a, b):
-                casts = [op for op in p if op.startswith("opCast")]
+        """The knock that drops the misted sentry is the very next cast."""
+        for a in ("fireball", "shieldBash"):
+            for p in plans_with("turnToMist", a):
+                casts = [op for op in p if op.startswith("opCast(")]
                 i = casts.index("opCast(player,turnToMist,sentry)")
-                assert casts[i + 1].startswith("opCast(mage,"), p
-                assert "opExploit(mage,sentry,chasm,fell)" in p, p
+                assert casts[i + 1] == f"opCast(mage,{a},sentry)", p
         self._record(True, "P4: the sentry drops on the cast right after the mist")
 
     def test_property_p5_two_companions_cast(self):
         for a, b in WINNING:
             for p in plans_with(a, b):
-                casters = {op.split("(")[1].split(",")[0] for op in p if op.startswith("opCast")}
-                assert casters == {"player", "mage"}, p
+                assert casters(p) == {"player", "mage"}, p
         self._record(True, "P5: both companions cast in every winning plan")
 
 

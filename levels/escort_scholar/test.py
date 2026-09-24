@@ -1,66 +1,44 @@
 """Tests for The Scholar (escort) level."""
 
 import itertools
-import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src/Python")))
 
 from htn_test_framework import HtnTestSuite
-from indhtnpy import HtnPlanner
-from htn_components.loader import ComponentLoader
+from htn_components.combos import ComboSpec, _plan
 from htn_components.manifest import Manifest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-SEATS = ("player", "mage")
-POOL = ["hook", "vortex", "tidalWave", "lightningFlash", "turnToMist", "blizzard", "shieldBash",
-        "blindingFlash"]
+POOL = ["turnToMist", "fireball", "shieldBash", "vortex", "hook", "lightningFlash", "blizzard"]
 
 # The measured matrix (htn_components combos): these pairs win, whichever
-# companion holds which half, and nothing else does.
-WINNING = {frozenset(p) for p in [
-    ("hook", "turnToMist"), ("vortex", "turnToMist"), ("tidalWave", "lightningFlash"),
-    ("lightningFlash", "blizzard"), ("blizzard", "shieldBash"), ("blizzard", "blindingFlash")]}
+# companion holds which half, and nothing else does. Mist with anything that
+# moves the brute; the blizzard with anything that puts its eye out.
+MOVERS = ["fireball", "shieldBash", "vortex", "hook"]
+WINNING = ({frozenset(("turnToMist", m)) for m in MOVERS}
+           | {frozenset(("blizzard", "shieldBash")), frozenset(("blizzard", "lightningFlash"))})
 
 
 def plans_with(player, mage):
-    """All winning plans (as operator strings) with the player knowing `player`
-    and the mage `mage`, on a fresh planner (a failed search locks the rule set)."""
-    with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
-        text = f.read()
-    text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
-    planner = HtnPlanner(False)
-    planner.SetMemoryBudget(256 * 1024 * 1024)
-    loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
-    for dep in Manifest.load(os.path.join(HERE, "manifest.json")).dependencies:
-        loader.load(dep)
-    assert planner.HtnCompileCustomVariables(
-        text + f"knows(player, {player}).\nknows(mage, {mage}).\n") is None
-    error, result = planner.FindAllPlansCustomVariables("win.")
-    assert error is None, error
-    sols = json.loads(result)
-    if not sols or (isinstance(sols[0], dict) and "false" in sols[0]):
-        return []
-    plans = []
-    for sol in sols:
-        ops = []
-        for op in sol:
-            name = list(op.keys())[0]
-            args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
-            ops.append(f"{name}({','.join(args)})")
-        plans.append(ops)
-    return plans
+    """All winning plans (as operator strings, no spaces) with the player knowing
+    `player` and the mage `mage`, on a fresh planner (a failed search locks the
+    rule set)."""
+    spec = ComboSpec.load(HERE)
+    res = _plan(ROOT, HERE, spec.stripped(), f"knows(player, {player}).\nknows(mage, {mage}).\n",
+                spec.goal)
+    assert "error" not in res, res.get("error")
+    return [[f"{n}({','.join(a)})" for n, a in plan] for plan in res["plans"]]
 
 
 def has(plan, *ops):
     return all(op in plan for op in ops)
 
 
-def index(plan, prefix):
-    return min(i for i, op in enumerate(plan) if op.startswith(prefix))
+def casters(plan):
+    return {op[len("opCast("):].split(",")[0] for op in plan if op.startswith("opCast(")}
 
 
 class EscortScholarTest(HtnTestSuite):
@@ -73,26 +51,36 @@ class EscortScholarTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_soak_and_jolt_in_the_window(self):
+    def test_example_1_mist_and_fireball_twice(self):
+        """The fireball sets the brute alight: its slam winds up on the
+        library, and the second fireball knocks it down the shaft."""
         self.assert_plan("win.", contains=[
-            "opCast(player, tidalWave, player)", "opWindUp(brute, groundSlam, player)",
-            "opCast(mage, lightningFlash, brute)", "opExploit(mage, brute, electrocuted, dead)",
-            "opMiss(brute, groundSlam, player)", "opNavigate(scholar, hall, exit)"],
+            "opCast(player, turnToMist, brute)", "opWindUp(brute, groundSlam, library)",
+            "opKnock(mage, brute, shaft)", "opExploit(mage, brute, chasm, fell)",
+            "opMiss(brute, groundSlam, library)", "opNavigate(scholar, hall, exit)"],
             not_contains=["opBlow"])
 
-    def test_example_2_mist_and_vortex(self):
-        plans = plans_with("turnToMist", "vortex")
-        assert plans and all(has(p, "opCast(player,turnToMist,brute)", "opCast(mage,vortex,pit)",
-                                 "opForcedMove(mage,brute,hall,pit)",
+    def test_example_2_mist_and_hook(self):
+        plans = plans_with("turnToMist", "hook")
+        assert plans and all(has(p, "opCast(player,turnToMist,brute)", "opCast(mage,hook,brute)",
+                                 "opForcedMove(mage,brute,hall,library)",
                                  "opNavigate(scholar,hall,exit)") for p in plans)
-        self._record(True, "Example 2: the brute turns to mist and the vortex sucks it into the pit")
+        self._record(True, "Example 2: the misted brute is hooked out of the doorway")
 
-    def test_example_3_ice_the_cistern(self):
-        plans = plans_with("shieldBash", "blizzard")
-        assert plans and all(has(p, "opGrant(player,brute,stunned)", "opCast(mage,blizzard,cistern)",
+    def test_example_3_jolt_the_eye_and_ice_the_cistern(self):
+        plans = plans_with("lightningFlash", "blizzard")
+        assert plans and all(has(p, "opExploit(player,brute,electrocuted,stunned)",
+                                 "opDash(player,library,hall)",
+                                 "opNavigate(mage,cistern,exit)", "opCast(mage,blizzard,cistern)",
                                  "opNavigate(scholar,balcony,cistern)",
                                  "opNavigate(scholar,cistern,exit)") for p in plans)
-        self._record(True, "Example 3: the brute is bashed blind, the cistern ices over, the scholar walks across")
+        self._record(True, "Example 3: the jolt stuns the eye; the blizzard from the exit ices the cistern")
+
+    def test_example_4_mist_and_vortex(self):
+        plans = plans_with("turnToMist", "vortex")
+        assert plans and all(has(p, "opCast(mage,vortex,shaft)", "opKnock(mage,brute,shaft)")
+                             for p in plans)
+        self._record(True, "Example 4: a vortex on the shaft takes the misted brute")
 
     # -------------------------------------------------------------- properties
 
@@ -111,31 +99,28 @@ class EscortScholarTest(HtnTestSuite):
         assert winning == WINNING, f"extra: {winning - WINNING}, missing: {WINNING - winning}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win, either way round")
 
-    def test_property_p3_the_traps_have_no_plan(self):
-        """A wave from the library soaks the scholar too; walking onto the ice
-        it would freeze. A soaked brute swings at the soaker unless it dies in
-        the window: a bash cannot stop a physical blow, and mist does not move
-        it. A dry jolt stuns the brute, but it still fills the doorway."""
-        for a, b in [("tidalWave", "blizzard"), ("tidalWave", "shieldBash"),
-                     ("tidalWave", "turnToMist"), ("lightningFlash", "lightningFlash")]:
-            assert not plans_with(a, b), (a, b)
-        self._record(True, "P3: wave + blizzard, wave + bash, wave + mist and a dry jolt alone have no plan")
-
-    def test_property_p4_the_slam_never_lands(self):
-        """Whenever the brute winds up, the blow misses: it is dead before it
-        lands, and the scholar is never struck."""
+    def test_property_p3_the_slam_never_lands(self):
         for a, b in WINNING:
             for p in plans_with(a, b):
                 assert not any(op.startswith("opBlow") for op in p), p
-                if any(op.startswith("opWindUp") for op in p):
-                    assert index(p, "opWindUp") < index(p, "opExploit") < index(p, "opMiss"), p
-        self._record(True, "P4: the slam is always outrun; no blow lands")
+        self._record(True, "P3: no winning plan lets the slam fall on the library")
+
+    def test_property_p4_the_scholar_walks_on_ice(self):
+        """On the long way round, the scholar steps into the cistern only once it
+        is iced; it is never moved by force."""
+        for a, b in WINNING:
+            for p in plans_with(a, b):
+                assert not any(op.startswith(("opForcedMove", "opFall")) and ",scholar," in op
+                               for op in p), p
+                if "opNavigate(scholar,balcony,cistern)" in p:
+                    ice = next(i for i, op in enumerate(p) if op.endswith(",blizzard,cistern)"))
+                    assert ice < p.index("opNavigate(scholar,balcony,cistern)"), p
+        self._record(True, "P4: the scholar walks; it wades only on the ice")
 
     def test_property_p5_two_companions_cast(self):
         for a, b in WINNING:
             for p in plans_with(a, b):
-                casters = {op.split("(")[1].split(",")[0] for op in p if op.startswith("opCast")}
-                assert casters == {"player", "mage"}, p
+                assert casters(p) == {"player", "mage"}, p
         self._record(True, "P5: both companions cast in every winning plan")
 
 

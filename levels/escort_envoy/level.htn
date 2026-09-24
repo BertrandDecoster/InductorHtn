@@ -1,88 +1,75 @@
 % The Envoy (escort, protect, rescue)
 %
 % An envoy who cannot fight must reach the gate road. Between the yard and
-% the lawn lie briars: the companions wade through them, but the envoy
-% would never come out. Past the lawn, an armoured sentry (heavy) on a
-% tower watches the gatehouse: nobody walks through it under its eyes.
+% the lawn run the briars, a strip of thorns: a leaper clears it, but the
+% envoy only walks, and nobody drags it over (pulled across, it falls in).
+% Past the lawn, an armoured sentry (heavy) holds the gatehouse: nobody
+% walks through it while it stands there.
 %
-%   camp --- yard (crate) --- briars --- lawn --- gatehouse --- exit
-%                                          |        (watched)
-%                                        tower (sentry) --- moat (chasm)
+%   camp (envoy, player, mage) --- yard (crate) ~~briars~~ lawn (statue) --- gatehouse (sentry, trapdoor) --- road
+%                                                           |
+%                                                         tower
+%
+% Map: six areas. Walkable: camp-yard, lawn-gatehouse, gatehouse-road,
+% lawn-tower. A gap (the briars) between the yard and the lawn. A
+% trapdoor (chasm) in the gatehouse.
 %
 % Obstacles, and the answers to each:
-%   the briars    fill them with the crate: wash it in from the camp (tidal
-%                 wave), blast it in (fireball from the camp), suck it in
-%                 (vortex on the briars), or hook it across them from the
-%                 lawn. Nothing carries the envoy over.
-%   the sentry    blind it (blinding flash from the lawn), stun it (shield
-%                 bash), freeze it (a tidal wave from the lawn soaks it, a
-%                 blizzard on the tower chills it), or drop it: turn it to
-%                 mist, and in that moment wash it (tidal wave), blast it
-%                 (fireball) or suck it (vortex on the moat) into the moat.
+%   the briars    bridge them with the crate: knock it in from the yard
+%                 side (a fireball, a shield bash, a tidal wave in the
+%                 yard), or grapple over to the statue on the lawn (hook)
+%                 and drag the crate across behind you - it falls in and
+%                 fills the gap.
+%   the sentry    lure it out: taunted from the tower, it walks after its
+%                 taunter, off the envoy's road; or drop it: turn it to
+%                 mist, and in that moment knock it into the trapdoor (a
+%                 fireball, a shield bash).
 % Then the envoy walks out on its own.
 %
 % Traps:
-%   - hooking the envoy across the lawn drops it in the briars: a pull
-%     falls into the first live hazard on the way;
-%   - a push on the heavy sentry does nothing; a hook on it drags the
-%     caster up the tower instead. Mist lasts one cast: the push must be
-%     the very next one;
-%   - one companion cannot do both halves: the soaker spends its mana on
-%     the crate and the sentry, and the blizzard is somebody else's.
+%   - hooking the envoy over the briars drops it in the thorns;
+%   - a push on the heavy sentry does nothing, and a hook on it drags the
+%     caster into the gatehouse instead; mist lasts one cast, so the knock
+%     must be the very next one;
+%   - a taunt from the lawn only brings the sentry onto the lawn, into the
+%     envoy's way: the taunter must walk it off to the tower.
 
-% === Regions ===
+% === Areas ===
 region(camp).
 region(yard).
-region(briars).
 region(lawn).
 region(gatehouse).
-region(exit).
+region(road).
 region(tower).
-region(moat).
 connected(camp, yard).
-connected(yard, camp).
-connected(yard, briars).
-connected(briars, yard).
-connected(briars, lawn).
-connected(lawn, briars).
+gap(yard, lawn).
 connected(lawn, gatehouse).
-connected(gatehouse, lawn).
-connected(gatehouse, exit).
-connected(exit, gatehouse).
+connected(gatehouse, road).
 connected(lawn, tower).
-connected(tower, lawn).
-connected(tower, moat).
-connected(moat, tower).
 
 lineOfSight(camp, yard).
-lineOfSight(camp, briars).
-lineOfSight(camp, lawn).
 lineOfSight(yard, camp).
 lineOfSight(yard, lawn).
 lineOfSight(lawn, yard).
-lineOfSight(lawn, camp).
-lineOfSight(lawn, tower).
-lineOfSight(lawn, moat).
 lineOfSight(lawn, gatehouse).
+lineOfSight(gatehouse, lawn).
+lineOfSight(lawn, tower).
 lineOfSight(tower, lawn).
 lineOfSight(tower, gatehouse).
-lineOfSight(gatehouse, exit).
+lineOfSight(gatehouse, tower).
+lineOfSight(gatehouse, road).
+lineOfSight(road, gatehouse).
 
-% Push lines (and what lies between).
-beyond(camp, yard, briars).
-beyond(lawn, briars, yard).
-beyond(lawn, briars, camp).
-beyond(lawn, tower, moat).
+% The route, for leaps over the briars (passage).
+progress(camp, 0).
+progress(yard, 1).
+progress(lawn, 2).
+progress(tower, 3).
+progress(gatehouse, 3).
+progress(road, 4).
 
-% === Terrain ===
-% Briars: a hazard only the envoy (and the crate, which sinks in and fills
-% them) are weak to.
-onEnter(briars, thorns).
-effect(thorns, target, hazard(thorns)).
-weakness(envoy, thorns, none, fell).
-weakness(crate, thorns, none, fell).
-onEnter(moat, chasm).
-watches(sentry, gatehouse).
+% === Features ===
+feature(gatehouse, trapdoor, chasm).
 
 % === Companions ===
 role(player, player).
@@ -103,53 +90,53 @@ role(crate, object).
 at(crate, yard).
 tag(crate, filler).
 
+role(statue, object).
+at(statue, lawn).
+tag(statue, heavy).
+
 role(sentry, enemy).
-at(sentry, tower).
+at(sentry, gatehouse).
 tag(sentry, living).
 tag(sentry, heavy).
+blocker(sentry).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, tidalWave).
-knows(mage, blindingFlash).
+knows(player, fireball).
+knows(mage, taunt).
 
-% === Victory: the envoy stands at the exit, whole ===
-win :- if(), do(crossBriars, passSentry(sentry), bringOut(envoy, exit)).
+% === Victory: the envoy stands on the road, whole ===
+win :- if(), do(crossBriars, clearGate(sentry), bringOut(envoy, road)).
 
-% The briars: already filled, or the crate goes in (pushed, sucked or dragged).
-crossBriars :- if(filled(briars)), do().
-crossBriars :- if(not(filled(briars))), do(span(briars), confirmFilled(briars)).
+% The briars: bridged by the crate - knocked in from the yard side, or
+% dragged across by someone who leapt over first.
+crossBriars :- if(bridgedGap(yard, lawn)), do().
+crossBriars :-
+    if(not(bridgedGap(yard, lawn))), do(bridge(yard, lawn), confirmBridged(yard, lawn)).
+crossBriars :-
+    if(not(bridgedGap(yard, lawn)), canAct(?a)),
+    do(reach(?a, lawn), bridge(yard, lawn), confirmBridged(yard, lawn)).
 
-% The sentry: blind or gone already; blinded (a stun blinds too); frozen
-% or shocked stiff - soaked by one companion, iced or jolted by the other;
-% or dropped from its tower.
-watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
-passSentry(?g) :- if(not(watching(?g))), do().
-passSentry(?g) :- if(watching(?g)), do(inflict(blinded, ?g, none), confirmQuiet(?g)).
-passSentry(?g) :-
-    if(watching(?g), supplier(?p, wet, ?g), \==(?p, none)),
-    do(supply(?p, wet, ?g), stiffen(?g, ?p), confirmQuiet(?g)).
-passSentry(?g) :- if(watching(?g)), do(neutralize(?g)).
-stiffen(?g, ?p) :- if(), do(inflict(chilled, ?g, ?p)).
-stiffen(?g, ?p) :- if(), do(inflict(electrocuted, ?g, ?p)).
-confirmQuiet(?g) :- if(not(watching(?g))), do().
+% The gatehouse: the sentry dropped through its trapdoor, or lured to the
+% tower, off the road.
+clearGate(?e) :- if(neutralized(?e)), do().
+clearGate(?e) :- if(not(neutralized(?e))), do(intoThePit(?e)).
+clearGate(?e) :- if(not(neutralized(?e))), do(bringTo(?e, tower, none), confirmAt(?e, tower)).
+confirmAt(?e, ?r) :- if(at(?e, ?r)), do().
 
 % The envoy walks out, and must arrive whole.
 bringOut(?v, ?r) :- if(), do(walkTo(?v, ?r), confirmSafe(?v, ?r)).
-% ... and nobody was lost on the way.
-confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v)), not(first(and(canAct(?a), gone(?a))))), do().
+confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v))), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(tidalWave).
 comboPool(fireball).
-comboPool(hook).
-comboPool(vortex).
-comboPool(blindingFlash).
 comboPool(shieldBash).
-comboPool(blizzard).
+comboPool(tidalWave).
+comboPool(hook).
+comboPool(taunt).
 comboPool(turnToMist).
 comboMinWins(4).
 comboMinMethods(3).
