@@ -1,0 +1,181 @@
+% The Lunging Wraith (enemy state machines)
+%
+% A Wraith haunts the crypt, stealthed: nothing can be aimed at it, only
+% areas and zones reach it. It is a boss (no hard control). Its state
+% machine is three tags and two behaviours:
+%   taunted or blinded  -> lunge: it bursts out of hiding (loses stealth),
+%                          spends itself (exhausted), flattens whoever set it
+%                          off (stunned) and lands where that one stands
+%   electrocuted        -> flinch: it is shaken out of hiding, nothing more
+%   exhausted           -> the window: a jolt, fire or frost now stops it
+%                          (dead, dead, frozen)
+%
+%   gate --- nave --- mist --- crypt (Wraith) --- ossuary
+%              |                 .
+%           balcony . . . . . . .   (the balcony overlooks mist and crypt)
+%
+% The mist is a shadows zone: whoever arrives there is stealthed - the
+% Wraith too, if it lunges into it.
+%
+% Methods:
+%   lure and strike   one companion sets off the lunge - provoke (an area
+%                     taunt: it reaches the unseen) or flashbang (it blinds,
+%                     and the blinded Wraith lashes out) - and the other
+%                     strikes in the window: zap, chainLightning, frostBolt
+%                     or flameWall
+%   lure into fire    flameWall first lays flames where the lure will be
+%                     sprung; the Wraith lunges into them, already spent,
+%                     and burns
+%   shake and taunt   chainLightning shakes it out of hiding; now it can be
+%                     taunted; the lunge spends it; a second chain finishes it
+%
+% Traps:
+%   - taunt, zap and frostBolt cannot be aimed at it while it hides;
+%   - whoever sets off the lunge is stunned: one companion cannot lure and
+%     strike;
+%   - lure it from the mist and it lands back in hiding: then only an area
+%     or a zone (chainLightning, flameWall) reaches it in its window;
+%   - a jolt, fire or frost before the lunge does nothing lasting.
+
+% === Regions ===
+region(gate).
+region(nave).
+region(balcony).
+region(mist).
+region(crypt).
+region(ossuary).
+connected(gate, nave).
+connected(nave, gate).
+connected(nave, balcony).
+connected(balcony, nave).
+connected(nave, mist).
+connected(mist, nave).
+connected(mist, crypt).
+connected(crypt, mist).
+connected(crypt, ossuary).
+connected(ossuary, crypt).
+lineOfSight(gate, nave).
+lineOfSight(nave, gate).
+lineOfSight(nave, mist).
+lineOfSight(nave, balcony).
+lineOfSight(balcony, nave).
+lineOfSight(balcony, mist).
+lineOfSight(balcony, crypt).
+lineOfSight(mist, crypt).
+lineOfSight(crypt, mist).
+lineOfSight(crypt, ossuary).
+lineOfSight(ossuary, crypt).
+
+onEnter(mist, shadows).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, gate).
+at(mage, gate).
+mana(player, 4).
+mana(mage, 4).
+
+% === The Wraith ===
+role(wraith, enemy).
+at(wraith, crypt).
+rank(wraith, boss).
+tag(wraith, stealthed).
+% Bound to its crypt: nothing drags or pushes it (not even a taunt's pull).
+% It moves only by its own lunge.
+immune(wraith, forcedMove).
+
+% Taunted or blinded, it lunges at whoever did it.
+behavior(wraith, taunted, lunge, source).
+behavior(wraith, blinded, lunge, source).
+reach(lunge, ranged).
+effect(lunge, self, remove(stealthed)).
+effect(lunge, self, grant(exhausted)).
+effect(lunge, target, grant(stunned)).
+effect(lunge, target, dash).
+
+% Jolted, it flinches out of hiding.
+behavior(wraith, electrocuted, flinch, self).
+reach(flinch, self).
+effect(flinch, self, remove(stealthed)).
+
+% Spent, it is open.
+weakness(wraith, electrocuted, exhausted, dead).
+weakness(wraith, burning, exhausted, dead).
+weakness(wraith, chilled, exhausted, frozen).
+
+% === Default kit: one skill each (combos replans the whole matrix) ===
+knows(player, provoke).
+knows(mage, zap).
+
+% === Victory ===
+% The standard recipes (the guard off first, then the weakness) ...
+win :- if(), do(neutralize(wraith)).
+% ... or lure it out and strike in the window,
+win :- if(), do(lure(wraith)).
+% ... or shake it out of hiding first, so a plain taunt can reach it,
+win :-
+    if(tag(wraith, stealthed), revealer(wraith, ?q, ?sk, ?r)),
+    do(cast(?q, ?sk, ?r), confirmOff(wraith, stealthed), lure(wraith)).
+% ... or lay fire where the lure will be sprung.
+win :-
+    if(trapFor(wraith, ?q, ?sk, ?r)),
+    do(cast(?q, ?sk, ?r), lureFrom(wraith, ?r)).
+
+% What reaches it while it hides: an area, or a zone spilled where it is.
+reachesUnseen(?sk) :- effect(?sk, area, ?x).
+reachesUnseen(?sk) :- effect(?sk, target, spill(?z)).
+aimFor(?e, ?sk, ?e) :- receptive(?e, targeted).
+aimFor(?e, ?sk, ?r) :- not(receptive(?e, targeted)), first(reachesUnseen(?sk)), at(?e, ?r).
+
+% ?p can set off its lunge with ?sk, aimed at ?aim, standing in ?from.
+trigger(?e, ?p, ?sk, ?aim, ?from) :-
+    behavior(?e, ?t, lunge, source), canAct(?p), knows(?p, ?sk), grants(?sk, ?t),
+    aimFor(?e, ?sk, ?aim), ready(?p, ?sk, ?aim), reach(?sk, ?k), at(?e, ?er),
+    region(?from), inRange(?k, ?from, ?er).
+
+% ?q can shake it out of hiding: a blow it flinches from, aimed at its region.
+revealer(?e, ?q, ?sk, ?r) :-
+    behavior(?e, ?t, ?ab, self), effect(?ab, self, remove(stealthed)), canAct(?q),
+    knows(?q, ?sk), grants(?sk, ?t), first(effect(?sk, area, ?x)), at(?e, ?r), ready(?q, ?sk, ?r).
+
+% ?q can lay a zone in ?r that stops it once spent, where a lure can be sprung.
+trapFor(?e, ?q, ?sk, ?r) :-
+    weakness(?e, ?in, exhausted, ?out), stops(?e, ?out), canAct(?q), knows(?q, ?sk),
+    effect(?sk, target, spill(?z)), effect(?z, target, grant(?in)),
+    region(?r), trigger(?e, ?p, ?s2, ?aim, ?r), \==(?p, ?q), ready(?q, ?sk, ?r).
+
+lure(?e) :-
+    if(trigger(?e, ?p, ?sk, ?aim, ?from)),
+    do(castFrom(?p, ?sk, ?aim, ?from), confirmTag(?e, exhausted), finish(?e, ?p)).
+lureFrom(?e, ?from) :-
+    if(trigger(?e, ?p, ?sk, ?aim, ?from)),
+    do(castFrom(?p, ?sk, ?aim, ?from), confirmStopped(?e)).
+
+confirmTag(?e, ?t) :- if(tag(?e, ?t)), do().
+confirmOff(?e, ?t) :- if(not(tag(?e, ?t))), do().
+
+% In the window, someone other than the lure strikes what it is weak to.
+finish(?e, ?p) :-
+    if(weakness(?e, ?in, exhausted, ?out), stops(?e, ?out), canAct(?a), \==(?a, ?p),
+       knows(?a, ?sk), grants(?sk, ?in), aimFor(?e, ?sk, ?aim), ready(?a, ?sk, ?aim)),
+    do(cast(?a, ?sk, ?aim), confirmStopped(?e)).
+
+funExpect(single_actor_plans, atMost, 0).
+% The intent: every plan plays the Wraith's behaviours.
+funIntended(opProvoked).
+
+% === Choice: one skill each, from seven (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(provoke).
+comboPool(flashbang).
+comboPool(taunt).
+comboPool(chainLightning).
+comboPool(zap).
+comboPool(frostBolt).
+comboPool(flameWall).
+comboMinWins(8).
+comboMinMethods(4).
+
+goals(win).

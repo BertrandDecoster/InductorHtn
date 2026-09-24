@@ -1,0 +1,57 @@
+{
+  "name": "fsm_wraith",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "The Lunging Wraith: a stealthed boss that lunges at whoever taunts or blinds it and is spent afterwards; lure it, then strike in the window",
+  "dependencies": [
+    "abilities/goals/neutralize",
+    "abilities/primitives/ab_catalog"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-24T15:41:30.194964"
+  },
+  "provides": [
+    "aimFor/3",
+    "at/2",
+    "behavior/4",
+    "comboMinMethods/1",
+    "comboMinWins/1",
+    "comboPool/1",
+    "comboSeat/2",
+    "confirmOff/2",
+    "confirmTag/2",
+    "connected/2",
+    "effect/3",
+    "finish/2",
+    "funExpect/3",
+    "funIntended/1",
+    "immune/2",
+    "knows/2",
+    "lineOfSight/2",
+    "lure/1",
+    "lureFrom/2",
+    "mana/2",
+    "onEnter/2",
+    "rank/2",
+    "reach/2",
+    "reachesUnseen/1",
+    "region/1",
+    "revealer/4",
+    "role/2",
+    "tag/2",
+    "trapFor/4",
+    "trigger/5",
+    "weakness/4",
+    "win/0"
+  ],
+  "requires": [
+    "cast/3",
+    "castFrom/4",
+    "confirmStopped/1",
+    "neutralize/1"
+  ]
+}
