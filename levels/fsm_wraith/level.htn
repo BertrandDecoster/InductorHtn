@@ -2,99 +2,87 @@
 %
 % A Wraith haunts the crypt, stealthed: nothing can be aimed at it, only
 % areas and zones reach it. It is a boss (no stuns), it flies, and it is
-% bound to its crypt (nothing moves it). Its state machine is tags and
-% three behaviours:
-%   wet or electrocuted -> flinch: the rain or the jolt shows its outline
-%                          (it loses stealth), nothing more
-%   blinded or taunted  -> soulfire: a telegraphed MAGIC heavy spell on its
-%                          own crypt. The team gets one cast; then the crypt
-%                          bursts into flames and the Wraith spends itself:
-%                          out of hiding, exhausted, sunk to the floor (no
-%                          longer flying)
-%   exhausted           -> the window: its binding lapses (it can be moved),
-%                          and a jolt stops it (dead)
-% The spell is interruptible (hook, shieldBash) - which saves whoever
-% stands in the crypt, and wastes the window.
+% bound to its crypt (rooted: it follows no one; immune to forced movement).
+% Its state machine is tags and two behaviours:
+%   wet, electrocuted,  -> flinch: the rain, the jolt, the frost or the fire
+%   chilled, burning       shows its outline (it loses stealth), nothing more
+%   blinded, taunted    -> soulfire: a telegraphed MAGIC heavy spell on its
+%                          own crypt. The team gets one cast; then the Wraith
+%                          spends itself (out of hiding, exhausted, sunk to
+%                          the floor: no longer flying) and the crypt bursts
+%                          into flames, searing whoever stands there
+%                          (silenced) - a disjoint one is passed through, a
+%                          shield breaks instead
+%   exhausted           -> the window: its binding lapses (it can be moved:
+%                          a knock or a hook drops it into the well), and
+%                          water drowns its embers (wet: dead) - once the
+%                          fire on it is out
+% The spell is interruptible (hook, shieldBash) - which saves whoever stands
+% in the crypt, and wastes the window.
 %
-%   gate --- nave --- mist --- crypt (Wraith) --- ossuary
-%              |                 :
-%           balcony . . . . .  well (a shaft beside the crypt)
-%   (the balcony overlooks the crypt across the well)
+%   nave ---- mist ---- crypt (Wraith; the well, a shaft at its side)
+%     |                   :
+%   balcony . . . . . . . :  (gap: the well, between balcony and crypt)
 %
-% The mist is a shadows zone: whoever stands there is stealthed.
+% Map: four areas. The mist is a shadows zone (whoever stands there is
+% stealthed). The balcony overlooks the crypt across the well (a gap); the
+% well's mouth in the crypt is a chasm feature.
 %
 % Methods:
-%   flash and ...     blindingFlash next to it (the flash reaches the unseen)
-%                     sets off the soulfire; the flash made its caster
-%                     disjoint, so the blow passes through them. In the
-%                     window the partner drops it into the well (tidalWave or
-%                     fireball from the mist, vortex into the well, hook or
-%                     taunt across the well from the balcony) or jolts it
-%                     (lightningFlash)
-%   reveal and taunt  a jolt through the crypt (lightningFlash from the mist
-%                     to the ossuary) or a wave (tidalWave) shows it; now it
-%                     can be taunted, and the taunt sets off the soulfire;
-%                     the revealer then jolts it or washes it into the well
+%   flash and ...     blindingFlash in the crypt (the flash reaches the
+%                     unseen) sets off the soulfire; the flash made its
+%                     caster disjoint, so the searing passes through them.
+%                     The partner then drops the spent Wraith into the well:
+%                     tidalWave in the crypt, fireball, a vortex, a hook from
+%                     the balcony across the well, a shield bash from the
+%                     mist
+%   ice first         blizzard on the crypt shows it (chilled) and leaves an
+%                     ice sheet; then a flash or a taunt sets off the
+%                     soulfire, whose flames melt the ice into a puddle - and
+%                     the spent Wraith drowns in it
+%   reveal and taunt  a wave (tidalWave in the crypt) or a fireball shows
+%                     it; the revealer steps out of the crypt, the taunt sets
+%                     off the soulfire, and the revealer knocks it into the
+%                     well
 %
 % Traps:
-%   - taunt, hook and lightningFlash cannot be aimed at it while it hides;
-%   - a jolt or a wave before the soulfire only reveals it: it is bound and
+%   - taunt, hook, fireball and shieldBash cannot be aimed at it while it
+%     hides;
+%   - a wave or a fire before the soulfire only reveals it: it is bound and
 %     not spent;
-%   - fire does nothing to it: flames on the crypt just burn;
-%   - flash twice: the second soulfire finds the crypt already ablaze, and
-%     nobody is left to finish it;
-%   - interrupt the soulfire and it is never spent.
+%   - whoever stays in the crypt when the soulfire lands (and is not
+%     disjoint) is silenced, and finishes nothing;
+%   - interrupt the soulfire (a hook or a bash in the window) and it is
+%     never spent;
+%   - water after the soulfire only puts out the fire on it; frost after it
+%     only melts into that water: the cold must come first.
 
-% === Regions ===
-region(gate).
+% === Areas ===
 region(nave).
 region(balcony).
 region(mist).
 region(crypt).
-region(ossuary).
-region(well).
-connected(gate, nave).
-connected(nave, gate).
 connected(nave, balcony).
-connected(balcony, nave).
 connected(nave, mist).
-connected(mist, nave).
 connected(mist, crypt).
-connected(crypt, mist).
-connected(crypt, ossuary).
-connected(ossuary, crypt).
-connected(crypt, well).
-connected(well, crypt).
-lineOfSight(gate, nave).
-lineOfSight(nave, gate).
+gap(balcony, crypt).
+feature(crypt, well, chasm).
 lineOfSight(nave, mist).
+lineOfSight(mist, nave).
 lineOfSight(nave, balcony).
 lineOfSight(balcony, nave).
-lineOfSight(balcony, crypt).
-lineOfSight(balcony, well).
 lineOfSight(mist, crypt).
-lineOfSight(mist, well).
-lineOfSight(mist, ossuary).
 lineOfSight(crypt, mist).
-lineOfSight(crypt, ossuary).
-lineOfSight(ossuary, crypt).
-
-% Lines: from the mist, the crypt lies between it and the ossuary (a jolt
-% flies through), and a push over the crypt drops into the well; from the
-% balcony, the well lies between it and the crypt.
-beyond(mist, crypt, well).
-beyond(ossuary, crypt, well).
-beyond(balcony, well, crypt).
-beyond(mist, crypt, ossuary).
+lineOfSight(balcony, crypt).
+lineOfSight(crypt, balcony).
 
 onEnter(mist, shadows).
-onEnter(well, chasm).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
-at(player, gate).
-at(mage, gate).
+at(player, nave).
+at(mage, nave).
 mana(player, 4).
 mana(mage, 4).
 
@@ -104,42 +92,56 @@ at(wraith, crypt).
 rank(wraith, boss).
 tag(wraith, flying).
 tag(wraith, stealthed).
-% Bound to its crypt: nothing drags or pushes it (not even a taunt's pull)
-% - until it is spent.
+% Bound to its crypt: it follows no one, and nothing drags or knocks it -
+% until it is spent.
+tag(wraith, rooted).
 immune(wraith, forcedMove).
 suspends(exhausted, forcedMove).
 
-% Soaked or jolted, it flinches out of hiding.
+% Soaked, jolted, frosted or set alight, it flinches out of hiding.
 behavior(wraith, wet, flinch, self).
 behavior(wraith, electrocuted, flinch, self).
+behavior(wraith, burning, flinch, self).
+behavior(wraith, chilled, flinch, self).
 reach(flinch, self).
 effect(flinch, self, remove(stealthed)).
 
 % Blinded or taunted, it pours itself into soulfire on its crypt: heavy,
-% magic (interruptible).
+% magic (interruptible). It spends itself first; then the crypt burns and
+% sears whoever stands there.
 behavior(wraith, blinded, soulfire, here).
 behavior(wraith, taunted, soulfire, here).
 heavy(soulfire).
 kind(soulfire, magic).
-effect(soulfire, target, spill(flames)).
 effect(soulfire, self, remove(stealthed)).
 effect(soulfire, self, grant(exhausted)).
 effect(soulfire, self, remove(flying)).
+effect(soulfire, target, grant(silenced)).
+effect(soulfire, target, spill(flames)).
 
-% Spent, it is open to a jolt.
-weakness(wraith, electrocuted, exhausted, dead).
+% Spent, water drowns its embers.
+weakness(wraith, wet, exhausted, dead).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
 knows(player, blindingFlash).
-knows(mage, lightningFlash).
+knows(mage, hook).
 
 % === Victory ===
 % Set off the soulfire (revealing it first if the trigger must be aimed),
-% see it spent, then the standard recipes finish it; nobody may be lost.
-win :- if(), do(spend(wraith), stepBack(crypt, mist), neutralize(wraith), teamStanding()).
+% see it spent, then the standard recipes finish it.
+win :- if(), do(spend(wraith), neutralize(wraith)).
 win :-
     if(tag(wraith, stealthed)),
-    do(reveal(wraith), spend(wraith), stepBack(crypt, mist), neutralize(wraith), teamStanding()).
+    do(reveal(wraith), stepOut(wraith), spend(wraith), neutralize(wraith)).
+% ... or ice its crypt first: its own flames melt the ice into a puddle.
+win :- if(), do(iceOver(wraith), spend(wraith), neutralize(wraith)).
+
+% Someone spills a zone on its area that the soulfire's flames turn to water.
+iceOver(?e) :-
+    if(at(?e, ?r), effect(soulfire, target, spill(?f)), zoneReaction(?z, ?f, ?w),
+       effect(?w, target, grant(wet)), canAct(?p), knows(?p, ?sk), effect(?sk, target, spill(?z)),
+       ready(?p, ?sk, ?r)),
+    do(cast(?p, ?sk, ?r)).
 
 % Someone lands a tag it answers with its heavy spell.
 spend(?e) :-
@@ -147,50 +149,49 @@ spend(?e) :-
        aimFor(?e, ?sk, ?x)),
     do(cast(?p, ?sk, ?x), confirmTag(?e, exhausted)).
 
-% Someone lands a tag it flinches from.
+% Someone lands a tag it flinches from: a wave from inside the crypt, or
+% anything aimed at the crypt itself.
+% (A skill that also sets off the soulfire is a lure, not a reveal.)
 reveal(?e) :-
-    if(behavior(?e, ?t, ?ab, self), effect(?ab, self, remove(stealthed)), canAct(?p),
-       knows(?p, ?sk), grants(?sk, ?t)),
-    do(unveil(?p, ?sk, ?e), confirmOff(?e, stealthed)).
+    if(canAct(?p), knows(?p, ?sk), first(flinchesAt(?e, ?sk)), not(first(provokes(?e, ?sk))),
+       aimFor(?e, ?sk, ?x)),
+    do(cast(?p, ?sk, ?x), confirmOff(?e, stealthed)).
+flinchesAt(?e, ?sk) :-
+    behavior(?e, ?t, ?ab, self), effect(?ab, self, remove(stealthed)), grants(?sk, ?t).
+provokes(?e, ?sk) :- behavior(?e, ?t, ?ab, ?aim), heavy(?ab), grants(?sk, ?t).
 
-% A cast that reaches it while it hides: a wave from next door, or a bolt
-% through its region.
-unveil(?p, ?sk, ?e) :-
-    if(effect(?sk, around, ?x), at(?e, ?r), connected(?from, ?r), canReachNow(?p, ?from),
-       ready(?p, ?sk, ?p)),
-    do(castFrom(?p, ?sk, ?p, ?from)).
-unveil(?p, ?sk, ?e) :-
-    if(effect(?sk, path, ?x), at(?e, ?r), beyond(?from, ?r, ?to), not(onEnter(?to, chasm)),
-       reach(?sk, ?k), inRange(?k, ?from, ?to), canReachNow(?p, ?from), ready(?p, ?sk, ?to)),
-    do(castFrom(?p, ?sk, ?to, ?from)).
-
-% What it is aimed at: itself, or the caster for a wave or a flash around.
+% What a cast is aimed at: the Wraith itself when it can be aimed at; else
+% the caster (a wave or a flash around it), or the crypt (a spill there).
 aimFor(?e, ?sk, ?e) :- receptive(?e, targeted).
 aimFor(?e, ?sk, ?e) :- not(receptive(?e, targeted)), effect(?sk, around, ?x).
+aimFor(?e, ?sk, ?r) :- not(receptive(?e, targeted)), effect(?sk, target, spill(?z)), at(?e, ?r).
+
+% Before provoking it, the team may step out of its area to the mist (the
+% soulfire sears whoever stays) - or stay.
+stepOut(?e) :- if(), do().
+stepOut(?e) :-
+    if(at(?e, ?r), first(and(canAct(?a), at(?a, ?r))), connected(?to, ?r)),
+    do(stepAll(?r, ?to)).
+stepAll(?r, ?to) :- allOf, if(canAct(?a), at(?a, ?r)), do(walkTo(?a, ?to)).
 
 confirmTag(?e, ?t) :- if(tag(?e, ?t)), do().
 confirmOff(?e, ?t) :- if(not(tag(?e, ?t))), do().
-teamStanding() :- if(not(first(and(canAct(?a), gone(?a))))), do().
-
-% After the spell, whoever stands in the crypt steps back out of it.
-stepBack(?r, ?to) :- if(not(first(and(canAct(?a), at(?a, ?r))))), do().
-stepBack(?r, ?to) :- if(first(and(canAct(?a), at(?a, ?r)))), do(stepAll(?r, ?to)).
-stepAll(?r, ?to) :- allOf, if(canAct(?a), at(?a, ?r)), do(walkTo(?a, ?to)).
 
 funExpect(single_actor_plans, atMost, 0).
 % The intent: every plan plays the Wraith's soulfire.
 funIntended(opProvoked).
 
-% === Choice: one skill each, from seven (htn_components combos) ===
+% === Choice: one skill each, from eight (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
 comboPool(blindingFlash).
 comboPool(taunt).
-comboPool(lightningFlash).
 comboPool(tidalWave).
+comboPool(blizzard).
 comboPool(fireball).
 comboPool(vortex).
 comboPool(hook).
+comboPool(shieldBash).
 comboMinWins(8).
 comboMinMethods(4).
 

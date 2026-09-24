@@ -1,6 +1,5 @@
 """Tests for the Soulfire Wraith level."""
 
-import itertools
 import json
 import os
 import re
@@ -11,25 +10,33 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from htn_test_framework import HtnTestSuite
 from indhtnpy import HtnPlanner
 from htn_components.loader import ComponentLoader
+from htn_components.combos import run_combos
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["blindingFlash", "taunt", "lightningFlash", "tidalWave", "fireball", "vortex", "hook"]
-FINISHERS = ["taunt", "lightningFlash", "tidalWave", "fireball", "vortex", "hook"]
+POOL = ["blindingFlash", "taunt", "tidalWave", "blizzard", "fireball", "vortex", "hook", "shieldBash"]
 
-# The measured matrix: the flash and any finisher; or a revealer (a jolt, a wave)
-# that lets a taunt set off the soulfire, and then finishes it.
-WINNING = {frozenset(("blindingFlash", f)) for f in FINISHERS} | {
-    frozenset(("lightningFlash", "taunt")), frozenset(("tidalWave", "taunt"))}
+# The measured matrix (unordered pairs; each wins whichever companion holds which half).
+WINNING = {
+    frozenset(p) for p in [
+        # flash and ...: the flash sets off the soulfire and passes through it; the partner drops it
+        ("blindingFlash", "tidalWave"), ("blindingFlash", "fireball"), ("blindingFlash", "vortex"),
+        ("blindingFlash", "hook"), ("blindingFlash", "shieldBash"),
+        # ice first: its own flames melt the ice into the puddle that drowns it
+        ("blindingFlash", "blizzard"), ("taunt", "blizzard"),
+        # reveal and taunt: the revealer steps out, then knocks it into the well
+        ("taunt", "tidalWave"), ("taunt", "fireball"),
+    ]
+}
+
+_REPORT = []
 
 
-def _solutions(planner, goal):
-    error, result = planner.FindAllPlansCustomVariables(goal)
-    assert error is None, error
-    solutions = json.loads(result)
-    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
-        return []
-    return solutions
+def combos():
+    """The combos report, computed once (every replan on a fresh planner)."""
+    if not _REPORT:
+        _REPORT.append(run_combos(HERE, ROOT))
+    return _REPORT[0]
 
 
 def plans_with(player, mage):
@@ -45,11 +52,16 @@ def plans_with(player, mage):
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    error, result = planner.FindAllPlansCustomVariables("win.")
+    assert error is None, error
+    solutions = json.loads(result)
+    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+        return []
+    return solutions
 
 
 def op_strings(plan):
-    """One plan as readable operators: opCast(player, taunt, wraith)."""
+    """One plan as readable operators: opCast(player, taunt, shellback)."""
     out = []
     for op in plan:
         name = list(op.keys())[0]
@@ -72,62 +84,75 @@ class WraithTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_flash_then_jolt(self):
-        self.assert_plan("win.", contains=[
-            "opCast(player, blindingFlash, player)", "opProvoked(wraith, blinded, soulfire)",
-            "opWindUp(wraith, soulfire, crypt)", "opBlow(wraith, soulfire, crypt, crypt)",
-            "opGrant(wraith, wraith, exhausted)", "opExploit(mage, wraith, electrocuted, dead)"])
+    def test_example_1_flash_then_wave_into_the_well(self):
+        # (on a fresh planner with a larger memory budget: the window's answers are many)
+        ops = all_ops(plans_with("blindingFlash", "tidalWave"))
+        for o in ["opCast(player, blindingFlash, player)", "opProvoked(wraith, blinded, soulfire)",
+                  "opBlow(wraith, soulfire, crypt, crypt)", "opRemove(wraith, player, disjoint)",
+                  "opGrant(wraith, wraith, exhausted)", "opCast(mage, tidalWave, mage)",
+                  "opExploit(mage, wraith, chasm, fell)"]:
+            assert o in ops, o
+        self._record(True, "Example 1: the flash sets off the soulfire and passes through it; the wave drops it")
 
-    def test_example_2_reveal_taunt_jolt(self):
-        ops = all_ops(plans_with("lightningFlash", "taunt"))
-        assert "opCast(player, lightningFlash, ossuary)" in ops, "the bolt flies through the crypt"
-        assert "opProvoked(wraith, electrocuted, flinch)" in ops, ops
+    def test_example_2_ice_first_and_it_drowns(self):
+        ops = all_ops(plans_with("taunt", "blizzard"))
+        assert "opCast(mage, blizzard, crypt)" in ops and "opProvoked(wraith, chilled, flinch)" in ops, ops
         assert "opProvoked(wraith, taunted, soulfire)" in ops, ops
-        assert "opExploit(player, wraith, electrocuted, dead)" in ops, ops
-        self._record(True, "Example 2: the bolt shows it; the taunt spends it; the second bolt ends it")
+        assert "opReshape(wraith, crypt, iceSheet, puddle)" in ops, ops
+        assert "opExploit(wraith, wraith, wet, dead)" in ops, ops
+        self._record(True, "Example 2: the frost shows it; taunted, its own flames melt the ice and it drowns")
 
-    def test_example_3_flash_then_hook_into_the_well(self):
+    def test_example_3_reveal_step_out_taunt(self):
+        ops = all_ops(plans_with("taunt", "tidalWave"))
+        assert "opProvoked(wraith, wet, flinch)" in ops and "opNavigate(mage, crypt, mist)" in ops, ops
+        assert "opProvoked(wraith, taunted, soulfire)" in ops, ops
+        self._record(True, "Example 3: the wave shows it, the waver steps out, the taunt spends it, the wave drops it")
+
+    def test_example_4_flash_then_hook_across_the_well(self):
         ops = all_ops(plans_with("hook", "blindingFlash"))
-        assert "opRemove(wraith, wraith, flying)" in ops, ops
-        assert "opForcedMove(player, wraith, crypt, well)" in ops, ops
-        assert "opExploit(player, wraith, chasm, fell)" in ops, ops
-        self._record(True, "Example 3: spent and sunk, it is hooked across the well and falls")
+        assert "opFall(player, wraith, crypt, balcony)" in ops, ops
+        self._record(True, "Example 4: spent and wingless, it is hooked across the well from the balcony")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_single_skill_wins(self):
-        winners = [s for s in POOL if plans_with(s, s)]
-        assert not winners, f"a single skill wins: {winners}"
-        self._record(True, "P1: no skill wins alone, even held by both companions")
+        report = combos()
+        assert not report.singles_winning, f"a single skill wins: {report.singles_winning}"
+        assert report.solo_plans == 0, f"{report.solo_plans} solo plans"
+        self._record(True, "P1: no skill wins alone, even held by both companions; no solo plan")
 
     def test_property_p2_the_measured_pairs_win(self):
-        found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
+        report = combos()
+        found = {frozenset(s for v in a.values() for s in v) for a in report.winning}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
-        self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
+        assert len(report.winning) == 2 * len(WINNING), len(report.winning)
+        assert len(report.methods) == 9 and not report.dead_skills, (report.methods, report.dead_skills)
+        self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win ({len(report.winning)} of 64), "
+                           "9 methods, no dead skill")
 
-    def test_property_p3_every_plan_spends_it_with_soulfire(self):
-        for pair in [("blindingFlash", "vortex"), ("tidalWave", "taunt"), ("blindingFlash", "taunt")]:
-            plans = plans_with(*pair)
-            assert plans, pair
-            for p in plans:
+    def test_property_p3_the_soulfire_spends_it(self):
+        for pair in [("taunt", "fireball"), ("vortex", "blindingFlash"), ("blizzard", "blindingFlash")]:
+            for p in plans_with(*pair):
                 ops = op_strings(p)
-                assert "opBlow(wraith, soulfire, crypt, crypt)" in ops, f"{pair}: no soulfire"
-                assert "opGrant(wraith, wraith, exhausted)" in ops, f"{pair}: not spent"
-        self._record(True, "P3: every plan lets the soulfire land and spend the Wraith")
+                assert "opBlow(wraith, soulfire, crypt, crypt)" in ops, pair
+                assert "opGrant(wraith, wraith, exhausted)" in ops, pair
+                assert not any(o.startswith("opInterrupt(") for o in ops), pair
+        self._record(True, "P3: every plan lets the soulfire land and spend it; none interrupts it")
 
-    def test_property_p4_the_flash_survives_the_blow(self):
-        """A flasher standing in the crypt is disjoint when the soulfire lands: the blow
-        spends the disjoint and passes through."""
-        plans = plans_with("blindingFlash", "fireball")
-        assert any("opRemove(wraith, player, disjoint)" in op_strings(p) for p in plans),             "the flasher should be in the crypt, disjoint, when the blow lands"
-        self._record(True, "P4: the flash's disjoint lets its caster stand in the soulfire")
+    def test_property_p4_revealing_is_not_spending(self):
+        assert not plans_with("tidalWave", "fireball")
+        assert not plans_with("blizzard", "fireball")
+        assert not plans_with("taunt", "hook")
+        self._record(True, "P4: a reveal alone never spends it; a taunt needs a reveal")
 
-    def test_property_p5_revealing_is_not_spending(self):
-        """A jolt and a wave only show it: without a taunt or a flash it is never spent.
-        Fire alone does nothing lasting."""
-        assert not plans_with("lightningFlash", "tidalWave")
-        assert not plans_with("fireball", "taunt")
-        self._record(True, "P5: a reveal without the soulfire, or fire on it, wins nothing")
+    def test_property_p5_the_crypt_sears_who_stays(self):
+        """With the wave's reveal, the waver always steps out of the crypt before the taunt:
+        whoever stays is silenced by the soulfire and finishes nothing."""
+        for p in plans_with("tidalWave", "taunt"):
+            ops = op_strings(p)
+            assert "opNavigate(player, crypt, mist)" in ops, ops
+            assert not any(o.endswith(", silenced)") and o.startswith("opGrant(wraith, player") for o in ops)
+        self._record(True, "P5: the revealer leaves the crypt before the soulfire, or no plan")
 
 
 def run_tests():

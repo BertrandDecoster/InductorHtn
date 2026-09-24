@@ -1,6 +1,5 @@
 """Tests for the Wall-Bang level."""
 
-import itertools
 import json
 import os
 import re
@@ -11,33 +10,36 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from htn_test_framework import HtnTestSuite
 from indhtnpy import HtnPlanner
 from htn_components.loader import ComponentLoader
+from htn_components.combos import run_combos
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["blindingFlash", "taunt", "hook", "vortex", "fireball", "tidalWave", "lightningFlash"]
-FINISHERS = ["taunt", "hook", "vortex", "fireball", "tidalWave", "lightningFlash"]
+POOL = ["blindingFlash", "taunt", "hook", "vortex", "fireball", "tidalWave", "shieldBash"]
 
-# The measured matrix: the flash and any finisher; or a taunt and a partner who
-# pulls the taunter clear of the charge (hook, vortex) and then drops the Ram.
-WINNING = {frozenset(("blindingFlash", f)) for f in FINISHERS} | {
-    frozenset(("taunt", "hook")), frozenset(("taunt", "vortex"))}
+# The measured matrix: (player, mage) assignments. The player starts on the brink.
+LURES = ["blindingFlash", "taunt"]
+FINISHERS = ["fireball", "tidalWave", "vortex", "hook", "shieldBash"]
+WINNING = ({(lure, f) for lure in LURES for f in FINISHERS}
+           | {(survivor, lure) for lure in LURES for survivor in ("hook", "shieldBash")})
 
-
-def _solutions(planner, goal):
-    error, result = planner.FindAllPlansCustomVariables(goal)
-    assert error is None, error
-    solutions = json.loads(result)
-    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
-        return []
-    return solutions
+_REPORT = []
 
 
-def plans_with(player, mage):
+def combos():
+    """The combos report, computed once (every replan on a fresh planner)."""
+    if not _REPORT:
+        _REPORT.append(run_combos(HERE, ROOT))
+    return _REPORT[0]
+
+
+def plans_with(player, mage, start=None):
     """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
     planner (a failed search locks the rule set)."""
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
     text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
+    for who, area in (start or {}).items():
+        text = re.sub(rf"^at\({who}, \w+\)\.", f"at({who}, {area}).", text, flags=re.M)
     planner = HtnPlanner(False)
     planner.SetMemoryBudget(256 * 1024 * 1024)
     loader = ComponentLoader(planner, ROOT)
@@ -45,7 +47,12 @@ def plans_with(player, mage):
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    error, result = planner.FindAllPlansCustomVariables("win.")
+    assert error is None, error
+    solutions = json.loads(result)
+    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+        return []
+    return solutions
 
 
 def op_strings(plan):
@@ -72,61 +79,73 @@ class WallBangTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_flash_then_throw(self):
+    def test_example_1_flash_crash_blast(self):
         self.assert_plan("win.", contains=[
             "opCast(player, blindingFlash, player)", "opProvoked(ram, blinded, ramCharge)",
-            "opWindUp(ram, ramCharge, brink)", "opBlow(ram, ramCharge, brink, brink)",
-            "opDash(ram, arena, brink)", "opExploit(ram, ram, pillar, staggered)",
-            "opCast(mage, fireball, ram)", "opForcedMove(mage, ram, brink, ravine)",
-            "opExploit(mage, ram, chasm, fell)"])
+            "opBlow(ram, ramCharge, brink, brink)", "opDash(ram, arena, brink)",
+            "opGrant(ram, ram, staggered)", "opRemove(ram, ram, heavy)",
+            "opCast(mage, fireball, ram)", "opExploit(mage, ram, chasm, fell)"])
 
-    def test_example_2_taunt_and_hook_clear(self):
+    def test_example_2_taunt_then_hook_from_the_ledge(self):
         ops = all_ops(plans_with("taunt", "hook"))
-        assert "opWindUp(ram, ramCharge, brink)" in ops, ops
-        assert "opForcedMove(mage, player, brink, pen)" in ops, "the hook should pull the taunter clear"
-        assert "opExploit(mage, ram, chasm, fell)" in ops, ops
-        self._record(True, "Example 2: taunted, it charges; the hook pulls the taunter clear, then drops the Ram")
+        assert "opProvoked(ram, taunted, ramCharge)" in ops, ops
+        assert "opNavigate(mage, gallery, ledge)" in ops and "opFall(mage, ram, brink, ledge)" in ops, ops
+        self._record(True, "Example 2: taunted, it crashes; the hook from the ledge drags it into the ravine")
 
-    def test_example_3_flash_then_jolt(self):
-        ops = all_ops(plans_with("lightningFlash", "blindingFlash"))
-        assert "opProvoked(ram, blinded, ramCharge)" in ops, ops
-        assert "opExploit(player, ram, electrocuted, dead)" in ops, ops
-        self._record(True, "Example 3: blinded, it crashes; the jolt stops its open heart")
+    def test_example_3_hook_out_of_the_way(self):
+        """The brink holder hooks the heavy Ram in the window: the anchor drags it into the
+        arena, and the gore finds an empty brink; then it walks round to the ledge."""
+        ops = all_ops(plans_with("hook", "taunt"))
+        assert "opDash(player, brink, arena)" in ops, ops
+        assert "opFall(player, ram, brink, ledge)" in ops, ops
+        assert not any(o.startswith("opInterrupt(") for o in ops), ops
+        self._record(True, "Example 3: a hook at the heavy Ram pulls its caster clear of the charge")
+
+    def test_example_4_the_shield_takes_the_gore(self):
+        ops = all_ops(plans_with("shieldBash", "blindingFlash"))
+        assert "opRemove(ram, player, shielded)" in ops, ops
+        assert "opCast(player, shieldBash, ram)" in ops, ops
+        self._record(True, "Example 4: the bash's shield takes the gore, and the second bash knocks it in")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_single_skill_wins(self):
-        winners = [s for s in POOL if plans_with(s, s)]
-        assert not winners, f"a single skill wins: {winners}"
-        self._record(True, "P1: no skill wins alone, even held by both companions")
+        report = combos()
+        assert not report.singles_winning, f"a single skill wins: {report.singles_winning}"
+        assert report.solo_plans == 0, f"{report.solo_plans} solo plans"
+        self._record(True, "P1: no skill wins alone, even held by both companions; no solo plan")
 
-    def test_property_p2_the_measured_pairs_win(self):
-        found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
+    def test_property_p2_the_measured_assignments_win(self):
+        report = combos()
+        found = {(a["player"][0], a["mage"][0]) for a in report.winning}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
-        self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
+        assert len(report.methods) == 10 and not report.dead_skills, (report.methods, report.dead_skills)
+        self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win (of 49), "
+                           "10 methods, no dead skill")
 
-    def test_property_p3_every_plan_crashes_at_the_pillar(self):
-        """Nothing wins without the wall-bang: every winning plan winds up the charge and
-        staggers the Ram at the brink."""
-        for pair in [("blindingFlash", "tidalWave"), ("taunt", "vortex"), ("blindingFlash", "hook")]:
-            plans = plans_with(*pair)
-            assert plans, pair
-            for p in plans:
+    def test_property_p3_every_plan_crashes_the_ram(self):
+        for pair in [("blindingFlash", "tidalWave"), ("taunt", "vortex"), ("shieldBash", "taunt")]:
+            for p in plans_with(*pair):
                 ops = op_strings(p)
-                assert "opWindUp(ram, ramCharge, brink)" in ops, f"{pair}: no charge"
-                assert "opExploit(ram, ram, pillar, staggered)" in ops, f"{pair}: no crash"
-        self._record(True, "P3: every plan provokes the charge and bangs the Ram into the pillar")
+                assert "opBlow(ram, ramCharge, brink, brink)" in ops, pair
+                assert "opGrant(ram, ram, staggered)" in ops, pair
+        self._record(True, "P3: every plan provokes the charge, and the Ram crashes into the pillar")
 
-    def test_property_p4_a_push_is_no_rescue(self):
-        """The charge is physical: nothing interrupts it. A partner who can only push
-        (fireball, tidalWave) throws the taunter into the ravine: no plan."""
-        assert not plans_with("taunt", "fireball")
-        assert not plans_with("tidalWave", "taunt")
-        self._record(True, "P4: pushing the taunter off the brink is no rescue")
+    def test_property_p4_heavy_it_does_not_move(self):
+        """Nothing but the crash takes its weight: without a lure, no pair wins."""
+        assert not plans_with("fireball", "vortex")
+        assert not plans_with("tidalWave", "hook")
+        self._record(True, "P4: before the crash, nothing moves it")
 
-    def test_property_p5_each_hand_matters(self):
-        assert plans_with("hook", "taunt") and plans_with("fireball", "blindingFlash")
-        self._record(True, "P5: the pairs win whichever companion holds which half")
+    def test_property_p5_the_brink_holder_is_gored(self):
+        """The finisher on the brink is gored by the charge and finishes nothing; the same
+        finisher waiting in the pen wins."""
+        assert not plans_with("fireball", "taunt")
+        assert not plans_with("tidalWave", "blindingFlash")
+        assert plans_with("fireball", "taunt", start={"player": "pen"})
+        assert not plans_with("taunt", "fireball", start={"mage": "brink"})
+        self._record(True, "P5: whoever waits on the brink is gored; a physical charge only a shield or a "
+                           "way out survives")
 
 
 def run_tests():

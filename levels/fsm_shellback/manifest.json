@@ -2,7 +2,7 @@
   "name": "fsm_shellback",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Shellback: a shielded, heavy tortoise that curls up and rolls when burned, snaps itself spent when taunted, and drifts weightless for a moment in the mist",
+  "description": "The Shellback: a shielded, heavy tortoise on a causeway over a chasm that curls up and rolls when burned, follows and snaps itself spent when taunted, and drifts weightless for a moment in the mist",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,13 +12,11 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:10:26.364597"
+    "last_checked": "2026-09-24T20:31:51.006152"
   },
   "provides": [
     "at/2",
     "behavior/4",
-    "beyond/3",
-    "blocker/1",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
@@ -27,11 +25,13 @@
     "confirmTag/2",
     "connected/2",
     "effect/3",
+    "feature/3",
     "funExpect/3",
+    "gap/2",
     "knows/2",
+    "lands/2",
     "lineOfSight/2",
     "mana/2",
-    "onEnter/2",
     "popShield/1",
     "rank/2",
     "reach/2",
@@ -39,7 +39,6 @@
     "role/2",
     "setOff/1",
     "tag/2",
-    "teamStanding/0",
     "weakness/4",
     "win/0"
   ],
