@@ -2,7 +2,7 @@
   "name": "chem_cinder",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Cinder: a burning fire imp that cold only quenches; put the fire out, then freeze it - by rain, a dunk in the fountain, or a drag onto the frozen pond",
+  "description": "Cinder: a burning fire imp; each chill is spent on a layer (fire, water). Douse, dunk or quench it, then chill it dry - and ice freezes puddles and melts flames",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,29 +12,33 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:40:42.864901"
+    "last_checked": "2026-09-24T18:10:52.578061"
   },
   "provides": [
     "at/2",
     "beyond/3",
+    "blocker/1",
+    "chill/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
-    "element/2",
-    "freeze/2",
+    "douseThenChill/1",
     "funExpect/3",
+    "iceOver/2",
     "knows/2",
+    "lightThenIce/1",
     "lineOfSight/2",
     "mana/2",
     "onEnter/2",
     "pullOnto/3",
     "putOut/2",
-    "putOutAndFreeze/1",
     "region/1",
     "role/2",
+    "spillOn/3",
     "tag/2",
+    "waveBeside/2",
     "win/0"
   ],
   "requires": [
@@ -42,6 +46,7 @@
     "confirmStopped/1",
     "ensureOff/2",
     "inflict/3",
+    "inflictAs/3",
     "neutralize/1",
     "primeAs/3"
   ]

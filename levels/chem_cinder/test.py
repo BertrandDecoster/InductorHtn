@@ -14,17 +14,15 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["rainCall", "tidalWave", "glaciate", "iceStorm", "gust", "fireball", "magnetize", "translocate"]
-DOUSE = ["rainCall", "tidalWave"]
-COLD = ["glaciate", "iceStorm"]
-BLAST = ["gust", "fireball"]
-DRAG = ["magnetize", "translocate"]
+POOL = ["tidalWave", "blizzard", "fireball", "hook", "vortex", "taunt"]
+DRAG = ["hook", "taunt"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = (
-    {frozenset((d, c)) for d in DOUSE for c in COLD}               # douse, then chill
-    | {frozenset((q, p)) for q in DOUSE + COLD for p in DRAG}      # quench, then drag onto ice
-    | {frozenset((b, f)) for b in BLAST for f in COLD + DRAG}      # dunk, then freeze
+    {frozenset(("tidalWave", x)) for x in ["blizzard"] + DRAG}        # douse beside, then chill
+    | {frozenset(("blizzard", x)) for x in DRAG}                      # quench, then drag
+    | {frozenset((d, x)) for d in ["fireball", "vortex"] for x in DRAG}  # dunk, then drag
+    | {frozenset(("blizzard", x)) for x in ["fireball", "vortex"]}    # dunk (or light), then ice
 )
 
 
@@ -37,22 +35,6 @@ def _solutions(planner, goal):
     return solutions
 
 
-def plans_with(player, mage, goal="win."):
-    """All plans for `goal` with the player knowing `player` and the mage `mage`, on a
-    fresh planner (a failed search locks the rule set)."""
-    with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
-        text = f.read()
-    text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
-    planner = HtnPlanner(False)
-    planner.SetMemoryBudget(256 * 1024 * 1024)
-    loader = ComponentLoader(planner, ROOT)
-    loader.load("abilities/goals/neutralize")
-    loader.load("abilities/primitives/ab_catalog")
-    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
-    assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, goal)
-
-
 def names(plan):
     """A plan as a list of 'op(a, b, ...)' strings."""
     out = []
@@ -61,6 +43,26 @@ def names(plan):
         args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[n]]
         out.append(f"{n}({', '.join(args)})")
     return out
+
+
+def plans_with(player, mage, goal="win."):
+    """All plans for `goal` with the player knowing `player` and the mage `mage`, on a
+    fresh planner (a failed search locks the rule set), as lists of operator strings."""
+    with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
+        text = f.read()
+    text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
+    planner = HtnPlanner(False)
+    planner.SetMemoryBudget(256 * 1024 * 1024)
+    loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
+    loader.load("abilities/goals/neutralize")
+    loader.load("abilities/primitives/ab_catalog")
+    kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
+    assert planner.HtnCompileCustomVariables(text + kit) is None
+    return [names(p) for p in _solutions(planner, goal)]
+
+
+def some_plan_has(plans, *ops):
+    return any(all(o in p for o in ops) for p in plans)
 
 
 class CinderTest(HtnTestSuite):
@@ -73,36 +75,40 @@ class CinderTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_douse_then_chill(self):
+    def test_example_1_douse_beside_then_chill(self):
         self.assert_plan("win.", contains=[
-            "opReact(player, imp, burning, wet, extinguish)", "opCast(mage, glaciate, imp)",
-            "opExploit(mage, imp, chilled, frozen)"])
+            "opNavigate(player, cloister, arch)", "opCast(player, tidalWave, player)",
+            "opReact(player, imp, burning, wet, extinguish)", "opCast(mage, blizzard, imp)",
+            "opExploit(mage, imp, chilled, dead)"])
 
-    def test_example_2_dunk_then_drag_onto_ice(self):
-        plan = names(plans_with("gust", "magnetize")[0])
-        assert "opForcedMove(player, imp, yard, fountain)" in plan
-        assert "opReact(player, imp, burning, wet, extinguish)" in plan
-        assert "opForcedMove(mage, imp, fountain, pond)" in plan
-        assert "opExploit(mage, imp, chilled, frozen)" in plan
-        self._record(True, "Example 2: blown into the fountain, then dragged onto the frozen pond")
+    def test_example_2_dunk_then_freeze_the_fountain(self):
+        plans = plans_with("fireball", "blizzard")
+        assert some_plan_has(plans, "opForcedMove(player, imp, yard, fountain)",
+                             "opReact(player, imp, burning, wet, extinguish)",
+                             "opReshape(mage, fountain, puddle, iceSheet)",
+                             "opExploit(mage, imp, chilled, dead)")
+        self._record(True, "Example 2: blown into the fountain; the fountain freezes over it")
 
-    def test_example_3_quench_then_swap(self):
-        plan = names(plans_with("glaciate", "translocate")[0])
-        assert "opReact(player, imp, burning, chilled, quench)" in plan
-        assert "opSwap(mage, imp, pond, yard)" in plan
-        assert "opExploit(mage, imp, chilled, frozen)" in plan
-        self._record(True, "Example 3: frost quenches it; a swap from the pond puts it on the ice")
+    def test_example_3_light_then_ice_twice(self):
+        plans = plans_with("fireball", "blizzard")
+        assert some_plan_has(plans, "opCast(player, fireball, yard)",
+                             "opReshape(mage, yard, flames, puddle)",
+                             "opReact(mage, imp, burning, wet, extinguish)",
+                             "opReshape(mage, yard, puddle, iceSheet)",
+                             "opExploit(mage, imp, chilled, dead)")
+        self._record(True, "Example 3: flames, iced to a puddle, iced again: a dry chill")
 
-    def test_example_4_fire_is_only_a_blast(self):
-        plan = names(plans_with("fireball", "iceStorm")[0])
-        assert "opForcedMove(player, imp, yard, fountain)" in plan
-        assert not any(o.startswith("opGrant") and "imp, burning" in o for o in plan)
-        assert "opExploit(mage, imp, chilled, frozen)" in plan
-        self._record(True, "Example 4: fireball's fire does nothing to the imp; its blast dunks it")
+    def test_example_4_vortex_then_hook_onto_the_ice(self):
+        plans = plans_with("vortex", "hook")
+        assert some_plan_has(plans, "opCast(player, vortex, fountain)",
+                             "opReact(player, imp, burning, wet, extinguish)",
+                             "opForcedMove(mage, imp, fountain, pond)",
+                             "opExploit(mage, imp, chilled, dead)")
+        self._record(True, "Example 4: pulled into the fountain, then hooked onto the pond")
 
     def test_example_5_cold_twice_only_quenches(self):
-        assert not plans_with("glaciate", "iceStorm")
-        self._record(True, "Example 5: two frosts: a quench, then ice already there")
+        assert not plans_with("blizzard", "blizzard")
+        self._record(True, "Example 5: two blizzards: a quench, then ice already there")
 
     # -------------------------------------------------------------- properties
 
@@ -111,23 +117,42 @@ class CinderTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_twenty_pairs_win(self):
-        found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
+    def test_property_p2_eleven_pairs_win_in_either_hand(self):
+        wins = {(a, b): bool(plans_with(a, b)) for a, b in itertools.permutations(POOL, 2)}
+        found = {frozenset(k) for k, w in wins.items() if w}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
-        self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
+        one_way = sorted(k for k, w in wins.items() if w != wins[(k[1], k[0])])
+        assert not one_way, f"win in one order only: {one_way}"
+        self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win, in either hand")
 
-    def test_property_p3_each_hand_matters(self):
-        assert plans_with("magnetize", "rainCall") and plans_with("iceStorm", "fireball")
-        self._record(True, "P3: the pairs win whichever companion holds which half")
+    def test_property_p3_a_wave_from_the_court_soaks_it_twice(self):
+        """Washed into the fountain, the imp is wet again: the blizzard on the fountain
+        only freezes it (stunned), and the partner beside the caster is soaked too."""
+        plan = plans_with("tidalWave", "blizzard",
+                          "castFrom(player, tidalWave, player, court), cast(mage, blizzard, imp).")[0]
+        assert "opGrant(player, imp, wet)" in plan and "opGrant(player, mage, wet)" in plan
+        assert "opReact(mage, imp, wet, chilled, freeze)" in plan
+        assert not any("dead" in o for o in plan)
+        self._record(True, "P3: a wave from the court dunks it wet; the ice only freezes it")
 
-    def test_property_p4_the_ice_takes_it_once(self):
-        """Dragged onto the pond while burning, the imp is only quenched, and nothing
-        can bring it onto the ice again: the two drags together lose."""
-        assert not plans_with("magnetize", "translocate")
-        plan = names(plans_with("magnetize", "gust", "pullOnto(player, imp, pond).")[0])
+    def test_property_p4_fire_on_the_ice_is_a_puddle(self):
+        """Blizzard first quenches it; fire on the ice melts it to a puddle and soaks it;
+        the next blizzard only freezes it."""
+        plan = plans_with("blizzard", "fireball",
+                          "cast(player, blizzard, yard), castFrom(mage, fireball, yard, arch), "
+                          "cast(player, blizzard, yard).")[0]
+        assert "opReshape(mage, yard, iceSheet, puddle)" in plan
+        assert "opReact(player, imp, wet, chilled, freeze)" in plan
+        assert not any("dead" in o for o in plan)
+        self._record(True, "P4: ice, then fire: a puddle, and the imp is wet again")
+
+    def test_property_p5_the_pond_takes_it_once(self):
+        """Dragged onto the pond while burning, it is only quenched, and nothing sees the
+        pond to bring it there again: two drags lose."""
+        assert not plans_with("hook", "taunt")
+        plan = plans_with("hook", "taunt", "pullOnto(player, imp, pond).")[0]
         assert "opReact(player, imp, burning, chilled, quench)" in plan
-        assert not any("frozen" in o for o in plan)
-        self._record(True, "P4: the first arrival on the ice only quenches it")
+        self._record(True, "P5: the first arrival on the ice only quenches it")
 
 
 def run_tests():

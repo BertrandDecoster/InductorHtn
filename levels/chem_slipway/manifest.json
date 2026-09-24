@@ -2,7 +2,7 @@
   "name": "chem_slipway",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Slipway: a heavy clockwork crab over a flooded dock; soak and jolt it, or oil it so it slides and sink it",
+  "description": "Slipway: a heavy clockwork crab over a flooded dock; soak and jolt it, or turn it to mist for one cast and move it into the water",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,7 +12,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:35:35.234347"
+    "last_checked": "2026-09-24T18:11:28.415524"
   },
   "provides": [
     "at/2",
@@ -29,8 +29,8 @@
     "onEnter/2",
     "region/1",
     "role/2",
-    "suspends/2",
-    "trait/2",
+    "tag/2",
+    "weakness/4",
     "win/0"
   ],
   "requires": [

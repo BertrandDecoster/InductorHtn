@@ -1,40 +1,44 @@
 % Wet Wood (elemental chemistry)
 %
 % A treant, rooted and rain-soaked, blocks the grove. Wood burns - but this
-% wood is wet, and fire on something wet only makes steam. Up on the ramp
-% stands a keg of lamp oil. Two companions, one skill each, from a pool of
-% eight.
+% wood is wet, and fire on something wet only makes steam. Up on the ramp,
+% in a spill of lamp oil (a slick zone), stands a keg; beyond the grove the
+% charcoal-burners' kiln glows (a flames zone). Two companions, one skill
+% each, from a pool of seven.
 %
-%   ridge ---- glade (player, mage) ---- grove (treant: wooden, heavy, wet)
-%                |                       |
-%              landing ---- ramp (keg: oiled) ----+
+%   ridge ---- glade (player, mage) ---- grove (treant: wooden, heavy, wet) ---- kiln (flames)
+%                |                        |
+%              landing ---- ramp (slick; keg: oiled) ----+
 %
 % Obstacles:
 %   wet        fire on it makes steam and dries it; it does not burn
 %   heavy      it is rooted: nothing moves it
-%   a spilled fire zone does not relight what already stands in it, so a
+%   a spilled fire zone does not land again where it already lies, so a
 %   second fire on the grove does nothing
 %
 % Methods (each needs two different companions):
-%   dry, then burn   cleanse strips the soak; then fire (flameWall,
-%                    fireball) takes the dry wood (dead)
-%   blaze beside it  the keg is oil: bring it into the grove (gust or
-%                    tidalWave push it off the ramp from the landing;
-%                    magnetize or taunt drag it in from the grove), then
-%                    set it off - fire (flameWall, fireball) or a spark
-%                    (zap: this level's reaction, sparks ignite oil). The
-%                    blaze throws fire on everyone around it, and that fire
-%                    is raw: the soak does not save the treant
-%   fire, then keg   set the grove alight first (the steam dries it, and
-%                    the grove stays a fire zone), then bring the keg in:
-%                    it blazes as it arrives
+%   keg, then fire   bring the keg into the grove (tidalWave pushes it off
+%                    the ramp from the landing; hook or taunt drag it in from
+%                    the grove; a vortex on the grove pulls it in), then set
+%                    it off: fireball, or a spark (lightningFlash: this
+%                    level's reaction, sparks ignite oil). The blaze throws
+%                    fire on everyone around it, and that fire is raw: the
+%                    soak does not save the treant
+%   fire, then keg   set the grove alight first (fireball on the grove: the
+%                    steam dries it, and the grove stays a fire zone), then
+%                    bring the keg in: it blazes as it arrives
+%   into the kiln    turn it to mist (not heavy for a moment), then fireball
+%                    it from the glade: the flames dry it (steam) and the
+%                    blast throws it into the kiln, where it burns
 %
 % Traps:
 %   fire on the treant alone only steams it; a second fire on the grove
 %   lands on flames already there. Fire or a spark on the keg where it
-%   stands burns the oil off on the ramp, wasted (fireball does it even
-%   while throwing the keg into the grove). tidalWave on the grove only
-%   soaks it again.
+%   stands burns the oil off on the ramp (slick + flames = flames, a zone
+%   reaction), wasted - fireball does it even while it throws the keg into
+%   the grove, since the spill comes before the push. A misted treant washed
+%   (tidalWave), pulled (vortex) or dragged into the kiln is still wet: the
+%   kiln only steams it.
 
 % === Regions ===
 region(glade).
@@ -42,7 +46,7 @@ region(grove).
 region(ramp).
 region(landing).
 region(ridge).
-region(hollow).
+region(kiln).
 connected(glade, grove).
 connected(grove, glade).
 connected(glade, landing).
@@ -53,15 +57,21 @@ connected(grove, ramp).
 connected(ramp, grove).
 connected(glade, ridge).
 connected(ridge, glade).
-connected(grove, hollow).
-connected(hollow, grove).
+connected(grove, kiln).
+connected(kiln, grove).
 lineOfSight(glade, grove).
 lineOfSight(ridge, grove).
 lineOfSight(landing, ramp).
 lineOfSight(grove, ramp).
 
-% Push line: from the landing, the ramp tips into the grove.
+% Push lines: from the landing, the ramp tips into the grove; from the
+% glade, the grove falls away into the kiln.
 beyond(landing, ramp, grove).
+beyond(glade, grove, kiln).
+
+% === Zones ===
+onEnter(ramp, slick).
+onEnter(kiln, flames).
 
 % === Level physics: a spark sets oil off ===
 reaction(oiled, electrocuted, blaze).
@@ -77,26 +87,22 @@ mana(mage, 4).
 % === The treant, and the keg ===
 role(treant, enemy).
 at(treant, grove).
-trait(treant, wooden).
-trait(treant, heavy).
+tag(treant, wooden).
+tag(treant, heavy).
 tag(treant, wet).
 
+role(keg, object).
 at(keg, ramp).
 tag(keg, oiled).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, cleanse).
-knows(mage, flameWall).
+knows(player, tidalWave).
+knows(mage, fireball).
 
 % === The goal: the treant burns ===
 win :- if(), do(neutralize(treant)).
-win :- if(), do(dryAndBurn(treant)).
 win :- if(), do(blazeBeside(treant)).
-
-% Dry, then burn: one takes the soak off, the other sets it alight.
-dryAndBurn(?e) :-
-    if(holds(?e, wet), canUnset(?p, ?ab, wet, ?e, ?aim)),
-    do(cast(?p, ?ab, ?aim), ensureOff(wet, ?e), deliver(burning, ?e, ?p), confirmStopped(?e)).
+win :- if(), do(intoTheFire(treant)).
 
 % Something oiled goes up beside it: bring the fuel in and set it off, or
 % set the region alight and bring the fuel in.
@@ -107,9 +113,9 @@ blazeBeside(?e) :-
     if(at(?e, ?r), tag(?x, oiled), \==(?x, ?e), not(at(?x, ?r)), canAct(?a)),
     do(setAlight(?a, ?r), bringIn(?x, ?r, ?a), confirmStopped(?e)).
 
-% ?a moves ?x into ?r: a push along a line, or a pull from ?r itself.
+% ?a moves ?x into ?r: a push along a line or a pull-in, or a drag from ?r.
 bringAs(?a, ?x, ?r) :-
-    if(first(placement(?a, ?ab, ?from, ?x, ?r))), do(castFrom(?a, ?ab, ?x, ?from)).
+    if(first(placement(?a, ?ab, ?from, ?aim, ?x, ?r))), do(castFrom(?a, ?ab, ?aim, ?from)).
 bringAs(?a, ?x, ?r) :-
     if(puller(?a, ?ab, ?x), at(?x, ?xr), reach(?ab, ?k), inRange(?k, ?r, ?xr), canReachNow(?a, ?r)),
     do(castFrom(?a, ?ab, ?x, ?r)).
@@ -120,21 +126,30 @@ igniteFuel(?x, ?not) :- if(), do(inflict(burning, ?x, ?not)).
 igniteFuel(?x, ?not) :- if(), do(inflict(electrocuted, ?x, ?not)).
 
 % ?a sets the region alight: it becomes a fire zone.
-setAlight(?a, ?r) :- if(canInflict(?a, ?ab, burning, ?r)), do(cast(?a, ?ab, ?r)).
+setAlight(?a, ?r) :-
+    if(canAct(?a), knows(?a, ?ab), effect(?ab, target, spill(flames)), ready(?a, ?ab, ?r),
+       first(spot(?a, ?ab, ?r, ?from))),
+    do(castFrom(?a, ?ab, ?r, ?from)).
+
+% The rooted treant is made light for a moment, and someone else sends it
+% into a fire.
+intoTheFire(?e) :-
+    if(holds(?e, heavy), at(?e, ?r), zoneFor(?k, burning), \==(?k, ?r),
+       canUnset(?p, ?ab, heavy, ?e, ?aim)),
+    do(cast(?p, ?ab, ?aim), ensureOff(heavy, ?e), place(?e, ?k, ?p), confirmStopped(?e)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(flameWall).
 comboPool(fireball).
-comboPool(zap).
-comboPool(cleanse).
-comboPool(gust).
-comboPool(magnetize).
+comboPool(lightningFlash).
 comboPool(tidalWave).
+comboPool(hook).
+comboPool(vortex).
 comboPool(taunt).
+comboPool(turnToMist).
 comboMinWins(4).
 comboMinMethods(3).
 
