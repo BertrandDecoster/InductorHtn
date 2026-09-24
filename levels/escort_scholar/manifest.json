@@ -2,7 +2,7 @@
   "name": "escort_scholar",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Scholar: a scholar behind an armoured clockwork brute, with a gap to swap across; one skill each from eight",
+  "description": "The Scholar: drop the misted brute from the hall, or put its eye out and ice the cistern; a burning brute slams the scholar's library; one skill each from seven",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,23 +12,24 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:08:32.146477"
+    "last_checked": "2026-09-24T20:25:23.394911"
   },
   "provides": [
     "at/2",
     "behavior/4",
-    "beyond/3",
     "blocker/1",
     "bringOut/2",
-    "clearWay/1",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
+    "confirmAt/2",
     "confirmSafe/2",
     "connected/2",
+    "dropBrute/1",
     "ensureBlind/1",
     "ensureIce/1",
+    "feature/3",
     "freezeOver/1",
     "funExpect/3",
     "iceOver/2",
@@ -40,21 +41,17 @@
     "onEnter/2",
     "region/1",
     "role/2",
-    "shift/2",
     "tag/2",
     "watches/2",
     "weakness/4",
     "win/0"
   ],
   "requires": [
+    "bringTo/3",
     "cast/3",
-    "castFrom/4",
-    "confirmStopped/1",
-    "ensureMoved/2",
     "ensureOff/2",
     "inflict/3",
-    "neutralize/1",
-    "supply/3",
+    "intoThePit/1",
     "walkTo/2"
   ]
 }
