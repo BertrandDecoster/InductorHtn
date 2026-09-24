@@ -20,12 +20,11 @@ DEPS = ("abilities/goals/neutralize", "abilities/strategies/passage",
 
 # The measured matrix, unordered; each pair wins in both seat orders.
 WINNING = {frozenset(p) for p in [
-    # a drawer brings the crate to the brink, a pusher throws it in
-    ("gust", "magnetize"), ("gust", "taunt"), ("gust", "translocate"),
-    ("shieldBash", "magnetize"), ("shieldBash", "taunt"), ("shieldBash", "translocate"),
-    # someone goes down, a puller hauls them out
-    ("translocate", "magnetize"), ("translocate", "taunt"),
-    ("pounce", "magnetize"), ("pounce", "taunt"),
+    # a puller brings the crate to the brink, a pusher or a vortex sends it down
+    ("hook", "fireball"), ("hook", "tidalWave"), ("hook", "vortex"),
+    ("taunt", "fireball"), ("taunt", "tidalWave"), ("taunt", "vortex"),
+    # someone flashes down, a puller hauls them out
+    ("lightningFlash", "hook"), ("lightningFlash", "taunt"),
 ]}
 
 _REPORT = []
@@ -56,6 +55,7 @@ def _planner(extra="", strip_kit=True):
     if strip_kit:
         text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     planner = HtnPlanner(False)
+    planner.SetMemoryBudget(256 * 1024 * 1024)
     loader = ComponentLoader(planner, ROOT)
     for dep in DEPS:
         loader.load(dep)
@@ -85,6 +85,7 @@ class WellTest(HtnTestSuite):
             self.load_component(dep, reset_first=(i == 0))
         self.verify_contracts()
         self._loader.load_level_htn(HERE)
+        self._planner.SetMemoryBudget(256 * 1024 * 1024)
 
     # ---------------------------------------------------------------- examples
 
@@ -96,22 +97,25 @@ class WellTest(HtnTestSuite):
             "opForcedMove(mage, player, well, exit)"])
 
     def test_example_2_fetch_the_crate_and_throw_it(self):
-        ops = _ops(plans_with("gust", "taunt"))
-        assert _op("opForcedMove", "mage", "crate", "nook", "brink") in ops, ops[:300]
-        assert _op("opForcedMove", "player", "crate", "brink", "well") in ops
-        self._record(True, "Example 2: the mage taunts the crate onto the brink; the player gusts it in")
-
-    def test_example_3_swap_with_the_crate(self):
-        ops = _ops(plans_with("translocate", "shieldBash"))
-        assert _op("opSwap", "player", "crate", "brink", "nook") in ops, ops[:300]
+        ops = _ops(plans_with("taunt", "tidalWave"))
+        assert _op("opForcedMove", "player", "crate", "nook", "brink") in ops, ops[:300]
         assert _op("opForcedMove", "mage", "crate", "brink", "well") in ops
-        self._record(True, "Example 3: the player swaps the crate onto the brink; the mage bashes it in")
+        self._record(True, "Example 2: the player taunts the crate onto the brink; the mage's wave "
+                           "throws it in")
 
-    def test_example_4_swap_with_the_wisp_and_be_taunted_out(self):
-        ops = _ops(plans_with("translocate", "taunt"))
-        assert _op("opSwap", "player", "wisp", "quay", "well") in ops, ops[:300]
+    def test_example_3_hook_the_crate_and_suck_it_down(self):
+        ops = _ops(plans_with("hook", "vortex"))
+        assert _op("opForcedMove", "player", "crate", "nook", "brink") in ops, ops[:300]
+        assert _op("opCast", "mage", "vortex", "well") in ops
+        assert _op("opForcedMove", "mage", "crate", "brink", "well") in ops
+        self._record(True, "Example 3: the player hooks the crate onto the brink; the mage's vortex "
+                           "sucks it down the well")
+
+    def test_example_4_flash_down_and_be_taunted_out(self):
+        ops = _ops(plans_with("lightningFlash", "taunt"))
+        assert _op("opDash", "player", "quay", "well") in ops, ops[:300]
         assert _op("opForcedMove", "mage", "player", "well", "exit") in ops
-        self._record(True, "Example 4: the player swaps down with the wisp; the mage's taunt drags her up")
+        self._record(True, "Example 4: the player flashes down; the mage's taunt drags her up")
 
     # -------------------------------------------------------------- properties
 
@@ -134,27 +138,30 @@ class WellTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         assert len(report.winning) == 2 * len(WINNING), "each pair should win in both seat orders"
         assert not report.failures, report.failures
+        assert not report.dead_skills, report.dead_skills
         self._record(True, f"P3: exactly the {len(WINNING)} measured pairs win, both ways round")
 
     def test_property_p4_the_wisp_does_not_weigh_the_plate(self):
-        planner = _planner("knows(player, pounce).\nknows(mage, magnetize).\n")
-        assert _solutions(planner, "walkTo(golem, step).")
-        planner = _planner("knows(player, pounce).\nknows(mage, magnetize).\n")
+        kit = "knows(player, lightningFlash).\nknows(mage, hook).\n"
+        assert _solutions(_planner(kit), "walkTo(golem, step).")
+        planner = _planner(kit)
         assert not _solutions(planner, "walkTo(golem, step), confirmOpen(lock).")
         self._record(True, "P4: the Golem on the step alone does not open the lock")
 
-    def test_property_p5_the_stealthed_cannot_be_hauled_out(self):
-        assert not plans_with("shadowStep", "magnetize")
-        self._record(True, "P5: shadow-stepped down, the player cannot be aimed at, so not hauled out")
+    def test_property_p5_a_blinker_is_disjoint_for_a_moment(self):
+        """Blinked down, the player is untouchable through the next cast: the
+        hook right after misses, so blink is not in the pool."""
+        assert not plans_with("blink", "hook")
+        self._record(True, "P5: blinked down, the player cannot be hooked out by the next cast")
 
     def test_property_p6_a_thrown_friend_is_stranded(self):
         """The throw works and the lock opens, but the only puller is down the
         well."""
-        kit = "knows(player, gust).\nknows(mage, magnetize).\n"
-        throw = "walkTo(mage, brink), castFrom(player, gust, mage, quay), walkTo(golem, step)"
+        kit = "knows(player, fireball).\nknows(mage, hook).\n"
+        throw = "walkTo(mage, brink), castFrom(player, fireball, mage, quay), walkTo(golem, step)"
         assert _solutions(_planner(kit), throw + ", confirmOpen(lock).")
         assert not _solutions(_planner(kit), throw + ", getOut(mage).")
-        self._record(True, "P6: gust throws the mage down and the lock opens; nobody hauls her out")
+        self._record(True, "P6: the fireball throws the mage down and the lock opens; nobody hauls her out")
 
 
 def run_tests():

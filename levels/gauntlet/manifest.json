@@ -2,8 +2,9 @@
   "name": "gauntlet",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Gauntlet: pure movement - an armoured guard at the choke, a plate nobody walks onto, a chasm the Warden cannot leap; one skill each from six, sixteen assignments win",
+  "description": "The Gauntlet: pure movement - a heavy guard at the choke (mist it, then move it), a plate nobody walks onto, a lava channel the Warden cannot leap (fill it or ice it); one skill each from six, twenty assignments win",
   "dependencies": [
+    "abilities/goals/neutralize",
     "abilities/strategies/passage",
     "abilities/primitives/ab_catalog"
   ],
@@ -12,7 +13,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:40:45.342698"
+    "last_checked": "2026-09-24T18:21:22.713714"
   },
   "provides": [
     "at/2",
@@ -22,32 +23,39 @@
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
+    "cooled/1",
     "door/1",
+    "dragIn/2",
     "effect/3",
+    "ensureUp/1",
     "escape/0",
     "funExpect/3",
     "knows/2",
+    "leave/1",
     "lineOfSight/2",
+    "mana/2",
     "onEnter/2",
     "progress/2",
-    "pusher/1",
     "region/1",
     "role/2",
+    "shift/3",
     "tag/2",
-    "trait/2",
     "unguard/0",
     "weighPlate/0",
     "win/0"
   ],
   "requires": [
+    "cast/3",
     "castFrom/4",
-    "clear/1",
+    "confirmFilled/1",
     "confirmOpen/1",
+    "confirmStopped/1",
     "dislodge/1",
-    "openWay/1",
+    "ensureOff/2",
+    "place/3",
     "reach/2",
+    "sendInto/3",
     "span/1",
-    "unset/2",
     "walkTo/2"
   ]
 }

@@ -1,35 +1,48 @@
 % The Gauntlet (pure movement)
 %
-% Nothing here dies except by falling. An armoured guard holds the choke
-% above a trapdoor; past it, a hall with a crate, and a grated alcove - a
-% ledge nobody can walk onto - whose plate latches the far gate open; then a
-% chasm, a stone pillar on the far side, the gate, and the exit.
+% Nothing here dies except by falling. A heavy guard holds the choke above a
+% trapdoor; past it, a hall with a crate, and a grated alcove - a ledge
+% nobody can walk onto - whose plate latches the exit gate open; then a
+% channel of lava, a stone pillar on the far side, and the exit.
 %
-%   start --- choke (guard) --- hall (crate) --- rim ~~ chasm ~~ far (pillar) --- gate --- exit
-%     |                          :                                 |
-%    pit (trapdoor)          alcove (plate; seen from the hall and the rim, never walked into)
+%   start --- choke (guard) --- hall (crate) --- rim ~~ channel (lava) ~~ far (pillar) --- exit (gate)
+%     |                          :       :                                  :
+%    pit (trapdoor)            alcove (plate; seen from the hall, the rim and far; never walked into)
 %
 % Victory: everyone reaches the exit. The Warden cannot leap, so the guard
-% has to be moved out of the doorway and the chasm has to be bridged for
-% him. The Warden only knows sunder; the player and the mage pick one skill
-% each.
+% has to be moved out of the doorway and the lava has to be bridged for
+% him. The Warden only knows turnToMist; the player and the mage pick one
+% skill each from six.
 %
 % The obstacles, and every answer:
-%   the guard   armoured: the Warden sunders it, then someone drops it
-%               through the trapdoor (a push from the start) or moves it
-%               out of the doorway (a push back, a hook, a swap)
-%   the plate   something has to land in the alcove: a dasher blinks onto
-%               it, or a friend is thrown onto it (a push from the rim) -
-%               and whoever is up there has to get out forward: dash on
-%               over the chasm, hook the pillar, or be swapped out by a
-%               friend already across. The crate can be pushed onto it too.
-%   the chasm   the crate, pushed twice (onto the rim, then in), bridges it
-%               for the Warden - or a dasher crosses alone, a hook to the
-%               pillar, a swap with a friend.
-% The crate can hold the plate or fill the chasm - not both.
+%   the guard    heavy: nothing moves it. The Warden turns it to mist, and
+%                while it lasts (the next cast) someone drops it through
+%                the trapdoor (a fireball, or a tidal wave from the start)
+%                or drags it out of the doorway (a hook)
+%   the plate    something has to land in the alcove: a blinker or a
+%                lightning flash lands on it, or a friend is thrown onto it
+%                from the rim (fireball, tidal wave) - and whoever is up
+%                there has to get out forward: blink or flash on over the
+%                lava, hook the pillar, or be hooked out by a friend across.
+%                The crate can be thrown onto it too.
+%   the lava     the crate, pushed twice (onto the rim, then in), fills it
+%                for the Warden; or a hook hauls the crate to the rim, the
+%                hooker grapples across on the pillar and drags it in from
+%                the far side; or a blizzard cools it into rock. A blinker or
+%                a flash crosses alone; the Warden cannot.
+% The crate can hold the plate or fill the channel. The plate latches, so a
+% hook can take the crate back off it and still bridge the lava; without a
+% hook, a crate on the plate leaves only the blizzard.
+%
+% The default kit (fireball + blizzard) is the one whose plan fits the
+% planner's default 1 MB memory budget (verify); kits that throw the crate
+% twice need about 1.5 MB (combos and the tests give them 256 MB).
 %
 % Traps: a pusher alone cannot leave the alcove; a dasher alone cannot move
-% the crate; two pushers throw a friend onto the plate and strand him.
+% the guard or the crate; two pushers throw a friend onto the plate and
+% strand him; a hook alone gets nobody onto the plate; ice alone moves
+% nothing. A tidal wave from the rim throws everyone in the hall onto the
+% plate - crate, friends and the Warden alike.
 
 % === Regions ===
 region(start).
@@ -38,9 +51,8 @@ region(choke).
 region(hall).
 region(alcove).
 region(rim).
-region(chasm).
+region(channel).
 region(far).
-region(gate).
 region(exit).
 connected(start, choke).
 connected(choke, start).
@@ -48,27 +60,27 @@ connected(choke, hall).
 connected(hall, choke).
 connected(hall, rim).
 connected(rim, hall).
-connected(rim, chasm).
-connected(chasm, rim).
-connected(chasm, far).
-connected(far, chasm).
-connected(far, gate).
-connected(gate, far).
-connected(gate, exit).
-connected(exit, gate).
+connected(rim, channel).
+connected(channel, rim).
+connected(channel, far).
+connected(far, channel).
+connected(far, exit).
+connected(exit, far).
 
 lineOfSight(start, choke).
 lineOfSight(start, hall).
 lineOfSight(choke, hall).
-lineOfSight(hall, alcove).
-lineOfSight(rim, hall).
 lineOfSight(choke, start).
+lineOfSight(hall, alcove).
 lineOfSight(hall, rim).
+lineOfSight(rim, hall).
 lineOfSight(rim, alcove).
+lineOfSight(rim, channel).
 lineOfSight(rim, far).
 lineOfSight(alcove, far).
 lineOfSight(far, alcove).
 lineOfSight(far, rim).
+lineOfSight(far, channel).
 
 % The route, for leaps: only forward.
 progress(start, 0).
@@ -76,25 +88,24 @@ progress(choke, 1).
 progress(hall, 2).
 progress(alcove, 3).
 progress(rim, 3).
-progress(chasm, 4).
+progress(channel, 4).
 progress(far, 5).
-progress(gate, 6).
-progress(exit, 7).
+progress(exit, 6).
 
 % Push lines (and what lies between).
 beyond(start, choke, pit).
 beyond(hall, choke, start).
 beyond(choke, hall, rim).
 beyond(rim, hall, alcove).
-beyond(hall, rim, chasm).
-beyond(far, chasm, rim).
+beyond(hall, rim, channel).
+beyond(far, channel, rim).
 
 % === Terrain ===
 onEnter(pit, chasm).
-onEnter(chasm, chasm).
+onEnter(channel, lava).
 onEnter(alcove, press).
-effect(press, target, open(gate)).
-door(gate).
+effect(press, target, open(exit)).
+door(exit).
 
 % === Companions ===
 role(player, player).
@@ -103,69 +114,96 @@ role(warden, companion).
 at(player, start).
 at(mage, start).
 at(warden, start).
-knows(warden, sunder).
+mana(player, 6).
+mana(mage, 6).
+knows(warden, turnToMist).
 
 % === Things ===
 role(guard, enemy).
 at(guard, choke).
 blocker(guard).
-trait(guard, living).
-tag(guard, armored).
+tag(guard, living).
+tag(guard, heavy).
 
 role(crate, object).
 at(crate, hall).
-trait(crate, filler).
-trait(crate, mindless).
+tag(crate, filler).
 
 role(pillar, object).
 at(pillar, far).
-trait(pillar, heavy).
-
-role(idol, object).
-at(idol, far).
+tag(pillar, heavy).
 
 % === Default kit (a winning pair; combos strips these) ===
-knows(player, gust).
-knows(mage, shadowStep).
+knows(player, fireball).
+knows(mage, blizzard).
 
 % === Victory ===
 win :- if(), do(escape).
 
 escape :-
     if(),
-    do(unguard, weighPlate, bridge,
-       reach(warden, exit), reach(mage, exit), reach(player, exit)).
+    do(unguard, weighPlate, bridge, leave(warden), leave(mage), leave(player)).
 
-% The guard: dropped or moved (passage), or its armour off and then moved.
-unguard :- if(), do(clear(guard)).
-unguard :- if(tag(guard, armored)), do(unset(armored, guard), dislodge(guard)).
+% The guard: misted, then - while it lasts - dropped through the trapdoor or
+% moved out of the doorway by someone else.
+unguard :-
+    if(has(guard, heavy), canUnset(?w, ?ab, heavy, guard, ?aim)),
+    do(cast(?w, ?ab, ?aim), ensureOff(heavy, guard), shift(guard, pit, ?w)).
+shift(?e, ?r, ?not) :- if(), do(sendInto(?e, ?r, ?not), confirmStopped(?e)).
+shift(?e, ?r, ?not) :- if(), do(dislodge(?e), ensureUp(?e)).
+ensureUp(?e) :- if(not(neutralized(?e))), do().
 
-% The plate: someone gets up there (passage), or a friend is thrown on it.
-weighPlate :- if(), do(openWay(gate)).
+% The plate: someone leaps onto it; a friend is thrown onto it; or the crate.
 weighPlate :-
-    if(not(open(gate)), landing(?from, ?over, alcove), canAct(?a), canAct(?p), \==(?a, ?p),
-       knows(?p, ?ab), pusher(?ab)),
-    do(walkTo(?a, ?over), castFrom(?p, ?ab, ?a, ?from), confirmOpen(gate)).
-pusher(?ab) :- effect(?ab, target, push).
+    if(canAct(?a), first(leap(?a, ?ab, ?from, ?aim, alcove))),
+    do(castFrom(?a, ?ab, ?aim, ?from), confirmOpen(exit)).
+weighPlate :-
+    if(landing(?from, ?over, alcove), canAct(?a), canAct(?p), \==(?a, ?p),
+       knows(?p, ?ab), movesAny(?ab)),
+    do(walkTo(?a, ?over), place(?a, alcove, ?a), confirmOpen(exit)).
+weighPlate :-
+    if(filler(?x), first(placement(?p, ?ab, ?from, ?aim, ?x, alcove))),
+    do(castFrom(?p, ?ab, ?aim, ?from), confirmOpen(exit)).
 
-% The chasm: bridged or crossed (passage), or the crate hauled to the rim
-% by someone who then crosses and drags it in from the far side.
-bridge :- if(), do(span(chasm)).
+% The lava: the crate pushed in, once or twice (passage); hauled to the rim
+% by someone who then crosses and drags it in from the far side; or iced
+% over. Nothing else gets the Warden across.
 bridge :-
-    if(not(filled(chasm)), filler(?x), at(?x, ?xr), landing(?f, ?rim, chasm), \==(?xr, ?rim),
-       puller(?a, ?ab, ?x)),
-    do(castFrom(?a, ?ab, ?x, ?rim), reach(?a, far), span(chasm)).
+    if(hazardAt(channel, ?h), filler(?x), first(placement(?a, ?ab, ?from, ?aim, ?x, ?mid))),
+    do(span(channel), confirmFilled(channel)).
+bridge :-
+    if(hazardAt(channel, ?h), filler(?x), at(?x, ?xr), landing(?f, ?rim, channel),
+       \==(?xr, ?rim), puller(?a, ?ab, ?x)),
+    do(castFrom(?a, ?ab, ?x, ?rim), reach(?a, far), dragIn(?x, channel)).
+bridge :-
+    if(onEnter(channel, ?z), zoneReaction(?z, ?ice, ?new), canAct(?a), knows(?a, ?ab),
+       effect(?ab, target, spill(?ice))),
+    do(cast(?a, ?ab, channel), cooled(channel)).
+dragIn(?x, ?g) :-
+    if(at(?x, ?xr), puller(?a, ?ab, ?x), at(?a, ?from), between(?from, ?xr, ?g)),
+    do(castFrom(?a, ?ab, ?x, ?from), confirmFilled(?g)).
+cooled(?r) :- if(not(hazardAt(?r, ?h))), do().
+
+% Out: walk, leap (passage), or be hauled out by a friend further on.
+leave(?a) :- if(canReachNow(?a, exit)), do(walkTo(?a, exit)).
+leave(?a) :-
+    if(not(canReachNow(?a, exit)), first(leap(?a, ?ab, ?from, ?aim, ?land))),
+    do(reach(?a, exit)).
+leave(?a) :-
+    if(not(canReachNow(?a, exit)), at(?a, ?r), canAct(?b), \==(?b, ?a), knows(?b, ?ab),
+       pulls(?ab), lineOfSight(?spot, ?r), ahead(?r, ?spot), canReachNow(?b, ?spot)),
+    do(castFrom(?b, ?ab, ?a, ?spot), walkTo(?a, exit)).
 
 funExpect(single_actor_plans, atMost, 0).
 
 % === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(gust).
-comboPool(shieldBash).
-comboPool(magnetize).
-comboPool(translocate).
-comboPool(shadowStep).
-comboPool(pounce).
+comboPool(fireball).
+comboPool(tidalWave).
+comboPool(hook).
+comboPool(blink).
+comboPool(lightningFlash).
+comboPool(blizzard).
 
 goals(win).

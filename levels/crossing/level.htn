@@ -1,24 +1,39 @@
 % The Crossing (ability catalogue)
 %
 % A gate opens on a hall. Past the hall, a crypt whose back wall has fallen
-% into the abyss, and the brink of the same abyss. Nothing dies in general
-% here: each enemy has its own weakness, and the team has to find it.
+% into the abyss, and the brink of the same abyss; across it, a flooded
+% ledge with a stone pillar. Nothing dies in general here: each enemy has
+% its own weakness, and the team has to find it.
 %
-%   sentry   a heavy machine behind a barrier, at the brink. It cannot be
-%            moved. Break the barrier (any hostile tag takes it), soak it,
-%            and a jolt short-circuits it - or a frost seizes its joints.
-%   bramble  a wooden thing hiding in the crypt's shadows. It cannot be aimed
-%            at until light finds it; then fire takes it - or a push sends
-%            it through the broken wall.
-%   brute    a boss in armour at the brink. No hard control holds it, and
-%            the armour keeps it from being moved: sunder the armour, and
-%            someone else sends it over the edge.
+%   gate --- hall --- crypt (bramble, in the shadows)
+%             |          \ (broken wall)
+%           brink (brute) ~~ abyss ~~ ledge (sentry, pillar; flooded)
 %
-% The Mage throws flashbangs and calls rain; the Warden sunders, bashes and
-% taunts. The player picks two skills from the catalogue.
+%   sentry   a heavy machine standing in the water on the ledge. Nothing
+%            moves it. It is soaked: a jolt short-circuits it (lightning
+%            flash, which also carries the caster over). Or the Warden turns
+%            it to mist and, while it lasts, someone on the brink drags it
+%            across into the abyss (hook, taunt), or a vortex on the abyss
+%            sucks it in.
+%   bramble  a wooden thing hiding in the crypt's shadows. It cannot be
+%            aimed at: fire on the whole crypt takes it (a fireball at the
+%            region), or a tidal wave from the hall washes it through the
+%            broken wall.
+%   brute    a boss, heavy, standing on the rotten brink. Provoked, it
+%            stamps: a heavy blow that caves the brink in under it - and
+%            under anyone still standing there. Taunt it from the hall and
+%            let it fall. Or the Warden mists it and someone throws it in
+%            (fireball, tidal wave from the hall), drags it across from the
+%            ledge, or sucks it in with a vortex.
 %
-% Hypothesis (design.md): several kits clear it by different routes, no
-% pick is mandatory, and every plan needs at least two companions.
+% The Warden only knows turnToMist; the player and the mage pick one skill
+% each from six (mana 4 each: two costly casts).
+%
+% Traps: the brute's cave-in takes the brink for good - drag the sentry
+% across before you provoke it; whoever stands on the brink when it stamps
+% has one cast to get out (hook the pillar, flash to the ledge); ice, a
+% flash or a vortex never reach the bramble; nobody but the fire and the
+% wave does.
 
 % === Regions ===
 region(gate).
@@ -26,27 +41,40 @@ region(hall).
 region(crypt).
 region(brink).
 region(abyss).
+region(ledge).
 connected(gate, hall).
 connected(hall, gate).
 connected(hall, crypt).
 connected(crypt, hall).
 connected(hall, brink).
 connected(brink, hall).
+connected(brink, abyss).
+connected(abyss, brink).
+connected(ledge, abyss).
+connected(abyss, ledge).
 lineOfSight(gate, hall).
 lineOfSight(gate, brink).
 lineOfSight(hall, crypt).
 lineOfSight(hall, brink).
+lineOfSight(hall, abyss).
+lineOfSight(hall, ledge).
+lineOfSight(brink, abyss).
+lineOfSight(brink, ledge).
+lineOfSight(ledge, brink).
+lineOfSight(ledge, abyss).
 
-% Push lines: whatever stands at the brink, or in the crypt, goes over.
+% Push lines: whatever stands at the brink, or in the crypt, goes over; the
+% abyss lies between the brink and the ledge.
 beyond(hall, brink, abyss).
 beyond(gate, brink, abyss).
-beyond(brink, brink, abyss).
 beyond(hall, crypt, abyss).
-beyond(crypt, crypt, abyss).
+beyond(brink, abyss, ledge).
+beyond(ledge, abyss, brink).
 
 % === Zones ===
 onEnter(crypt, shadows).
 onEnter(abyss, chasm).
+onEnter(ledge, puddle).
 
 % === Companions ===
 role(player, player).
@@ -56,63 +84,77 @@ at(player, gate).
 at(mage, gate).
 at(warden, gate).
 mana(player, 4).
-knows(mage, flashbang).
-knows(mage, rainCall).
-knows(warden, sunder).
-knows(warden, shieldBash).
-knows(warden, taunt).
+mana(mage, 4).
+knows(warden, turnToMist).
 
 % === Enemies ===
 role(sentry, enemy).
-at(sentry, brink).
-trait(sentry, machine).
-trait(sentry, heavy).
-tag(sentry, shielded).
-% Its joints seize if soaked and then chilled.
-weakness(sentry, chilled, wet, frozen).
+at(sentry, ledge).
+tag(sentry, machine).
+tag(sentry, heavy).
+tag(sentry, wet).
 
 role(bramble, enemy).
 at(bramble, crypt).
-trait(bramble, wooden).
+tag(bramble, wooden).
 tag(bramble, stealthed).
 
 role(brute, enemy).
 at(brute, brink).
 rank(brute, boss).
-trait(brute, living).
-tag(brute, armored).
+tag(brute, living).
+tag(brute, heavy).
+behavior(brute, taunted, caveIn, here).
 
-% === Default kit (a winning pair; F4 strips these and re-adds each pick) ===
-knows(player, zap).
-knows(player, gust).
+role(pillar, object).
+at(pillar, ledge).
+tag(pillar, heavy).
+
+% === Default kit (a winning pair; combos strips these) ===
+knows(player, fireball).
+knows(mage, lightningFlash).
 
 % === The encounter ===
-clearCrossing :- if(), do(neutralize(sentry), neutralize(bramble), neutralize(brute)).
+clearCrossing :-
+    if(), do(beat(sentry), regroup, beat(bramble), regroup, beat(brute), standing).
 
-% === Declared choice space: pick 2 of 8 ===
-funChoiceSpace(kit, 2).
-funChoice(kit, zap).
-funChoice(kit, chainLightning).
-funChoice(kit, fireball).
-funChoice(kit, iceStorm).
-funChoice(kit, frostBolt).
-funChoice(kit, tidalWave).
-funChoice(kit, gust).
-funChoice(kit, charge).
-funChoiceFact(zap, knows(player, zap)).
-funChoiceFact(chainLightning, knows(player, chainLightning)).
-funChoiceFact(fireball, knows(player, fireball)).
-funChoiceFact(iceStorm, knows(player, iceStorm)).
-funChoiceFact(frostBolt, knows(player, frostBolt)).
-funChoiceFact(tidalWave, knows(player, tidalWave)).
-funChoiceFact(gust, knows(player, gust)).
-funChoiceFact(charge, knows(player, charge)).
-funBlocker(sentry).
-funBlocker(bramble).
-funBlocker(brute).
-funBlockerGoal(sentry, neutralize(sentry)).
-funBlockerGoal(bramble, neutralize(bramble)).
-funBlockerGoal(brute, neutralize(brute)).
+% Nobody went over the edge on the way.
+standing :- if(not(first(and(canAct(?a), gone(?a))))), do().
+
+% Between two fights, whoever is on the brink steps back into the hall: a
+% wave from the hall would throw them over, and a stamp would take them.
+regroup :- if(not(first(and(at(?a, brink), canAct(?a))))), do().
+regroup :- if(first(and(at(?a, brink), canAct(?a)))), do(stepBack).
+stepBack :- allOf, if(at(?a, brink), canAct(?a)), do(walkTo(?a, hall)).
+
+% The recipes (neutralize), and two the catalogue has no generic form for.
+beat(?e) :- if(), do(neutralize(?e)).
+beat(?e) :- if(not(neutralized(?e))), do(scorch(?e)).
+beat(?e) :- if(not(neutralized(?e))), do(provoke(?e)).
+
+% It cannot be aimed at: whatever lands on its whole region takes it.
+scorch(?e) :-
+    if(at(?e, ?r), lethalWeakness(?e, ?in, none), canAct(?a), knows(?a, ?ab),
+       grants(?ab, ?in), ready(?a, ?ab, ?r)),
+    do(cast(?a, ?ab, ?r), confirmStopped(?e)).
+
+% Provoked, it brings down its own floor: give it the tag it answers, from
+% somewhere the blow does not fall.
+provoke(?e) :-
+    if(first(behavior(?e, ?t, ?m, here)), heavy(?m), canInflict(?a, ?ab, ?t, ?e), at(?e, ?r),
+       first(and(spot(?a, ?ab, ?r, ?from), \==(?from, ?r)))),
+    do(castFrom(?a, ?ab, ?e, ?from), confirmStopped(?e)).
+
 funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from six (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(fireball).
+comboPool(tidalWave).
+comboPool(lightningFlash).
+comboPool(hook).
+comboPool(taunt).
+comboPool(vortex).
 
 goals(clearCrossing).
