@@ -17,6 +17,7 @@
 % the zone it spills there.
 aimed(target).
 aimed(area).
+aimed(around).
 grantsAny(?ab, ?t) :- effect(?ab, ?w, grant(?t)), aimed(?w).
 grantsAny(?ab, ?t) :- effect(?ab, ?w, grant(?c)), aimed(?w), bundles(?c, ?t).
 grantsAny(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?t)).
@@ -41,11 +42,21 @@ pops(?ab, ?t) :- reach(?ab, ?k), first(popsAny(?ab, ?t)).
 canInflict(?a, ?ab, ?t, ?e) :-
     grants(?ab, ?t), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?e).
 
-% ?a can push ?e into ?r with ?ab, standing at ?from.
-placement(?a, ?ab, ?from, ?e, ?r) :-
+% ?a can put ?e in ?r by casting ?ab at ?aim, standing at ?from: a push
+% along a line, aimed at ?e; a wave around ?a from next to ?e; or a pull-in
+% aimed at ?r, with ?e next to it. ?from is somewhere ?a can walk to.
+placement(?a, ?ab, ?from, ?e, ?e, ?r) :-
     receptive(?e, forcedMove), at(?e, ?over), landing(?from, ?over, ?r),
     knows(?a, ?ab), first(and(effect(?ab, ?w, push), aimed(?w))), canAct(?a), ready(?a, ?ab, ?e),
-    reach(?ab, ?k), inRange(?k, ?from, ?over).
+    reach(?ab, ?k), inRange(?k, ?from, ?over), canReachNow(?a, ?from).
+placement(?a, ?ab, ?from, ?a, ?e, ?r) :-
+    receptive(?e, forcedMove), at(?e, ?over), knows(?a, ?ab), reach(?ab, self),
+    first(effect(?ab, around, push)), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?a),
+    connected(?from, ?over), landing(?from, ?over, ?r), canReachNow(?a, ?from).
+placement(?a, ?ab, ?from, ?r, ?e, ?r) :-
+    at(?e, ?over), connected(?over, ?r), knows(?a, ?ab), effect(?ab, target, pullIn(?k)),
+    drawnKind(?k, ?e), not(anchoredAgainst(?e)), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?r),
+    first(spot(?a, ?ab, ?r, ?from)).
 
 % ?a can take ?t off ?e with ?ab, aimed at ?aim: ?e itself, or its region
 % when ?e cannot be aimed at and ?ab reaches everyone there.
@@ -56,7 +67,9 @@ canUnset(?a, ?ab, ?t, ?e, ?e) :-
     removal(?ab, ?t), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?e).
 canUnset(?a, ?ab, ?t, ?e, ?r) :-
     not(receptive(?e, targeted)), locus(?e, ?r), removal(?ab, ?t),
-    first(effect(?ab, area, ?x)), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?r).
+    first(and(effect(?ab, ?w, ?x), wide(?w))), knows(?a, ?ab), canAct(?a), ready(?a, ?ab, ?r).
+wide(area).
+wide(around).
 
 % ?a can deal ?type damage to ?e with ?ab.
 canStrike(?a, ?ab, ?type, ?e) :-
@@ -64,7 +77,7 @@ canStrike(?a, ?ab, ?type, ?e) :-
 
 % ?a can make ?e carry ?t: cast it, or push ?e into a region that grants it.
 canPrime(?a, ?t, ?e) :- canInflict(?a, ?ab, ?t, ?e).
-canPrime(?a, ?t, ?e) :- zoneFor(?r, ?t), placement(?a, ?ab, ?from, ?e, ?r).
+canPrime(?a, ?t, ?e) :- zoneFor(?r, ?t), placement(?a, ?ab, ?from, ?aim, ?e, ?r).
 
 % Who supplies ?t on ?e: nobody if it is already there, else one answer per
 % companion who can prime it.
@@ -80,6 +93,7 @@ pulls(?ab) :- reach(?ab, ?k), first(pullsAny(?ab)).
 movesAny(?ab) :- pullsAny(?ab).
 movesAny(?ab) :- effect(?ab, ?w, push), aimed(?w).
 movesAny(?ab) :- effect(?ab, target, swap).
+movesAny(?ab) :- effect(?ab, target, relocate).
 movesAny(?ab) :- effect(?ab, target, grant(?t)), onGrant(?t, push).
 moves(?ab) :- reach(?ab, ?k), first(movesAny(?ab)).
 puller(?a, ?ab, ?e) :- canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, ?e).
@@ -105,16 +119,16 @@ inflict(?t, ?e, ?not) :-
 
 % The need: ?e is in ?r, pushed there by ?a / by anyone but ?not.
 placeAs(?a, ?e, ?r) :-
-    if(first(placement(?a, ?ab, ?from, ?e, ?r))), do(castFrom(?a, ?ab, ?e, ?from)).
+    if(first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))), do(castFrom(?a, ?ab, ?aim, ?from)).
 place(?e, ?r, ?not) :-
-    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?e, ?from)).
+    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?aim, ?from)).
 
 % The need: ?e ends up in ?r, sent there by anyone but ?not - pushed along a
 % line, or pulled across ?r so it falls in on the way.
 sendInto(?e, ?r, ?not) :-
-    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?e, ?from)).
+    if(canAct(?a), \==(?a, ?not), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?aim, ?from)).
 sendInto(?e, ?r, ?not) :-
     if(at(?e, ?er), puller(?a, ?ab, ?e), \==(?a, ?not), between(?from, ?er, ?r),
        reach(?ab, ?k), inRange(?k, ?from, ?er), canReachNow(?a, ?from)),
@@ -127,8 +141,8 @@ strike(?type, ?e, ?not) :-
 % The need: ?e carries ?t, primed by ?a - a cast, or a push into a zone.
 primeAs(?a, ?t, ?e) :- if(canInflict(?a, ?ab, ?t, ?e)), do(cast(?a, ?ab, ?e)).
 primeAs(?a, ?t, ?e) :-
-    if(zoneFor(?r, ?t), first(placement(?a, ?ab, ?from, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?e, ?from)).
+    if(zoneFor(?r, ?t), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
+    do(castFrom(?a, ?ab, ?aim, ?from)).
 
 % The supplier found by supplier/3 does its part (nothing if it was there).
 supply(none, ?t, ?e) :- if(holds(?e, ?t)), do().
@@ -154,6 +168,9 @@ ensureOff(?t, ?e) :- if(not(tag(?e, ?t))), do().
 dislodge(?e) :-
     if(at(?e, ?r), canAct(?a), knows(?a, ?ab), moves(?ab), ready(?a, ?ab, ?e)),
     do(cast(?a, ?ab, ?e), ensureMoved(?e, ?r)).
+dislodge(?e) :-
+    if(at(?e, ?r), first(placement(?a, ?ab, ?from, ?aim, ?e, ?to)), \==(?aim, ?e)),
+    do(castFrom(?a, ?ab, ?aim, ?from), ensureMoved(?e, ?r)).
 ensureMoved(?e, ?r) :- if(not(at(?e, ?r))), do().
 
 % Verify the simulated world: the recipe worked only if ?e is out.

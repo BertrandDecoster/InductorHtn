@@ -2,7 +2,7 @@
 %
 % The recipe: ?e carries wet, someone else lands chilled on it (the level's
 % physics turns that into frozen). Where frozen stops ?e, that is the end -
-% stalling is a finisher. Otherwise a blunt blow shatters what is brittle.
+% stalling is a finisher. Otherwise the blow its weakness names shatters it.
 
 % === Methods ===
 
@@ -11,9 +11,11 @@ shatter(?e) :-
     if(stops(?e, frozen), receptive(?e, chilled), supplier(?p, wet, ?e)),
     do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), confirmStopped(?e)).
 
-% Frozen, then broken.
+% Frozen, then broken: the blow its weakness names (a stunning blow on
+% something frozen shatters it), from anyone.
 shatter(?e) :-
-    if(not(stops(?e, frozen)), receptive(?e, chilled), receptive(?e, blunt),
-       supplier(?p, wet, ?e)),
-    do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), strike(blunt, ?e, ?p),
+    if(not(stops(?e, frozen)), weakness(?e, ?in, frozen, ?out), stops(?e, ?out),
+       receptive(?e, frozen), receptive(?e, chilled), receptive(?e, ?in), supplier(?p, wet, ?e)),
+    do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), ensureFrozen(?e), deliver(?in, ?e, none),
        confirmStopped(?e)).
+ensureFrozen(?e) :- if(tag(?e, frozen)), do().

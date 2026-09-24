@@ -29,15 +29,14 @@ WORLD = [
     "reaction(wet, burning, steam)", "effect(steam, target, remove(wet))",
     "reaction(oiled, burning, blaze)",
     "effect(blaze, target, remove(oiled))", "effect(blaze, target, grant(dead))",
-    "reaction(brittle, blunt, shatterBlow)",
-    "effect(shatterBlow, target, remove(frozen))", "effect(shatterBlow, target, grant(dead))",
+    "weakness(gob, stunned, frozen, dead)",
     "reach(shock, ranged)", "effect(shock, target, grant(shocked))",
     "reach(douse, ranged)", "effect(douse, target, grant(wet))",
     "reach(chill, ranged)", "effect(chill, target, grant(chilled))",
     "reach(ignite, ranged)", "effect(ignite, target, grant(burning))",
     "reach(gust, ranged)", "effect(gust, target, push)",
     "reach(quake, melee)", "effect(quake, target, grant(offBalance))",
-    "reach(hammer, melee)", "effect(hammer, target, damage(blunt))",
+    "reach(hammer, melee)", "effect(hammer, target, grant(stunned))",
     "effect(hammer, self, grant(tired))", "blockedBy(hammer, caster, tired)",
     "role(player, player)", "role(mage, companion)", "role(warden, companion)",
     "at(player, ledge)", "at(mage, ledge)", "at(warden, ledge)",
@@ -69,13 +68,13 @@ class ShatterTest(HtnTestSuite):
         self.assert_plan("shatter(gob).", contains=[
             "opCast(mage, douse, gob)", "opCast(player, chill, gob)",
             "opCast(warden, hammer, gob)",
-            "opReact(warden, gob, brittle, blunt, shatterBlow)"])
+            "opExploit(warden, gob, stunned, dead)"])
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_a_blow_that_cannot_land(self):
         self.set_state(["knows(mage, douse)", "knows(player, chill)", "knows(warden, hammer)",
-                        "immune(gob, blunt)"])
+                        "immune(gob, stunned)"])
         self.assert_no_plan("shatter(gob).")
 
     def test_property_p2_the_primer_neither_chills_nor_breaks(self):

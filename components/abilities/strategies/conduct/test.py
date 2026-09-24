@@ -22,7 +22,7 @@ WORLD = [
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",
-    "reaction(wet, shocked, electrocution)",
+    "reaction(wet, electrocuted, electrocution)",
     "effect(electrocution, target, remove(wet))", "effect(electrocution, target, grant(dead))",
     "reaction(wet, chilled, freezeOver)",
     "effect(freezeOver, target, remove(wet))", "effect(freezeOver, target, grant(frozen))",
@@ -31,7 +31,7 @@ WORLD = [
     "effect(blaze, target, remove(oiled))", "effect(blaze, target, grant(dead))",
     "reaction(brittle, blunt, shatterBlow)",
     "effect(shatterBlow, target, remove(frozen))", "effect(shatterBlow, target, grant(dead))",
-    "reach(shock, ranged)", "effect(shock, target, grant(shocked))",
+    "reach(shock, ranged)", "effect(shock, target, grant(electrocuted))",
     "reach(douse, ranged)", "effect(douse, target, grant(wet))",
     "reach(chill, ranged)", "effect(chill, target, grant(chilled))",
     "reach(ignite, ranged)", "effect(ignite, target, grant(burning))",
@@ -61,7 +61,7 @@ class ConductTest(HtnTestSuite):
         self.set_state(["knows(player, shock)", "knows(mage, douse)"])
         self.assert_plan("conduct(wader).",
                          contains=["opCast(player, shock, wader)",
-                                   "opReact(player, wader, wet, shocked, electrocution)"],
+                                   "opReact(player, wader, wet, electrocuted, electrocution)"],
                          not_contains=["douse"])
 
     def test_example_2_one_soaks_another_shocks(self):
@@ -82,7 +82,7 @@ class ConductTest(HtnTestSuite):
         self.assert_no_plan("conduct(gob).")
 
     def test_property_p2_immune_to_shock_no_conduct(self):
-        self.set_state(["knows(mage, douse)", "knows(player, shock)", "immune(gob, shocked)"])
+        self.set_state(["knows(mage, douse)", "knows(player, shock)", "immune(gob, electrocuted)"])
         self.assert_no_plan("conduct(gob).")
 
     def test_property_p3_the_world_confirms_the_recipe(self):

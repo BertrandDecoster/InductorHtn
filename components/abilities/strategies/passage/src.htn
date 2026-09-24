@@ -22,8 +22,10 @@
 % === Rules ===
 
 selfMover(?ab) :- effect(?ab, target, dash).
+selfMover(?ab) :- effect(?ab, target, relocate).
 anchorHook(?ab) :- effect(?ab, target, hook).
 swapper(?ab) :- effect(?ab, target, swap).
+swapper(?ab) :- effect(?ab, target, relocate).
 ahead(?from, ?to) :- progress(?from, ?n1), progress(?to, ?n2), >(?n2, ?n1).
 
 % ?a lands at ?land by casting ?ab at ?aim from ?from, a region it can walk
@@ -67,8 +69,8 @@ reachWithin(?a, ?r, ?n) :-
 openWay(?d) :- if(open(?d)), do().
 openWay(?d) :- if(not(open(?d)), plateOf(?p, ?d), canAct(?a)), do(reach(?a, ?p), confirmOpen(?d)).
 openWay(?d) :-
-    if(not(open(?d)), plateOf(?p, ?d), first(placement(?a, ?ab, ?from, ?x, ?p))),
-    do(castFrom(?a, ?ab, ?x, ?from), confirmOpen(?d)).
+    if(not(open(?d)), plateOf(?p, ?d), first(placement(?a, ?ab, ?from, ?aim, ?x, ?p))),
+    do(castFrom(?a, ?ab, ?aim, ?from), confirmOpen(?d)).
 confirmOpen(?d) :- if(open(?d)), do().
 
 % A gap: already bridged; bridged by one push; by two pushes; by a pull
@@ -76,12 +78,12 @@ confirmOpen(?d) :- if(open(?d)), do().
 span(?g) :- if(filled(?g)), do().
 span(?g) :- if(not(filled(?g))), do().
 span(?g) :-
-    if(not(filled(?g)), filler(?x), first(placement(?a, ?ab, ?from, ?x, ?g))),
-    do(castFrom(?a, ?ab, ?x, ?from), confirmFilled(?g)).
+    if(not(filled(?g)), filler(?x), first(placement(?a, ?ab, ?from, ?aim, ?x, ?g))),
+    do(castFrom(?a, ?ab, ?aim, ?from), confirmFilled(?g)).
 span(?g) :-
-    if(not(filled(?g)), filler(?x), placement(?a, ?ab, ?from, ?x, ?mid), \==(?mid, ?g),
+    if(not(filled(?g)), filler(?x), placement(?a, ?ab, ?from, ?aim, ?x, ?mid), \==(?mid, ?g),
        landing(?f2, ?mid, ?g)),
-    do(castFrom(?a, ?ab, ?x, ?from), place(?x, ?g, none), confirmFilled(?g)).
+    do(castFrom(?a, ?ab, ?aim, ?from), place(?x, ?g, none), confirmFilled(?g)).
 span(?g) :-
     if(not(filled(?g)), filler(?x), at(?x, ?xr), puller(?a, ?ab, ?x), between(?from, ?xr, ?g),
        reach(?ab, ?k), inRange(?k, ?from, ?xr), canReachNow(?a, ?from)),

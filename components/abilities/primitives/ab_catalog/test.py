@@ -53,49 +53,73 @@ def catalogue():
 
 
 def applies():
-    """tag -> skills that can put it on something: a grant (with the atoms of a
-    composite), a zone the skill spills, or a weakness the incoming meets."""
+    """tag -> what can put it on something: a skill's grant (with the atoms of
+    a composite), a zone it spills, a weakness the incoming meets, or a
+    reaction to a tag a skill lands."""
     effects, bundles, _ = catalogue()
     weaknesses = defaultdict(set)
     for _, incoming, _, out in facts("weakness", rules=True):
         weaknesses[incoming].add(out)
+    reactions = defaultdict(set)
+    for _, incoming, ab in facts("reaction"):
+        reactions[incoming].add(ab)
 
-    def granted(atoms):
+    def granted(atoms, depth=0):
         out = set()
         for _, atom in atoms:
             m = re.match(r"grant\((\w+)\)", atom)
             if m:
-                out |= {m.group(1)} | bundles[m.group(1)]
-                out |= weaknesses[m.group(1)]
+                t = m.group(1)
+                out |= {t} | bundles[t] | weaknesses[t]
+                if depth == 0:
+                    for rab in reactions[t]:
+                        out |= granted(effects[rab], 1)
             m = re.match(r"hazard\((\w+)\)", atom)
             if m:
                 out |= weaknesses[m.group(1)]
+            m = re.match(r"spill\((\w+)\)", atom)
+            if m and depth < 2:
+                out |= granted(effects[m.group(1)], depth)
         return out
 
     by_tag = defaultdict(set)
-    for ab, _ in facts("reach"):
-        tags = granted(effects[ab])
-        for _, atom in effects[ab]:
-            m = re.match(r"spill\((\w+)\)", atom)
-            if m:
-                tags |= granted(effects[m.group(1)])
-        for t in tags:
+    zones = {z for z, _, a in facts("effect") if a.startswith("grant") or a.startswith("hazard")}
+    for ab in {ab for ab, _ in facts("reach")} | zones:
+        for t in granted(effects[ab]):
             by_tag[t].add(ab)
     return by_tag
 
 
 def consumers():
     """Tags that do something: react, bundle, forbid, ward, move, gate, trigger
-    a weakness, or stop the fight."""
+    a weakness, suspend or disable, or stop the fight."""
     used = {have for have, _, _ in facts("reaction")}
     used |= {t for t, _ in facts("forbids")}
     used |= {t for t, _ in facts("wards")}
     used |= {t for t, _ in facts("onGrant")}
     used |= {t for _, _, t in facts("requires")}
     used |= {c for c, _ in facts("bundles")}
+    used |= {t for t, _ in facts("suspends")}
+    used |= {t for t, _ in facts("disables")}
     used |= {t for t, g in facts("group") if g == "gone"}
     used |= {incoming for _, incoming, _, _ in facts("weakness", rules=True)}
+    used |= {have for _, _, have, _ in facts("weakness", rules=True)}
     return used
+
+
+def movers():
+    """Skills that move something (a push, pull, hook, dash, relocate, pull-in,
+    or a tag that drags its bearer)."""
+    effects, _, _ = catalogue()
+    dragging = {t for t, _ in facts("onGrant")}
+    out = set()
+    for ab, _ in facts("reach"):
+        for _, atom in effects[ab]:
+            m = re.match(r"grant\((\w+)\)", atom)
+            if atom in ("push", "pull", "hook", "dash", "relocate", "swap") \
+                    or atom.startswith("pullIn") or (m and m.group(1) in dragging):
+                out.add(ab)
+    return out
 
 
 class AbCatalogTest(HtnTestSuite):
@@ -108,37 +132,55 @@ class AbCatalogTest(HtnTestSuite):
     # ---------------------------------------------------------------- examples
 
     def test_example_1_a_robot_is_stunned_or_short_circuited(self):
-        self.set_state(["trait(foe, machine)", "knows(player, zap)"])
-        self.assert_state_after("cast(player, zap, foe).",
+        self.set_state(["trait(foe, machine)", "mana(player, 2)", "knows(player, lightningFlash)"])
+        self.assert_state_after("cast(player, lightningFlash, foe).",
                                 has=["tag(foe,stunned)"], not_has=["tag(foe,dead)"])
 
     def test_example_2_a_soaked_robot_dies(self):
-        self.set_state(["trait(foe, machine)", "tag(foe, wet)", "knows(player, zap)"])
-        self.assert_state_after("cast(player, zap, foe).", has=["tag(foe,dead)"])
+        self.set_state(["trait(foe, machine)", "tag(foe, wet)", "mana(player, 2)",
+                        "knows(player, lightningFlash)"])
+        self.assert_state_after("cast(player, lightningFlash, foe).", has=["tag(foe,dead)"])
 
     def test_example_3_a_fire_imp_freezes_solid(self):
-        self.set_state(["element(foe, fire)", "knows(player, frostBolt)"])
-        self.assert_state_after("cast(player, frostBolt, foe).", has=["tag(foe,frozen)"])
+        self.set_state(["element(foe, fire)", "mana(player, 2)", "knows(player, blizzard)"])
+        self.assert_state_after("cast(player, blizzard, floor).", has=["tag(foe,dead)"])
 
-    def test_example_4_the_floor_gives_way(self):
-        self.set_state(["role(bat, enemy)", "at(bat, floor)", "trait(bat, flier)",
-                        "knows(player, collapse)"])
-        self.assert_state_after("cast(player, collapse, floor).",
-                                has=["tag(foe,fell)"], not_has=["tag(bat,fell)"])
+    def test_example_4_soak_then_freeze(self):
+        """The wave soaks the foe and washes it to the far side; the blizzard
+        there freezes it."""
+        self.set_state(["mana(player, 2)", "mana(mage, 2)",
+                        "knows(player, tidalWave)", "knows(mage, blizzard)"])
+        self.assert_state_after("cast(player, tidalWave, player), cast(mage, blizzard, far).",
+                                has=["at(foe,far)", "tag(foe,frozen)", "tag(player,wet)"],
+                                not_has=["tag(foe,wet)"])
 
-    def test_example_5_fear_sends_it_running(self):
-        self.set_state(["knows(player, terrify)"])
-        self.assert_state_after("cast(player, terrify, foe).",
-                                has=["tag(foe,feared)", "at(foe,far)"])
+    def test_example_5_a_frozen_foe_shatters(self):
+        self.set_state(["tag(foe, frozen)", "knows(player, shieldBash)"])
+        self.assert_state_after("cast(player, shieldBash, foe).", has=["tag(foe,dead)"])
+
+    def test_example_6_the_magnet_takes_the_armour_while_it_lasts(self):
+        """Inside the field the guard's armour does nothing: it is bashed out,
+        and wears its armour again beyond."""
+        self.set_state(["tag(foe, armored)", "mana(mage, 2)",
+                        "knows(mage, magneticOrb)", "knows(player, shieldBash)"])
+        self.assert_state_after("cast(mage, magneticOrb, floor), cast(player, shieldBash, foe).",
+                                has=["at(foe,far)", "tag(foe,armored)"])
+        self.assert_no_plan("cast(player, shieldBash, foe), ensureMoved(foe, floor).")
+
+    def test_example_7_the_vortex_takes_friends_too(self):
+        self.set_state(["connected(floor, far)", "connected(far, floor)",
+                        "role(imp, enemy)", "at(imp, far)", "knows(player, vortex)"])
+        self.assert_state_after("cast(player, vortex, floor).",
+                                has=["at(imp,floor)", "at(mage,floor)", "at(player,ledge)"])
 
     # -------------------------------------------------------------- properties
 
-    def test_property_p1_every_tag_from_two_skills(self):
+    def test_property_p1_every_hostile_tag_has_a_skill(self):
         by_tag = applies()
-        _, _, tags = catalogue()
-        short = {t: sorted(by_tag[t]) for t in tags if len(by_tag[t]) < 2}
-        assert not short, f"tags applicable by fewer than two skills: {short}"
-        self._record(True, f"P1: all {len(tags)} tags applicable by two or more skills")
+        hostile = {t for t, g in facts("group") if g == "hostile"}
+        short = sorted(t for t in hostile if not by_tag[t])
+        assert not short, f"hostile tags no skill or zone leads to: {short}"
+        self._record(True, f"P1: all {len(hostile)} hostile tags come from a skill or a zone")
 
     def test_property_p2_every_tag_does_something(self):
         _, _, tags = catalogue()
@@ -154,7 +196,7 @@ class AbCatalogTest(HtnTestSuite):
                      if re.match(r"grant\((\w+)\)", atom)
                      and re.match(r"grant\((\w+)\)", atom).group(1) in gone)
         assert not bad, f"skills granting an outcome: {bad}"
-        self._record(True, "P3: no skill grants dead, frozen or fell")
+        self._record(True, "P3: no skill grants dead or fell")
 
     def test_property_p4_looks_map_to_tags(self):
         _, _, tags = catalogue()
@@ -163,42 +205,88 @@ class AbCatalogTest(HtnTestSuite):
         assert not stray, f"looks that are tags, or map to no tag: {stray}"
         self._record(True, f"P4: {len(looks)} looks, each a new name for a catalogue tag")
 
-    def test_property_p5_a_shield_takes_the_next_hostile_tag(self):
-        self.set_state(["tag(foe, shielded)", "knows(player, net)"])
-        self.assert_state_after("cast(player, net, foe).",
-                                has=["tag(foe,blinded)"],
-                                not_has=["tag(foe,shielded)", "tag(foe,rooted)"])
+    def test_property_p5_most_skills_move_something(self):
+        skills = {ab for ab, _ in facts("reach")}
+        still = sorted(skills - movers())
+        assert still == ["blindingFlash", "blizzard"], still
+        self._record(True, f"P5: {len(skills) - 2} of {len(skills)} skills move something")
 
-    def test_property_p6_a_hit_wakes_the_sleeper(self):
-        self.set_state(["tag(foe, asleep)", "knows(player, magnetize)"])
-        self.assert_state_after("cast(player, magnetize, foe).",
-                                not_has=["tag(foe,asleep)"])
+    def test_property_p6_a_shield_takes_the_next_hostile_tag(self):
+        self.set_state(["tag(foe, shielded)", "knows(player, taunt)"])
+        self.assert_state_after("cast(player, taunt, foe).",
+                                not_has=["tag(foe,shielded)", "tag(foe,taunted)"])
 
-    def test_property_p7_bosses_keep_the_atoms(self):
-        self.set_state(["rank(foe, boss)", "knows(player, shieldBash)", "knows(mage, net)"])
-        self.assert_state_after("cast(player, shieldBash, foe).", not_has=["tag(foe,stunned)"])
-        self.assert_state_after("cast(mage, net, foe).", has=["tag(foe,rooted)"])
+    def test_property_p7_bosses_cannot_be_stunned_or_frozen(self):
+        self.set_state(["rank(foe, boss)", "tag(foe, wet)", "mana(mage, 2)",
+                        "knows(player, shieldBash)", "knows(mage, blizzard)"])
+        self.assert_state_after("cast(player, shieldBash, foe).",
+                                has=["at(foe,far)"], not_has=["tag(foe,stunned)"])
+        self.assert_state_after("cast(mage, blizzard, floor).", not_has=["tag(foe,frozen)"])
 
-    def test_property_p8_haste_counters_slow(self):
-        self.set_state(["tag(foe, hasted)", "knows(player, magnetize)"])
-        self.assert_state_after("cast(player, magnetize, foe).", not_has=["tag(foe,slowed)"])
-
-    def test_property_p9_only_the_hasted_blitz(self):
-        self.set_state(["knows(player, blitz)", "knows(mage, haste)"])
-        self.assert_plan("cast(mage, haste, player), cast(player, blitz, foe).")
-        self.assert_no_plan("cast(player, blitz, foe).")
-
-
-    def test_property_p10_lightning_flash_strikes_the_path(self):
+    def test_property_p8_lightning_flash_strikes_the_path(self):
         self.set_state(["role(bot, enemy)", "at(bot, floor)", "trait(bot, machine)",
                         "mana(player, 2)", "knows(player, lightningFlash)"])
         self.assert_state_after("cast(player, lightningFlash, far).",
-                                has=["tag(bot,stunned)", "tag(foe,electrocuted)", "at(player,far)"])
+                                has=["tag(bot,stunned)", "at(player,far)"])
 
-    def test_property_p11_fireball_leaves_a_fire(self):
+    def test_property_p9_fireball_leaves_a_fire(self):
         self.set_state(["mana(player, 2)", "knows(player, fireball)"])
         self.assert_state_after("cast(player, fireball, foe).",
                                 has=["onEnter(floor,flames)", "tag(foe,burning)", "at(foe,far)"])
+
+    def test_property_p10_translocate_swaps_or_blinks(self):
+        self.set_state(["knows(player, translocate)"])
+        self.assert_state_after("cast(player, translocate, foe).",
+                                has=["at(player,floor)", "at(foe,ledge)"])
+        self.assert_state_after("cast(player, translocate, far).", has=["at(player,far)"])
+
+    def test_property_p11_hook_plucks_a_flyer(self):
+        self.set_state(["tag(foe, flying)", "knows(player, hook)"])
+        self.assert_state_after("cast(player, hook, foe).",
+                                has=["at(foe,ledge)"], not_has=["tag(foe,flying)"])
+
+    # ----------------------------------------------------------- heavy attacks
+
+    OGRE = ["role(ogre, enemy)", "at(ogre, floor)", "trait(ogre, living)",
+            "behavior(ogre, taunted, groundSlam, source)", "at(mage, far)"]
+
+    def ogre(self, extra):
+        """The arena with the mage out of the way, an ogre on the floor."""
+        self.load_component("abilities/primitives/ab_catalog", reset_first=True)
+        self.set_state([f for f in WORLD if f != "at(mage, ledge)"] + self.OGRE + extra)
+
+    def test_property_p12_a_heavy_blow_must_be_survived(self):
+        """Taunted, the ogre is dragged to the player and slams where they
+        stand. Nobody can answer: no plan."""
+        self.ogre(["knows(player, taunt)"])
+        self.assert_no_plan("cast(player, taunt, ogre).")
+
+    def test_property_p13_phase_through_it(self):
+        self.ogre(["knows(player, taunt)", "knows(player, blindingFlash)"])
+        self.assert_state_after("cast(player, taunt, ogre).",
+                                has=["at(player,ledge)", "tag(ogre,blinded)"],
+                                not_has=["tag(player,phased)", "windingUp(ogre,ledge)"])
+        self.assert_plan("cast(player, taunt, ogre).",
+                         contains=["opCast(player, blindingFlash, player)",
+                                   "opBlow(ogre, groundSlam, ledge)"])
+
+    def test_property_p14_interrupt_it(self):
+        self.ogre(["knows(player, taunt)", "knows(player, shieldBash)"])
+        self.assert_plan("cast(player, taunt, ogre).",
+                         contains=["opCast(player, shieldBash, ogre)",
+                                   "opInterrupt(ogre, groundSlam, ledge)"])
+
+    def test_property_p15_swap_an_enemy_in(self):
+        """Translocate out: to an empty region, or by swapping with the imp
+        far off - and then the slam lands on the imp."""
+        self.ogre(["role(imp, enemy)", "at(imp, far)",
+                   "knows(player, taunt)", "knows(player, translocate)"])
+        self.assert_plan("cast(player, taunt, ogre).",
+                         contains=["opSwap(player, imp, ledge, far)",
+                                   "opGrant(ogre, imp, stunned)"])
+        self.assert_plan("cast(player, taunt, ogre).",
+                         contains=["opDash(player, ledge, floor)", "opBlow(ogre, groundSlam, ledge)"])
+
 
 def run_tests():
     suite = AbCatalogTest()

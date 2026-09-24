@@ -26,7 +26,8 @@ Also aim for:
 
 ## Size caps (planner time)
 
-- 6 to 10 regions, 2 or 3 companions, at most 4 enemies or objects, and a pool of 6 to 8 skills.
+- 6 to 10 regions, 2 or 3 companions, at most 4 enemies or objects, and a pool of 6 to 8 skills
+  drawn from the eleven catalogue skills.
   Two seats picking one skill each gives 64 assignments; three seats gives 512.
 - One `FindAllPlans` of the level goal should take under about 20 seconds. `combos` times each out
   at 180 s by default. If you are slow, shrink the map or give fixed skills to non-seat companions.
@@ -39,12 +40,20 @@ Also aim for:
 
 - Tags:
   - `tag(?e, ?t)`, composites `bundles/2`, groups `group/2`
-  - `immune/2`, `wards/2`, `forbids/2`, `suspends/2`
-- Effects: `effect(?ab, target|self|area|path, ?atom)` with the atoms
+  - `immune/2`, `wards/2`, `forbids/2`, `suspends/2`, `disables/2`
+  - auras `auraOf(?zone, ?t)`: carried only while standing in the zone (temporary, no clock)
+- Effects: `effect(?ab, target|self|area|around|path, ?atom)` with the atoms
   - tags: `grant(T)`, `remove(T)`, `purge(Group)`
   - movement: `push`, `pull`, `hook` (pull a light target, or be dragged to an anchored one),
-    `swap`, `dash`, `teleport(R)`
+    `swap`, `dash`, `teleport(R)`, `relocate` (teleport to a region, swap with an entity),
+    `pullIn(all|metal)` (draw the next regions' contents into the target region)
   - terrain: `spill(Zone)`, `hazard(H)`, `open(Door)`, `openWhenHeld(Door)`
+- Heavy attacks: `heavy(?ab)` on an NPC ability makes its behaviour telegraphed. The NPC winds up
+  on a region, the team gets one cast (no walking), then the blow lands on everyone there but the
+  NPC. No plan may leave a companion (or a `mustSurvive(?x)` escort) in it unless `phased` or
+  `invulnerable`. A silenced (stunned, frozen) NPC is interrupted. Use them where you want players
+  to trigger a big effect on purpose and survive it: the catalogue has `groundSlam` (stun and
+  throw) and `caveIn` (the floor becomes a chasm); define your own.
 - Reactions (for everyone, never lethal): `reaction(?have, ?incoming, ?ab)`.
 - Weaknesses (per entity, the only way to an outcome): `weakness(?e, ?in, ?have|none, ?out)`.
   `?in` is a tag or a hazard.
@@ -78,7 +87,9 @@ Also aim for:
 - Acts you can call from your own methods:
   - casting: `cast(?a, ?ab, ?e)`, `castFrom(?a, ?ab, ?e, ?from)`
   - tags: `inflict(?t, ?e, ?not)`, `combo(?have, ?in, ?e)`, `unset(?t, ?e)`
-  - movement: `sendInto(?e, ?r, ?not)`, `dislodge(?e)`, `walkTo(?a, ?r)`
+  - movement: `sendInto(?e, ?r, ?not)`, `place(?e, ?r, ?not)`, `dislodge(?e)`, `walkTo(?a, ?r)`
+    (all of them know pushes, waves and vortices through
+    `placement(?a, ?ab, ?from, ?aim, ?e, ?r)`: cast `?ab` at `?aim` from `?from`)
   - checks: `confirmStopped(?e)`
 
 **Level-local definitions are allowed.** You may declare new abilities, zones, weaknesses,

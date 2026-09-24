@@ -33,9 +33,17 @@ intoThePit(?e) :-
        canUnset(?p, ?ab, flying, ?e, ?aim)),
     do(cast(?p, ?ab, ?aim), ensureOff(flying, ?e), sendInto(?e, ?r, ?p), confirmStopped(?e)).
 
-% It cannot, and only freezing unbalances it: soak, chill, push.
+% It cannot: someone lays a field on it whose aura loosens it (a magnetic
+% field takes its armour and its footing), someone else pushes.
 intoThePit(?e) :-
-    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), suspends(?t, forcedMove),
-       bundles(frozen, ?t), receptive(?e, chilled), supplier(?p, wet, ?e)),
+    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), at(?e, ?er), auraOf(?z, ?t),
+       suspends(?t, forcedMove), canAct(?p), knows(?p, ?ab), effect(?ab, target, spill(?z)),
+       ready(?p, ?ab, ?er)),
+    do(cast(?p, ?ab, ?er), sendInto(?e, ?r, ?p), confirmStopped(?e)).
+
+% It cannot, and freezing unbalances it: soak, chill, push.
+intoThePit(?e) :-
+    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), suspends(frozen, forcedMove),
+       receptive(?e, frozen), receptive(?e, chilled), supplier(?p, wet, ?e)),
     do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), sendInto(?e, ?r, ?p),
        confirmStopped(?e)).

@@ -44,7 +44,7 @@ WORLD = [
     "role(gob, enemy)", "role(wader, enemy)", "role(tender, enemy)", "role(golem, enemy)",
     "at(gob, rim)", "at(wader, pool)", "at(tender, slick)", "at(golem, rim)",
     "tag(wader, wet)", "tag(tender, oiled)",
-    "immune(golem, forcedMove)",
+    "immune(golem, forcedMove)", "suspends(frozen, forcedMove)",
 ]
 
 

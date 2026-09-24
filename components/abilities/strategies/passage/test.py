@@ -40,13 +40,13 @@ class PassageTest(HtnTestSuite):
                          not_contains=["opCast"])
 
     def test_example_2_a_leap_over_the_gap(self):
-        self.set_state(["knows(player, shadowStep)"])
-        self.assert_plan("reach(player, e).", contains=["opCast(player, shadowStep, c)"])
+        self.set_state(["knows(player, translocate)"])
+        self.assert_plan("reach(player, e).", contains=["opCast(player, translocate, c)"])
 
     def test_example_3_a_hook_to_the_pillar(self):
-        self.set_state(["knows(player, magnetize)"])
+        self.set_state(["knows(player, hook)"])
         self.assert_state_after("reach(player, c).", has=["at(player,c)"])
-        self.assert_plan("reach(player, c).", contains=["opCast(player, magnetize, pillar)",
+        self.assert_plan("reach(player, c).", contains=["opCast(player, hook, pillar)",
                                                          "opDash(player, b, c)"])
 
     def test_example_4_a_friend_swaps_you_over(self):
@@ -59,7 +59,8 @@ class PassageTest(HtnTestSuite):
 
     def test_example_6_the_crate_bridges_the_gap(self):
         self.set_state(["role(crate, object)", "trait(crate, filler)", "at(crate, b)",
-                        "knows(player, gust)"])
+                        "knows(player, vortex)", "lineOfSight(a, gap)"])
+        self.assert_plan("span(gap).", contains=["opCast(player, vortex, gap)"])
         self.assert_state_after("span(gap), reach(player, c).",
                                 has=["tag(crate,fell)", "at(player,c)"])
 
@@ -67,12 +68,12 @@ class PassageTest(HtnTestSuite):
 
     def test_property_p1_leaps_only_go_forward(self):
         """A scout across the gap may leap forward, never back."""
-        self.set_state(["role(scout, companion)", "at(scout, c)", "knows(scout, shadowStep)"])
+        self.set_state(["role(scout, companion)", "at(scout, c)", "knows(scout, translocate)"])
         self.assert_no_plan("reach(scout, a).")
 
     def test_property_p2_a_pull_across_bridges_too(self):
         self.set_state(["role(crate, object)", "trait(crate, filler)", "at(crate, c)",
-                        "knows(player, magnetize)"])
+                        "knows(player, hook)"])
         self.assert_plan("span(gap).", contains=["opForcedMove(player, crate, c, gap)"])
 
     def test_property_p3_nobody_crosses_a_live_gap_on_foot(self):

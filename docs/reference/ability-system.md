@@ -35,20 +35,22 @@ Why the split, and not "reactions everywhere" or "specialized methods everywhere
 |---------|------------------------|-------|
 | Tag | `tag(?e, ?t)` | The only store. |
 | Composite | `bundles(?composite, ?atom)` | One level deep. `has/2` = stored or bundled. Atoms are never stored, so removing the composite removes them. |
-| Group | `group(?t, ?g)` | Orthogonal categories. `gone` (dead, frozen, fell) is read by the layer. |
+| Group | `group(?t, ?g)` | Orthogonal categories. `gone` (dead, fell) is read by the layer. |
 | Immunity | `immune(?e, ?x)` | `?x` is a tag, a damage type, or `forcedMove`, which is what "heavy" means. Immunity to an atom refuses the composites that bundle it. |
 | Suspension | `suspends(?t, ?x)` | While `?e` has `?t`, its immunity to `?x` lapses (an unbalanced golem can be pushed). |
-| Ward | `wards(?t, ?x)` | While `?e` has `?t`, it is immune to `?x`: a flyer to `fell`, the stealthed to `targeted`, the invulnerable to `damage` (any type). |
-| Ban | `forbids(?t, ?kind)` | While `?e` has `?t`, it cannot do `?kind`: `spell`, `| Kind | `kind(?ab, ...)` | What a ban checks. In the catalogue every ability is a `skill` (silence) and dashes are `dash`; ranged abilities are also `ranged`. |`, `ranged`, `dash`, `move`, `heavy`, or `any`. Casting checks the caster; walking checks `move`. |
-| Out of the fight | `stops(?e, ?t)` | Anything in group `gone` (dead, frozen, fell). A controlled enemy is set up, not beaten. |
+| Ward | `wards(?t, ?x)` | While `?e` has `?t`, it is immune to `?x`: a flyer to `fell`, the stealthed to `targeted`, the invulnerable to `damage` (any type). While `?e` has `?d` with `disables(?d, ?t)`, its tag `?t` does nothing: no ward, no reaction (magnetised armour and shields). |
+| Ban | `forbids(?t, ?kind)` | While `?e` has `?t`, it cannot do `?kind`: `skill`, `attack`, `ranged`, `dash`, `move`, `watch`, or `any`. Casting checks the caster; walking checks `move`; a silenced NPC's heavy attack stops. |
+| Out of the fight | `stops(?e, ?t)` | Anything in group `gone` (dead, fell). A controlled or frozen enemy is set up, not beaten; a level may add `stops(?e, frozen)`. |
 | Weakness | `weakness(?e, ?in, ?have, ?out)` | This entity, taking `?in` (a tag or a hazard) while carrying `?have` (or `none`), gets `?out` instead. The only source of outcomes in the catalogue: a combo is deadly because of who it lands on. |
-| On landing | `onGrant(?t, ?atom)` | Storing `?t` also does `?atom` to the bearer: feared pushes it away, taunted pulls it in. |
+| On landing | `onGrant(?t, ?atom)` | Storing `?t` also does `?atom` to the bearer: taunted pulls it to the taunter. |
 | Hostile | `hostile(?t)` | The tags `hostile` stands for in a reaction (a shield absorbs the next one; a blow wakes a sleeper) or a ward (invulnerability). |
 | Look | `appearance(?look, ?tag)` | A status that plays like a tag and only looks different (petrified is a stun). The planner never sees a look. |
 | Vulnerability | `vulnerable(?e, ?type)` | That damage kills outright. Meant for mooks; bosses never have it. |
 | Ability | `knows(?a, ?ab)`, `reach(?ab, self\|melee\|ranged)` | `knows` is the loadout. Companions, NPCs and hazards all use abilities. |
-| Effect bundle | `effect(?ab, target\|self\|area\|path, ?atom)` | Atoms: `grant(T)`, `remove(T)`, `purge(Group)`, `damage(Type)`, `push`, `pull`, `hook`, `swap`, `dash`, `teleport(R)`, `spill(Zone)`, `hazard(H)`, `open(Door)`. Applied in declared order. `area` is everyone else in the target's region, allies included; `path` is everyone in the regions between the source and the target (declare it before the move). An ability may be aimed at a region. The catalogue uses no damage. |
-| Hook, swap | `hook`, `swap` atoms | A hook drags a light target in, or drags the source to an anchored one (a grappling hook). A swap trades places. A pull across a live hazard the target is weak to drops it there. |
+| Effect bundle | `effect(?ab, target\|self\|area\|around\|path, ?atom)` | Atoms: `grant(T)`, `remove(T)`, `purge(Group)`, `damage(Type)`, `push`, `pull`, `hook`, `swap`, `dash`, `teleport(R)`, `relocate`, `pullIn(Kind)`, `spill(Zone)`, `hazard(H)`, `open(Door)`. Applied in declared order. `area` is everyone else in the target's region, allies included; `around` is everyone else in the source's region and the regions next to it (a wave; a push from the source's own region goes nowhere); `path` is everyone in the regions between the source and the target (declare it before the move). An ability may be aimed at a region. A zone may have no effect at all, only an aura. The catalogue uses no damage. |
+| Hook, swap, relocate, pull-in | `hook`, `swap`, `relocate`, `pullIn(Kind)` atoms | A hook drags a light target in, or drags the source to an anchored one (a grappling hook). A swap trades places. `relocate` teleports the source to a region, or swaps it with an entity. `pullIn(all\|metal)` draws everything of that kind in the regions next to the target's into it (`trait(?x, metal)`). A pull across a live hazard the target is weak to drops it there. |
+| Aura | `auraOf(?zone, ?t)` | Whoever stands in a region with that zone carries `?t`, never stored: it ends the moment they leave. A temporary effect with no clock (the magnetic field's `magnetized`). |
+| Heavy attack | `heavy(?ab)`, `mustSurvive(?x)` | An NPC behaviour whose ability is heavy winds up on the region it aims at (`windingUp(?npc, ?r)`). The team gets one action: a cast, without walking, by any companion. Then the blow falls on everyone there but the NPC, unless the NPC is silenced or gone (interrupted). No plan may leave a companion, or anything the level declares `mustSurvive`, in the struck region unwarded (`wards(?t, heavy)`: phased, invulnerable). An NPC winding up does not start another. |
 | Walking | `connected/2`, `door/1` + `open/1`, `blocker/1`, `trait(?x, filler)` | A walk goes one region at a time by the shortest route (at most eight steps), never into a closed door, a blocker's region, or a live hazard the walker is weak to. A door opens for good when something arrives on its plate (a zone with `open(D)`). A filler fallen into a hazard makes it walkable. Melee reaches the next region too. |
 | Route | `progress(?r, ?n)` | For `passage`: leaps only go forward. |
 | Kind | `kind(?ab, ...)` | What a ban checks. In the catalogue every ability is a `skill` (silence) and dashes are `dash`; ranged abilities are also `ranged`. |
@@ -155,11 +157,8 @@ group a cast with its consequences and read `tag/2` and `knows/2`.
 
 ## Open questions (deferred on purpose)
 
-- **Windows and synchronization.** An NPC's triggered sequence (provoke → slam → tired) that the plan
-  exploits at the right moment. The existing `opSynchronize` / `parallel()` idea is the likely
-  vehicle. Build levels first, then decide.
-- **Zone-bound tags.** Tags that exist only while standing somewhere (submerged, in cover). No level
-  needs them yet.
+- **Longer windows.** A heavy attack gives the team exactly one cast. Multi-step NPC sequences
+  (provoke, slam, tired) and windows longer than one action are still open.
 - **Zones that react.** Fire on an oil region turning it into a fire region: a region-level
   reaction. Core's `reacts/3` does this for core levels; this layer has no effect atom for it yet.
 - **Durations.** There are no turns. A self-tag plus `blockedBy` models a one-use drawback, and

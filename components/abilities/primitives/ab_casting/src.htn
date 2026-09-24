@@ -10,6 +10,9 @@
 %   kind(?ab, spell|attack|dash)       what a forbidding tag checks; a ranged
 %                                      ability is also of kind `ranged`
 %
+% A self-cast whose effects reach `around` the caster (a wave) is cast at
+% an enemy by standing in its region or next to it.
+%
 % A tag the caster carries can forbid a kind (silenced: spell; disarmed:
 % attack; blinded: ranged; stunned: any). A target whose tags ward
 % `targeted` (stealthed) cannot be aimed at - only reached by an area
@@ -17,6 +20,17 @@
 %
 % Anyone can cast anything they know - the player character, an AI
 % companion, an NPC. Nothing here gates on role(?a, player).
+%
+% Heavy attacks. An NPC behaviour whose ability is heavy(?ab) does not land
+% at once: the NPC winds up on the region it aims at, the team gets one
+% action - a cast, without walking - and then the blow falls on everyone
+% there but the NPC. A companion caught in it is downed, so no plan may let
+% that happen: someone disjoints (teleports out, phases), is carried out
+% (swapped, hooked, washed away), or interrupts - silencing the NPC (a
+% stun, a freeze) stops the blow. Whatever else stands there takes it: a
+% heavy blow is also a weapon to turn on other enemies. An NPC already
+% winding up does not start another.
+%
 
 % === Operators ===
 
@@ -28,6 +42,15 @@ opSpendMana(?a, ?n) :-
 
 opUseUp(?a, ?ab) :-
     del(), add(spent(?a, ?ab)).
+
+opWindUp(?npc, ?ab, ?r) :-
+    del(), add(windingUp(?npc, ?r)).
+
+opBlow(?npc, ?ab, ?r) :-
+    del(windingUp(?npc, ?r)), add().
+
+opInterrupt(?npc, ?ab, ?r) :-
+    del(windingUp(?npc, ?r)), add().
 
 % === Rules ===
 
@@ -59,16 +82,38 @@ spot(?a, ?ab, ?r, ?from) :- reach(?ab, ?k), \==(?k, self), at(?a, ?from), inRang
 spot(?a, ?ab, ?r, ?from) :-
     reach(?ab, ?k), \==(?k, self), at(?a, ?cur), region(?from), inRange(?k, ?from, ?r),
     canReach(?a, ?cur, ?from).
+% Where a wave around ?a reaches ?r from: ?r itself, or next to it.
+aroundSpot(?a, ?r, ?r) :- at(?a, ?cur), canReach(?a, ?cur, ?r).
+aroundSpot(?a, ?r, ?from) :- connected(?from, ?r), at(?a, ?cur), canReach(?a, ?cur, ?from).
+
+% Heavy attacks: who a blow on ?r would down; whether the NPC is stopped.
+mustSurvive(?x) :- canAct(?x).
+endangered(?r) :-
+    first(and(at(?a, ?r), mustSurvive(?a), not(gone(?a)), not(warded(?a, heavy)))).
+interrupted(?npc) :- gone(?npc).
+interrupted(?npc) :- not(gone(?npc)), forbidden(?npc, skill).
+% Anything a companion could aim at in the window: a region or an entity.
+aimable(?x) :- region(?x).
+aimable(?x) :- at(?x, ?r).
+windowAim(?a, ?ab, ?a) :- reach(?ab, self), ready(?a, ?ab, ?a).
+windowAim(?a, ?ab, ?x) :-
+    reach(?ab, ?k), \==(?k, self), at(?a, ?from), aimable(?x), \==(?x, ?a), locus(?x, ?rx),
+    inRange(?k, ?from, ?rx), ready(?a, ?ab, ?x).
 
 % === Methods ===
 %
 % No `else`: each cost branch negates the other, so backtracking can never
 % pick the free branch of something that has a cost.
 
-% ?a uses ?ab on ?e from wherever it reaches.
+% ?a uses ?ab on ?e from wherever it reaches; a wave around the caster, from
+% ?e's region or the next one.
 cast(?a, ?ab, ?e) :-
     if(canAct(?a), ready(?a, ?ab, ?e), locus(?e, ?r), first(spot(?a, ?ab, ?r, ?from))),
     do(castFrom(?a, ?ab, ?e, ?from)).
+cast(?a, ?ab, ?e) :-
+    if(canAct(?a), \==(?a, ?e), reach(?ab, self), first(effect(?ab, around, ?x)),
+       ready(?a, ?ab, ?a), locus(?e, ?r), first(aroundSpot(?a, ?r, ?from))),
+    do(castFrom(?a, ?ab, ?a, ?from)).
 
 % ?a uses ?ab on ?e from a chosen region (a push needs the right side).
 castFrom(?a, ?ab, ?e, ?from) :-
@@ -76,17 +121,45 @@ castFrom(?a, ?ab, ?e, ?from) :-
     do(walkTo(?a, ?from), useAbility(?a, ?ab, ?e)).
 
 % Gates are checked again once there: walking may have changed the caster.
+% Acting ends a phase.
 useAbility(?a, ?ab, ?e) :-
     if(ready(?a, ?ab, ?e), reach(?ab, ?k), at(?a, ?from), locus(?e, ?r), inRange(?k, ?from, ?r)),
-    do(payMana(?a, ?ab), useUp(?a, ?ab), opCast(?a, ?ab, ?e),
+    do(payMana(?a, ?ab), useUp(?a, ?ab), endPhase(?a), opCast(?a, ?ab, ?e),
        applyAbility(?a, ?ab, ?e, react)).
 useAbility(?a, ?ab, ?a) :-
     if(ready(?a, ?ab, ?a), reach(?ab, self)),
-    do(payMana(?a, ?ab), useUp(?a, ?ab), opCast(?a, ?ab, ?a),
+    do(payMana(?a, ?ab), useUp(?a, ?ab), endPhase(?a), opCast(?a, ?ab, ?a),
        applyAbility(?a, ?ab, ?a, react)).
+
+endPhase(?a) :- if(tag(?a, phased)), do(opRemove(?a, ?a, phased)).
+endPhase(?a) :- if(not(tag(?a, phased))), do().
 
 payMana(?a, ?ab) :- if(manaCost(?ab, ?n)), do(opSpendMana(?a, ?n)).
 payMana(?a, ?ab) :- if(not(manaCost(?ab, ?n))), do().
 
 useUp(?a, ?ab) :- if(once(?ab)), do(opUseUp(?a, ?ab)).
 useUp(?a, ?ab) :- if(not(once(?ab))), do().
+
+% === Heavy attacks ===
+
+unleash(?npc, ?ab, ?x) :-
+    if(heavy(?ab), not(windingUp(?npc, ?r0)), locus(?x, ?r)),
+    do(opWindUp(?npc, ?ab, ?r), brace(?npc, ?r), landBlow(?npc, ?ab, ?r)).
+unleash(?npc, ?ab, ?x) :- if(heavy(?ab), windingUp(?npc, ?r0)), do().
+
+% The window: nobody in danger, nothing to do; else one companion acts.
+brace(?npc, ?r) :- if(not(endangered(?r))), do().
+brace(?npc, ?r) :- if(endangered(?r)), do(respond(?npc, ?r)).
+respond(?npc, ?r) :-
+    if(canAct(?a), not(gone(?a)), knows(?a, ?ab), windowAim(?a, ?ab, ?x)),
+    do(useAbility(?a, ?ab, ?x)).
+
+% The blow: stopped, or it falls on everyone there - and never on someone
+% who must survive (no clause: that plan fails). A phase is spent on it.
+landBlow(?npc, ?ab, ?r) :- if(interrupted(?npc)), do(opInterrupt(?npc, ?ab, ?r)).
+landBlow(?npc, ?ab, ?r) :-
+    if(not(interrupted(?npc)), not(endangered(?r))),
+    do(opBlow(?npc, ?ab, ?r), applyAbility(?npc, ?ab, ?r, raw), unphaseIn(?npc, ?r)).
+unphaseIn(?npc, ?r) :- if(first(and(at(?x, ?r), tag(?x, phased)))), do(unphaseAll(?npc, ?r)).
+unphaseIn(?npc, ?r) :- if(not(first(and(at(?x, ?r), tag(?x, phased))))), do().
+unphaseAll(?npc, ?r) :- allOf, if(at(?x, ?r), tag(?x, phased)), do(opRemove(?npc, ?x, phased)).

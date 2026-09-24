@@ -5,16 +5,21 @@
 % effects applied in declared order:
 %   effect(?ab, target|self, ?atom)
 % where the recipient is `target`, `self` (the source), `area` (everyone
-% else in the target's region: friendly fire included) or `path` (everyone
-% in the regions between the source and the target), with a closed set of
-% atoms:
+% else in the target's region: friendly fire included), `around` (everyone
+% else in the source's region and the regions next to it) or `path`
+% (everyone in the regions between the source and the target), with a
+% closed set of atoms:
 %   grant(T)  remove(T)  purge(Group)  damage(Type)  push  pull  hook  swap
-%   dash  teleport(R)  spill(ZoneAbility)  hazard(H)  open(Door)
+%   dash  teleport(R)  relocate  pullIn(Kind)  spill(ZoneAbility)  hazard(H)
+%   open(Door)
 % `hook` pulls a light target, or pulls the source to an anchored one (a
 % grappling hook). A pull across a live hazard the target is weak to drops
-% it there. `dash` flies over whatever lies between.
+% it there. `dash` flies over whatever lies between. `relocate` teleports
+% the source to a region, or swaps it with an entity. `pullIn(Kind)` draws
+% everything of that kind (`all`, `metal`) in the regions next to the
+% target's into it. A push from the source's own region goes nowhere.
 % An ability may target a region instead of an entity: only `area`,
-% `spill` and `dash` do anything to a region.
+% `spill`, `dash`, `relocate`, `pullIn` and `open` do anything to a region.
 % and the world rules they consult:
 %   reaction(?have, ?incoming, ?ab)  ?incoming (a tag, a damage type, or
 %                                    `damage` for any damageType/1) landing
@@ -47,6 +52,10 @@
 %                                    (forbids(?t, watch): blinded, asleep...)
 %   blocker(?e)                      nobody else walks into its region
 %   trait(?e, filler)                fallen into a hazard, it fills it
+%   heavy(?ab)                       an NPC ability that is telegraphed (the
+%                                    window is in ab_casting)
+%   mustSurvive(?x)                  a heavy blow may not land on it
+%                                    (companions; a level adds its escorts)
 %
 % Mode is `react`, `raw` or `bare`. A tag landing in react mode meets, in
 % order: a reaction (a shield absorbs it), the bearer's own weakness, else it
@@ -56,6 +65,9 @@
 % entity - produces an outcome like dead. Reactions are consulted
 % here as a filter on what just happened - never searched to plan a combo.
 % Planning combos is the job of the recipes at the top.
+%
+% An NPC behaviour whose ability is heavy(?ab) is telegraphed instead of
+% landing at once: ab_casting owns the window, since the answer is a cast.
 %
 % Every "nothing happens" branch carries the negation of the branches before
 % it. `else` is not a cut in this engine: when a later task fails, the
@@ -120,7 +132,7 @@ aimAt(?src, ?e, there(?r), ?r).
 % bundled atom) with a reaction wins, and an exact match beats `damage`.
 reactionFor(?e, ?incoming, ?have, ?ab) :-
     receptive(?e, ?incoming),
-    first(and(has(?e, ?have), matches(?have, ?incoming, ?ab))).
+    first(and(has(?e, ?have), matches(?have, ?incoming, ?ab), not(disabledOn(?e, ?have)))).
 
 % That damage kills ?e outright.
 kills(?e, ?type) :- receptive(?e, ?type), vulnerable(?e, ?type), canReceive(?e, dead).
@@ -198,13 +210,30 @@ occupied(?r) :- first(at(?x, ?r)).
 % The atoms that do something to a region target.
 regionAtom(spill(?z)).
 regionAtom(dash).
+regionAtom(relocate).
+regionAtom(pullIn(?k)).
+regionAtom(open(?d)).
+
+% Everyone around ?src: in its region or the next ones.
+near(?r, ?r) :- region(?r).
+near(?r, ?n) :- connected(?r, ?n).
+aroundHit(?src, ?x) :- at(?src, ?r), near(?r, ?n), at(?x, ?n), \==(?x, ?src).
+
+% What a pull-in toward ?r draws: everything of that kind next door that
+% can be moved.
+drawnKind(all, ?x).
+drawnKind(metal, ?x) :- trait(?x, metal).
+drawn(?src, ?r, ?k, ?x, ?n) :-
+    connected(?n, ?r), at(?x, ?n), \==(?x, ?src), drawnKind(?k, ?x), not(anchoredAgainst(?x)).
 
 % === Methods ===
 
-% Every effect of ?ab, in declared order, from ?src onto ?e.
+% Every effect of ?ab, in declared order, from ?src onto ?e. A zone may
+% have none (a magnetic field only has an aura).
 applyAbility(?src, ?ab, ?e, ?mode) :-
     allOf, if(effect(?ab, ?who, ?atom)),
     do(applyEffect(?src, ?who, ?atom, ?e, ?mode)).
+applyAbility(?src, ?ab, ?e, ?mode) :- if(not(first(effect(?ab, ?w, ?x)))), do().
 
 applyEffect(?src, target, ?atom, ?e, ?mode) :-
     if(not(region(?e))), do(effectOn(?src, ?e, ?atom, ?mode)).
@@ -219,6 +248,12 @@ applyEffect(?src, area, ?atom, ?e, ?mode) :-
     if(locus(?e, ?r), not(areaHit(?src, ?r))), do().
 applyEffect(?src, path, ?atom, ?e, ?mode) :- if(onPath(?src, ?e)), do(pathEffect(?src, ?e, ?atom, ?mode)).
 applyEffect(?src, path, ?atom, ?e, ?mode) :- if(not(onPath(?src, ?e))), do().
+applyEffect(?src, around, ?atom, ?e, ?mode) :-
+    if(first(aroundHit(?src, ?x))), do(aroundEffect(?src, ?atom, ?mode)).
+applyEffect(?src, around, ?atom, ?e, ?mode) :- if(not(first(aroundHit(?src, ?x)))), do().
+
+aroundEffect(?src, ?atom, ?mode) :-
+    allOf, if(aroundHit(?src, ?x)), do(effectOn(?src, ?x, ?atom, ?mode)).
 
 pathEffect(?src, ?e, ?atom, ?mode) :-
     allOf, if(at(?src, ?from), locus(?e, ?to), between(?from, ?to, ?m), at(?x, ?m), \==(?x, ?src)),
@@ -243,6 +278,17 @@ effectOn(?src, ?e, hook, ?mode) :- if(), do(hookOn(?src, ?e, ?mode)).
 effectOn(?src, ?e, swap, ?mode) :- if(), do(swapPlaces(?src, ?e, ?mode)).
 effectOn(?src, ?e, open(?d), ?mode) :- if(), do(openDoor(?src, ?d)).
 effectOn(?src, ?e, openWhenHeld(?d), ?mode) :- if(), do(openIfHeld(?src, ?d)).
+effectOn(?src, ?e, relocate, ?mode) :- if(region(?e)), do(dashTo(?src, ?e, ?mode)).
+effectOn(?src, ?e, relocate, ?mode) :- if(not(region(?e))), do(swapPlaces(?src, ?e, ?mode)).
+effectOn(?src, ?e, pullIn(?k), ?mode) :- if(locus(?e, ?r)), do(suckIn(?src, ?r, ?k, ?mode)).
+
+% Everything of kind ?k next to ?r is drawn into it, and takes what is there.
+suckIn(?src, ?r, ?k, ?mode) :-
+    if(first(drawn(?src, ?r, ?k, ?x, ?n))), do(suckAll(?src, ?r, ?k, ?mode)).
+suckIn(?src, ?r, ?k, ?mode) :- if(not(first(drawn(?src, ?r, ?k, ?x, ?n)))), do().
+suckAll(?src, ?r, ?k, ?mode) :-
+    allOf, if(drawn(?src, ?r, ?k, ?x, ?n)),
+    do(opForcedMove(?src, ?x, ?n, ?r), arrive(?src, ?x, ?r, ?mode)).
 
 % A hazard does nothing by itself: it takes out whatever is weak to it -
 % unless something that fills it already lies at the bottom.
@@ -307,10 +353,12 @@ provoke(?src, ?e, ?t) :- if(not(hasBehavior(?e, ?t))), do().
 provoke(?src, ?e, ?t) :- if(hasBehavior(?e, ?t), gone(?e)), do().
 behaveAll(?src, ?e, ?t) :-
     allOf, if(behavior(?e, ?t, ?ab, ?aim), aimAt(?src, ?e, ?aim, ?x)),
-    do(opProvoked(?e, ?t, ?ab), applyAbility(?e, ?ab, ?x, raw)).
+    do(opProvoked(?e, ?t, ?ab), unleash(?e, ?ab, ?x)).
 onGrantAll(?src, ?e, ?t) :-
-    allOf, if(onGrant(?t, ?atom)), do(effectOn(?src, ?e, ?atom, raw)).
+    allOf, if(onGrant(?t, ?atom)), do(effectOn(?src, ?e, ?atom, react)).
 
+% An ordinary ability lands at once; a heavy one is telegraphed (ab_casting).
+unleash(?npc, ?ab, ?x) :- if(not(heavy(?ab))), do(applyAbility(?npc, ?ab, ?x, raw)).
 removeTag(?src, ?e, ?t) :- if(tag(?e, ?t)), do(opRemove(?src, ?e, ?t)).
 removeTag(?src, ?e, ?t) :- if(not(tag(?e, ?t))), do().
 

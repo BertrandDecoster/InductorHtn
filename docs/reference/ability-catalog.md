@@ -1,35 +1,38 @@
 # The ability catalogue
 
 The standard tags and skills of the ability layer ([`ability-system.md`](ability-system.md)),
-in `components/abilities/primitives/ab_catalog`: **16 atomic tags, 8 composites, 3 outcomes, 51
-skills, 34 looks**. The tables below are generated from the catalogue's source. The worked examples
-are `crossing`, `gauntlet` (pure movement) and `two_hands` (no single skill wins; ten pairs do).
+in `components/abilities/primitives/ab_catalog`: **11 skills, 14 atomic tags (one of them an aura),
+3 composites, 2 outcomes, 2 enemy moves, 25 looks**.
 
 ## The rules the catalogue follows
 
-1. **Tags are atomic or composite.** An atomic tag has one gameplay meaning. A composite is a named
+1. **Few skills, each with several uses.** Each skill lands a tag and a movement, or two tags, and
+   is the answer to more than one kind of problem: Translocate crosses a gap, gets past a guard,
+   ferries a friend, dodges a heavy blow, and puts an enemy under that blow.
+2. **Tags are atomic or composite.** An atomic tag has one gameplay meaning. A composite is a named
    bundle of atoms, one level deep: stunned = blinded + silenced + rooted.
-2. **A look is not a tag.** Statuses that play identically but look different (petrified, paralyzed
-   and knocked-down are all a stun; webbed is a slow; a sheep is polymorphed) are listed as
-   `appearance(?look, ?tag)`. The runtime draws the look; the planner only sees the tag.
-3. **Nothing grants an outcome.** `dead`, `frozen` and `fell` come only from an enemy's own
+3. **A look is not a tag.** Statuses that play identically but look different (petrified and
+   knocked-down are a stun; webbed is a slow) are listed as `appearance(?look, ?tag)`. The runtime
+   draws the look; the planner only sees the tag.
+4. **Nothing grants an outcome.** `dead` and `fell` come only from an enemy's own
    `weakness(?e, ?in, ?have, ?out)`, or from a hazard it is weak to. A combo is deadly because of who
-   it lands on. A robot is stunned by a jolt and short-circuits if soaked first; a fire imp freezes
-   solid when chilled; a living enemy soaked and jolted only seizes up. Otherwise players would find
-   the one combo that kills anything and spam it.
-4. **No damage.** Damage, damage over time and damage modifiers are incremental, and this layer is
-   about the combos. Bleeding, poison, curses and "vulnerable to X damage" are gone.
-5. **Each skill lands several tags, or a tag and a movement, and has several uses.** Fireball sets
-   the whole impact region burning, leaves it a fire zone, and throws the target out of it.
-   lightningFlash teleports the caster and electrocutes everyone on the way and where it lands.
-   Magnetize is a pull, a way across (it drags you to anything anchored), a way to drop an enemy
-   (dragged across a pit it falls in) and a way to bridge (a crate dragged across the gap).
-   Translocate gets you past a guard, across a gap, or a friend across.
-6. **Every tag can be applied by at least two skills, and every tag does something.** The
-   component's tests enforce both.
-7. **A controlled enemy is not beaten.** Stunned, asleep or feared are setups; only an outcome ends
-   a fight. Bosses ignore hard control (the composites), but the atoms still land: a boss can be
-   rooted, not stunned.
+   it lands on: a robot is stunned by a jolt and short-circuits if soaked first; a fire imp freezes
+   solid when chilled; a living enemy soaked and jolted only seizes up.
+5. **Frozen is a stun, not a kill.** Wet plus chilled freezes most enemies: they are stunned, and
+   even the heavy can be pushed on the ice. A stunning blow then shatters them (Shield Bash), and fire
+   thaws them. Only fire elementals and insects die of the cold. Bosses cannot be stunned or frozen.
+6. **No damage.** Damage is incremental, and this layer is about the combos.
+7. **Temporary without a clock.** A temporary effect lasts as long as its cause: `magnetized` is an
+   aura of the magnetic field, carried only while standing in it, so a guard's armour works again
+   the moment it leaves. `phased` lasts until the next heavy blow on its region, or until its bearer
+   acts.
+8. **Heavy attacks are telegraphed, and only they are.** An enemy move marked `heavy(?ab)` winds up
+   on a region; the team gets one cast (no walking); then it lands on everyone there but the enemy.
+   A companion still in it is downed, so the plan must not allow it. You provoke a heavy blow on
+   purpose (it stuns and throws whatever it hits, or caves the floor in) and survive it with a
+   skill: disjoint (Translocate, Lightning Flash, Hook onto an anchor), phase (Blinding Flash), be
+   carried out (a friend's Translocate or Tidal Wave), or interrupt (Shield Bash stuns, and a
+   silenced enemy stops winding up; not a boss).
 
 ## Using it in a level
 
@@ -38,159 +41,122 @@ are `crossing`, `gauntlet` (pure movement) and `two_hands` (no single skill wins
 onEnter(crypt, shadows).  onEnter(abyss, chasm).
 beyond(hall, brink, abyss).                    % push lines
 % Companions pick skills from the catalogue.
-knows(mage, flashbang).  knows(warden, sunder).  mana(player, 3).
-% Enemies: rank, traits, element, extra weaknesses, starting tags.
-trait(sentry, machine).  trait(sentry, heavy).  tag(sentry, shielded).
+knows(mage, blindingFlash).  knows(warden, shieldBash).  mana(player, 3).
+% Enemies: rank, traits, element, extra weaknesses, starting tags, behaviours.
+trait(sentry, machine).  trait(sentry, metal).  tag(sentry, shielded).
 rank(brute, boss).  trait(brute, living).  tag(brute, armored).
+behavior(brute, taunted, groundSlam, source).  % taunted, it slams where you stand
 weakness(golem, electrocuted, oiled, dead).    % a level can add its own
+mustSurvive(envoy).                            % an escort a heavy blow must miss
 ```
 The level depends on `abilities/goals/neutralize` and `abilities/primitives/ab_catalog`.
 
-## Tables
+## Skills
 
-### Atomic tags
+"Around" is the caster's region and the regions next to it.
 
-| Tag | Does | Groups | Put on by | Looks |
-|-----|------|--------|-----------|-------|
-| `blinded` | no attack | - | charge, charm, concuss, confuse, enthrall, flashbang, hex, lullaby, net, roar, shieldBash, sleepDart, smokeBomb, terrify, thunderclap, toadCurse, translocate | disarmed, nearsighted |
-| `silenced` | no skill | - | bloodlust, charge, charm, enrage, enthrall, hex, lullaby, roar, shieldBash, sleepDart, terrify, thunderclap, toadCurse | - |
-| `rooted` | no move, dash | - | charge, entangle, iceBlock, lullaby, net, pounce, shieldBash, sleepDart, stoneSkin, thunderclap | snared, entangled, netted |
-| `slowed` | no dash; reacts: hasted → quicken | - | blitz, frostBolt, glaciate, hex, iceStorm, magnetize, tarPot, toadCurse | webbed, crippled |
-| `uncontrolledMove` | no move, dash | - | concuss, confuse, hex, roar, terrify, toadCurse, translocate | - |
-| `wet` | reacts: burning → steam | - | frostBolt, glaciate, iceStorm, rainCall, tidalWave | drenched |
-| `oiled` | reacts: burning → blaze | - | oilFlask, tarPot | - |
-| `burning` | reacts: wet → extinguish; chilled → quench; oiled → blaze; triggers weaknesses: dead | - | fireball, flameWall | ignited |
-| `electrocuted` | triggers weaknesses: dead, dead (on wet), stunned, stunned (on wet) | - | chainLightning, lightningFlash, zap | shocked |
-| `taunted` | wards feared; on landing: pull | - | provoke, taunt | provoked |
-| `wakeOnHit` | reacts: hostile → wake | - | charm, concuss, confuse, enthrall, lullaby, sleepDart, translocate | - |
-| `stealthed` | wards targeted | buff, guard | shadowStep, smokeBomb, vanish | invisible, camouflaged |
-| `shielded` | reacts: hostile → absorb | buff, guard | aegis, barrier | warded |
-| `hasted` | wards slowed; needed by blitz | buff | bloodlust, haste | swift |
-| `armored` | wards forcedMove | buff | aegis, stoneSkin | barkskin, ironclad |
-| `invulnerable` | wards hostile | buff, guard | divineShield, iceBlock | untouchable |
+| Skill | Reach | Mana | Tags, and on whom | Movement, and of whom |
+|-------|-------|------|-------------------|-----------------------|
+| **Hook** | ranged | - | the target loses `flying` | a light target is pulled to the caster, falling into any live hazard between; an anchored one pulls the **caster** to it |
+| **Vortex** | ranged, a region | - | - | everything in the regions next to the target region is pulled **into** it (not the caster, not the anchored) |
+| **Tidal Wave** | self | 2 | the caster's region becomes a puddle: everyone in it, **the caster too**, is `wet`, and so is whoever walks in later; everyone next door is `wet` | everyone next door is pushed one region further **away** from the caster |
+| **Blizzard** | ranged, a region | 2 | the region becomes an ice sheet: everyone there now and later is `chilled` (slowed); the `wet` freeze instead; fire elementals and insects die | - |
+| **Fireball** | ranged | 2 | the target's region becomes flames: everyone there now and later is `burning` | the target is pushed away from the caster |
+| **Lightning Flash** | ranged | 2 | everyone on the path between caster and target, and the target, is `electrocuted` | the **caster** teleports to the target's region |
+| **Translocate** | ranged | - | - | at a region: the **caster** teleports there; at an entity: the two **swap** |
+| **Blinding Flash** | self | - | the **caster** is `phased`; everyone around is `blinded` and loses `stealthed` | - |
+| **Taunt** | ranged | - | the target is `taunted`, which sets off its behaviours | the target is dragged to the caster, falling into any live hazard between |
+| **Magnetic Orb** | ranged, a region | 2 | the region becomes a magnetic field: whoever stands in it is `magnetized` | metal things next to the field are pulled into it |
+| **Shield Bash** | melee | - | the target is `stunned` (and a heavy attack it was winding up stops) | the target is pushed away from the caster |
 
-### Composite tags
+## Enemy moves
 
-| Tag | = atoms | Also | Groups | Put on by | Looks |
-|-----|---------|------|--------|-----------|-------|
-| `stunned` | blinded + rooted + silenced | - | hardControl | charge, shieldBash, thunderclap | petrified, paralyzed, knockedUp, knockedDown |
-| `asleep` | blinded + rooted + silenced + wakeOnHit | - | hardControl, mind | lullaby, sleepDart | drowsy |
-| `feared` | blinded + silenced + uncontrolledMove | on landing: push | hardControl, mind | roar, terrify | terrified, fleeing |
-| `polymorphed` | blinded + silenced + slowed + uncontrolledMove | - | hardControl | hex, toadCurse | hexed, toad, sheep |
-| `confused` | blinded + uncontrolledMove + wakeOnHit | - | hardControl, mind | concuss, confuse, translocate | dazed, drunk |
-| `charmed` | blinded + silenced + wakeOnHit | - | hardControl, mind | charm, enthrall | infatuated |
-| `berserk` | silenced | wards feared, charmed | hardControl, mind | bloodlust, enrage | enraged, frenzied |
-| `chilled` | slowed + wet | reacts: burning → thaw; triggers weaknesses: frozen | - | frostBolt | frostbitten |
+A level gives them to NPCs with `behavior(?npc, ?trigger, ?move, source|self|here|there(R))`.
+
+| Move | Heavy | On everyone in the struck region but the attacker |
+|------|-------|----------------------------------------------------|
+| `groundSlam` | yes | `stunned`, and pushed away from the attacker |
+| `caveIn` | yes | the floor becomes a chasm: whoever is weak to it falls |
+
+## Tags
+
+### Atomic
+
+| Tag | Does | Put on by | Looks |
+|-----|------|-----------|-------|
+| `blinded` | no basic attack; cannot keep watch | Blinding Flash; bundled in stunned, frozen | disarmed, nearsighted |
+| `silenced` | no skills; a heavy attack winding up stops | bundled in stunned, frozen | - |
+| `rooted` | no walking, no dashing | bundled in stunned, frozen | snared, entangled, netted |
+| `slowed` | no dashing | bundled in chilled | webbed, crippled |
+| `wet` | fire on it: steam (wet goes); cold on it: frozen | Tidal Wave, puddle, deepWater, a thaw | drenched |
+| `oiled` | fire on it: blaze (everyone there burns) | slick (a level places it) | - |
+| `burning` | water puts it out, cold quenches it; kills the wooden | Fireball, flames, blaze | ignited |
+| `electrocuted` | stuns machines, kills wet machines and water elementals, stuns the wet living | Lightning Flash | shocked |
+| `taunted` | dragged to the taunter | Taunt | provoked |
+| `stealthed` | cannot be aimed at | shadows (a level places it) | invisible, camouflaged |
+| `shielded` | takes the next hostile tag instead | innate | warded |
+| `armored` | cannot be moved by force | innate | barkskin, ironclad |
+| `invulnerable` | no hostile tag lands; a heavy blow passes through | innate | untouchable |
+| `flying` | does not fall | innate | hovering |
+| `phased` | untargetable; no hostile tag lands, nothing moves it, a heavy blow passes through; spent by the next blow on its region, or by acting | Blinding Flash | blinking |
+| `magnetized` | *aura, never stored:* armour and shields do nothing; the heavy can be moved | standing in a magnetic field (Magnetic Orb) | - |
+
+### Composite
+
+| Tag | = atoms | Also | Put on by | Looks |
+|-----|---------|------|-----------|-------|
+| `stunned` | blinded + silenced + rooted | a boss is immune | Shield Bash, a groundSlam, a jolt on a machine or a wet living thing | petrified, paralyzed, knockedDown, dazed |
+| `chilled` | slowed | on the wet: frozen | Blizzard, iceSheet | frostbitten |
+| `frozen` | blinded + silenced + rooted | even the heavy can be pushed; a stunning blow shatters it (dead); fire thaws it to wet; a boss is immune | wet + chilled, either way round | encased |
 
 ### Outcomes
 
-| Outcome | Produced by (an enemy's weakness) | Reached by |
-|---------|-----------------------------------|------------|
-| `dead` | electrocuted on wet, electrocuted, burning | chainLightning, fireball, flameWall, lightningFlash, zap |
-| `frozen` | chilled, chilled | frostBolt, glaciate, iceStorm |
-| `fell` | chasm, lava, deepWater | collapse, magmaBurst |
+| Outcome | Comes from |
+|---------|------------|
+| `dead` | an enemy's weakness: a wet machine electrocuted, a water elemental electrocuted, a fire elemental or an insect chilled, a wooden thing burning, anything frozen given a stunning blow |
+| `fell` | a hazard: a chasm (not fliers), lava (not fliers, not things of fire), deep water (the heavy) |
 
-### Archetype weaknesses
-
-| Rule |
-|------|
-| `immune(?e, ?t) :- rank(?e, boss), group(?t, hardControl).` |
-| `immune(?e, ?t) :- trait(?e, mindless), group(?t, mind).` |
-| `weakness(?e, chasm, none, fell) :- not(trait(?e, flier)).` |
-| `weakness(?e, lava, none, fell) :- not(trait(?e, flier)), not(element(?e, fire)).` |
-| `weakness(?e, deepWater, none, fell) :- trait(?e, heavy).` |
-| `immune(?e, forcedMove) :- trait(?e, heavy).` |
-| `weakness(?e, electrocuted, wet, dead) :- trait(?e, machine).` |
-| `weakness(?e, electrocuted, none, stunned) :- trait(?e, machine).` |
-| `immune(?e, ?t) :- trait(?e, machine), group(?t, mind).` |
-| `weakness(?e, electrocuted, wet, stunned) :- trait(?e, living).` |
-| `weakness(?e, chilled, none, frozen) :- element(?e, fire).` |
-| `immune(?e, burning) :- element(?e, fire).` |
-| `weakness(?e, electrocuted, none, dead) :- element(?e, water).` |
-| `immune(?e, wet) :- element(?e, water).` |
-| `weakness(?e, chilled, none, frozen) :- trait(?e, insect).` |
-| `weakness(?e, burning, none, dead) :- trait(?e, wooden).` |
-
-### Reactions (for everyone)
+## Reactions (for everyone)
 
 | Have | Incoming | Reaction | Does |
 |------|----------|----------|------|
-| `shielded` | `hostile` | `absorb` | remove(shielded) |
-| `wakeOnHit` | `hostile` | `wake` | remove(asleep), remove(charmed), remove(confused) |
-| `wet` | `burning` | `steam` | remove(wet) |
-| `burning` | `wet` | `extinguish` | remove(burning) |
-| `chilled` | `burning` | `thaw` | remove(chilled), grant(wet) |
-| `burning` | `chilled` | `quench` | remove(burning) |
-| `oiled` | `burning` | `blaze` | remove(oiled), grant(burning), area: grant(burning) |
-| `burning` | `oiled` | `blaze` | remove(oiled), grant(burning), area: grant(burning) |
-| `slowed` | `hasted` | `quicken` | remove(slowed) |
+| `shielded` | any hostile tag | absorb | the shield goes; the tag does not land |
+| `wet` | burning | steam | wet goes |
+| `burning` | wet | extinguish | burning goes |
+| `oiled` | burning | blaze | oiled goes; it and everyone in its region burn |
+| `burning` | oiled | blaze | as above |
+| `wet` | chilled | freeze | wet goes; frozen |
+| `chilled` | wet | freezeOver | chilled goes; frozen |
+| `chilled` | burning | thaw | chilled goes |
+| `frozen` | burning | meltdown | frozen goes; wet |
+| `burning` | chilled | quench | burning goes |
 
-### Zones
+## Zones
 
-| Zone | Whoever enters | Spilled by |
-|------|----------------|------------|
-| `puddle` | grant(wet) | rainCall, tidalWave |
-| `slick` | grant(oiled) | - |
-| `flames` | grant(burning) | fireball, flameWall |
-| `iceSheet` | grant(chilled) | glaciate, iceStorm |
-| `tar` | grant(oiled), grant(slowed) | tarPot |
-| `shadows` | grant(stealthed) | - |
-| `chasm` | hazard(chasm) | collapse |
-| `lava` | hazard(lava) | magmaBurst |
-| `deepWater` | grant(wet), hazard(deepWater) | - |
+| Zone | Whoever is in it or enters | Spilled by |
+|------|---------------------------|------------|
+| `puddle` | wet | Tidal Wave (under the caster) |
+| `flames` | burning | Fireball |
+| `iceSheet` | chilled | Blizzard |
+| `magnetField` | magnetized while there (aura) | Magnetic Orb |
+| `slick` | oiled | - |
+| `shadows` | stealthed | - |
+| `chasm` | falls, if weak to it | caveIn |
+| `lava` | falls, if weak to it | - |
+| `deepWater` | wet; the heavy sink | - |
 
-### Skills
+## Archetypes
 
-| Skill | Reach | Cost | Effects | Tags it lands | Can lead to |
-|-------|-------|------|---------|---------------|-------------|
-| `fireball` | ranged | mana 2 | spill(flames), push | - | burning, dead |
-| `flameWall` | ranged | - | spill(flames) | - | burning, dead |
-| `tidalWave` | ranged | mana 2 | spill(puddle), area: push | - | wet |
-| `rainCall` | ranged | - | spill(puddle) | - | wet |
-| `frostBolt` | ranged | - | grant(chilled) | chilled, slowed, wet | frozen |
-| `iceStorm` | ranged | mana 2 | spill(iceSheet) | - | chilled, frozen, slowed, wet |
-| `glaciate` | ranged | - | spill(iceSheet) | - | chilled, frozen, slowed, wet |
-| `zap` | ranged | - | grant(electrocuted) | electrocuted | dead, stunned |
-| `lightningFlash` | ranged | mana 2 | path: grant(electrocuted), grant(electrocuted), dash | electrocuted | dead, stunned |
-| `chainLightning` | ranged | mana 2 | area: grant(electrocuted) | electrocuted | dead, stunned |
-| `oilFlask` | ranged | - | area: grant(oiled) | oiled | - |
-| `tarPot` | ranged | - | spill(tar) | - | oiled, slowed |
-| `gust` | ranged | - | push, remove(burning) | - | - |
-| `magnetize` | ranged | - | hook, grant(slowed) | slowed | - |
-| `translocate` | ranged | - | swap, grant(confused) | blinded, confused, uncontrolledMove, wakeOnHit | - |
-| `charge` | ranged | - | dash, grant(stunned), push | blinded, rooted, silenced, stunned | - |
-| `pounce` | ranged | - | dash, grant(rooted) | rooted | - |
-| `shadowStep` | ranged | - | dash, self: grant(stealthed) | stealthed | - |
-| `shieldBash` | melee | - | grant(stunned), push | blinded, rooted, silenced, stunned | - |
-| `thunderclap` | melee | once | area: grant(stunned), area: push | blinded, rooted, silenced, stunned | - |
-| `collapse` | ranged | once | spill(chasm) | - | fell |
-| `magmaBurst` | ranged | once | spill(lava) | - | fell |
-| `net` | ranged | - | grant(rooted), grant(blinded) | blinded, rooted | - |
-| `entangle` | ranged | - | area: grant(rooted) | rooted | - |
-| `lullaby` | ranged | - | area: grant(asleep) | asleep, blinded, rooted, silenced, wakeOnHit | - |
-| `sleepDart` | ranged | - | grant(asleep) | asleep, blinded, rooted, silenced, wakeOnHit | - |
-| `roar` | melee | - | area: grant(feared) | blinded, feared, silenced, uncontrolledMove | - |
-| `terrify` | ranged | - | grant(feared) | blinded, feared, silenced, uncontrolledMove | - |
-| `taunt` | ranged | - | grant(taunted) | taunted | - |
-| `provoke` | melee | - | area: grant(taunted) | taunted | - |
-| `charm` | ranged | - | grant(charmed) | blinded, charmed, silenced, wakeOnHit | - |
-| `enthrall` | ranged | once | area: grant(charmed) | blinded, charmed, silenced, wakeOnHit | - |
-| `confuse` | ranged | - | grant(confused) | blinded, confused, uncontrolledMove, wakeOnHit | - |
-| `concuss` | melee | - | grant(confused), push | blinded, confused, uncontrolledMove, wakeOnHit | - |
-| `enrage` | ranged | - | grant(berserk) | berserk, silenced | - |
-| `bloodlust` | self | - | self: grant(berserk), self: grant(hasted) | berserk, hasted, silenced | - |
-| `hex` | ranged | - | grant(polymorphed) | blinded, polymorphed, silenced, slowed, uncontrolledMove | - |
-| `toadCurse` | ranged | once | area: grant(polymorphed) | blinded, polymorphed, silenced, slowed, uncontrolledMove | - |
-| `smokeBomb` | ranged | - | area: grant(blinded), self: grant(stealthed) | blinded, stealthed | - |
-| `flashbang` | ranged | - | area: grant(blinded), area: remove(stealthed) | blinded | - |
-| `vanish` | self | - | self: grant(stealthed) | stealthed | - |
-| `barrier` | ranged | - | grant(shielded) | shielded | - |
-| `aegis` | self | - | self: grant(shielded), self: grant(armored) | armored, shielded | - |
-| `stoneSkin` | self | - | self: grant(armored), self: grant(rooted) | armored, rooted | - |
-| `divineShield` | ranged | once | grant(invulnerable) | invulnerable | - |
-| `iceBlock` | self | once | self: grant(invulnerable), self: grant(rooted) | invulnerable, rooted | - |
-| `haste` | ranged | - | grant(hasted) | hasted | - |
-| `blitz` | ranged | needs hasted | dash, area: push, grant(slowed) | slowed | - |
-| `dispel` | ranged | - | purge(buff) | - | - |
-| `cleanse` | ranged | - | purge(hostile) | - | - |
-| `sunder` | melee | - | remove(armored), remove(shielded) | - | - |
+| Rule | |
+|------|--|
+| `rank(?e, boss)` | immune to stunned and frozen |
+| `trait(?e, heavy)` | cannot be moved by force (unless frozen or magnetized); sinks in deep water |
+| `trait(?e, flier)` | does not fall into a chasm or lava |
+| `trait(?e, machine)` | electrocuted: stunned; wet and electrocuted: dead |
+| `trait(?e, living)` | wet and electrocuted: stunned |
+| `element(?e, fire)` | chilled: dead; immune to burning; does not fall in lava |
+| `element(?e, water)` | electrocuted: dead; immune to wet |
+| `trait(?e, insect)` | chilled: dead |
+| `trait(?e, wooden)` | burning: dead |
+| `trait(?e, metal)` | drawn in by a Magnetic Orb |
+| anything | frozen, then stunned: dead |

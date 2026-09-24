@@ -22,7 +22,7 @@ WORLD = [
     "group(dead, gone)", "group(fell, gone)",
     "bundles(frozen, brittle)", "bundles(frozen, offBalance)",
     "suspends(offBalance, forcedMove)",
-    "reaction(wet, shocked, electrocution)",
+    "reaction(wet, electrocuted, electrocution)",
     "effect(electrocution, target, remove(wet))", "effect(electrocution, target, grant(dead))",
     "reaction(wet, chilled, freezeOver)",
     "effect(freezeOver, target, remove(wet))", "effect(freezeOver, target, grant(frozen))",
@@ -31,7 +31,7 @@ WORLD = [
     "effect(blaze, target, remove(oiled))", "effect(blaze, target, grant(dead))",
     "reaction(brittle, blunt, shatterBlow)",
     "effect(shatterBlow, target, remove(frozen))", "effect(shatterBlow, target, grant(dead))",
-    "reach(shock, ranged)", "effect(shock, target, grant(shocked))",
+    "reach(shock, ranged)", "effect(shock, target, grant(electrocuted))",
     "reach(douse, ranged)", "effect(douse, target, grant(wet))",
     "reach(chill, ranged)", "effect(chill, target, grant(chilled))",
     "reach(ignite, ranged)", "effect(ignite, target, grant(burning))",
@@ -65,7 +65,7 @@ class NeutralizeTest(HtnTestSuite):
         self.set_state(["beyond(ledge, pool, pit)", "stops(wader, frozen)",
                         "knows(player, shock)", "knows(player, chill)", "knows(mage, gust)"])
         self.assert_plan("neutralize(wader).", min_solutions=3, contains=[
-            "opReact(player, wader, wet, shocked, electrocution)",
+            "opReact(player, wader, wet, electrocuted, electrocution)",
             "opReact(player, wader, wet, chilled, freezeOver)",
             "opForcedMove(mage, wader, pool, pit)"])
 
@@ -87,18 +87,19 @@ class NeutralizeTest(HtnTestSuite):
         self.assert_no_plan("neutralize(golem).")
 
     def test_property_p3_a_guard_comes_off_first(self):
-        """On the catalogue: a stealthed treant cannot be aimed at; a flashbang
-        on its region strips the stealth, then fire plays its weakness."""
+        """On the catalogue: a stealthed treant cannot be aimed at; a blinding
+        flash next to it strips the stealth, then fire plays its weakness."""
         self.load_component("abilities/goals/neutralize", reset_first=True)
         self.load_component("abilities/primitives/ab_catalog", reset_first=False)
         self.set_state(["region(ledge)", "region(floor)", "lineOfSight(ledge, floor)",
+                        "connected(ledge, floor)", "connected(floor, ledge)",
                         "role(player, player)", "role(mage, companion)",
                         "at(player, ledge)", "at(mage, ledge)", "mana(player, 2)",
                         "role(treant, enemy)", "at(treant, floor)", "tag(treant, stealthed)",
                         "trait(treant, wooden)",
-                        "knows(mage, flashbang)", "knows(player, fireball)"])
+                        "knows(mage, blindingFlash)", "knows(player, fireball)"])
         self.assert_plan("neutralize(treant).", contains=[
-            "opCast(mage, flashbang, floor)", "opRemove(mage, treant, stealthed)",
+            "opCast(mage, blindingFlash, mage)", "opRemove(mage, treant, stealthed)",
             "opCast(player, fireball, treant)", "opExploit(player, treant, burning, dead)"])
 
 

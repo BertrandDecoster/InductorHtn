@@ -2,7 +2,7 @@
   "name": "ab_catalog",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "The standard tag and skill catalogue: ~40 tags, their reactions, standard zones, ~100 skills, archetype immunities",
+  "description": "The standard catalogue: 11 multi-use skills, 14 atomic tags, 3 composites, reactions, zones, heavy enemy moves, archetype weaknesses",
   "dependencies": [
     "abilities/primitives/ab_acts"
   ],
