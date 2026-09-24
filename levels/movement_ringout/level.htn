@@ -1,0 +1,151 @@
+% Ring-Out (pure movement)
+%
+% An ogre stands on a plinth at the edge of the void. Nothing hurts it: the
+% only way to win is to ring it out - get it into the void. Two companions,
+% one skill each, from seven. The idea is Into the Breach's: the enemy never
+% starts on a line into the void, so somebody moves first.
+%
+%               perch (idol; a plate that opens the grate; over the void)
+%                 :
+%   gate --- yard ---------- grate (door) --- ledge
+%              |   \                            |
+%            brink  plinth (ogre) --------------+
+%              |       \
+%             void      void (between the perch and the plinth)
+%
+% A push from the yard only shoves the ogre back onto the ledge. It goes
+% into the void three ways:
+%   from the brink   pull it onto the brink (hook, taunt) or swap places
+%                    with it there; then someone pushes it off from the yard
+%   from behind      the ledge is behind a grate that opens when something
+%                    lands on the perch: a dasher blinks up, or a swapper
+%                    trades places with the idol - then a pusher walks round
+%                    through the grate and shoves it off from the ledge
+%   across           the void lies between the perch and the plinth: a
+%                    puller up there drags it in. Nobody who pulls can get
+%                    up alone - a swapper gets up first (the idol) and swaps
+%                    the puller up.
+% Every method takes two companions and two different skills.
+%
+% Traps: two pushers only shove it back and forth; a puller alone drags it
+% onto the brink and nobody pushes; a dasher on the perch cannot bring
+% anyone up; a swap from the perch with the ogre only strands it there.
+
+% === Regions ===
+region(gate).
+region(yard).
+region(brink).
+region(void).
+region(plinth).
+region(ledge).
+region(grate).
+region(perch).
+connected(gate, yard).
+connected(yard, gate).
+connected(yard, brink).
+connected(brink, yard).
+connected(yard, plinth).
+connected(plinth, yard).
+connected(yard, grate).
+connected(grate, yard).
+connected(grate, ledge).
+connected(ledge, grate).
+connected(ledge, plinth).
+connected(plinth, ledge).
+
+lineOfSight(gate, yard).
+lineOfSight(yard, gate).
+lineOfSight(yard, brink).
+lineOfSight(brink, yard).
+lineOfSight(yard, plinth).
+lineOfSight(brink, plinth).
+lineOfSight(ledge, plinth).
+lineOfSight(yard, perch).
+lineOfSight(gate, perch).
+lineOfSight(perch, yard).
+lineOfSight(perch, gate).
+lineOfSight(perch, plinth).
+
+% The route, for leaps: only forward.
+progress(gate, 0).
+progress(yard, 1).
+progress(brink, 2).
+progress(plinth, 2).
+progress(perch, 3).
+progress(grate, 2).
+progress(ledge, 3).
+
+% Push lines (and what lies between).
+beyond(yard, brink, void).
+beyond(ledge, plinth, void).
+beyond(yard, plinth, ledge).
+beyond(brink, plinth, ledge).
+beyond(perch, void, plinth).
+
+% === Terrain ===
+onEnter(void, chasm).
+onEnter(perch, press).
+effect(press, target, open(grate)).
+door(grate).
+
+% === Companions ===
+role(player, player).
+role(mage, companion).
+at(player, gate).
+at(mage, gate).
+
+% === Things ===
+role(ogre, enemy).
+at(ogre, plinth).
+blocker(ogre).
+trait(ogre, living).
+
+role(idol, object).
+at(idol, perch).
+
+% === Default kit (a winning pair; combos strips these) ===
+knows(player, gust).
+knows(mage, magnetize).
+
+% === Victory: ring it out ===
+win :- if(), do(setUp(ogre), neutralize(ogre)).
+
+% Get it where a push drops it, or get a pusher behind it.
+setUp(?e) :- if(), do().
+setUp(?e) :- if(not(neutralized(?e))), do(lure(?e)).
+setUp(?e) :- if(door(?d), not(open(?d))), do(openWay(?d)).
+% Or a puller gets across the void from it - by itself, or swapped up
+% there by a friend who got there first - and drags it in.
+setUp(?e) :-
+    if(at(?e, ?r), between(?spot, ?r, ?h), onEnter(?h, chasm), canAct(?a), knows(?a, ?ab),
+       pulls(?ab)),
+    do(reach(?a, ?spot)).
+setUp(?e) :-
+    if(at(?e, ?r), between(?spot, ?r, ?h), onEnter(?h, chasm), canAct(?a), knows(?a, ?ab),
+       pulls(?ab), canAct(?b), \==(?b, ?a)),
+    do(reach(?b, ?spot), reach(?a, ?spot)).
+
+% Lure: someone moves it onto a spot a push drops it from - pulled to the
+% caster's feet there, or swapped with the caster standing there.
+lure(?e) :-
+    if(at(?e, ?r), landing(?f, ?spot, ?h), onEnter(?h, chasm), \==(?spot, ?r),
+       canAct(?a), knows(?a, ?ab), drawer(?ab), ready(?a, ?ab, ?e)),
+    do(castFrom(?a, ?ab, ?e, ?spot), ensureAt(?e, ?spot)).
+drawer(?ab) :- first(pullsAny(?ab)).
+drawer(?ab) :- effect(?ab, target, swap).
+ensureAt(?e, ?r) :- if(at(?e, ?r)), do().
+
+funExpect(single_actor_plans, atMost, 0).
+
+% === Choice: one skill each, from seven (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
+comboPool(gust).
+comboPool(shieldBash).
+comboPool(magnetize).
+comboPool(taunt).
+comboPool(translocate).
+comboPool(shadowStep).
+comboPool(pounce).
+
+goals(win).

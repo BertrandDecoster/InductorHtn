@@ -1,36 +1,40 @@
 % The Gauntlet (pure movement)
 %
-% Nothing here dies except by falling. A guard holds the choke above a
-% trapdoor; past it, a hall with a crate and an alcove whose plate latches
-% the far gate open; then a chasm, with a stone pillar and an archer on the
-% far side (a cliff behind it), the gate, and the exit.
+% Nothing here dies except by falling. An armoured guard holds the choke
+% above a trapdoor; past it, a hall with a crate, and a grated alcove - a
+% ledge nobody can walk onto - whose plate latches the far gate open; then a
+% chasm, a stone pillar on the far side, the gate, and the exit.
 %
-% Two ways to win:
-%   escape   all three companions reach the exit
-%   rout     both enemies go into the dark
+%   start --- choke (guard) --- hall (crate) --- rim ~~ chasm ~~ far (pillar) --- gate --- exit
+%     |                          :                                 |
+%    pit (trapdoor)          alcove (plate; seen from the hall and the rim, never walked into)
 %
-% Every obstacle has several answers, and every skill answers several
-% obstacles:
-%   the guard   drop it through the trapdoor (push it from the start), move
-%               it out of the doorway (pull, swap, push it back), or leave it
-%               and slip past (blink, dash, swap with it)
-%   the gate    walk onto the plate, or push the crate onto it
-%   the chasm   bridge it with the crate (two pushes, or dragged in from the
-%               far side), or cross one by one: blink or dash over, hook the
-%               pillar, swap with the archer, or be swapped over by a friend
-%   the archer  armoured: nothing moves it until the Warden sunders the
-%               armour from close by - so the chasm has to be bridged - then
-%               push it off the cliff behind it. A hook on the armoured
-%               archer drags the caster across instead.
+% Victory: everyone reaches the exit. The Warden cannot leap, so the guard
+% has to be moved out of the doorway and the chasm has to be bridged for
+% him. The Warden only knows sunder; the player and the mage pick one skill
+% each.
+%
+% The obstacles, and every answer:
+%   the guard   armoured: the Warden sunders it, then someone drops it
+%               through the trapdoor (a push from the start) or moves it
+%               out of the doorway (a push back, a hook, a swap)
+%   the plate   something has to land in the alcove: a dasher blinks onto
+%               it, or a friend is thrown onto it (a push from the rim) -
+%               and whoever is up there has to get out forward: dash on
+%               over the chasm, hook the pillar, or be swapped out by a
+%               friend already across. The crate can be pushed onto it too.
+%   the chasm   the crate, pushed twice (onto the rim, then in), bridges it
+%               for the Warden - or a dasher crosses alone, a hook to the
+%               pillar, a swap with a friend.
 % The crate can hold the plate or fill the chasm - not both.
 %
-% Hypothesis (design.md): many kits win, by many routes, and both victories
-% are reachable; every plan needs two companions.
+% Traps: a pusher alone cannot leave the alcove; a dasher alone cannot move
+% the crate; two pushers throw a friend onto the plate and strand him.
 
 % === Regions ===
 region(start).
-region(choke).
 region(pit).
+region(choke).
 region(hall).
 region(alcove).
 region(rim).
@@ -38,13 +42,10 @@ region(chasm).
 region(far).
 region(gate).
 region(exit).
-region(cliff).
 connected(start, choke).
 connected(choke, start).
 connected(choke, hall).
 connected(hall, choke).
-connected(hall, alcove).
-connected(alcove, hall).
 connected(hall, rim).
 connected(rim, hall).
 connected(rim, chasm).
@@ -58,26 +59,22 @@ connected(exit, gate).
 
 lineOfSight(start, choke).
 lineOfSight(start, hall).
-lineOfSight(choke, start).
 lineOfSight(choke, hall).
-lineOfSight(hall, choke).
 lineOfSight(hall, alcove).
-lineOfSight(alcove, hall).
-lineOfSight(hall, rim).
 lineOfSight(rim, hall).
-lineOfSight(rim, chasm).
+lineOfSight(choke, start).
+lineOfSight(hall, rim).
+lineOfSight(rim, alcove).
 lineOfSight(rim, far).
+lineOfSight(alcove, far).
+lineOfSight(far, alcove).
 lineOfSight(far, rim).
-lineOfSight(far, chasm).
-lineOfSight(far, gate).
-lineOfSight(gate, far).
-lineOfSight(gate, exit).
 
 % The route, for leaps: only forward.
 progress(start, 0).
 progress(choke, 1).
 progress(hall, 2).
-progress(alcove, 2).
+progress(alcove, 3).
 progress(rim, 3).
 progress(chasm, 4).
 progress(far, 5).
@@ -87,18 +84,14 @@ progress(exit, 7).
 % Push lines (and what lies between).
 beyond(start, choke, pit).
 beyond(hall, choke, start).
-beyond(choke, hall, alcove).
-beyond(alcove, hall, rim).
+beyond(choke, hall, rim).
+beyond(rim, hall, alcove).
 beyond(hall, rim, chasm).
-beyond(rim, chasm, far).
 beyond(far, chasm, rim).
-beyond(chasm, far, cliff).
-beyond(gate, far, cliff).
 
 % === Terrain ===
 onEnter(pit, chasm).
 onEnter(chasm, chasm).
-onEnter(cliff, chasm).
 onEnter(alcove, press).
 effect(press, target, open(gate)).
 door(gate).
@@ -110,9 +103,6 @@ role(warden, companion).
 at(player, start).
 at(mage, start).
 at(warden, start).
-mana(player, 4).
-knows(mage, translocate).
-knows(warden, shieldBash).
 knows(warden, sunder).
 
 % === Things ===
@@ -120,74 +110,62 @@ role(guard, enemy).
 at(guard, choke).
 blocker(guard).
 trait(guard, living).
-
-role(archer, enemy).
-at(archer, far).
-trait(archer, living).
-tag(archer, armored).
+tag(guard, armored).
 
 role(crate, object).
 at(crate, hall).
 trait(crate, filler).
+trait(crate, mindless).
 
 role(pillar, object).
 at(pillar, far).
 trait(pillar, heavy).
 
-% === Default kit (a winning pair; F4 strips these and re-adds each pick) ===
-knows(player, gust).
-knows(player, magnetize).
+role(idol, object).
+at(idol, far).
 
-% === Victory: two ways ===
+% === Default kit (a winning pair; combos strips these) ===
+knows(player, gust).
+knows(mage, shadowStep).
+
+% === Victory ===
 win :- if(), do(escape).
-win :- if(), do(rout).
 
 escape :-
     if(),
-    do(clear(guard), openWay(gate), span(chasm),
+    do(unguard, weighPlate, bridge,
        reach(warden, exit), reach(mage, exit), reach(player, exit)).
 
-rout :- if(), do(neutralize(guard), span(chasm), neutralize(archer)).
+% The guard: dropped or moved (passage), or its armour off and then moved.
+unguard :- if(), do(clear(guard)).
+unguard :- if(tag(guard, armored)), do(unset(armored, guard), dislodge(guard)).
 
-% === Declared choice space: pick 2 of 8 ===
-funChoiceSpace(kit, 2).
-funChoice(kit, gust).
-funChoice(kit, magnetize).
-funChoice(kit, charge).
-funChoice(kit, pounce).
-funChoice(kit, shadowStep).
-funChoice(kit, lightningFlash).
-funChoice(kit, taunt).
-funChoice(kit, tidalWave).
-funChoiceFact(gust, knows(player, gust)).
-funChoiceFact(magnetize, knows(player, magnetize)).
-funChoiceFact(charge, knows(player, charge)).
-funChoiceFact(pounce, knows(player, pounce)).
-funChoiceFact(shadowStep, knows(player, shadowStep)).
-funChoiceFact(lightningFlash, knows(player, lightningFlash)).
-funChoiceFact(taunt, knows(player, taunt)).
-funChoiceFact(tidalWave, knows(player, tidalWave)).
-% Each obstacle, taken alone.
-pastGuard :- if(), do(clear(guard), reach(player, hall)).
-overChasm :- if(), do(clear(guard), span(chasm), reach(player, far)).
-funBlocker(guard).
-funBlocker(gate).
-funBlocker(chasm).
-funBlockerGoal(guard, pastGuard).
-funBlockerGoal(gate, openWay(gate)).
-funBlockerGoal(chasm, overChasm).
+% The plate: someone gets up there (passage), or a friend is thrown on it.
+weighPlate :- if(), do(openWay(gate)).
+weighPlate :-
+    if(not(open(gate)), landing(?from, ?over, alcove), canAct(?a), canAct(?p), \==(?a, ?p),
+       knows(?p, ?ab), pusher(?ab)),
+    do(walkTo(?a, ?over), castFrom(?p, ?ab, ?a, ?from), confirmOpen(gate)).
+pusher(?ab) :- effect(?ab, target, push).
+
+% The chasm: bridged or crossed (passage), or the crate hauled to the rim
+% by someone who then crosses and drags it in from the far side.
+bridge :- if(), do(span(chasm)).
+bridge :-
+    if(not(filled(chasm)), filler(?x), at(?x, ?xr), landing(?f, ?rim, chasm), \==(?xr, ?rim),
+       puller(?a, ?ab, ?x)),
+    do(castFrom(?a, ?ab, ?x, ?rim), reach(?a, far), span(chasm)).
+
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: the player picks two (htn_components combos) ===
-comboSeat(player, 2).
+% === Choice: one skill each, from six (htn_components combos) ===
+comboSeat(player, 1).
+comboSeat(mage, 1).
 comboPool(gust).
+comboPool(shieldBash).
 comboPool(magnetize).
-comboPool(charge).
-comboPool(pounce).
+comboPool(translocate).
 comboPool(shadowStep).
-comboPool(lightningFlash).
-comboPool(taunt).
-comboPool(tidalWave).
-comboMinWins(4).
+comboPool(pounce).
 
 goals(win).

@@ -1,9 +1,10 @@
 {
-  "name": "gauntlet",
+  "name": "movement_well",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Gauntlet: pure movement - an armoured guard at the choke, a plate nobody walks onto, a chasm the Warden cannot leap; one skill each from six, sixteen assignments win",
+  "description": "The Well: pure movement - a lock held open by two plates at once; the Golem is the counterweight, someone goes down the well and a friend pulls them out; one skill each from six",
   "dependencies": [
+    "abilities/goals/neutralize",
     "abilities/strategies/passage",
     "abilities/primitives/ab_catalog"
   ],
@@ -12,42 +13,39 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:40:45.342698"
+    "last_checked": "2026-09-24T15:59:39.521956"
   },
   "provides": [
     "at/2",
     "beyond/3",
-    "blocker/1",
-    "bridge/0",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
     "door/1",
+    "drawer/1",
     "effect/3",
+    "ensureAt/2",
     "escape/0",
+    "fetch/2",
     "funExpect/3",
+    "getOut/1",
     "knows/2",
     "lineOfSight/2",
     "onEnter/2",
+    "plateFor/2",
     "progress/2",
     "pusher/1",
     "region/1",
     "role/2",
-    "tag/2",
     "trait/2",
-    "unguard/0",
-    "weighPlate/0",
+    "weighWell/0",
     "win/0"
   ],
   "requires": [
     "castFrom/4",
-    "clear/1",
     "confirmOpen/1",
-    "dislodge/1",
-    "openWay/1",
+    "place/3",
     "reach/2",
-    "span/1",
-    "unset/2",
     "walkTo/2"
   ]
 }

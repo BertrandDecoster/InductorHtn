@@ -1,9 +1,10 @@
 {
-  "name": "gauntlet",
+  "name": "movement_ringout",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Gauntlet: pure movement - an armoured guard at the choke, a plate nobody walks onto, a chasm the Warden cannot leap; one skill each from six, sixteen assignments win",
+  "description": "Ring-Out: pure movement - an ogre at the edge of the void; lure it onto the brink or get a pusher behind it; one skill each from seven",
   "dependencies": [
+    "abilities/goals/neutralize",
     "abilities/strategies/passage",
     "abilities/primitives/ab_catalog"
   ],
@@ -12,42 +13,35 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:40:45.342698"
+    "last_checked": "2026-09-24T15:52:05.660385"
   },
   "provides": [
     "at/2",
     "beyond/3",
     "blocker/1",
-    "bridge/0",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
     "door/1",
+    "drawer/1",
     "effect/3",
-    "escape/0",
+    "ensureAt/2",
     "funExpect/3",
     "knows/2",
     "lineOfSight/2",
+    "lure/1",
     "onEnter/2",
     "progress/2",
-    "pusher/1",
     "region/1",
     "role/2",
-    "tag/2",
+    "setUp/1",
     "trait/2",
-    "unguard/0",
-    "weighPlate/0",
     "win/0"
   ],
   "requires": [
     "castFrom/4",
-    "clear/1",
-    "confirmOpen/1",
-    "dislodge/1",
+    "neutralize/1",
     "openWay/1",
-    "reach/2",
-    "span/1",
-    "unset/2",
-    "walkTo/2"
+    "reach/2"
   ]
 }
