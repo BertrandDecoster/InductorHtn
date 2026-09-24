@@ -15,22 +15,22 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 GOAL = "win."
-POOL = ["blink", "blindingFlash", "shieldBash", "turnToMist", "taunt", "hook", "vortex", "fireball"]
-SENTRY = ["blink", "blindingFlash", "shieldBash"]
-DOORMAN = ["taunt", "hook", "vortex", "fireball"]
-# turnToMist takes the sentry's bracing for a moment; a mover that drags or
-# draws him then serves both guards (fireball has no line off the wall).
-MIST_MOVERS = ["taunt", "hook", "vortex"]
+POOL = ["blink", "lightningFlash", "shieldBash", "hook", "fireball", "vortex", "taunt",
+        "turnToMist"]
+# Past the sentry: slip into the courtyard, or answer it from the yard.
+SENTRY = ["blink", "lightningFlash", "shieldBash", "hook", "fireball", "vortex"]
+# After turnToMist, one of these serves both guards.
+MIST_PARTNERS = ["shieldBash", "hook", "fireball", "vortex"]
 
 
 def _both_ways(pairs):
     return set(pairs) | {(b, a) for a, b in pairs}
 
 
-# The measured matrix (htn_components combos): a sentry answer and a doorman
-# answer, or turnToMist and a mover, held by either companion.
-WINNING = _both_ways([(s, d) for s in SENTRY for d in DOORMAN] +
-                     [("turnToMist", m) for m in MIST_MOVERS])
+# The measured matrix (htn_components combos): a sentry answer and a taunt
+# for the doorman, or turnToMist and a skill that serves both guards.
+WINNING = _both_ways([(s, "taunt") for s in SENTRY] +
+                     [("turnToMist", m) for m in MIST_PARTNERS])
 
 _REPORT = None
 
@@ -88,32 +88,42 @@ class DoormanTest(HtnTestSuite):
 
     def test_example_1_blink_and_taunt(self):
         plans = plans_with("blink", "taunt")
-        assert some_plan_has(plans, "opTeleport(player, yard, court)",
-                             "opNavigate(mage, yard, garden)",
-                             "opForcedMove(mage, doorman, door, garden)",
-                             "opNavigate(player, door, vault)"), plans[:2]
-        self._record(True, "Example 1: the player blinks into the courtyard; the mage taunts the doorman into the garden")
+        assert some_plan_has(plans, "opTeleport(player, tower, court)",
+                             "opCast(mage, taunt, doorman)",
+                             "opNavigate(doorman, court, yard)",
+                             "opNavigate(player, hall, vault)"), plans[:2]
+        self._record(True, "Example 1: the player blinks over the moat into the courtyard; "
+                           "the mage taunts the doorman out to the yard")
 
-    def test_example_2_bash_and_fireball(self):
-        plans = plans_with("shieldBash", "fireball")
+    def test_example_2_hook_the_sentry_into_the_moat(self):
+        plans = plans_with("hook", "taunt")
+        assert some_plan_has(plans, "opFall(player, sentry, tower, yard)",
+                             "opGrant(player, sentry, fell)",
+                             "opCast(mage, taunt, doorman)",
+                             "opNavigate(player, hall, vault)"), plans[:2]
+        self._record(True, "Example 2: hooked across the moat, the sentry falls in")
+
+    def test_example_3_mist_and_hook(self):
+        plans = plans_with("turnToMist", "hook")
+        assert some_plan_has(plans, "opRemove(player, doorman, heavy)",
+                             "opForcedMove(mage, doorman, hall, court)",
+                             "opNavigate(mage, hall, vault)"), plans[:2]
+        self._record(True, "Example 3: the doorman turns to mist and the thief hooks him out "
+                           "into the courtyard, then walks past")
+
+    def test_example_4_vortex_twice(self):
+        plans = plans_with("vortex", "turnToMist")
+        assert some_plan_has(plans, "opKnock(player, sentry, murderHole)",
+                             "opKnock(player, doorman, cellarSteps)",
+                             "opGrant(player, doorman, fell)"), plans[:2]
+        self._record(True, "Example 4: a vortex on the murder hole, then - the doorman misted - "
+                           "one on the cellar steps")
+
+    def test_example_5_short_the_sentry(self):
+        plans = plans_with("lightningFlash", "taunt")
         assert some_plan_has(plans, "opGrant(player, sentry, stunned)",
-                             "opForcedMove(mage, doorman, door, cellar)",
-                             "opNavigate(player, door, vault)"), plans[:2]
-        self._record(True, "Example 2: a bash stuns the sentry; a fireball blows the doorman down the cellar steps")
-
-    def test_example_3_mist_and_taunt(self):
-        plans = plans_with("turnToMist", "taunt")
-        assert some_plan_has(plans, "opRemove(player, sentry, heavy)",
-                             "opForcedMove(mage, sentry, wall, yard)",
-                             "opForcedMove(mage, doorman, door, garden)"), plans[:2]
-        self._record(True, "Example 3: the sentry turns to mist and is taunted down; the same taunt clears the door")
-
-    def test_example_4_flash_and_vortex(self):
-        plans = plans_with("blindingFlash", "vortex")
-        assert some_plan_has(plans, "opGrant(player, sentry, blinded)",
-                             "opCast(mage, vortex, cellar)",
-                             "opForcedMove(mage, doorman, door, cellar)"), plans[:2]
-        self._record(True, "Example 4: a flash blinds the sentry; a vortex draws the doorman down the cellar steps")
+                             "opDash(player, yard, tower)"), plans[:2]
+        self._record(True, "Example 5: lightning shorts the clockwork sentry")
 
     # -------------------------------------------------------------- properties
 
@@ -129,27 +139,34 @@ class DoormanTest(HtnTestSuite):
         found = {(w["player"][0], w["mage"][0]) for w in report.winning}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         assert report.solo_plans == 0 and not report.dead_skills and not report.failures
-        self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win, none solo")
+        assert len(report.methods) == 10, report.methods
+        self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win "
+                           f"({len(report.methods)} methods), none solo, no dead skill")
 
-    def test_property_p3_the_doorman_watches_the_vault(self):
-        # blink + blindingFlash: the thief can blink into the doorway, but
-        # nothing blinds the doorman, and nobody sees into the vault.
-        assert not plans_with("blink", "blindingFlash")
-        self._record(True, "P3: a blink into the doorway is still under the doorman's eyes")
+    def test_property_p3_the_hall_is_hushed(self):
+        # blink + blink: the thief blinks into the hall and is hushed; the
+        # vault stays under the doorman's eyes.
+        assert not plans_with("blink", "lightningFlash")
+        for p in plans_with("blink", "taunt"):
+            assert "opGrant(player, player, silenced)" in p or \
+                   "opGrant(mage, mage, silenced)" in p, p
+        self._record(True, "P3: whoever enters the hall is hushed; two ways in are no way past")
 
-    def test_property_p4_the_braced_sentry(self):
-        # Two movers leave the sentry on the wall; fireball has no line off it,
-        # even after turnToMist.
-        assert not plans_with("taunt", "vortex")
-        assert not plans_with("turnToMist", "fireball")
-        self._record(True, "P4: nothing moves the braced sentry unless he is mist and dragged or drawn")
+    def test_property_p4_the_heavy_doorman(self):
+        # Without turnToMist, only a taunt moves him.
+        assert not plans_with("hook", "fireball")
+        assert not plans_with("shieldBash", "vortex")
+        self._record(True, "P4: nothing but a taunt moves the heavy doorman, unless he is mist")
 
-    def test_property_p5_one_skill_two_roles(self):
-        plans = plans_with("turnToMist", "hook")
-        assert plans and all("opCast(player, turnToMist, sentry)" in p and
-                             "opCast(mage, hook, sentry)" in p and
-                             "opCast(mage, hook, doorman)" in p for p in plans), plans[:2]
-        self._record(True, "P5: with turnToMist, one hook clears both guards")
+    def test_property_p5_the_sentry_cannot_be_taunted(self):
+        assert not plans_with("taunt", "turnToMist")
+        self._record(True, "P5: the sentry cannot walk off its tower: a taunt breaks")
+
+    def test_property_p6_one_skill_two_roles(self):
+        plans = plans_with("turnToMist", "fireball")
+        assert plans and all("opCast(mage, fireball, sentry)" in p and
+                             "opCast(mage, fireball, doorman)" in p for p in plans), plans[:2]
+        self._record(True, "P6: with turnToMist, fireball clears both guards")
 
 
 def run_tests():

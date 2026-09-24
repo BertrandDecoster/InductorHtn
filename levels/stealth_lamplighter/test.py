@@ -15,23 +15,22 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 GOAL = "escape."
-POOL = ["blindingFlash", "shieldBash", "fireball", "tidalWave", "taunt", "hook", "vortex"]
-WARDEN = ["blindingFlash", "shieldBash"]          # the lever, by blinding the warden
-CRATE = ["fireball", "tidalWave"]                 # the crate: on the lever, or cover
-LURES = ["taunt", "hook"]                         # the lamplighter off his post
-HALL = LURES + ["vortex"] + CRATE
+POOL = ["blindingFlash", "shieldBash", "tidalWave", "blizzard", "taunt", "fireball", "vortex"]
+# The winch: the warden blinded or stunned.
+WARDEN = ["blindingFlash", "shieldBash"]
+# The street: the lamplighter lured off his post, knocked onto his rope, or
+# the lamps frosted over.
+STREET = ["taunt", "fireball", "vortex", "blizzard"]
 
 
 def _both_ways(pairs):
     return set(pairs) | {(b, a) for a, b in pairs}
 
 
-# The measured matrix (htn_components combos): the warden blinded and any
-# hall answer, or the crate on the lever and a lure. A vortex on the lamps
-# needs the other companion on the lever, away from the street: it wins only
-# with a warden answer.
-WINNING = _both_ways([(w, h) for w in WARDEN for h in HALL] +
-                     [(c, l) for c in CRATE for l in LURES])
+# The measured matrix (htn_components combos): a warden answer and a street
+# answer, or tidalWave and blizzard (soak and freeze the warden; frost the
+# lamps), held by either companion.
+WINNING = _both_ways([(w, s) for w in WARDEN for s in STREET] + [("tidalWave", "blizzard")])
 
 _REPORT = None
 
@@ -87,68 +86,71 @@ class LamplighterTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_the_crate_on_the_lever_and_a_taunt(self):
-        plans = plans_with("fireball", "taunt")
-        assert some_plan_has(plans, "opForcedMove(player, crate, yard, guardroom)",
-                             "opOpen(player, gate)",
-                             "opForcedMove(mage, lamplighter, post, lamps)",
-                             "opNavigate(player, gate, exit)",
-                             "opNavigate(mage, gate, exit)"), plans[:2]
-        self._record(True, "Example 1: a fireball blows the crate onto the lever; a taunt drags the lamplighter off his post")
-
-    def test_example_2_a_flash_and_cover(self):
-        plans = plans_with("blindingFlash", "tidalWave")
-        assert some_plan_has(plans, "opGrant(player, warden, blinded)",
-                             "opNavigate(player, start, guardroom)",
-                             "opForcedMove(mage, crate, yard, hall)",
-                             "opNavigate(mage, hall, gate)"), plans[:2]
-        self._record(True, "Example 2: a flash blinds the warden; a wave from the lamps washes the crate into the hall as cover")
-
-    def test_example_3_a_bash_and_a_vortex(self):
-        plans = plans_with("shieldBash", "vortex")
+    def test_example_1_a_bash_and_a_taunt(self):
+        plans = plans_with("shieldBash", "taunt")
         assert some_plan_has(plans, "opGrant(player, warden, stunned)",
-                             "opCast(mage, vortex, lamps)",
-                             "opForcedMove(mage, lamplighter, post, lamps)"), plans[:2]
-        self._record(True, "Example 3: a bash stuns the warden; with the player on the lever, a vortex draws the lamplighter off his post")
+                             "opStepOn(player, player, winch)", "opOpen(player, gate)",
+                             "opNavigate(lamplighter, post, street)",
+                             "opNavigate(mage, street, exit)"), plans[:2]
+        self._record(True, "Example 1: the warden stunned, the winch turned; the lamplighter "
+                           "taunted off his post")
+
+    def test_example_2_onto_his_own_rope(self):
+        plans = plans_with("blindingFlash", "fireball")
+        assert some_plan_has(plans, "opGrant(player, warden, blinded)",
+                             "opKnock(mage, lamplighter, lampRope)",
+                             "opReshape(mage, street, lamplight, shadows)",
+                             "opGrant(player, player, stealthed)"), plans[:2]
+        self._record(True, "Example 2: a flash blinds the warden; a fireball knocks the "
+                           "lamplighter onto his own lamp rope and the street goes dark")
+
+    def test_example_3_soak_and_freeze(self):
+        plans = plans_with("tidalWave", "blizzard")
+        assert some_plan_has(plans, "opGrant(player, warden, wet)",
+                             "opReact(mage, warden, wet, chilled, freeze)",
+                             "opGrant(mage, warden, stunned)",
+                             "opReshape(mage, street, lamplight, iceSheet)"), plans[:2]
+        self._record(True, "Example 3: a wave soaks the warden and a blizzard freezes him; a "
+                           "second blizzard frosts the lamps")
+
+    def test_example_4_the_vortex_on_the_rope(self):
+        plans = plans_with("vortex", "blindingFlash")
+        assert some_plan_has(plans, "opCast(player, vortex, lampRope)",
+                             "opStepOn(player, lamplighter, lampRope)"), plans[:2]
+        self._record(True, "Example 4: a vortex on the rope pulls the lamplighter onto it")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_single_skill_wins(self):
         report = combos_report()
         assert not report.singles_winning, report.singles_winning
-        assert not plans_with("fireball", "fireball")
-        self._record(True, "P1: no skill wins alone, even held by both companions - fireball twice included")
+        for s in ["blizzard", "taunt"]:
+            assert not plans_with(s, s), s
+        self._record(True, "P1: no skill wins alone, even held by both companions")
 
     def test_property_p2_measured_assignments_win(self):
         report = combos_report()
         found = {(w["player"][0], w["mage"][0]) for w in report.winning}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         assert report.solo_plans == 0 and not report.dead_skills and not report.failures
-        self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win, none solo")
+        assert len(report.methods) == 9, report.methods
+        self._record(True, f"P2: exactly the {len(WINNING)} measured assignments win "
+                           f"({len(report.methods)} methods), none solo, no dead skill")
 
-    def test_property_p3_one_crate(self):
-        assert not plans_with("fireball", "tidalWave")
-        self._record(True, "P3: the crate cannot be on the lever and in the hall")
-
-    def test_property_p4_the_lantern_and_the_blind_room(self):
-        # Nothing blinds or stuns the lamplighter; nobody sees into the
-        # guardroom, so no lure reaches the warden.
+    def test_property_p3_the_lantern(self):
         assert not plans_with("blindingFlash", "shieldBash")
-        assert not plans_with("taunt", "hook")
-        self._record(True, "P4: two warden answers or two lures leave one obstacle")
+        self._record(True, "P3: nothing blinds or stuns the lamplighter")
 
-    def test_property_p5_the_vortex_trap(self):
-        # With the crate on the lever, the other companion has nowhere to
-        # stand clear of the street: a vortex on the lamps would root them.
-        assert not plans_with("fireball", "vortex")
-        self._record(True, "P5: fireball + vortex has no plan - the vortex would draw in and root a companion")
+    def test_property_p4_the_rooted_warden(self):
+        assert not plans_with("taunt", "fireball")
+        assert not plans_with("vortex", "blizzard")
+        self._record(True, "P4: the warden cannot be lured or moved; dry, a blizzard only chills him")
 
-    def test_property_p6_crate_two_roles(self):
-        lever = plans_with("fireball", "hook")
-        cover = plans_with("shieldBash", "fireball")
-        assert lever and all("opForcedMove(player, crate, yard, guardroom)" in p for p in lever)
-        assert cover and all("opForcedMove(mage, crate, yard, hall)" in p for p in cover)
-        self._record(True, "P6: fireball puts the crate on the lever, or in the hall as cover")
+    def test_property_p5_blizzard_two_roles(self):
+        plans = plans_with("tidalWave", "blizzard")
+        assert plans and all("opCast(mage, blizzard, street)" in p and
+                             "opGrant(mage, warden, stunned)" in p for p in plans), plans[:2]
+        self._record(True, "P5: one blizzard freezes the soaked warden, another frosts the lamps")
 
 
 def run_tests():
