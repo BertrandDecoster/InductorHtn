@@ -17,7 +17,7 @@ theirs. The validator then replans the level's goal (`goals(...)`) for:
 
 and reports, across the winning plans:
 
-  - solo plans: a plan whose actions are all one companion's (must be 0);
+  - solo plans: a plan whose casts are all one companion's (must be 0);
   - methods: distinct sets of skills cast in a winning plan (at least N);
   - skill usage: how many winning assignments use each skill; dead skills.
 
@@ -230,7 +230,9 @@ def run_combos(level_dir: str, project_root: str, timeout: float = 180.0,
             for s in {s for v in a.values() for s in v}:
                 usage[s] += 1
             for plan in res["plans"]:
-                actors = {args[0] for name, args in plan if args} & set(spec.companions)
+                # Acting means casting: a companion that only walks is not
+                # a second pair of hands.
+                actors = {args[0] for name, args in plan if name == "opCast" and args}                     & set(spec.companions)
                 if len(actors) < 2:
                     report.solo_plans += 1
                 cast = sorted({args[1] for name, args in plan if name == "opCast" and len(args) > 1})
