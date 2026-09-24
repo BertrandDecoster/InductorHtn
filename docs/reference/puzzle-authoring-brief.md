@@ -26,7 +26,7 @@ Also aim for:
 
 ## Size caps (planner time)
 
-- 6 to 10 regions, 2 or 3 companions, at most 4 enemies or objects, and a pool of 6 to 8 skills
+- 4 to 8 areas, 2 or 3 companions, at most 4 enemies or objects, and a pool of 6 to 8 skills
   drawn from the eleven catalogue skills.
   Two seats picking one skill each gives 64 assignments; three seats gives 512.
 - One `FindAllPlans` of the level goal should take under about 20 seconds. `combos` times each out
@@ -43,11 +43,12 @@ Also aim for:
   - `immune/2`, `wards/2`, `forbids/2`, `suspends/2`
   - what an entity is, is a tag: `tag(golem, heavy)`, `tag(bot, machine)`, `tag(crate, filler)`
     (no `trait/2`, no `element/2`)
-- Effects: `effect(?ab, target|self|area|around|path, ?atom)` with the atoms
+- Effects: `effect(?ab, target|self|area|foes|around, ?atom)` with the atoms (`area`: everyone
+  else in the target's area; `foes`: the NPCs there; `around`: everyone else in the caster's area)
   - tags: `grant(T)`, `remove(T)`, `purge(Group)`
   - movement: `push`, `pull`, `hook` (pull a light target, or be dragged to an anchored one),
-    `swap`, `dash`, `teleport` (the source to the target's region), `teleport(R)`, `pullIn`
-    (draw the next regions' contents into the target region)
+    `swap`, `dash`, `teleport` (the source next door), `teleport(R)`, `pullIn` (draw the
+    neighbouring areas' contents into the target area), `chase` (walk after the source)
   - actions: `interrupt` (a magic heavy attack being wound up stops)
   - terrain: `spill(Zone)`, `hazard(H)`, `open(Door)`, `close(Door)`, `openWhenHeld(Door)`, and
     `zoneReaction(?old, ?in, ?new)` (ice over deep water is a floor)
@@ -55,13 +56,14 @@ Also aim for:
 - Keep to the keywords. A new level-local ability is a combination of these atoms, never a new
   word.
 - Heavy attacks: `heavy(?ab)` on an NPC ability makes its behaviour telegraphed. The NPC winds up
-  on a region (aim `here`/`there(R)`) or on an entity it follows (aim `source`), the team gets one
-  cast (no walking), then the blow lands on everyone in the struck region but the NPC. No plan may
-  leave a companion (or a `mustSurvive(?x)` escort) in it unless `disjoint`. `kind(?ab, magic)`
-  makes it interruptible (Hook, Shield Bash); a physical one can only be survived. Use them where
-  you want players to trigger a big effect on purpose and survive it: the catalogue has
-  `groundSlam` (stun and throw), `caveIn` (the floor becomes a chasm) and `meteor` (magic: the
-  region burns); define your own.
+  on an area (aim `here`/`there(R)`) or on an entity it follows (aim `source`); with a companion
+  in the struck area the team may answer with one cast (no walking), then the blow lands on
+  everyone in the struck area but the NPC. A disjoint one is passed through; a shielded one's
+  shield breaks instead. A companion may take it (sacrifice is allowed); a `mustSurvive(?x)`
+  escort may not. `kind(?ab, magic)` makes it interruptible (Hook, Shield Bash); a physical one
+  can only be survived. Use them where you want players to trigger a big effect on purpose and
+  survive it: the catalogue has `groundSlam` (stun and throw), `caveIn` (the floor becomes a
+  chasm) and `meteor` (magic: the area burns); define your own.
 - Reactions (for everyone, never lethal): `reaction(?have, ?incoming, ?ab)`.
 - Weaknesses (per entity, the only way to an outcome): `weakness(?e, ?in, ?have|none, ?out)`.
   `?in` is a tag or a hazard.
@@ -71,17 +73,28 @@ Also aim for:
   - Phases are ordinary tags. A weakness that needs a phase tag is a vulnerability window, e.g. a
     boss that exhausts itself: `effect(slam, self, grant(exhausted))` plus
     `weakness(boss, X, exhausted, dead)`.
-  - `onGrant(taunted, pull)` drags a taunted NPC to its taunter first.
+  - `onGrant(taunted, chase)`: a taunted NPC walks after its taunter and follows it; if it
+    cannot walk there, the taunt breaks. Companions cannot be taunted.
+- Map: **areas are large** - a small room, or a quarter of a large one - joined by links,
+  each declared once, either way round. A chokepoint is two areas with a special link.
+  - `connected(?a, ?b)` walkable; `gap(?a, ?b)` a short pit (dash or teleport over it; forced
+    across, a walker falls in and a filler bridges it); `wall(?a, ?b)` (only a teleport goes
+    through); `doorway(?a, ?b, ?d)` (walkable while `open(?d)`)
+  - every movement goes **one link**: walk, dash (walkable or gap), teleport (any), push (to
+    any neighbouring area of the caster's choosing, never its own), pull and hook (from next
+    door), pullIn (everything next door into the area)
+  - `lineOfSight(?a, ?b)` for ranged aims; melee reaches the same area or next door (not
+    through a wall); `near` (Blink) reaches next door through any link
 - Terrain:
-  - `onEnter(?r, ?zoneAbility)` zones
-  - `door(?r)` with a plate zone `open(D)` (latches), or `plateFor(?p, ?d)` plus
-    `openWhenHeld(D)` (all plates at once)
-  - `blocker(?e)` (nobody walks into its region)
-  - `watches(?guard, ?r)` (nobody walks in unseen unless stealthed or the guard is blinded)
-  - `trait(?x, filler)` (fills a hazard it falls into)
-  - `beyond(?from, ?over, ?to)` push lines, which also say what lies between
-- Walking is automatic (`walkTo`, shortest route of at most eight steps). Melee reaches the next
-  region.
+  - `onEnter(?r, ?zoneAbility)` zones; hazard areas (`chasm`, `lava`, `deepWater`)
+  - a plate zone `open(D)` (latches), or `plateFor(?p, ?d)` plus `openWhenHeld(D)` (all plates
+    at once)
+  - `blocker(?e)` (nobody walks into its area)
+  - `watches(?guard, ?r)` (no companion walks in unseen unless stealthed or the guard is blinded)
+  - `tag(?x, filler)` (fills a hazard area or a gap it falls into)
+- Walking is automatic (`walkTo`, shortest route of at most eight steps).
+- Sacrifice is allowed: a companion may be lost and the plan still win. Declare
+  `mustSurvive(?x)` for an escort no heavy blow may catch.
 
 **Recipes:**
 - `neutralize(?e)` (`abilities/goals/neutralize`): the enemy's lethal weakness (`exploit`), a push
@@ -95,9 +108,11 @@ Also aim for:
 - Acts you can call from your own methods:
   - casting: `cast(?a, ?ab, ?e)`, `castFrom(?a, ?ab, ?e, ?from)`
   - tags: `inflict(?t, ?e, ?not)`, `combo(?have, ?in, ?e)`, `unset(?t, ?e)`
-  - movement: `sendInto(?e, ?r, ?not)`, `place(?e, ?r, ?not)`, `dislodge(?e)`, `walkTo(?a, ?r)`
-    (all of them know pushes, waves and vortices through
-    `placement(?a, ?ab, ?from, ?aim, ?e, ?r)`: cast `?ab` at `?aim` from `?from`)
+  - movement: `sendInto(?e, ?r, ?not)`, `dropInGap(?e, ?not)`, `sendDown(?e, ?not)`,
+    `place(?e, ?r, ?not)`, `dislodge(?e)`, `walkTo(?a, ?r)`; all of them know pushes, waves,
+    pulls, vortices and taunt lures through `forcing(?a, ?ab, ?from, ?aim, ?e, ?to, land|fall)`
+    (cast `?ab` at `?aim` from `?from`), with `placement/6` (lands) and `dropping/5` (falls)
+  - passage: `bridge(?a, ?b)` fills a gap with a filler
   - checks: `confirmStopped(?e)`
 
 **Level-local definitions are allowed.** You may declare new abilities, zones, weaknesses,
@@ -118,7 +133,7 @@ Folder `levels/<category>_<name>/`:
 
 - **`level.htn`:**
   - a header comment: the fantasy, the obstacles, every method, and the traps;
-  - regions, lines, zones, companions, enemies;
+  - areas, links, zones, companions, enemies;
   - a default kit;
   - the goal (`win` with alternatives if there are several victories);
   - the choice declaration: `comboSeat/2`, `comboPool/1`, optionally `comboMinWins/1` and

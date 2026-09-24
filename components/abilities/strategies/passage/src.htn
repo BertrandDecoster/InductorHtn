@@ -5,17 +5,18 @@
 % (higher is further along) and names its obstacles; these recipes say how
 % each kind is overcome, each in several ways:
 %
-%   reach(?a, ?r)   walk; or leap forward and carry on - a dash or a blink to
-%                   a region, a hook to something anchored there, a swap with
-%                   someone standing there, or an ally who swaps you forward
+%   reach(?a, ?r)   walk; or leap forward one link and carry on - a dash
+%                   over a gap, a teleport through a wall, a hook to
+%                   something anchored next door, a swap, or an ally who
+%                   swaps you forward
 %   openWay(?d)     a door opens for good when something weighs down its
-%                   plate: someone walks on, or something is pushed, pulled or
-%                   swapped on
-%   span(?g)        a gap is bridged by pushing something that fills it into
-%                   it (one push, or two), or dragging it in across the gap -
+%                   plate: someone walks on, or something is forced on
+%   span(?g)        a hazard area is filled by forcing a filler into it -
 %                   or left, for everyone to cross on their own
-%   clear(?e)       a blocker is dropped into a hazard, moved out of its
-%                   doorway, or left for everyone to get past
+%   bridge(?a, ?b)  a gap is bridged by forcing a filler into it - or left,
+%                   for everyone to leap
+%   clear(?e)       a blocker is dropped, moved out of its chokepoint, or
+%                   left for everyone to get past
 %
 % Leaps only go forward along the route, so every decomposition ends.
 
@@ -50,6 +51,11 @@ ferry(?a, ?b, ?ab, ?land) :-
 % The plate of a door; something that fills a gap.
 plateOf(?p, ?d) :- onEnter(?p, ?z), effect(?z, target, open(?d)).
 filler(?x) :- tag(?x, filler), not(gone(?x)).
+% ?x, standing at one end of the gap ?a-?b, forced across it by ?p.
+fillsGap(?p, ?ab, ?from, ?aim, ?x, ?a, ?b) :-
+    at(?x, ?a), forcing(?p, ?ab, ?from, ?aim, ?x, ?b, fall).
+fillsGap(?p, ?ab, ?from, ?aim, ?x, ?a, ?b) :-
+    at(?x, ?b), forcing(?p, ?ab, ?from, ?aim, ?x, ?a, fall).
 
 % === Methods ===
 
@@ -72,22 +78,23 @@ openWay(?d) :-
     do(castFrom(?a, ?ab, ?aim, ?from), confirmOpen(?d)).
 confirmOpen(?d) :- if(open(?d)), do().
 
-% A gap: already bridged; bridged by one push; by two pushes; by a pull
-% across it; or left to be crossed one by one.
+% A hazard area: already filled; filled by a push, pull or pull-in of a
+% filler; or left to be crossed one by one.
 span(?g) :- if(filled(?g)), do().
 span(?g) :- if(not(filled(?g))), do().
 span(?g) :-
     if(not(filled(?g)), filler(?x), first(placement(?a, ?ab, ?from, ?aim, ?x, ?g))),
     do(castFrom(?a, ?ab, ?aim, ?from), confirmFilled(?g)).
-span(?g) :-
-    if(not(filled(?g)), filler(?x), placement(?a, ?ab, ?from, ?aim, ?x, ?mid), \==(?mid, ?g),
-       landing(?f2, ?mid, ?g)),
-    do(castFrom(?a, ?ab, ?aim, ?from), place(?x, ?g, none), confirmFilled(?g)).
-span(?g) :-
-    if(not(filled(?g)), filler(?x), at(?x, ?xr), puller(?a, ?ab, ?x), between(?from, ?xr, ?g),
-       reach(?ab, ?k), inRange(?k, ?from, ?xr), canReachNow(?a, ?from)),
-    do(castFrom(?a, ?ab, ?x, ?from), confirmFilled(?g)).
 confirmFilled(?g) :- if(filled(?g)), do().
+
+% A gap between ?a and ?b: already bridged; bridged by a filler forced
+% into it; or left for everyone to leap.
+bridge(?a, ?b) :- if(bridgedGap(?a, ?b)), do().
+bridge(?a, ?b) :- if(not(bridgedGap(?a, ?b))), do().
+bridge(?a, ?b) :-
+    if(not(bridgedGap(?a, ?b)), filler(?x), first(fillsGap(?p, ?ab, ?from, ?aim, ?x, ?a, ?b))),
+    do(castFrom(?p, ?ab, ?aim, ?from), confirmBridged(?a, ?b)).
+confirmBridged(?a, ?b) :- if(bridgedGap(?a, ?b)), do().
 
 % A blocker: dropped for good, moved out of its doorway, or left.
 clear(?e) :- if(neutralized(?e)), do().

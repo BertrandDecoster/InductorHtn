@@ -2,7 +2,10 @@
 %
 % GAS activation gates on the caster and the target, and costs, as facts:
 %   knows(?a, ?ab)                     the loadout - what a level varies
-%   reach(?ab, self|melee|ranged)      melee: same region; ranged: line of sight
+%   reach(?ab, self|melee|near|ranged) melee: the same area, or next door over
+%                                      a walkable link or a gap; near: next door
+%                                      over any link (a teleport through a
+%                                      wall); ranged: line of sight
 %   requires(?ab, caster|target, ?t)   must carry ?t
 %   blockedBy(?ab, caster|target, ?t)  must not carry ?t (hammer: tired)
 %   manaCost(?ab, ?n) + mana(?a, ?m)   paid with a fluent
@@ -10,8 +13,8 @@
 %   kind(?ab, spell|attack|dash)       what a forbidding tag checks; a ranged
 %                                      ability is also of kind `ranged`
 %
-% A self-cast whose effects reach `around` the caster (a wave) is cast at
-% an enemy by standing in its region or next to it.
+% A self-cast whose effects reach `around` the caster (a wave, a flash) is
+% cast at an enemy by standing in its area.
 %
 % A tag the caster carries can forbid a kind (silenced: spell; disarmed:
 % attack; blinded: ranged; stunned: any). A target whose tags ward
@@ -22,19 +25,22 @@
 % companion, an NPC. Nothing here gates on role(?a, player).
 %
 % Heavy attacks. An NPC behaviour whose ability is heavy(?ab) does not land
-% at once: the NPC winds up on what it aims at - a region, or an entity it
+% at once: the NPC winds up on what it aims at - an area, or an entity it
 % follows wherever it goes - and the team gets one action: a cast, without
 % walking, by any companion. Then the blow falls on everyone in the struck
-% region but the NPC. A companion caught in it is downed, so no plan may
-% let that happen. The answers are skills:
-%   leave the region      teleport, dash, be hooked or washed out (not
+% area but the NPC. The answers are skills:
+%   leave the area        teleport, dash, be hooked or pushed out (not
 %                         against a blow that follows its target)
-%   disjoint              a moment untouchable: a blow that follows you
-%                         misses, a blow on your region passes through you
+%   disjoint              a moment untouchable: the blow passes through
+%   shielded              the shield takes the blow, and breaks
 %   interrupt             a magic attack (kind(?ab, magic)) stops; a
 %                         physical one cannot be stopped
-% Whatever else stands there takes the blow: it is also a weapon to turn
-% on other enemies. An NPC already winding up does not start another.
+% A companion may also take the blow: sacrifice is allowed. Only what a
+% level declares mustSurvive(?x) may never be caught - no plan lets it.
+% The zone a blow leaves (a cave-in's chasm) is terrain: it takes whoever
+% is there, the NPC and the disjoint included. Whatever else stands in the
+% struck area takes the blow: it is also a weapon to turn on other enemies.
+% An NPC already winding up does not start another.
 %
 % Time. Every cast ticks a clock. Something done "for a moment"
 % (moment(Atom) in ab_effects) lasts through the next cast by anyone, then
@@ -89,29 +95,33 @@ kindOf(?ab, ranged) :- reach(?ab, ranged).
 ready(?a, ?ab, ?e) :-
     knows(?a, ?ab), not(gone(?a)), not(gone(?e)), not(unmet(?a, ?ab, ?e)).
 
-% Where ?a can use ?ab on something in ?r from: melee is the same region or
-% the next one (a blocker holding a doorway can still be hit); ranged needs
-% line of sight. It prefers staying put, then any region it can walk to.
+% Where ?a can use ?ab on something in ?r from: melee is the same area or
+% the next one (a blocker holding a chokepoint can still be hit); ranged
+% needs line of sight. It prefers staying put, then any area it can walk to.
 inRange(melee, ?from, ?r) :- =(?from, ?r).
-inRange(melee, ?from, ?r) :- connected(?from, ?r).
+inRange(melee, ?from, ?r) :- dashEdge(?from, ?r).
+inRange(near, ?from, ?r) :- blinkEdge(?from, ?r).
 inRange(ranged, ?from, ?r) :- canTarget(?from, ?r).
 spot(?a, ?ab, ?r, ?from) :- reach(?ab, self), at(?a, ?from).
 spot(?a, ?ab, ?r, ?from) :- reach(?ab, ?k), \==(?k, self), at(?a, ?from), inRange(?k, ?from, ?r).
 spot(?a, ?ab, ?r, ?from) :-
     reach(?ab, ?k), \==(?k, self), at(?a, ?cur), region(?from), inRange(?k, ?from, ?r),
     canReach(?a, ?cur, ?from).
-% Where a wave around ?a reaches ?r from: ?r itself, or next to it.
+% Where a wave around ?a reaches ?r from: ?r itself.
 aroundSpot(?a, ?r, ?r) :- at(?a, ?cur), canReach(?a, ?cur, ?r).
-aroundSpot(?a, ?r, ?from) :- connected(?from, ?r), at(?a, ?cur), canReach(?a, ?cur, ?from).
 
 % Heavy attacks: where a blow on ?x falls (nowhere if it follows an entity
 % that disjointed or is gone), and whether it would down someone.
-mustSurvive(?x) :- canAct(?x).
 struck(?x, ?x) :- region(?x).
 struck(?x, ?r) :- not(region(?x)), at(?x, ?r), not(gone(?x)), not(warded(?x, heavy)).
 endangered(?x) :-
     struck(?x, ?r),
-    first(and(at(?a, ?r), mustSurvive(?a), not(gone(?a)), not(warded(?a, heavy)))).
+    first(and(at(?a, ?r), mustSurvive(?a), not(gone(?a)), not(safeFrom(?a)))).
+% A companion stands where the blow will fall: the team may answer.
+atStake(?x) :- struck(?x, ?r), first(and(at(?a, ?r), canAct(?a), not(gone(?a)))).
+% Safe from a heavy blow: disjoint, or behind a shield.
+safeFrom(?a) :- warded(?a, heavy).
+safeFrom(?a) :- has(?a, shielded).
 winding() :- first(windingUp(?n, ?ab, ?x)).
 % Anything a companion could aim at in the window: a region or an entity.
 aimable(?x) :- region(?x).
@@ -127,7 +137,7 @@ windowAim(?a, ?ab, ?x) :-
 % pick the free branch of something that has a cost.
 
 % ?a uses ?ab on ?e from wherever it reaches; a wave around the caster, from
-% ?e's region or the next one.
+% ?e's area.
 cast(?a, ?ab, ?e) :-
     if(canAct(?a), ready(?a, ?ab, ?e), locus(?e, ?r), first(spot(?a, ?ab, ?r, ?from))),
     do(castFrom(?a, ?ab, ?e, ?from)).
@@ -177,28 +187,42 @@ useUp(?a, ?ab) :- if(not(once(?ab))), do().
 
 % === Heavy attacks ===
 
-unleash(?npc, ?ab, ?x) :-
-    if(heavy(?ab), not(first(windingUp(?npc, ?a0, ?x0)))),
+telegraph(?npc, ?ab, ?x) :-
+    if(not(first(windingUp(?npc, ?a0, ?x0)))),
     do(opWindUp(?npc, ?ab, ?x), brace(?npc, ?x), landBlow(?npc, ?ab, ?x)).
-unleash(?npc, ?ab, ?x) :- if(heavy(?ab), first(windingUp(?npc, ?a0, ?x0))), do().
+telegraph(?npc, ?ab, ?x) :- if(first(windingUp(?npc, ?a0, ?x0))), do().
 
-% The window: nobody in danger, nothing to do; else one companion acts.
-brace(?npc, ?x) :- if(not(endangered(?x))), do().
-brace(?npc, ?x) :- if(endangered(?x)), do(respond(?npc)).
+% The window: with a companion in the struck area the team may act (one
+% cast, by anyone) or take it; with someone who must survive, it must act.
+brace(?npc, ?x) :- if(not(atStake(?x)), not(endangered(?x))), do().
+brace(?npc, ?x) :- if(atStake(?x), not(endangered(?x))), do().
+brace(?npc, ?x) :- if(atStake(?x)), do(respond(?npc)).
+brace(?npc, ?x) :- if(not(atStake(?x)), endangered(?x)), do(respond(?npc)).
 respond(?npc) :-
     if(canAct(?a), not(gone(?a)), knows(?a, ?ab), windowAim(?a, ?ab, ?y)),
     do(useAbility(?a, ?ab, ?y)).
 
 % The blow: interrupted (nothing left to land); gone or missed; or it falls
-% on everyone in the struck region - never on someone who must survive (no
-% clause: that plan fails). A disjoint is spent on it.
+% on everyone in the struck area but the NPC - never on someone who must
+% survive (no clause: that plan fails). Each one it falls on: a disjoint
+% one is passed through (and its disjoint spent); a shielded one's shield
+% breaks; anyone else takes the ability. Then what it does to the area
+% itself (a spill) happens.
 landBlow(?npc, ?ab, ?x) :- if(not(windingUp(?npc, ?ab, ?x))), do().
 landBlow(?npc, ?ab, ?x) :- if(windingUp(?npc, ?ab, ?x), gone(?npc)), do(opMiss(?npc, ?ab, ?x)).
 landBlow(?npc, ?ab, ?x) :-
     if(windingUp(?npc, ?ab, ?x), not(gone(?npc)), not(struck(?x, ?r))), do(opMiss(?npc, ?ab, ?x)).
 landBlow(?npc, ?ab, ?x) :-
     if(windingUp(?npc, ?ab, ?x), not(gone(?npc)), struck(?x, ?r), not(endangered(?x))),
-    do(opBlow(?npc, ?ab, ?x, ?r), applyAbility(?npc, ?ab, ?r, raw), spendDisjoint(?npc, ?r)).
-spendDisjoint(?npc, ?r) :- if(first(and(at(?y, ?r), tag(?y, disjoint)))), do(spendAll(?npc, ?r)).
-spendDisjoint(?npc, ?r) :- if(not(first(and(at(?y, ?r), tag(?y, disjoint))))), do().
-spendAll(?npc, ?r) :- allOf, if(at(?y, ?r), tag(?y, disjoint)), do(opRemove(?npc, ?y, disjoint)).
+    do(opBlow(?npc, ?ab, ?x, ?r), blowAll(?npc, ?ab, ?r), applyAbility(?npc, ?ab, ?r, raw)).
+blowAll(?npc, ?ab, ?r) :-
+    if(first(and(at(?y, ?r), \==(?y, ?npc), not(gone(?y))))), do(blowEach(?npc, ?ab, ?r)).
+blowAll(?npc, ?ab, ?r) :- if(not(first(and(at(?y, ?r), \==(?y, ?npc), not(gone(?y)))))), do().
+blowEach(?npc, ?ab, ?r) :-
+    allOf, if(at(?y, ?r), \==(?y, ?npc), not(gone(?y))), do(blowOn(?npc, ?ab, ?y)).
+blowOn(?npc, ?ab, ?y) :- if(tag(?y, disjoint)), do(opRemove(?npc, ?y, disjoint)).
+blowOn(?npc, ?ab, ?y) :- if(not(tag(?y, disjoint)), warded(?y, heavy)), do().
+blowOn(?npc, ?ab, ?y) :-
+    if(not(warded(?y, heavy)), has(?y, shielded)), do(opRemove(?npc, ?y, shielded)).
+blowOn(?npc, ?ab, ?y) :-
+    if(not(warded(?y, heavy)), not(has(?y, shielded))), do(applyAbility(?npc, ?ab, ?y, raw)).

@@ -11,7 +11,7 @@ from htn_test_framework import HtnTestSuite
 WORLD = [
     "region(ledge)", "region(pool)", "region(pit)",
     "connected(ledge, pool)", "connected(pool, ledge)",
-    "beyond(ledge, pool, pit)",
+    "connected(pool, pit)",
     "role(player, player)", "role(gob, enemy)", "role(golem, enemy)",
     "at(player, ledge)", "at(gob, pool)", "at(golem, pool)",
     "group(dead, gone)", "group(fell, gone)",
@@ -102,13 +102,15 @@ class AbEffectsTest(HtnTestSuite):
         self.compile_additional("needFresh(?a) :- if(not(tag(?a, tired))), do().")
         self.assert_no_plan("applyAbility(player, hammer, gob, react), needFresh(player).")
 
-    def test_property_p6_a_push_lands_in_one_place(self):
-        """Two lines from the ledge over the pool: the first declared wins."""
-        self.set_state(["region(slick)", "beyond(ledge, pool, slick)"])
+    def test_property_p6_a_push_goes_where_the_caster_aims(self):
+        """Two neighbours of the pool: each is a plan; the caster's own area is
+        never one."""
+        self.set_state(["region(slick)", "connected(pool, slick)"])
         self.assert_plan("applyAbility(player, gust, gob, react).",
-                         contains=["opForcedMove(player, gob, pool, pit)"],
-                         not_contains=["opForcedMove(player, gob, pool, slick)"],
-                         max_solutions=1)
+                         contains=["opForcedMove(player, gob, pool, pit)"])
+        self.assert_plan("applyAbility(player, gust, gob, react).",
+                         contains=["opForcedMove(player, gob, pool, slick)"],
+                         not_contains=["opForcedMove(player, gob, pool, ledge)"], max_solutions=2)
 
 
     def test_property_p7_an_area_hits_everyone_but_the_source(self):
@@ -150,26 +152,38 @@ class AbEffectsTest(HtnTestSuite):
                                 has=["tag(golem,stunned)", "tag(gob,sparked)"], not_has=["tag(golem,dead)"])
 
     def test_property_p12_a_hazard_takes_only_the_weak(self):
+        """A gale on the pool throws everyone next door; into the chasm, the
+        goblin falls and the bat hovers."""
         self.set_state(["region(chasm)", "region(cliff)", "at(storm, cliff)",
-                        "beyond(cliff, pool, chasm)", "onEnter(chasm, drop)",
+                        "connected(pool, chasm)", "onEnter(chasm, drop)",
                         "effect(drop, target, hazard(chasm))",
                         "weakness(?e, chasm, none, fell) :- not(has(?e, flying))",
                         "role(bat, enemy)", "at(bat, pool)", "tag(bat, flying)",
                         "effect(gale, area, push)"])
-        self.assert_state_after("applyAbility(storm, gale, pool, react).",
-                                has=["tag(gob,fell)", "at(bat,chasm)"], not_has=["tag(bat,fell)"])
+        self.assert_plan("applyAbility(storm, gale, pool, react).", contains=[
+            "opForcedMove(storm, gob, pool, chasm)", "opExploit(storm, gob, chasm, fell)",
+            "opForcedMove(storm, bat, pool, chasm)"])
+        self.assert_plan("applyAbility(storm, gale, pool, react).",
+                         not_contains=["opExploit(storm, bat, chasm, fell)"])
 
     def test_property_p13_a_tag_can_move_its_bearer(self):
         self.set_state(["onGrant(feared, push)", "effect(scare, target, grant(feared))"])
         self.assert_state_after("applyAbility(player, scare, gob, react).",
                                 has=["tag(gob,feared)", "at(gob,pit)", "tag(gob,fell)"])
 
-    def test_property_p14_a_path_strikes_whoever_stands_between(self):
-        self.set_state(["region(shore)", "beyond(ledge, pool, shore)",
-                        "effect(flash, path, grant(sparked))", "effect(flash, target, dash)"])
-        self.assert_state_after("applyAbility(player, flash, shore, react).",
-                                has=["tag(gob,sparked)", "tag(golem,sparked)", "at(player,shore)"],
-                                not_has=["tag(player,sparked)"])
+    def test_property_p14_a_gap_takes_what_is_forced_across(self):
+        """Pushed across a gap, the goblin falls in; a flyer crosses; a filler
+        that falls in bridges it, and then it is walked over."""
+        self.set_state(["region(ridge)", "gap(pool, ridge)", "role(bat, enemy)", "at(bat, pool)",
+                        "tag(bat, flying)", "role(crate, object)", "tag(crate, filler)",
+                        "at(crate, pool)",
+                        "weakness(?e, gap, none, fell) :- not(has(?e, flying))"])
+        self.assert_plan("applyAbility(player, gust, gob, react).",
+                         contains=["opFall(player, gob, pool, ridge)", "opGrant(player, gob, fell)"])
+        self.assert_plan("applyAbility(player, gust, bat, react).",
+                         contains=["opForcedMove(player, bat, pool, ridge)"])
+        self.assert_plan("applyAbility(player, gust, crate, react), walkTo(player, ridge).",
+                         contains=["opBridge(player, pool, ridge)", "opNavigate(player, pool, ridge)"])
 
     def test_property_p15_a_hook_pulls_the_light_and_is_pulled_by_the_anchored(self):
         self.set_state(["effect(hk, target, hook)"])
@@ -183,18 +197,16 @@ class AbEffectsTest(HtnTestSuite):
         self.assert_state_after("applyAbility(player, tp, gob, react).",
                                 has=["at(player,pool)", "at(gob,ledge)", "tag(player,wet)"])
 
-    def test_property_p17_a_pull_across_a_hazard_drops_it_in(self):
-        self.set_state(["region(gap)", "region(far)", "connected(ledge, gap)", "connected(gap, ledge)",
-                        "connected(gap, far)", "connected(far, gap)", "beyond(ledge, gap, far)",
-                        "onEnter(gap, drop)", "effect(drop, target, hazard(gap))",
+    def test_property_p17_a_pull_across_a_gap_drops_it_in(self):
+        self.set_state(["region(far)", "gap(ledge, far)",
                         "weakness(?e, gap, none, fell) :- not(has(?e, flying))",
                         "role(imp, enemy)", "at(imp, far)", "effect(hk, target, hook)"])
         self.assert_state_after("applyAbility(player, hk, imp, react).",
-                                has=["at(imp,gap)", "tag(imp,fell)"])
+                                has=["at(imp,far)", "tag(imp,fell)"])
 
     def test_property_p18_a_filled_hazard_is_walked_over(self):
         self.set_state(["region(gap)", "region(far)", "connected(ledge, gap)", "connected(gap, ledge)",
-                        "connected(gap, far)", "connected(far, gap)", "beyond(ledge, gap, far)",
+                        "connected(gap, far)", "connected(far, gap)",
                         "onEnter(gap, drop)", "effect(drop, target, hazard(gap))",
                         "weakness(?e, gap, none, fell) :- not(has(?e, flying))",
                         "role(crate, object)", "tag(crate, filler)", "at(crate, gap)",
@@ -204,18 +216,21 @@ class AbEffectsTest(HtnTestSuite):
 
     def test_property_p19_nobody_walks_into_a_live_hazard(self):
         self.set_state(["region(gap)", "region(far)", "connected(ledge, gap)", "connected(gap, ledge)",
-                        "connected(gap, far)", "connected(far, gap)", "beyond(ledge, gap, far)",
+                        "connected(gap, far)", "connected(far, gap)",
                         "onEnter(gap, drop)", "effect(drop, target, hazard(gap))",
                         "weakness(?e, gap, none, fell) :- not(has(?e, flying))"])
         self.assert_no_plan("walkTo(player, far).")
 
     def test_property_p20_blockers_and_doors_stop_a_walk(self):
-        """The pool is held by a blocker, the yard beyond it is a closed door:
-        neither can be walked into."""
-        self.set_state(["region(yard)", "connected(pool, yard)", "connected(yard, pool)",
-                        "door(yard)", "blocker(gob)", "canTarget(ledge, yard)"])
+        """The pool is held by a blocker; the yard is behind a closed door and
+        opens to a walk once the door is open."""
+        self.set_state(["region(yard)", "doorway(ledge, yard, gate)", "blocker(gob)"])
         self.assert_query("canReach(player, ledge, pool).", min_solutions=0, max_solutions=0)
         self.assert_query("canReach(player, ledge, yard).", min_solutions=0, max_solutions=0)
+
+    def test_property_p20b_an_open_door_is_walked_through(self):
+        self.set_state(["region(yard)", "doorway(ledge, yard, gate)", "open(gate)"])
+        self.assert_state_after("walkTo(player, yard).", has=["at(player,yard)"])
 
     def test_property_p21_a_taunted_golem_discharges_on_its_taunter(self):
         """The golem answers a taunt: dragged to the taunter, it discharges on

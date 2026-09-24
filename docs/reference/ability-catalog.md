@@ -11,9 +11,24 @@ Every skill is written with a handful of keywords, in three families, plus terra
 | Family | Keywords |
 |--------|----------|
 | **Tags** | grant or remove a tag, for good or **for a moment** |
-| **Movement** | forced movement (push away from the source, pull toward it, pull into a point), dash, teleport |
+| **Movement** | forced movement (push to any neighbouring area, pull to the caster, pull into an area), dash, teleport, walk (a chase) |
 | **Effects on actions** | **interrupt** (a magic heavy attack being wound up stops), **disjoint** (for a moment, nothing aimed at you lands) |
-| **Terrain** | a zone left on a region (whoever is there or walks in takes it); zones reacting to zones; doors opened or closed |
+| **Terrain** | a zone left on an area (whoever is there or walks in takes it); zones reacting to zones; doors opened or closed |
+
+**The map.** Areas are large: a small room, or a quarter of a large one. They are joined by links,
+and a chokepoint is two areas with a special link:
+
+| Link | Walk | Dash | Teleport | Forced movement |
+|------|------|------|----------|-----------------|
+| walkable (`connected`) | yes | yes | yes | passes |
+| `gap` (a short pit) | no | yes | yes | falls in, unless flying; a filler that falls in bridges it |
+| `wall` | no | no | yes | stopped |
+| `doorway` | while open | while open | yes | while open |
+
+Every movement goes **one link**. Ranged skills aim at anything in line of sight; melee reaches the
+same area or next door (not through a wall). A push sends its target to any neighbouring area but
+the caster's own: you aim the blast wherever you like, so you choose where it lands, a friend or
+yourself included. A dash or a teleport never lands its caster in a live hazard.
 
 **For a moment** is the only duration: an effect lasts through the next cast by anyone, then is
 undone, and never ends in the middle of a heavy attack's window.
@@ -23,21 +38,21 @@ waterElemental and filler are tags, so a skill can take one off (Turn to Mist re
 
 ## Skills
 
-"Around" means the caster's region and the regions next to it.
+"Around" means everyone else in the caster's area.
 
-| Skill | Tags applied | Movement | On actions | Description |
-|-------|--------------|----------|------------|-------------|
-| **Hook** | - | the target is pulled toward the caster (an anchored, heavy target pulls the caster to it instead) | interrupts the target | Drag an enemy to you and break the spell it was casting. Across a pit, it falls in. Hooked to a pillar, you cross a gap. |
-| **Vortex** | `rooted` on everyone in the target region | everything next to the target region is pulled into it | - | Suck enemies into one spot and pin them there. |
-| **Tidal Wave** | `wet` on everyone around | everyone next to the caster is pushed away | - | A wave bursts from you, soaking everyone near and washing them back. |
-| **Blizzard** | `slowed` and `chilled` on everyone in the region, now and later (an ice sheet) | - | - | The region ices over. Chilled does nothing alone; on the wet it freezes them (stunned). It kills fire elementals and insects. Over deep water or lava, the ice is a floor. |
-| **Fireball** | `burning` on everyone in the region, now and later (flames) | the target is pushed away from the caster | - | The impact region catches fire and the target is blown out of it. |
-| **Lightning Flash** | `electrocuted` on the target and everyone on the way | the caster dashes to the target | - | You become lightning, striking everything on your path. |
-| **Blink** | `disjoint` on the caster, for a moment | the caster teleports to the target region | disjoint | Vanish and reappear elsewhere; whatever was coming at you misses. |
-| **Blinding Flash** | `disjoint` on the caster, for a moment; `blinded` on everyone around | - | disjoint | You flicker out in a flash of light that blinds everyone near you; the attack aimed at you misses. |
-| **Taunt** | `taunted` on the target | the target is dragged toward the caster | - | The enemy fixates on you, comes at you, and does what it does when provoked. |
-| **Turn to Mist** | `heavy` and `shielded` removed from the target, for a moment | - | - | The target turns to mist: for a moment nothing anchors it and nothing shields it. |
-| **Shield Bash** | `stunned` on the target | - | interrupts the target | Stun a normal enemy and break the spell it was casting. |
+| Skill | Reach | Tags applied | Movement | On actions | Description |
+|-------|-------|--------------|----------|------------|-------------|
+| **Hook** | melee | - | the target is pulled into the caster's area (an anchored, heavy target pulls the caster to it instead) | interrupts the target | Drag an enemy to you and break the spell it was casting. Across a gap, it falls in. Hooked to a pillar across a gap, you cross it. |
+| **Vortex** | ranged | `rooted` for a moment on the NPCs in the target area | everything next door is pulled into the target area | - | Suck everything into one area and pin the enemies there for a moment. Allies get pulled too, but not pinned. |
+| **Tidal Wave** | self | `wet` on everyone around | everyone around is pushed next door, each where the caster likes | - | A wave bursts from you, soaking everyone near and washing them out. |
+| **Blizzard** | ranged | `slowed` and `chilled` on everyone in the area, now and later (an ice sheet) | - | - | The area ices over. Chilled does nothing alone; on the wet it freezes them (stunned). It kills fire elementals and insects. Over deep water or lava, the ice is a floor. |
+| **Fireball** | ranged | `burning` on everyone in the area, now and later (flames) | the target is pushed next door, wherever the caster likes | - | The whole area catches fire and the target is blown out of it. Aimed at a friend or yourself, it throws them. |
+| **Lightning Flash** | melee | `electrocuted` on everyone in the target area | the caster dashes there | - | You become lightning and strike the area next door, landing in it. |
+| **Blink** | near | `disjoint` on the caster, for a moment | the caster teleports next door, through any link | disjoint | Vanish and reappear next door, even through a wall; whatever was coming at you misses. |
+| **Blinding Flash** | self | `disjoint` on the caster, for a moment; `blinded` and `electrocuted` on everyone around | - | disjoint | You flicker out in a flash of lightning that blinds and shocks everyone near you, friends included; the attack aimed at you misses. |
+| **Taunt** | ranged | `taunted` on the target (NPCs only) | the target walks after the caster, and keeps following | - | The enemy fixates on you and comes at you, through whatever lies on the way; if it cannot walk to you, the taunt breaks. |
+| **Turn to Mist** | ranged | `heavy` and `shielded` removed from the target, for a moment | - | - | The target turns to mist: for a moment nothing anchors it and nothing shields it. |
+| **Shield Bash** | melee | `stunned` on the target; `shielded` on the caster | - | interrupts the target | Stun a normal enemy, break its spell, and raise your shield: it takes the next hit, even a heavy blow. |
 
 ## Enemy moves
 
@@ -46,16 +61,17 @@ aimed at `source` follows that entity; one aimed at a region falls there.
 
 | Move | Heavy | Kind | On everyone in the struck region but the attacker |
 |------|-------|------|----------------------------------------------------|
-| `groundSlam` | yes | physical | `stunned`, and pushed away from the attacker |
+| `groundSlam` | yes | physical | `stunned`, and thrown next door |
 | `caveIn` | yes | physical | the floor becomes a chasm: whoever is weak to it falls |
 | `meteor` | yes | magic | the region catches fire |
 
-A heavy move winds up; the team gets one cast (no walking); then it lands. A companion still in the
-struck region is downed, so no plan allows it. Survive it by leaving the region (Blink, Lightning
-Flash, Hook onto an anchor, being washed out by a friend's Tidal Wave), by disjointing (Blink,
-Blinding Flash: a move that follows you misses entirely), or, for a magic move, by interrupting
-(Hook, Shield Bash). A physical move cannot be stopped. Whatever else stands in the struck region
-takes it, enemies included.
+A heavy move winds up. With a companion in the struck area, the team may answer with one cast (no
+walking) or take the blow: sacrifice is allowed, unless a level declares someone `mustSurvive`.
+Answers: leave the area (Blink, Lightning Flash, Hook onto an anchor, a friend's push), disjoint
+(Blink, Blinding Flash: a move that follows you misses entirely), a shield (Shield Bash: it takes the
+blow and breaks), or, for a magic move, interrupt (Hook, Shield Bash). A physical move cannot be
+stopped. Whatever else stands in the struck area takes it, enemies included. The zone a blow leaves
+(a cave-in's chasm) is terrain: it takes everyone there, the attacker included.
 
 ## Tags
 
@@ -65,16 +81,16 @@ takes it, enemies included.
 |-----|------|-----------|-------|
 | `blinded` | no basic attack; cannot keep watch | Blinding Flash; bundled in stunned | disarmed, nearsighted |
 | `silenced` | no skills; its behaviours do not fire | bundled in stunned | - |
-| `rooted` | no walking, no dashing | Vortex; bundled in stunned | snared, entangled, netted |
+| `rooted` | no walking, no dashing | Vortex (for a moment); bundled in stunned | snared, entangled, netted |
 | `slowed` | no dashing | Blizzard (ice sheet) | webbed, crippled |
 | `wet` | fire on it: steam; cold on it: stunned | Tidal Wave, puddle, deep water | drenched |
 | `chilled` | nothing alone; water on it: stunned; kills fire elementals and insects | Blizzard (ice sheet) | frostbitten |
 | `oiled` | fire on it: a blaze (everyone in its region burns) | slick (a level places it) | - |
 | `burning` | water puts it out, cold quenches it; kills the wooden | Fireball (flames), a blaze, meteor | ignited |
-| `electrocuted` | stuns machines and wet living things; kills wet machines and water elementals | Lightning Flash | shocked |
-| `taunted` | dragged to the taunter; sets off behaviours | Taunt | provoked |
+| `electrocuted` | stuns machines and wet living things; kills wet machines and water elementals | Lightning Flash, Blinding Flash | shocked |
+| `taunted` | an NPC walks after its taunter; the taunt breaks when it cannot; sets off behaviours; companions are immune | Taunt | provoked |
 | `stealthed` | cannot be aimed at, or seen by a watcher | shadows (a level places it) | invisible, camouflaged |
-| `shielded` | takes the next hostile tag instead | innate | warded |
+| `shielded` | takes the next hostile tag, or the next heavy blow, instead | Shield Bash; innate | warded |
 | `disjoint` | for a moment: cannot be aimed at, no hostile tag lands, not moved, a heavy blow misses | Blink, Blinding Flash | blinking, misty |
 
 ### Composite and outcomes
@@ -124,6 +140,7 @@ takes it, enemies included.
 | `slick` | oiled | - |
 | `shadows` | stealthed | - |
 | `chasm` | falls, if weak to it (anything not flying) | caveIn |
+| (a gap link) | falls in when forced across (anything not flying) | - |
 | `lava` | falls, if weak to it (not flying, not fire) | - |
 | `deepWater` | wet; the heavy sink | - |
 
@@ -142,13 +159,14 @@ opens it (`open(D)`, or `openWhenHeld(D)` when every plate must be held at once)
 ## Using it in a level
 
 ```prolog
-onEnter(crypt, shadows).  onEnter(abyss, chasm).  onEnter(moat, deepWater).
-beyond(hall, brink, abyss).                        % push lines
+connected(hall, brink).  gap(brink, ledge).  wall(hall, vault).  doorway(hall, crypt, gate).
+onEnter(crypt, shadows).  onEnter(abyss, chasm).  connected(brink, abyss).
 knows(mage, blindingFlash).  knows(warden, shieldBash).  mana(player, 3).
 tag(sentry, machine).  tag(sentry, heavy).  tag(sentry, shielded).
 rank(brute, boss).  tag(brute, living).  tag(brute, heavy).
 behavior(brute, taunted, groundSlam, source).      % taunted, it slams you
 weakness(golem, electrocuted, oiled, dead).        % a level can add its own
 mustSurvive(envoy).                                % an escort no blow may land on
+                                                   % (companions may be sacrificed)
 ```
 The level depends on `abilities/goals/neutralize` and `abilities/primitives/ab_catalog`.

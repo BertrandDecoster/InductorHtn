@@ -42,17 +42,17 @@ Why the split, and not "reactions everywhere" or "specialized methods everywhere
 | Ban | `forbids(?t, ?kind)` | While `?e` has `?t`, it cannot do `?kind`: `skill`, `attack`, `ranged`, `dash`, `move`, `watch`, or `any`. Casting checks the caster; walking checks `move`; a silenced NPC's heavy attack stops. |
 | Out of the fight | `stops(?e, ?t)` | Anything in group `gone` (dead, fell). A controlled or frozen enemy is set up, not beaten; a level may add `stops(?e, frozen)`. |
 | Weakness | `weakness(?e, ?in, ?have, ?out)` | This entity, taking `?in` (a tag or a hazard) while carrying `?have` (or `none`), gets `?out` instead. The only source of outcomes in the catalogue: a combo is deadly because of who it lands on. |
-| On landing | `onGrant(?t, ?atom)` | Storing `?t` also does `?atom` to the bearer: taunted pulls it to the taunter. |
+| On landing | `onGrant(?t, ?atom)` | Storing `?t` also does `?atom` to the bearer: a taunted NPC chases its taunter. |
 | Hostile | `hostile(?t)` | The tags `hostile` stands for in a reaction (a shield absorbs the next one; a blow wakes a sleeper) or a ward (invulnerability). |
 | Look | `appearance(?look, ?tag)` | A status that plays like a tag and only looks different (petrified is a stun). The planner never sees a look. |
 | Vulnerability | `vulnerable(?e, ?type)` | That damage kills outright. Meant for mooks; bosses never have it. |
 | Ability | `knows(?a, ?ab)`, `reach(?ab, self\|melee\|ranged)` | `knows` is the loadout. Companions, NPCs and hazards all use abilities. |
 | Effect bundle | `effect(?ab, target\|self\|area\|around\|path, ?atom)` | Atoms, by family: tags `grant(T)`, `remove(T)`, `purge(Group)`, `damage(Type)`; movement `push`, `pull`, `hook`, `swap`, `dash`, `teleport` (the source to the target's region), `teleport(R)` (the target to R), `pullIn` (everything next door into the target region); actions `interrupt`; terrain `spill(Zone)`, `hazard(H)`, `open(Door)`, `close(Door)`. Duration: `moment(grant(T))` / `moment(remove(T))` last through the next cast by anyone. `area` is everyone else in the target's region, allies included; `around` is everyone else in the source's region and the regions next to it (a push from the source's own region goes nowhere); `path` is everyone between the source and the target (declare it before the move). An ability may be aimed at a region. The catalogue uses no damage. |
-| Hook, swap, teleport, pull-in | `hook`, `swap`, `teleport`, `pullIn` atoms | A hook drags a light target in, or drags the source to an anchored one (a grappling hook). A swap trades places. A pull across a live hazard the target is weak to drops it there. |
+| Movement | `push`, `pull`, `hook`, `pullIn`, `dash`, `teleport`, `chase` atoms | Every movement goes one link. A push sends its target to any neighbouring area but the source's own: the caster aims where it lands, so every choice is a plan. A pull brings it into the source's area from next door. A hook is a pull; an anchored target pulls the source to it instead (a grappling hook). `pullIn` draws everything next door into the target area. Dash and teleport take the source next door, never into a live hazard it is weak to. A chase: the target walks after the source, and follows it whenever it moves; if it cannot walk there, it gives up (a taunt breaks). |
 | Moment | `moment(Atom)`, `clock/1`, `lasts/4` | The only duration. Every cast ticks `clock`; a moment granted or taken at clock `c` is undone when the clock passes `c + 1`, never inside a heavy attack's window. |
 | Terrain | `zoneReaction(?old, ?in, ?new)` | A spill of zone `?in` on a region holding `?old` leaves `?new` there instead, or no zone for `none` (ice over deep water is a floor). |
-| Heavy attack | `heavy(?ab)`, `kind(?ab, magic)`, `mustSurvive(?x)` | An NPC behaviour whose ability is heavy winds up (`windingUp(?npc, ?ab, ?x)`) on a region, or on an entity it follows. The team gets one action: a cast, without walking, by any companion. Then the blow falls on everyone in the struck region but the NPC. `interrupt` stops a magic one; a physical one cannot be stopped. A blow that follows an entity misses if that entity is `disjoint`. No plan may leave a companion, or anything declared `mustSurvive`, in the struck region unless it wards `heavy`. A silenced NPC's behaviours do not fire; an NPC winding up does not start another. |
-| Walking | `connected/2`, `door/1` + `open/1`, `blocker/1`, `trait(?x, filler)` | A walk goes one region at a time by the shortest route (at most eight steps), never into a closed door, a blocker's region, or a live hazard the walker is weak to. A door opens for good when something arrives on its plate (a zone with `open(D)`). A filler fallen into a hazard makes it walkable. Melee reaches the next region too. |
+| Heavy attack | `heavy(?ab)`, `kind(?ab, magic)`, `mustSurvive(?x)` | An NPC behaviour whose ability is heavy winds up (`windingUp(?npc, ?ab, ?x)`) on an area, or on an entity it follows. With a companion in the struck area the team may answer with one cast, without walking, by any companion - or take the blow: sacrifice is allowed. What a level declares `mustSurvive` may never be caught, so there the team must answer. The blow then falls on everyone in the struck area but the NPC: a disjoint one is passed through, a shielded one's shield breaks, anyone else takes the ability's `target` effects. Its spill lands on the area, and takes everyone there. `interrupt` stops a magic one; a physical one cannot be stopped. A silenced NPC's behaviours do not fire; an NPC winding up does not start another. |
+| Map | `connected(?a, ?b)`, `gap(?a, ?b)`, `wall(?a, ?b)`, `doorway(?a, ?b, ?d)` + `open(?d)` | Areas are large - a small room, or a quarter of a large one - joined by links, declared once either way round. A chokepoint is two areas with a special link. Walk: walkable links. Dash: walkable links and gaps. Teleport: any link. Forced movement: walkable links; across a gap it falls in (a flyer crosses; a filler that falls in bridges it); a wall stops it. A door is walkable while open, else a wall. A walk takes the shortest route (at most eight steps), never into a blocker's area, a live hazard, or - for a companion - a watched area. Melee reaches the same area or next door over a walkable link or a gap. |
 | Route | `progress(?r, ?n)` | For `passage`: leaps only go forward. |
 | Kind | `kind(?ab, ...)` | What a ban checks. In the catalogue every ability is a `skill` (silence) and dashes are `dash`; ranged abilities are also `ranged`. |
 | Gates | `requires(?ab, caster\|target, ?t)`, `blockedBy(?ab, caster\|target, ?t)` | The GAS activation required / blocked tags. |
@@ -60,28 +60,29 @@ Why the split, and not "reactions everywhere" or "specialized methods everywhere
 | Reaction | `reaction(?have, ?incoming, ?ab)` | For everyone: `?incoming` (a tag, a damage type, `damage` or `hostile`) meeting `?have` fires ability `?ab` instead. A tag landing meets, in order: a reaction, the bearer's weakness, else it is stored. A reaction's effects apply `raw` (weaknesses still answer, no further reaction), and what a weakness produces is stored `bare`, so nothing chains. If several tags react, the first stored wins, and an exact match beats a class. |
 | Guard | `group(?t, guard)` | A tag `neutralize` takes off first (`unset`: strip it, or pop it with what it reacts to), then plans again: stealth, a shield, invulnerability. |
 | Zone / hazard | `onEnter(?r, ?ab)` | Whoever arrives takes `?ab`, credited to whoever moved them (walker or pusher). A hazard is a zone whose ability has `hazard(H)`: it takes only what is weak to `H`. |
-| Push line | `beyond(?from, ?over, ?to)` | A push from `?from` on something at `?over` lands it in `?to`. The first line declared per `(?from, ?over)` is the only landing. |
 
 ## Authoring
 
-**An ability.** A bundle of tags and movements. Here, a stun and a knockback:
+**An ability.** A bundle of tags and movements. Here, a stun, an interrupt, and a shield for the
+caster:
 ```prolog
 knows(warden, shieldBash).
 reach(shieldBash, melee).
+effect(shieldBash, target, interrupt).
 effect(shieldBash, target, grant(stunned)).
-effect(shieldBash, target, push).
+effect(shieldBash, self, grant(shielded)).
 ```
 
-**A composite, and what landing it does.**
+**A composite, and what landing a tag does.**
 ```prolog
-bundles(feared, blinded).  bundles(feared, silenced).  bundles(feared, uncontrolledMove).
-onGrant(feared, push).                     % it runs from whoever frightened it
+bundles(stunned, blinded).  bundles(stunned, silenced).  bundles(stunned, rooted).
+onGrant(taunted, chase).                   % the NPC walks after its taunter
 ```
 
 **A weakness.** The only way to an outcome: this enemy, not everyone.
 ```prolog
-weakness(?e, electrocuted, wet, dead) :- trait(?e, machine).      % soaked, then jolted
-weakness(?e, electrocuted, none, stunned) :- trait(?e, machine).  % jolted
+weakness(?e, electrocuted, wet, dead) :- has(?e, machine).        % soaked, then jolted
+weakness(?e, electrocuted, none, stunned) :- has(?e, machine).    % jolted
 weakness(golem, burning, oiled, dead).                            % a level adds its own
 ```
 
@@ -92,11 +93,12 @@ reaction(oiled, burning, blaze).
 effect(blaze, target, remove(oiled)).  effect(blaze, area, grant(burning)).
 ```
 
-**A hazard.** A zone whose ability takes only what is weak to it.
+**A map.** Areas and the links between them; a hazard is a zone whose ability takes only what is
+weak to it, and a gap is a short pit between two areas.
 ```prolog
-onEnter(abyss, chasm).  effect(chasm, target, hazard(chasm)).
-weakness(?e, chasm, none, fell) :- not(trait(?e, flier)).
-beyond(hall, brink, abyss).
+connected(hall, brink).  gap(brink, ledge).  wall(hall, vault).  doorway(hall, crypt, gate).
+onEnter(abyss, chasm).  connected(brink, abyss).
+effect(chasm, target, hazard(chasm)).  weakness(?e, chasm, none, fell).
 ```
 
 **A recipe.** It is specialized and states its steps and roles. Build it from the acts and end with
@@ -108,7 +110,7 @@ combo(?have, ?in, ?e) :-
     do(supply(?p, ?have, ?e), deliver(?in, ?e, ?p), confirmStopped(?e)).
 
 % a recipe names its halves
-conduct(?e) :- if(), do(combo(wet, shocked, ?e)).
+conduct(?e) :- if(), do(combo(wet, electrocuted, ?e)).
 exploit(?e) :-                          % the enemy's own weakness names the halves
     if(lethalWeakness(?e, ?in, ?have), \==(?have, none)), do(combo(?have, ?in, ?e)).
 ```

@@ -1,7 +1,7 @@
 % into_the_pit - push it where it cannot come back from
 %
-% The recipe: a region whose arrival stops ?e (a pit, a chasm), and a push
-% that lands ?e there. Something immune to forced movement has to lose its
+% The recipe: somewhere ?e goes down - a hazard area whose arrival stops it
+% (a chasm), or a gap next to it - and a push or pull that sends it there. Something immune to forced movement has to lose its
 % footing first: a tag that suspends the immunity, put on it directly, or
 % the frozen composite that bundles it (soak, then chill). A flyer is not
 % taken by the pit: it has to be brought down first.
@@ -10,31 +10,31 @@
 
 % It can be moved: push it in, or pull it across so it falls in on the way.
 intoThePit(?e) :-
-    if(receptive(?e, forcedMove), dropFor(?r, ?e)),
-    do(sendInto(?e, ?r, none), confirmStopped(?e)).
+    if(receptive(?e, forcedMove), downFor(?e)),
+    do(sendDown(?e, none), confirmStopped(?e)).
 
 % It cannot: knock it off balance first, then someone else pushes.
 intoThePit(?e) :-
-    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), suspends(?t, forcedMove),
+    if(not(receptive(?e, forcedMove)), downFor(?e), suspends(?t, forcedMove),
        canAct(?p), first(canInflict(?p, ?ab, ?t, ?e))),
-    do(inflictAs(?p, ?t, ?e), sendInto(?e, ?r, ?p), confirmStopped(?e)).
+    do(inflictAs(?p, ?t, ?e), sendDown(?e, ?p), confirmStopped(?e)).
 
 % A tag it carries holds it in place (heavy): someone takes it off - for
 % good, or for a moment - and someone else pushes while it lasts.
 intoThePit(?e) :-
-    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e),
+    if(not(receptive(?e, forcedMove)), downFor(?e),
        first(and(has(?e, ?w), wards(?w, forcedMove))), canUnset(?p, ?ab, ?w, ?e, ?aim)),
-    do(cast(?p, ?ab, ?aim), ensureOff(?w, ?e), sendInto(?e, ?r, ?p), confirmStopped(?e)).
+    do(cast(?p, ?ab, ?aim), ensureOff(?w, ?e), sendDown(?e, ?p), confirmStopped(?e)).
 
 % It flies over the pit: someone brings it down (a net, a grounding bolt,
 % a dispel), someone else pushes.
 intoThePit(?e) :-
-    if(holds(?e, flying), receptive(?e, forcedMove), dropFor(?r, ?e),
+    if(holds(?e, flying), receptive(?e, forcedMove), downFor(?e),
        canUnset(?p, ?ab, flying, ?e, ?aim)),
-    do(cast(?p, ?ab, ?aim), ensureOff(flying, ?e), sendInto(?e, ?r, ?p), confirmStopped(?e)).
+    do(cast(?p, ?ab, ?aim), ensureOff(flying, ?e), sendDown(?e, ?p), confirmStopped(?e)).
 
 intoThePit(?e) :-
-    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), suspends(frozen, forcedMove),
+    if(not(receptive(?e, forcedMove)), downFor(?e), suspends(frozen, forcedMove),
        receptive(?e, frozen), receptive(?e, chilled), supplier(?p, wet, ?e)),
-    do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), sendInto(?e, ?r, ?p),
+    do(supply(?p, wet, ?e), inflict(chilled, ?e, ?p), sendDown(?e, ?p),
        confirmStopped(?e)).

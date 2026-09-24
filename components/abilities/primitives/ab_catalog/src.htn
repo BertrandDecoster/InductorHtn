@@ -4,8 +4,9 @@
 % keywords, in three families:
 %   tags      what is applied to whom: grant, remove, for good or for a
 %             moment (moment(...): through the next cast by anyone)
-%   movement  forced movement (push away, pull in, draw to a point), dash,
-%             teleport
+%   movement  forced movement (push anywhere next door, pull to the caster,
+%             draw into an area), dash, teleport, walk (a chase) - each
+%             one link: see ab_effects for walkable links, gaps and walls
 %   actions   interrupt (a magic heavy attack stops) and disjoint (for a
 %             moment, untouchable: an attack aimed at you misses)
 % plus terrain: zones a skill leaves on a region, and how zones react.
@@ -38,10 +39,14 @@ forbids(rooted, move).
 forbids(rooted, dash).
 forbids(slowed, dash).
 
-% Taunted: fixated on its taunter - dragged to it.
-onGrant(taunted, pull).
+% Taunted: an NPC fixated on its taunter walks after it, and keeps
+% following; when it cannot, the taunt is broken. A companion cannot be
+% taunted.
+onGrant(taunted, chase).
+immune(?e, taunted) :- canAct(?e).
 
 wards(stealthed, targeted).
+% A shield takes the next hostile tag, or the next heavy blow (ab_casting).
 wards(heavy, forcedMove).
 wards(flying, fell).
 
@@ -158,6 +163,9 @@ effect(lava, target, hazard(lava)).
 effect(deepWater, target, grant(wet)).
 effect(deepWater, target, hazard(deepWater)).
 
+% A gap between two areas is a short pit: whatever is forced across it
+% falls in (a filler bridges it).
+hazardType(gap).
 hazardType(chasm).
 hazardType(lava).
 hazardType(deepWater).
@@ -179,6 +187,7 @@ immune(?e, ?t) :- rank(?e, boss), group(?t, hardControl).
 % Anything that walks falls; anything not made of fire burns in lava; the
 % heavy sink.
 weakness(?e, chasm, none, fell).
+weakness(?e, gap, none, fell).
 weakness(?e, lava, none, fell) :- not(has(?e, fireElemental)).
 weakness(?e, deepWater, none, fell) :- has(?e, heavy).
 
@@ -201,58 +210,60 @@ weakness(?e, burning, none, dead) :- has(?e, wooden).
 
 kind(?ab, skill) :- reach(?ab, ?r).
 
-% Hook: forced movement toward the caster (an anchored target pulls the
-% caster to it instead; dragged across a pit, it falls in) + interrupt.
-reach(hook, ranged).
+% Hook: forced movement of the target toward the caster, from next door
+% (an anchored target pulls the caster to it instead; across a gap, it
+% falls in) + interrupt.
+reach(hook, melee).
 effect(hook, target, interrupt).
 effect(hook, target, hook).
 
-% Vortex: forced movement of everything next to the target region into
-% it + rooted on everyone there.
+% Vortex: forced movement of everything next door into the target area +
+% rooted, for a moment, on the NPCs there.
 reach(vortex, ranged).
 effect(vortex, target, pullIn).
-effect(vortex, area, grant(rooted)).
+effect(vortex, foes, moment(grant(rooted))).
 
-% Tidal Wave: forced movement of everyone next to the caster, away from it
-% + wet on everyone around.
+% Tidal Wave: wet on everyone else in the caster's area + forced movement
+% of each to a neighbouring area.
 reach(tidalWave, self).
 manaCost(tidalWave, 2).
 effect(tidalWave, around, grant(wet)).
 effect(tidalWave, around, push).
 
-% Blizzard: the region ices over - slowed and chilled on everyone there,
-% and on whoever walks in later.
+% Blizzard: the area ices over - slowed and chilled on everyone there, and
+% on whoever walks in later.
 reach(blizzard, ranged).
 manaCost(blizzard, 2).
 effect(blizzard, target, spill(iceSheet)).
 
-% Fireball: the region catches fire - burning on everyone there and on
-% whoever walks in later - + forced movement of the target away from the
-% caster.
+% Fireball: the whole area catches fire - burning on everyone there and on
+% whoever walks in later - + forced movement of the target to a
+% neighbouring area (aim it anywhere: next to yourself, it throws you).
 reach(fireball, ranged).
 manaCost(fireball, 2).
 effect(fireball, target, spill(flames)).
 effect(fireball, target, push).
 
-% Lightning Flash: the caster dashes to the target + electrocuted on the
-% target and everyone on the way.
-reach(lightningFlash, ranged).
+% Lightning Flash: electrocuted on everyone in the target area + the
+% caster dashes there (next door, over a walkable link or a gap).
+reach(lightningFlash, melee).
 manaCost(lightningFlash, 2).
-effect(lightningFlash, path, grant(electrocuted)).
-effect(lightningFlash, target, grant(electrocuted)).
+effect(lightningFlash, area, grant(electrocuted)).
 effect(lightningFlash, target, dash).
 
-% Blink: disjoint + the caster teleports to the target region.
-reach(blink, ranged).
+% Blink: disjoint + the caster teleports next door, through any link.
+reach(blink, near).
 effect(blink, self, moment(grant(disjoint))).
 effect(blink, target, teleport).
 
-% Blinding Flash: disjoint + blinded on everyone around.
+% Blinding Flash: disjoint + blinded and electrocuted on everyone else in
+% the caster's area (allies included).
 reach(blindingFlash, self).
 effect(blindingFlash, self, moment(grant(disjoint))).
 effect(blindingFlash, around, grant(blinded)).
+effect(blindingFlash, around, grant(electrocuted)).
 
-% Taunt: taunted (dragged to the caster; sets off its behaviours).
+% Taunt: taunted (the NPC chases the caster; it sets off its behaviours).
 reach(taunt, ranged).
 effect(taunt, target, grant(taunted)).
 
@@ -261,26 +272,28 @@ reach(turnToMist, ranged).
 effect(turnToMist, target, moment(remove(heavy))).
 effect(turnToMist, target, moment(remove(shielded))).
 
-% Shield Bash: stunned + interrupt.
+% Shield Bash: stunned + interrupt on the target; the caster is shielded
+% (it takes the next hostile tag, or the next heavy blow).
 reach(shieldBash, melee).
 effect(shieldBash, target, interrupt).
 effect(shieldBash, target, grant(stunned)).
+effect(shieldBash, self, grant(shielded)).
 
 % === Enemy moves ===
 % A level gives them to NPCs with behavior/4. Heavy ones are telegraphed;
-% magic ones can be interrupted, physical ones only survived.
+% magic ones can be interrupted, physical ones only survived. A blow's
+% effects land on each one it falls on; a spill, on the area.
 
-% Ground Slam (physical): everyone in the struck region is stunned and
-% thrown back.
+% Ground Slam (physical): stunned, and thrown to a neighbouring area.
 heavy(groundSlam).
-effect(groundSlam, area, grant(stunned)).
-effect(groundSlam, area, push).
+effect(groundSlam, target, grant(stunned)).
+effect(groundSlam, target, push).
 
 % Cave-in (physical): the struck floor gives way.
 heavy(caveIn).
 effect(caveIn, target, spill(chasm)).
 
-% Meteor (magic): the struck region burns.
+% Meteor (magic): the struck area burns.
 heavy(meteor).
 kind(meteor, magic).
 effect(meteor, target, spill(flames)).

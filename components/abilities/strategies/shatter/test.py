@@ -15,7 +15,7 @@ WORLD = [
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "beyond(ledge, rim, pit)", "beyond(rim, rim, pit)", "beyond(ledge, slick, pool)",
+    "connected(rim, pit)", "connected(slick, pool)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
     "onEnter(pit, fall)", "effect(fall, target, grant(fell))",

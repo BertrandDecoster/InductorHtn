@@ -5,28 +5,43 @@
 % effects applied in declared order:
 %   effect(?ab, target|self, ?atom)
 % where the recipient is `target`, `self` (the source), `area` (everyone
-% else in the target's region: friendly fire included), `around` (everyone
-% else in the source's region and the regions next to it) or `path`
-% (everyone in the regions between the source and the target), with a
-% closed set of atoms, in three families:
+% else in the target's area: friendly fire included), `foes` (the NPCs in
+% the target's area) or `around` (everyone else in the source's own area),
+% with a closed set of atoms, in families:
 %   tags      grant(T)  remove(T)  purge(Group)  damage(Type)
-%   movement  push  pull  hook  swap  dash  teleport  teleport(R)  pullIn
+%   movement  push  pull  hook  pullIn  swap  dash  teleport  teleport(R)
+%             chase
 %   actions   interrupt
 %   terrain   spill(ZoneAbility)  hazard(H)  open(Door)  close(Door)
 % and one duration: moment(Atom) makes a grant or a remove last only for a
 % moment - through the next cast by anyone - and then undoes it.
-% `hook` pulls a light target, or pulls the source to an anchored one (a
-% grappling hook). A pull across a live hazard the target is weak to drops
-% it there. `dash` flies over whatever lies between; `teleport` puts the
-% source in the target's region without crossing anything; teleport(R)
-% puts the target in R. `pullIn` draws everything in the regions next to
-% the target's into it. A push from the source's own region goes nowhere.
-% `interrupt` stops a magic heavy attack the target is winding up (see
-% ab_casting). A spill onto a region whose zone reacts to it reshapes the
-% zone instead (zoneReaction/3: ice over deep water is a bridge).
-% An ability may target a region instead of an entity: only `area`,
+%
+% The map is areas joined by links, each of one kind:
+%   connected(?a, ?b)       walkable
+%   gap(?a, ?b)             a short pit: dash or teleport over it; whatever
+%                           is forced across falls in, unless it flies; a
+%                           filler that falls in bridges it (walkable)
+%   wall(?a, ?b)            only a teleport goes through
+%   doorway(?a, ?b, ?d)     walkable while open(?d), else a wall
+% A link is declared once, either way round. Every movement goes one link:
+%   walk      over walkable links, one area at a time (a route)
+%   dash      the source to a neighbouring area, over a walkable link or a gap
+%   teleport  the source to a neighbouring area, over any link
+%   push      the target to a neighbouring area of the source's choosing,
+%             never into the source's own area (you aim where it lands)
+%   pull      the target into the source's area, from next door
+%   hook      a pull; an anchored target pulls the source to it instead,
+%             over a walkable link or a gap (a grappling hook)
+%   pullIn    everything next door is drawn into the target's area
+%   chase     the target walks after the source (see taunted), and follows
+%             it every time the source moves; if it cannot, it gives up
+% Forced movement (push, pull, hook, pullIn) stops at a wall and drops its
+% target into a gap. `interrupt` stops a magic heavy attack the target is
+% winding up (see ab_casting). A spill onto an area whose zone reacts to it
+% reshapes the zone instead (zoneReaction/3: ice over deep water is a
+% floor). An ability may target an area instead of an entity: only `area`,
 % `spill`, `dash`, `teleport`, `pullIn`, `open` and `close` do anything to
-% a region.
+% an area.
 % and the world rules they consult:
 %   reaction(?have, ?incoming, ?ab)  ?incoming (a tag, a damage type, or
 %                                    `damage` for any damageType/1) landing
@@ -37,10 +52,10 @@
 %                                    gets ?out instead: a robot electrocuted
 %                                    is stunned; an imp chilled is frozen
 %   onGrant(?t, ?atom)               storing ?t also does ?atom to the bearer
-%                                    (feared pushes it away; taunted pulls it)
+%                                    (taunted: it chases its taunter)
 %   behavior(?npc, ?t, ?ab, ?aim)    an NPC that gains ?t casts ?ab at ?aim:
 %                                    `source` (whoever gave it ?t), `self`,
-%                                    `here` (its own region) or there(R). A
+%                                    `here` (its own area) or there(R). A
 %                                    taunted golem is dragged to its taunter,
 %                                    then discharges there. Its effects apply
 %                                    raw: weaknesses answer, reactions do not
@@ -48,26 +63,24 @@
 %                                    reaction or a ward (shields, wake-on-hit)
 %   vulnerable(?e, ?type)            that damage kills outright (mooks)
 %   onEnter(?r, ?ab)                 whoever arrives in ?r takes ?ab
-%   beyond(?from, ?over, ?to)        a push from ?from on ?over lands in ?to;
-%                                    it also says ?over lies between the two
-%   door(?r), open(?r)               a door region, passable once open;
-%                                    plateFor(?p, ?d): with openWhenHeld(D),
-%                                    it opens only when every plate of D is
-%                                    weighed down at once
-%   watches(?g, ?r)                  nobody walks into ?r under ?g's eyes -
-%                                    unless stealthed, or ?g cannot see
-%                                    (forbids(?t, watch): blinded, asleep...)
-%   blocker(?e)                      nobody else walks into its region
+%   open(?d)                         a door is open; plateFor(?p, ?d): with
+%                                    openWhenHeld(D), it opens only when every
+%                                    plate of D is weighed down at once
+%   watches(?g, ?r)                  no companion walks into ?r under ?g's
+%                                    eyes - unless stealthed, or ?g cannot see
+%                                    (forbids(?t, watch): blinded, stunned)
+%   blocker(?e)                      nobody else walks into its area
 %   tag(?e, filler)                  fallen into a hazard, it fills it
 %   tag(?e, flying)                  weighs down no plate
-%   zoneReaction(?old, ?in, ?new)    a spill of zone ?in on a region with
+%   zoneReaction(?old, ?in, ?new)    a spill of zone ?in on a area with
 %                                    zone ?old leaves ?new there instead
 %                                    (`none`: no zone at all)
 %   heavy(?ab)                       an NPC ability that is telegraphed (the
 %                                    window is in ab_casting); kind(?ab,
 %                                    magic) makes it interruptible
-%   mustSurvive(?x)                  a heavy blow may not land on it
-%                                    (companions; a level adds its escorts)
+%   mustSurvive(?x)                  a level's declaration: no heavy blow may
+%                                    land on it (an escort). Companions may be
+%                                    sacrificed unless a level says otherwise
 %
 % Mode is `react`, `raw` or `bare`. A tag landing in react mode meets, in
 % order: a reaction (a shield absorbs it), the bearer's own weakness, else it
@@ -109,6 +122,18 @@ opExploit(?src, ?e, ?in, ?out) :-
 opDash(?a, ?from, ?to) :-
     del(at(?a, ?from)), add(at(?a, ?to)).
 
+opFall(?src, ?e, ?from, ?to) :-
+    del(), add().
+
+opBridge(?src, ?a, ?b) :-
+    del(), add(bridged(?a, ?b)).
+
+opFollow(?src, ?npc) :-
+    del(), add(follows(?npc, ?src)).
+
+opLoseTrack(?src, ?npc) :-
+    del(tag(?npc, taunted), follows(?npc, ?src)), add().
+
 opSpill(?src, ?r, ?ab) :-
     del(), add(onEnter(?r, ?ab)).
 
@@ -132,7 +157,7 @@ opInterrupt(?src, ?npc, ?ab, ?x) :-
 
 % === Rules ===
 
-% Where an entity is, or a region itself.
+% Where an entity is, or a area itself.
 locus(?e, ?r) :- at(?e, ?r).
 locus(?r, ?r) :- region(?r).
 
@@ -170,74 +195,103 @@ kills(?e, ?type) :- receptive(?e, ?type), vulnerable(?e, ?type), canReceive(?e, 
 % ?e cannot be moved by force: immune right now, or already out.
 anchoredAgainst(?e) :- not(receptive(?e, forcedMove)).
 
-% A push from ?from on ?over lands in exactly one place: the first line
-% declared. Planning (ab_acts placement) and physics both read this.
-landing(?from, ?over, ?to) :- region(?from), first(beyond(?from, ?over, ?to)).
-
-% Where a push from ?src sends ?e, a pull brings it, a dash takes ?src.
-pushLine(?src, ?e, ?over, ?to) :-
-    not(anchoredAgainst(?e)), at(?src, ?from), at(?e, ?over),
-    landing(?from, ?over, ?to).
-pullLine(?src, ?e, ?from, ?to) :-
-    not(anchoredAgainst(?e)), at(?src, ?to), at(?e, ?from), \==(?from, ?to).
-% Where a pull lands it: the first live hazard in between that it is weak
-% to, else at the source's feet.
-pullLand(?src, ?e, ?from, ?land) :-
-    pullLine(?src, ?e, ?from, ?to), first(and(between(?to, ?from, ?land), deadly(?e, ?land))).
-pullLand(?src, ?e, ?from, ?to) :-
-    pullLine(?src, ?e, ?from, ?to), not(first(and(between(?to, ?from, ?m), deadly(?e, ?m)))).
-swapLine(?src, ?e, ?rs, ?re) :-
-    not(anchoredAgainst(?e)), at(?src, ?rs), at(?e, ?re), \==(?rs, ?re).
-dashLine(?src, ?e, ?from, ?to) :-
-    at(?src, ?from), locus(?e, ?to), \==(?from, ?to).
-blinkLine(?e, ?r, ?from) :-
-    not(anchoredAgainst(?e)), at(?e, ?from), \==(?from, ?r).
-
 hasZone(?r) :- first(onEnter(?r, ?ab)).
 
-% Lines: ?m lies between ?x and ?y (either way round).
-between(?x, ?y, ?m) :- beyond(?x, ?m, ?y).
-between(?x, ?y, ?m) :- beyond(?y, ?m, ?x).
+% Links, either way round, each counted once.
+linked(?a, ?b, walk) :- connected(?a, ?b).
+linked(?a, ?b, walk) :- connected(?b, ?a), not(connected(?a, ?b)).
+linked(?a, ?b, gap) :- gap(?a, ?b).
+linked(?a, ?b, gap) :- gap(?b, ?a), not(gap(?a, ?b)).
+linked(?a, ?b, wall) :- wall(?a, ?b).
+linked(?a, ?b, wall) :- wall(?b, ?a), not(wall(?a, ?b)).
+linked(?a, ?b, door(?d)) :- doorway(?a, ?b, ?d).
+linked(?a, ?b, door(?d)) :- doorway(?b, ?a, ?d), not(doorway(?a, ?b, ?d)).
+
+% What a link is right now: a bridged gap is walkable, a door open or shut.
+bridgedGap(?a, ?b) :- bridged(?a, ?b).
+bridgedGap(?a, ?b) :- bridged(?b, ?a).
+edge(?a, ?b, walk) :- linked(?a, ?b, walk).
+edge(?a, ?b, walk) :- linked(?a, ?b, gap), bridgedGap(?a, ?b).
+edge(?a, ?b, gap) :- linked(?a, ?b, gap), not(bridgedGap(?a, ?b)).
+edge(?a, ?b, wall) :- linked(?a, ?b, wall).
+edge(?a, ?b, walk) :- linked(?a, ?b, door(?d)), open(?d).
+edge(?a, ?b, wall) :- linked(?a, ?b, door(?d)), not(open(?d)).
+
+% Which links each movement crosses.
+leapable(walk).
+leapable(gap).
+dashEdge(?a, ?b) :- edge(?a, ?b, ?k), leapable(?k).
+blinkEdge(?a, ?b) :- edge(?a, ?b, ?k).
 
 % A hazard is live until something that fills it has fallen in.
 filled(?r) :- first(and(at(?x, ?r), tag(?x, filler), tag(?x, fell))).
 hazardAt(?r, ?h) :- onEnter(?r, ?z), effect(?z, target, hazard(?h)), not(filled(?r)).
 deadly(?e, ?r) :- first(and(hazardAt(?r, ?h), weakness(?e, ?h, none, ?o), receptive(?e, ?o))).
 liveFor(?e, ?h) :- at(?e, ?r), not(filled(?r)).
+% A gap takes whatever is weak to falling in it; a flyer crosses.
+gapTakes(?e) :- first(and(weakness(?e, gap, none, ?o), receptive(?e, ?o))).
 
-% Someone stands on the path from ?src to ?e.
-onPath(?src, ?e) :-
-    at(?src, ?from), locus(?e, ?to), first(and(between(?from, ?to, ?m), at(?x, ?m), \==(?x, ?src))).
+% Forced across the link from ?from to ?to: it lands, or falls in the gap.
+forcedStep(?e, ?from, ?to, land) :- edge(?from, ?to, walk).
+forcedStep(?e, ?from, ?to, fall) :- edge(?from, ?to, gap), gapTakes(?e).
+forcedStep(?e, ?from, ?to, land) :- edge(?from, ?to, gap), not(gapTakes(?e)).
 
-% Walking: a closed door, a blocker's region, a live hazard - none is passable.
-closedDoor(?r) :- door(?r), not(open(?r)).
+% Where a push from ?src can send ?e: any neighbouring area but the
+% source's own. A pull brings it into the source's area from next door.
+pushable(?src, ?e, ?from, ?to, ?k) :-
+    not(anchoredAgainst(?e)), at(?e, ?from), forcedStep(?e, ?from, ?to, ?k), not(at(?src, ?to)).
+pullable(?src, ?e, ?from, ?to, ?k) :-
+    not(anchoredAgainst(?e)), at(?src, ?to), at(?e, ?from), \==(?from, ?to),
+    forcedStep(?e, ?from, ?to, ?k).
+grapple(?src, ?e, ?from, ?to) :-
+    at(?src, ?from), at(?e, ?to), dashEdge(?from, ?to), not(deadly(?src, ?to)).
+swapLine(?src, ?e, ?rs, ?re) :-
+    not(anchoredAgainst(?e)), at(?src, ?rs), at(?e, ?re), \==(?rs, ?re).
+% A leap never lands its source in a live hazard it is weak to.
+dashLine(?src, ?e, ?from, ?to) :-
+    at(?src, ?from), locus(?e, ?to), dashEdge(?from, ?to), not(deadly(?src, ?to)).
+teleLine(?src, ?e, ?from, ?to) :-
+    at(?src, ?from), locus(?e, ?to), blinkEdge(?from, ?to), not(deadly(?src, ?to)).
+blinkLine(?e, ?r, ?from) :-
+    not(anchoredAgainst(?e)), at(?e, ?from), \==(?from, ?r).
+% What a pull-in toward ?r draws: everything next door that can be moved.
+drawn(?src, ?r, ?x, ?n, ?k) :-
+    edge(?n, ?r, ?kind), at(?x, ?n), \==(?x, ?src), not(anchoredAgainst(?x)),
+    forcedStep(?x, ?n, ?r, ?k).
+
+% Walking: a blocker's area, a live hazard, a watched area - none is
+% passable (the last only to a companion).
 heldAgainst(?a, ?r) :- first(and(at(?e, ?r), blocker(?e), \==(?e, ?a), not(gone(?e)))).
 spotted(?a, ?r) :-
-    not(has(?a, stealthed)),
+    canAct(?a), not(has(?a, stealthed)),
     first(and(watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)))).
-passable(?a, ?r) :-
-    not(closedDoor(?r)), not(heldAgainst(?a, ?r)), not(deadly(?a, ?r)), not(spotted(?a, ?r)).
+passable(?a, ?r) :- not(heldAgainst(?a, ?r)), not(deadly(?a, ?r)), not(spotted(?a, ?r)).
+walkEdge(?a, ?b) :- edge(?a, ?b, walk).
 % A plate is held while anything that weighs stands on it.
 plateHeld(?p) :- first(and(at(?x, ?p), not(gone(?x)), not(has(?x, flying)))).
 allPlatesHeld(?d) :- not(first(and(plateFor(?p, ?d), not(plateHeld(?p))))).
-% Routes: iterative deepening over connected/2, at most eight steps, never
-% stepping straight back, so the first answer is a shortest walkable route.
+% Routes: iterative deepening over walkable links, at most eight steps,
+% never stepping straight back, so the first answer is a shortest route.
 hop(0). hop(1). hop(2). hop(3). hop(4). hop(5). hop(6). hop(7).
 walkable(?a, ?p, ?x, ?x, ?d).
 walkable(?a, ?p, ?x, ?r, ?d) :-
-    >(?d, 0), \==(?x, ?r), connected(?x, ?m), \==(?m, ?p), passable(?a, ?m),
+    >(?d, 0), \==(?x, ?r), walkEdge(?x, ?m), \==(?m, ?p), passable(?a, ?m),
     is(?d1, -(?d, 1)), walkable(?a, ?x, ?m, ?r, ?d1).
 % The first step of a shortest route to ?r.
 nextStep(?a, ?f, ?r, ?n) :-
-    first(and(hop(?d), connected(?f, ?n), passable(?a, ?n), walkable(?a, ?f, ?n, ?r, ?d))).
+    first(and(hop(?d), walkEdge(?f, ?n), passable(?a, ?n), walkable(?a, ?f, ?n, ?r, ?d))).
 canReach(?a, ?f, ?r) :- =(?f, ?r).
 canReach(?a, ?f, ?r) :- \==(?f, ?r), first(nextStep(?a, ?f, ?r, ?n)).
+% A chaser cannot follow: it cannot move, or cannot walk there.
+cannotFollow(?npc, ?f, ?r) :- forbidden(?npc, move).
+cannotFollow(?npc, ?f, ?r) :- not(forbidden(?npc, move)), not(canReach(?npc, ?f, ?r)).
+hasFollower(?e) :- first(and(follows(?n, ?e), tag(?n, taunted), not(gone(?n)))).
 
 % Someone other than ?src stands in ?r; someone at all stands in ?r.
 areaHit(?src, ?r) :- first(and(at(?x, ?r), \==(?x, ?src))).
 occupied(?r) :- first(at(?x, ?r)).
 
-% The atoms that do something to a region target.
+% The atoms that do something to a area target.
 regionAtom(spill(?z)).
 regionAtom(dash).
 regionAtom(teleport).
@@ -252,14 +306,11 @@ clockNow(0) :- not(clock(?x)).
 % A spill of ?z on ?r meets the zone there.
 reshapes(?r, ?z, ?old, ?new) :- first(and(onEnter(?r, ?old), zoneReaction(?old, ?z, ?new))).
 
-% Everyone around ?src: in its region or the next ones.
-near(?r, ?r) :- region(?r).
-near(?r, ?n) :- connected(?r, ?n).
-aroundHit(?src, ?x) :- at(?src, ?r), near(?r, ?n), at(?x, ?n), \==(?x, ?src).
+% The NPCs in ?r (not the companions, whoever the source is).
+foeIn(?src, ?r, ?x) :- at(?x, ?r), \==(?x, ?src), not(canAct(?x)).
 
-% What a pull-in toward ?r draws: everything next door that can be moved.
-drawn(?src, ?r, ?x, ?n) :-
-    connected(?n, ?r), at(?x, ?n), \==(?x, ?src), not(anchoredAgainst(?x)).
+% Everyone around ?src: the others in its own area.
+aroundHit(?src, ?x) :- at(?src, ?r), at(?x, ?r), \==(?x, ?src).
 
 % === Methods ===
 
@@ -281,18 +332,19 @@ applyEffect(?src, area, ?atom, ?e, ?mode) :-
     if(locus(?e, ?r), areaHit(?src, ?r)), do(areaEffect(?src, ?r, ?atom, ?mode)).
 applyEffect(?src, area, ?atom, ?e, ?mode) :-
     if(locus(?e, ?r), not(areaHit(?src, ?r))), do().
-applyEffect(?src, path, ?atom, ?e, ?mode) :- if(onPath(?src, ?e)), do(pathEffect(?src, ?e, ?atom, ?mode)).
-applyEffect(?src, path, ?atom, ?e, ?mode) :- if(not(onPath(?src, ?e))), do().
+applyEffect(?src, foes, ?atom, ?e, ?mode) :-
+    if(locus(?e, ?r), first(foeIn(?src, ?r, ?x))), do(foeEffect(?src, ?r, ?atom, ?mode)).
+applyEffect(?src, foes, ?atom, ?e, ?mode) :-
+    if(locus(?e, ?r), not(first(foeIn(?src, ?r, ?x)))), do().
 applyEffect(?src, around, ?atom, ?e, ?mode) :-
     if(first(aroundHit(?src, ?x))), do(aroundEffect(?src, ?atom, ?mode)).
 applyEffect(?src, around, ?atom, ?e, ?mode) :- if(not(first(aroundHit(?src, ?x)))), do().
 
+foeEffect(?src, ?r, ?atom, ?mode) :-
+    allOf, if(foeIn(?src, ?r, ?x)), do(effectOn(?src, ?x, ?atom, ?mode)).
+
 aroundEffect(?src, ?atom, ?mode) :-
     allOf, if(aroundHit(?src, ?x)), do(effectOn(?src, ?x, ?atom, ?mode)).
-
-pathEffect(?src, ?e, ?atom, ?mode) :-
-    allOf, if(at(?src, ?from), locus(?e, ?to), between(?from, ?to, ?m), at(?x, ?m), \==(?x, ?src)),
-    do(effectOn(?src, ?x, ?atom, ?mode)).
 
 areaEffect(?src, ?r, ?atom, ?mode) :-
     allOf, if(at(?x, ?r), \==(?x, ?src)), do(effectOn(?src, ?x, ?atom, ?mode)).
@@ -317,22 +369,63 @@ effectOn(?src, ?e, close(?d), ?mode) :- if(), do(closeDoor(?src, ?d)).
 effectOn(?src, ?e, teleport, ?mode) :- if(), do(teleportTo(?src, ?e, ?mode)).
 effectOn(?src, ?e, pullIn, ?mode) :- if(locus(?e, ?r)), do(suckIn(?src, ?r, ?mode)).
 effectOn(?src, ?e, interrupt, ?mode) :- if(), do(interruptOn(?src, ?e)).
+effectOn(?src, ?e, chase, ?mode) :- if(), do(chase(?src, ?e)).
 effectOn(?src, ?e, moment(grant(?t)), ?mode) :- if(), do(grantFor(?src, ?e, ?t, ?mode)).
 effectOn(?src, ?e, moment(remove(?t)), ?mode) :- if(), do(removeFor(?src, ?e, ?t)).
 
-% Everything next to ?r is drawn into it, and takes what is there.
+% Everything next to ?r is drawn into it, and takes what is there - or
+% falls into the gap on the way.
 suckIn(?src, ?r, ?mode) :-
-    if(first(drawn(?src, ?r, ?x, ?n))), do(suckAll(?src, ?r, ?mode)).
-suckIn(?src, ?r, ?mode) :- if(not(first(drawn(?src, ?r, ?x, ?n)))), do().
+    if(first(drawn(?src, ?r, ?x, ?n, ?k))), do(suckAll(?src, ?r, ?mode)).
+suckIn(?src, ?r, ?mode) :- if(not(first(drawn(?src, ?r, ?x, ?n, ?k)))), do().
 suckAll(?src, ?r, ?mode) :-
-    allOf, if(drawn(?src, ?r, ?x, ?n)),
-    do(opForcedMove(?src, ?x, ?n, ?r), arrive(?src, ?x, ?r, ?mode)).
+    allOf, if(drawn(?src, ?r, ?x, ?n, ?k)), do(moveBy(?src, ?x, ?n, ?r, ?k, ?mode)).
 
-% The source appears in the target's region, crossing nothing.
+% The source appears in a neighbouring area, through any link.
 teleportTo(?src, ?e, ?mode) :-
-    if(dashLine(?src, ?e, ?from, ?to)),
+    if(teleLine(?src, ?e, ?from, ?to)),
     do(opTeleport(?src, ?from, ?to), arrive(?src, ?src, ?to, ?mode)).
-teleportTo(?src, ?e, ?mode) :- if(not(dashLine(?src, ?e, ?f, ?t))), do().
+teleportTo(?src, ?e, ?mode) :- if(not(teleLine(?src, ?e, ?f, ?t))), do().
+
+% Forced across one link: it lands and takes what is there, or it falls in
+% the gap - which a filler bridges.
+moveBy(?src, ?e, ?from, ?to, land, ?mode) :-
+    if(), do(opForcedMove(?src, ?e, ?from, ?to), arrive(?src, ?e, ?to, ?mode)).
+moveBy(?src, ?e, ?from, ?to, fall, ?mode) :-
+    if(), do(opFall(?src, ?e, ?from, ?to), suffer(?src, ?e, gap), bridgeIf(?src, ?e, ?from, ?to)).
+bridgeIf(?src, ?e, ?from, ?to) :-
+    if(has(?e, filler), tag(?e, fell), not(bridgedGap(?from, ?to))), do(opBridge(?src, ?from, ?to)).
+bridgeIf(?src, ?e, ?from, ?to) :-
+    if(not(and(has(?e, filler), tag(?e, fell), not(bridgedGap(?from, ?to))))), do().
+
+% Taunted: the NPC walks after its taunter and keeps following it; when it
+% cannot follow, the taunt is broken.
+chase(?src, ?npc) :- if(at(?src, ?r), at(?npc, ?r)), do(track(?src, ?npc)).
+chase(?src, ?npc) :-
+    if(at(?src, ?r), at(?npc, ?f), \==(?f, ?r), not(cannotFollow(?npc, ?f, ?r))),
+    do(track(?src, ?npc), trudge(?npc, ?r)).
+chase(?src, ?npc) :-
+    if(at(?src, ?r), at(?npc, ?f), \==(?f, ?r), first(cannotFollow(?npc, ?f, ?r))),
+    do(loseTrack(?src, ?npc)).
+track(?src, ?npc) :- if(follows(?npc, ?src)), do().
+track(?src, ?npc) :- if(not(follows(?npc, ?src))), do(opFollow(?src, ?npc)).
+loseTrack(?src, ?npc) :- if(follows(?npc, ?src)), do(opLoseTrack(?src, ?npc)).
+loseTrack(?src, ?npc) :- if(not(follows(?npc, ?src))), do(opRemove(?src, ?npc, taunted)).
+% Whoever moves drags its chasers after it.
+pursue(?e) :- if(hasFollower(?e)), do(pursueAll(?e)).
+pursue(?e) :- if(not(hasFollower(?e))), do().
+pursueAll(?e) :-
+    allOf, if(follows(?n, ?e), tag(?n, taunted), not(gone(?n))), do(chase(?e, ?n)).
+
+% A walk that stops where it must: a chaser rooted on the way, or cut off.
+trudge(?a, ?r) :- if(at(?a, ?r)), do().
+trudge(?a, ?r) :- if(not(at(?a, ?r)), forbidden(?a, move)), do().
+trudge(?a, ?r) :-
+    if(not(at(?a, ?r)), not(forbidden(?a, move)), at(?a, ?f), first(nextStep(?a, ?f, ?r, ?n))),
+    do(opNavigate(?a, ?f, ?n), arrive(?a, ?a, ?n, react), trudge(?a, ?r)).
+trudge(?a, ?r) :-
+    if(not(at(?a, ?r)), not(forbidden(?a, move)), at(?a, ?f), not(first(nextStep(?a, ?f, ?r, ?n)))),
+    do().
 
 % A magic heavy attack being wound up stops; anything else goes on.
 interruptOn(?src, ?e) :-
@@ -360,10 +453,13 @@ suffer(?src, ?e, ?h) :- if(not(weakFor(?e, ?h, ?hv, ?o))), do().
 suffer(?src, ?e, ?h) :- if(weakFor(?e, ?h, ?hv, ?o), not(liveFor(?e, ?h))), do().
 
 % A grappling hook: a light target comes to the source; an anchored one
-% brings the source to it.
+% brings the source to it, over a walkable link or a gap.
 hookOn(?src, ?e, ?mode) :- if(not(anchoredAgainst(?e))), do(drag(?src, ?e, ?mode)).
-hookOn(?src, ?e, ?mode) :- if(anchoredAgainst(?e), not(gone(?e))), do(dashTo(?src, ?e, ?mode)).
-hookOn(?src, ?e, ?mode) :- if(anchoredAgainst(?e), gone(?e)), do().
+hookOn(?src, ?e, ?mode) :-
+    if(anchoredAgainst(?e), not(gone(?e)), grapple(?src, ?e, ?from, ?to)),
+    do(opDash(?src, ?from, ?to), arrive(?src, ?src, ?to, ?mode)).
+hookOn(?src, ?e, ?mode) :-
+    if(anchoredAgainst(?e), not(and(not(gone(?e)), grapple(?src, ?e, ?f, ?t)))), do().
 
 % Two change places; each takes what is where it lands.
 swapPlaces(?src, ?e, ?mode) :-
@@ -406,8 +502,8 @@ grantTag(?src, ?e, ?t, raw) :- if(not(weakFor(?e, ?t, ?hv, ?o)), not(canReceive(
 grantTag(?src, ?e, ?t, bare) :- if(canReceive(?e, ?t)), do(opGrant(?src, ?e, ?t)).
 grantTag(?src, ?e, ?t, bare) :- if(not(canReceive(?e, ?t))), do().
 
-% What storing ?t does at once: the tag's own movement (a taunted bearer is
-% dragged to its taunter), then the bearer's behaviour, if it is an NPC that
+% What storing ?t does at once: the tag's own movement (a taunted bearer
+% chases its taunter), then the bearer's behaviour, if it is an NPC that
 % answers ?t and is not silenced.
 afterGrant(?src, ?e, ?t) :- if(), do(tagMoves(?src, ?e, ?t), provoke(?src, ?e, ?t)).
 tagMoves(?src, ?e, ?t) :- if(hasOnGrant(?t)), do(onGrantAll(?src, ?e, ?t)).
@@ -425,6 +521,7 @@ onGrantAll(?src, ?e, ?t) :-
 
 % An ordinary ability lands at once; a heavy one is telegraphed (ab_casting).
 unleash(?npc, ?ab, ?x) :- if(not(heavy(?ab))), do(applyAbility(?npc, ?ab, ?x, raw)).
+unleash(?npc, ?ab, ?x) :- if(heavy(?ab)), do(telegraph(?npc, ?ab, ?x)).
 removeTag(?src, ?e, ?t) :- if(tag(?e, ?t)), do(opRemove(?src, ?e, ?t)).
 removeTag(?src, ?e, ?t) :- if(not(tag(?e, ?t))), do().
 
@@ -434,7 +531,7 @@ purgeGroup(?src, ?e, ?g) :- if(not(inGroup(?e, ?g))), do().
 purgeAll(?src, ?e, ?g) :-
     allOf, if(tag(?e, ?t), group(?t, ?g)), do(opRemove(?src, ?e, ?t)).
 
-% The region of ?e becomes a zone of ?z, and everyone standing there takes
+% The area of ?e becomes a zone of ?z, and everyone standing there takes
 % it at once - the caster too, if it stands there. If the zone already there
 % reacts to ?z, it becomes what the reaction says (or nothing).
 spillZone(?src, ?e, ?z, ?mode) :-
@@ -465,18 +562,17 @@ takeDamage(?src, ?e, ?type, react) :-
 takeDamage(?src, ?e, ?type, raw) :- if(kills(?e, ?type)), do(opGrant(?src, ?e, dead)).
 takeDamage(?src, ?e, ?type, raw) :- if(not(kills(?e, ?type))), do().
 
-% Push: away from the source, along a declared line. Pull: to the source.
+% Push: to a neighbouring area of the source's choosing (every choice is a
+% plan). Pull: into the source's area, from next door.
 shove(?src, ?e, ?mode) :-
-    if(pushLine(?src, ?e, ?over, ?to)),
-    do(opForcedMove(?src, ?e, ?over, ?to), arrive(?src, ?e, ?to, ?mode)).
-shove(?src, ?e, ?mode) :- if(not(pushLine(?src, ?e, ?o, ?t))), do().
+    if(pushable(?src, ?e, ?from, ?to, ?k)), do(moveBy(?src, ?e, ?from, ?to, ?k, ?mode)).
+shove(?src, ?e, ?mode) :- if(not(first(pushable(?src, ?e, ?f, ?t, ?k)))), do().
 
 drag(?src, ?e, ?mode) :-
-    if(pullLand(?src, ?e, ?from, ?land)),
-    do(opForcedMove(?src, ?e, ?from, ?land), arrive(?src, ?e, ?land, ?mode)).
-drag(?src, ?e, ?mode) :- if(not(pullLine(?src, ?e, ?f, ?t))), do().
+    if(pullable(?src, ?e, ?from, ?to, ?k)), do(moveBy(?src, ?e, ?from, ?to, ?k, ?mode)).
+drag(?src, ?e, ?mode) :- if(not(first(pullable(?src, ?e, ?f, ?t, ?k)))), do().
 
-% Dash: the source closes on the target.
+% Dash: the source leaps to the target's area, next door.
 dashTo(?src, ?e, ?mode) :-
     if(dashLine(?src, ?e, ?from, ?to)),
     do(opDash(?src, ?from, ?to), arrive(?src, ?src, ?to, ?mode)).
@@ -487,18 +583,18 @@ blink(?src, ?e, ?r, ?mode) :-
     do(opForcedMove(?src, ?e, ?from, ?r), arrive(?src, ?e, ?r, ?mode)).
 blink(?src, ?e, ?r, ?mode) :- if(not(blinkLine(?e, ?r, ?f))), do().
 
-% Whoever arrives in ?r takes what the region does. The one who moved ?e
+% Whoever arrives in ?r takes what the area does. The one who moved ?e
 % there is the source: a push into the pit is the pusher's doing, and a
 % walk into the pool is the walker's. (A zone's ability has no `self`.)
-arrive(?src, ?e, ?r, ?mode) :- if(hasZone(?r)), do(enterZone(?src, ?r, ?e, ?mode)).
-arrive(?src, ?e, ?r, ?mode) :- if(not(hasZone(?r))), do().
+arrive(?src, ?e, ?r, ?mode) :- if(hasZone(?r)), do(enterZone(?src, ?r, ?e, ?mode), pursue(?e)).
+arrive(?src, ?e, ?r, ?mode) :- if(not(hasZone(?r))), do(pursue(?e)).
 
 enterZone(?src, ?r, ?e, ?mode) :-
     allOf, if(onEnter(?r, ?ab)), do(applyAbility(?src, ?ab, ?e, ?mode)).
 
-% A companion walks somewhere, one region at a time, taking what each
-% region does. It never walks into a closed door, a blocker's region, or a
-% live hazard it is weak to.
+% A companion walks somewhere over walkable links, one area at a time,
+% taking what each area does. It never walks into a blocker's area, a
+% watched area, or a live hazard it is weak to.
 walkTo(?a, ?r) :- if(at(?a, ?r)), do().
 walkTo(?a, ?r) :-
     if(not(at(?a, ?r)), not(forbidden(?a, move)), at(?a, ?f), first(nextStep(?a, ?f, ?r, ?n))),

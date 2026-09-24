@@ -15,7 +15,7 @@ WORLD = [
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "beyond(ledge, rim, pit)", "beyond(rim, rim, pit)", "beyond(ledge, slick, pool)",
+    "connected(rim, pit)", "connected(slick, pool)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
     "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
@@ -65,7 +65,7 @@ class IgniteTest(HtnTestSuite):
 
     def test_example_2_walked_into_the_slick(self):
         """Oiled is primed by a push into the slick, by the mage."""
-        self.set_state(["beyond(ledge, pool, slick)", "role(imp, enemy)", "at(imp, pool)",
+        self.set_state(["role(imp, enemy)", "at(imp, pool)",
                         "knows(mage, gust)", "knows(player, ignite)"])
         self.assert_plan("ignite(imp).", contains=[
             "opForcedMove(mage, imp, pool, slick)", "opCast(player, ignite, imp)",
@@ -79,7 +79,7 @@ class IgniteTest(HtnTestSuite):
         self.assert_no_plan("ignite(gob).")
 
     def test_property_p2_the_primer_never_pays_off(self):
-        self.set_state(["beyond(ledge, pool, slick)", "role(imp, enemy)", "at(imp, pool)",
+        self.set_state(["role(imp, enemy)", "at(imp, pool)",
                         "knows(player, gust)", "knows(player, ignite)"])
         self.assert_no_plan("ignite(imp).")
 

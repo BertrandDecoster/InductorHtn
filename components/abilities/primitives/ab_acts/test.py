@@ -13,7 +13,7 @@ WORLD = [
     "connected(ledge, pool)", "connected(pool, ledge)",
     "connected(ledge, slick)", "connected(slick, ledge)",
     "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "beyond(ledge, pool, pit)", "beyond(ledge, slick, pool)",
+    "connected(pool, pit)", "connected(slick, pool)",
     "role(player, player)", "role(mage, companion)",
     "role(gob, enemy)", "role(tender, enemy)", "role(golem, enemy)",
     "at(player, ledge)", "at(mage, ledge)",

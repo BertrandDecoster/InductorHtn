@@ -15,7 +15,7 @@ WORLD = [
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "beyond(ledge, rim, pit)", "beyond(rim, rim, pit)", "beyond(ledge, slick, pool)",
+    "connected(rim, pit)", "connected(slick, pool)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
     "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
@@ -62,7 +62,7 @@ class NeutralizeTest(HtnTestSuite):
         self.assert_plan_complexity("neutralize(gob).", min_operators=0, max_operators=0)
 
     def test_example_2_each_recipe_is_a_plan(self):
-        self.set_state(["beyond(ledge, pool, pit)", "stops(wader, frozen)",
+        self.set_state(["connected(pool, pit)", "stops(wader, frozen)",
                         "knows(player, shock)", "knows(player, chill)", "knows(mage, gust)"])
         self.assert_plan("neutralize(wader).", min_solutions=3, contains=[
             "opReact(player, wader, wet, electrocuted, electrocution)",

@@ -15,7 +15,7 @@ WORLD = [
     "connected(rim, pool)", "connected(pool, rim)",
     "connected(rim, slick)", "connected(slick, rim)",
     "lineOfSight(ledge, rim)", "lineOfSight(ledge, pool)", "lineOfSight(ledge, slick)",
-    "beyond(ledge, rim, pit)", "beyond(rim, rim, pit)", "beyond(ledge, slick, pool)",
+    "connected(rim, pit)", "connected(slick, pool)",
     "onEnter(pool, soak)", "effect(soak, target, grant(wet))",
     "onEnter(slick, slicked)", "effect(slicked, target, grant(oiled))",
     "onEnter(pit, fall)", "effect(fall, target, grant(fell))",
@@ -105,15 +105,14 @@ class IntoThePitTest(HtnTestSuite):
         self.assert_plan("intoThePit(gob).", contains=[
             "opCast(warden, sunder, gob)", "opForcedMove(player, gob, rim, pit)"])
 
-    def test_property_p6_dragged_across_the_pit(self):
-        """A hook from the ledge on something beyond the pit drags it in."""
-        self.set_state(["region(far)", "beyond(ledge, pit, far)", "role(imp, enemy)", "at(imp, far)",
-                        "lineOfSight(ledge, far)", "reach(hookSkill, ranged)",
+    def test_property_p6_dragged_across_a_gap(self):
+        """A hook from the rim on something across a gap drags it into the gap."""
+        self.set_state(["region(far)", "gap(rim, far)", "role(imp, enemy)", "at(imp, far)",
+                        "reach(hookSkill, melee)",
                         "effect(hookSkill, target, hook)", "knows(player, hookSkill)",
-                        "onEnter(pit, drop)", "effect(drop, target, hazard(pitfall))",
-                        "weakness(?e, pitfall, none, fell) :- role(?e, enemy)"])
+                        "weakness(?e, gap, none, fell) :- role(?e, enemy)"])
         self.assert_plan("intoThePit(imp).", contains=[
-            "opCast(player, hookSkill, imp)", "opForcedMove(player, imp, far, pit)"])
+            "opCast(player, hookSkill, imp)", "opFall(player, imp, far, rim)"])
 
 def run_tests():
     suite = IntoThePitTest()

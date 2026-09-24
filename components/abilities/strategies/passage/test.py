@@ -8,18 +8,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from htn_test_framework import HtnTestSuite
 
 
-# a - b - gap - c - d(door) - e, with a plate p off b and a stone pillar at c.
+# a - b ~gap~ c =door d= e, with a plate p off b and a stone pillar at c.
 WORLD = [
-    "region(a)", "region(b)", "region(gap)", "region(c)", "region(d)", "region(e)", "region(p)",
-    "connected(a, b)", "connected(b, a)", "connected(b, gap)", "connected(gap, b)",
-    "connected(gap, c)", "connected(c, gap)", "connected(c, d)", "connected(d, c)",
-    "connected(d, e)", "connected(e, d)", "connected(b, p)", "connected(p, b)",
+    "region(a)", "region(b)", "region(c)", "region(e)", "region(p)",
+    "connected(a, b)", "gap(b, c)", "doorway(c, e, d)", "connected(b, p)",
     "lineOfSight(a, b)", "lineOfSight(b, c)", "lineOfSight(c, b)", "lineOfSight(b, p)",
     "lineOfSight(p, b)",
-    "progress(a, 0)", "progress(b, 1)", "progress(p, 1)", "progress(gap, 2)", "progress(c, 3)",
-    "progress(d, 4)", "progress(e, 5)",
-    "beyond(a, b, gap)", "beyond(b, gap, c)", "beyond(c, gap, b)",
-    "onEnter(gap, chasm)", "onEnter(p, press)", "effect(press, target, open(d))", "door(d)",
+    "progress(a, 0)", "progress(b, 1)", "progress(p, 1)", "progress(c, 3)", "progress(e, 5)",
+    "onEnter(p, press)", "effect(press, target, open(d))",
     "role(player, player)", "at(player, a)", "mana(player, 4)",
     "role(pillar, object)", "tag(pillar, heavy)", "at(pillar, c)",
 ]
@@ -40,8 +36,9 @@ class PassageTest(HtnTestSuite):
                          not_contains=["opCast"])
 
     def test_example_2_a_leap_over_the_gap(self):
-        self.set_state(["knows(player, blink)"])
-        self.assert_plan("reach(player, e).", contains=["opCast(player, blink, c)"])
+        self.set_state(["knows(player, blink)", "open(d)"])
+        self.assert_plan("reach(player, e).", contains=["opCast(player, blink, c)",
+                                                        "opNavigate(player, c, e)"])
 
     def test_example_3_a_hook_to_the_pillar(self):
         self.set_state(["knows(player, hook)"])
@@ -59,10 +56,12 @@ class PassageTest(HtnTestSuite):
         self.assert_state_after("openWay(d).", has=["open(d)", "at(player,p)"])
 
     def test_example_6_the_crate_bridges_the_gap(self):
+        """Drawn across the gap by a vortex, the crate falls in and bridges it."""
         self.set_state(["role(crate, object)", "tag(crate, filler)", "at(crate, b)",
-                        "knows(player, vortex)", "lineOfSight(a, gap)"])
-        self.assert_plan("span(gap).", contains=["opCast(player, vortex, gap)"])
-        self.assert_state_after("span(gap), reach(player, c).",
+                        "knows(player, vortex)", "lineOfSight(a, c)"])
+        self.assert_plan("bridge(b, c).", contains=["opCast(player, vortex, c)",
+                                                     "opBridge(player, b, c)"])
+        self.assert_state_after("bridge(b, c), reach(player, c).",
                                 has=["tag(crate,fell)", "at(player,c)"])
 
     # -------------------------------------------------------------- properties
@@ -75,7 +74,8 @@ class PassageTest(HtnTestSuite):
     def test_property_p2_a_pull_across_bridges_too(self):
         self.set_state(["role(crate, object)", "tag(crate, filler)", "at(crate, c)",
                         "knows(player, hook)"])
-        self.assert_plan("span(gap).", contains=["opForcedMove(player, crate, c, gap)"])
+        self.assert_plan("bridge(b, c).", contains=["opFall(player, crate, c, b)",
+                                                     "opBridge(player, c, b)"])
 
     def test_property_p3_nobody_crosses_a_live_gap_on_foot(self):
         self.assert_no_plan("reachWithin(player, c, 0).")
