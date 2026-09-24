@@ -1,116 +1,129 @@
 % The Hostage (escort, protect, rescue)
 %
-% A hostage sits shackled in a cell at the end of a corridor. A hound in
-% its kennel watches the corridor: nobody walks through under its eyes. The
-% cell is reached only through the corridor (the kennel window looks into
-% it over a fire pit), so nobody helps the hostage before the hound stops
-% watching. The hostage must reach the gate.
+% A hostage sits shackled (rooted) in a cell at the end of a corridor. A
+% warlock in the guardroom watches the corridor: nobody walks in under his
+% eyes. Alarm him - blind him, taunt him, burn him, jolt him dry - and he
+% calls a meteor down on the cell to execute the hostage. The hostage never
+% walks: it has to be dragged or washed out to the gate.
 %
-%   gate --- corridor --- cell (hostage, shackled) --- bunk
-%               |          :
-%            kennel ... firepit (under the kennel window)
-%            (hound, a wooden war-construct)
+%   gate ------ corridor ------ cell (hostage, shackled) --- bunk
+%     \            |              :
+%      guardroom --+ ....... firepit (lava, under the guardroom window)
+%      (warlock)
 %
 % Obstacles, and the answers to each:
-%   the hound      blind it (net, flashbang, sleepDart, or terrify - fear
-%                  blinds too), or burn it: it is wooden, and fire kills it
-%                  (flameWall on the kennel)
-%   the shackles   the hostage cannot walk. Drag it out: from the corridor,
-%                  then again from the gate (magnetize); shove it out from
-%                  behind: from the bunk into the corridor, then from the
-%                  cell to the gate (gust); or take the shackles off
-%                  (cleanse) and it walks out on its own
-% So one companion silences the hound and the other brings the hostage.
+%   the warlock    silence him quietly: a shield bash (stunned, so he cannot
+%                  cast), or freeze him (soaked by a tidal wave, then iced by
+%                  a blizzard) or shock him (soaked, then a lightning flash):
+%                  the soaked living seize up (stunned) without an alarm.
+%                  Or blind him loudly (blinding flash): the meteor winds up
+%                  on the cell, and in that one cast a friend hooks the
+%                  warlock (interrupt: a meteor is magic) or bashes him.
+%   the shackles   the hostage cannot walk. Hook it out (from the corridor,
+%                  then again from the gate), or wash it out from behind
+%                  (tidal wave from the bunk, then from the cell), or blast
+%                  it out (fireball from the bunk, then from the cell).
 %
 % Traps:
-%   - fire is a hazard to the hostage too: it is frail, and burning kills
-%     it. Set the kennel alight, never the cell or the corridor it crosses;
-%   - dragging the hostage from the kennel window pulls it across the fire
-%     pit, and it falls in;
-%   - a taunt would move it once only (a taunted hostage is not taunted
-%     again), so it is not in the pool.
+%   - an alarm with nobody to answer it: the meteor falls on the cell, and
+%     no plan lets it land on the hostage (mustSurvive). A blinding flash
+%     only saves its caster;
+%   - a dry lightning flash or a fireball on the warlock alarms him too;
+%   - hooking the hostage from the guardroom window drags it across the
+%     fire pit, and it falls in;
+%   - a tidal wave spent on the warlock is a wave not spent on the
+%     hostage: the soaker needs all six mana.
 
 % === Regions ===
 region(gate).
 region(corridor).
 region(cell).
-region(kennel).
-region(firepit).
 region(bunk).
+region(guardroom).
+region(firepit).
 connected(gate, corridor).
 connected(corridor, gate).
 connected(corridor, cell).
 connected(cell, corridor).
-connected(corridor, kennel).
-connected(kennel, corridor).
 connected(cell, bunk).
 connected(bunk, cell).
+connected(corridor, guardroom).
+connected(guardroom, corridor).
+connected(gate, guardroom).
+connected(guardroom, gate).
 
 lineOfSight(gate, corridor).
 lineOfSight(corridor, gate).
 lineOfSight(corridor, cell).
 lineOfSight(cell, corridor).
-lineOfSight(corridor, kennel).
-lineOfSight(kennel, corridor).
-lineOfSight(kennel, cell).
+lineOfSight(corridor, guardroom).
+lineOfSight(guardroom, corridor).
+lineOfSight(gate, guardroom).
+lineOfSight(guardroom, gate).
+lineOfSight(guardroom, cell).
+lineOfSight(cell, guardroom).
 lineOfSight(bunk, cell).
-lineOfSight(gate, kennel).
+lineOfSight(cell, bunk).
 
-% The route out, for dragging the hostage: higher is nearer the gate.
+% The route out: higher is nearer the gate.
+progress(bunk, 0).
 progress(cell, 0).
 progress(corridor, 1).
-progress(kennel, 1).
+progress(guardroom, 1).
 progress(gate, 2).
-progress(bunk, 0).
 
-% Lines: the fire pit lies under the window between kennel and cell.
-beyond(kennel, firepit, cell).
+% Lines: pushes toward the gate; the fire pit under the guardroom window.
 beyond(bunk, cell, corridor).
 beyond(cell, corridor, gate).
+beyond(guardroom, firepit, cell).
 onEnter(firepit, lava).
-
-% === Terrain: the hound watches the corridor from its kennel ===
-watches(hound, corridor).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
 at(player, gate).
 at(mage, gate).
-mana(player, 4).
-mana(mage, 4).
+mana(player, 6).
+mana(mage, 6).
 
-% === The hostage: cannot act; shackled ===
+% === The hostage: never casts; shackled ===
 role(hostage, ward).
 at(hostage, cell).
-trait(hostage, living).
-trait(hostage, frail).
+tag(hostage, living).
 tag(hostage, rooted).
-weakness(?e, burning, none, dead) :- trait(?e, frail).
+mustSurvive(hostage).
 
-% === The hound ===
-role(hound, enemy).
-at(hound, kennel).
-trait(hound, wooden).
+% === The warlock: watches the corridor; alarmed, he executes the hostage ===
+role(warlock, enemy).
+at(warlock, guardroom).
+tag(warlock, living).
+watches(warlock, corridor).
+behavior(warlock, blinded, meteor, there(cell)).
+behavior(warlock, taunted, meteor, there(cell)).
+behavior(warlock, burning, meteor, there(cell)).
+behavior(warlock, electrocuted, meteor, there(cell)).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, net).
-knows(mage, magnetize).
+knows(player, shieldBash).
+knows(mage, hook).
 
 % === Victory: the hostage stands at the gate, whole ===
-win :- if(), do(silenceHound, extract(hostage, gate, 3), confirmSafe(hostage, gate)).
+win :- if(), do(quiet(warlock), extract(hostage, gate, 3), confirmSafe(hostage, gate)).
 
-% The hound: already harmless; blinded; or neutralized (burnt).
-silenceHound :- if(houndDown), do().
-silenceHound :- if(not(houndDown)), do(inflict(blinded, hound, none), confirmHoundDown).
-silenceHound :- if(not(houndDown)), do(neutralize(hound)).
-houndDown :- gone(hound).
-houndDown :- forbidden(hound, watch).
-confirmHoundDown :- if(houndDown), do().
+% The warlock stops watching: blinded (a stun blinds too), or frozen or
+% shocked stiff - soaked by one companion, iced or jolted by the other.
+watching(?g) :- watches(?g, ?r), not(gone(?g)), not(forbidden(?g, watch)).
+quiet(?g) :- if(not(watching(?g))), do().
+quiet(?g) :- if(watching(?g)), do(inflict(blinded, ?g, none), confirmQuiet(?g)).
+quiet(?g) :-
+    if(watching(?g), supplier(?p, wet, ?g), \==(?p, none)),
+    do(supply(?p, wet, ?g), stiffen(?g, ?p), confirmQuiet(?g)).
+stiffen(?g, ?p) :- if(), do(inflict(chilled, ?g, ?p)).
+stiffen(?g, ?p) :- if(), do(inflict(electrocuted, ?g, ?p)).
+confirmQuiet(?g) :- if(not(watching(?g))), do().
 
-% Getting the hostage to ?r, in at most ?n moves: it is there; it walks
-% there; its shackles come off and it walks; or someone drags it one step
-% nearer and it carries on.
+% Getting the hostage to ?r in at most ?n forced moves, each bringing it
+% nearer: a pull from a spot nearer the gate, or a push from behind.
 nearer(?from, ?to) :- progress(?from, ?n1), progress(?to, ?n2), >(?n2, ?n1).
 dragFrom(?a, ?ab, ?v, ?spot) :-
     at(?v, ?vr), region(?spot), nearer(?vr, ?spot), puller(?a, ?ab, ?v),
@@ -118,33 +131,28 @@ dragFrom(?a, ?ab, ?v, ?spot) :-
 
 extract(?v, ?r, ?n) :- if(at(?v, ?r)), do().
 extract(?v, ?r, ?n) :-
-    if(not(at(?v, ?r)), not(forbidden(?v, move)), canReachNow(?v, ?r)), do(walkTo(?v, ?r)).
-extract(?v, ?r, ?n) :-
-    if(not(at(?v, ?r)), forbidden(?v, move), holds(?v, rooted), canUnset(?a, ?ab, rooted, ?v, ?aim)),
-    do(cast(?a, ?ab, ?aim), ensureOff(rooted, ?v), walkTo(?v, ?r)).
-extract(?v, ?r, ?n) :-
     if(not(at(?v, ?r)), >(?n, 0), dragFrom(?a, ?ab, ?v, ?spot), is(?m, -(?n, 1))),
     do(castFrom(?a, ?ab, ?v, ?spot), extract(?v, ?r, ?m)).
 extract(?v, ?r, ?n) :-
-    if(not(at(?v, ?r)), >(?n, 0), at(?v, ?vr), placement(?a, ?ab, ?from, ?v, ?to), nearer(?vr, ?to),
-       at(?a, ?cur), canReach(?a, ?cur, ?from), is(?m, -(?n, 1))),
-    do(castFrom(?a, ?ab, ?v, ?from), extract(?v, ?r, ?m)).
+    if(not(at(?v, ?r)), >(?n, 0), at(?v, ?vr), placement(?a, ?ab, ?from, ?aim, ?v, ?to),
+       nearer(?vr, ?to), is(?m, -(?n, 1))),
+    do(castFrom(?a, ?ab, ?aim, ?from), extract(?v, ?r, ?m)).
 
-confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v))), do().
+% ... and nobody was lost on the way.
+confirmSafe(?v, ?r) :- if(at(?v, ?r), not(gone(?v)), not(first(and(canAct(?a), gone(?a))))), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(net).
-comboPool(flashbang).
-comboPool(sleepDart).
-comboPool(flameWall).
-comboPool(magnetize).
-comboPool(gust).
-comboPool(cleanse).
-comboPool(terrify).
+comboPool(hook).
+comboPool(tidalWave).
+comboPool(fireball).
+comboPool(shieldBash).
+comboPool(blindingFlash).
+comboPool(blizzard).
+comboPool(lightningFlash).
 comboMinWins(4).
 comboMinMethods(3).
 
