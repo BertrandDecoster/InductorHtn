@@ -2,7 +2,7 @@
   "name": "movement_ringout",
   "version": "0.1.0",
   "layer": "level",
-  "description": "Ring-Out: pure movement - an ogre at the edge of the void; lure it onto the brink or get a pusher behind it; one skill each from seven",
+  "description": "Ring-Out: pure movement - an ogre at the edge of the void that slams when taunted; lure it onto the brink, get behind it, or drag it across from the perch; one skill each from seven",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/strategies/passage",
@@ -13,10 +13,12 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:52:05.660385"
+    "last_checked": "2026-09-24T18:14:37.771488"
   },
   "provides": [
+    "allOff/2",
     "at/2",
+    "behavior/4",
     "beyond/3",
     "blocker/1",
     "comboPool/1",
@@ -25,23 +27,28 @@
     "door/1",
     "drawer/1",
     "effect/3",
-    "ensureAt/2",
     "funExpect/3",
     "knows/2",
+    "lift/2",
     "lineOfSight/2",
     "lure/1",
+    "mana/2",
     "onEnter/2",
+    "onSpot/2",
     "progress/2",
     "region/1",
     "role/2",
     "setUp/1",
-    "trait/2",
+    "standing/0",
+    "stepOff/1",
+    "tag/2",
     "win/0"
   ],
   "requires": [
     "castFrom/4",
+    "confirmOpen/1",
     "neutralize/1",
-    "openWay/1",
-    "reach/2"
+    "reach/2",
+    "walkTo/2"
   ]
 }

@@ -15,13 +15,21 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 COMPANIONS = {"player", "mage"}
-PUSHERS = ["gust", "shieldBash"]
-OTHERS = ["magnetize", "taunt", "translocate", "shadowStep", "pounce"]
+DEPS = ("abilities/goals/neutralize", "abilities/strategies/passage",
+        "abilities/primitives/ab_catalog")
 
-# The measured matrix, unordered: every pusher with every non-pusher, and the
-# swapper with either puller. Both seat orders win.
-WINNING = {frozenset((p, o)) for p in PUSHERS for o in OTHERS} | {
-    frozenset(("translocate", "magnetize")), frozenset(("translocate", "taunt"))}
+# The measured matrix, unordered; each pair wins in both seat orders.
+WINNING = {frozenset(p) for p in [
+    # onto the brink: hook it there or suck it in, then push it over; or taunt
+    # it there and fireball it over before its slam lands
+    ("fireball", "hook"), ("fireball", "vortex"), ("fireball", "taunt"),
+    ("tidalWave", "hook"), ("tidalWave", "vortex"),
+    # from behind: land on the perch, walk round, push
+    ("fireball", "blink"), ("fireball", "lightningFlash"),
+    ("tidalWave", "blink"), ("tidalWave", "lightningFlash"),
+    # across: a vortex lifts the puller onto the perch
+    ("vortex", "hook"), ("vortex", "taunt"),
+]}
 
 _REPORT = []
 
@@ -52,9 +60,9 @@ def plans_with(player, mage, goal="win."):
         text = f.read()
     text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     planner = HtnPlanner(False)
+    planner.SetMemoryBudget(256 * 1024 * 1024)
     loader = ComponentLoader(planner, ROOT)
-    for dep in ("abilities/goals/neutralize", "abilities/strategies/passage",
-                "abilities/primitives/ab_catalog"):
+    for dep in DEPS:
         loader.load(dep)
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
@@ -72,31 +80,41 @@ def _op(name, *args):
 class RingOutTest(HtnTestSuite):
 
     def setup(self):
-        self.load_component("abilities/goals/neutralize", reset_first=True)
-        self.load_component("abilities/strategies/passage", reset_first=False)
-        self.load_component("abilities/primitives/ab_catalog", reset_first=False)
+        for i, dep in enumerate(DEPS):
+            self.load_component(dep, reset_first=(i == 0))
         self.verify_contracts()
         self._loader.load_level_htn(HERE)
+        self._planner.SetMemoryBudget(256 * 1024 * 1024)
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_lure_onto_the_brink_then_push(self):
+    def test_example_1_hook_it_onto_the_brink_then_push(self):
         self.assert_plan("win.", contains=[
             "opForcedMove(mage, ogre, plinth, brink)", "opForcedMove(player, ogre, brink, void)",
             "opExploit(player, ogre, chasm, fell)"])
 
-    def test_example_2_open_the_grate_push_from_behind(self):
-        ops = _ops(plans_with("gust", "shadowStep"))
-        assert _op("opDash", "mage", "gate", "perch") in ops or \
-            _op("opDash", "mage", "yard", "perch") in ops, ops[:300]
+    def test_example_2_land_on_the_perch_push_from_behind(self):
+        ops = _ops(plans_with("tidalWave", "blink"))
+        assert _op("opTeleport", "mage", "gate", "perch") in ops, ops[:300]
+        assert _op("opOpen", "mage", "grate") in ops
         assert _op("opForcedMove", "player", "ogre", "plinth", "void") in ops
-        self._record(True, "Example 2: the mage blinks onto the perch; the player shoves from the ledge")
+        self._record(True, "Example 2: the mage blinks onto the perch; the player's wave from the "
+                           "ledge rings it out")
 
-    def test_example_3_ferry_the_puller_across_the_void(self):
-        ops = _ops(plans_with("translocate", "taunt"))
-        assert _op("opSwap", "player", "mage", "perch", "gate") in ops, ops[:300]
+    def test_example_3_taunt_it_and_knock_it_over_before_the_slam(self):
+        ops = _ops(plans_with("fireball", "taunt"))
+        assert _op("opWindUp", "ogre", "groundSlam", "brink") in ops, ops[:300]
+        assert _op("opForcedMove", "player", "ogre", "brink", "void") in ops
+        assert _op("opMiss", "ogre", "groundSlam", "brink") in ops
+        self._record(True, "Example 3: taunted onto the brink it winds up; the fireball in the "
+                           "window rings it out and the slam never lands")
+
+    def test_example_4_a_vortex_lifts_the_puller(self):
+        ops = _ops(plans_with("vortex", "hook"))
+        assert _op("opForcedMove", "player", "mage", "yard", "perch") in ops, ops[:300]
         assert _op("opForcedMove", "mage", "ogre", "plinth", "void") in ops
-        self._record(True, "Example 3: the player swaps up, swaps the mage up; her taunt drags it in")
+        self._record(True, "Example 4: the player's vortex sucks the mage onto the perch; her hook "
+                           "drags it across the void")
 
     # -------------------------------------------------------------- properties
 
@@ -119,14 +137,19 @@ class RingOutTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         assert len(report.winning) == 2 * len(WINNING), "each pair should win in both seat orders"
         assert not report.failures, report.failures
+        assert not report.dead_skills, report.dead_skills
         self._record(True, f"P3: exactly the {len(WINNING)} measured pairs win, both ways round")
 
-    def test_property_p4_a_push_from_the_yard_is_not_enough(self):
-        """The ogre does not start on a line into the void: a push from the
-        yard only moves it onto the ledge."""
-        plans = plans_with("gust", "shieldBash")
-        assert not plans, "two pushers should not ring it out"
-        self._record(True, "P4: two pushers only shove it back and forth")
+    def test_property_p4_two_pushers_only_shove_it_about(self):
+        assert not plans_with("fireball", "tidalWave")
+        self._record(True, "P4: fireball + tidal wave never find a line into the void")
+
+    def test_property_p5_the_slam_must_be_answered(self):
+        """Taunted onto the brink, the ogre slams the taunter into the void
+        unless the partner knocks it over in the window: a blinker cannot."""
+        assert plans_with("taunt", "fireball", "lure(ogre), standing.")
+        assert not plans_with("taunt", "blink", "lure(ogre), standing.")
+        self._record(True, "P5: a taunt lure needs a fireball ready; with a blinker it kills the taunter")
 
 
 def run_tests():

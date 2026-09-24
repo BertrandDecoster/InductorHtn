@@ -2,7 +2,7 @@
   "name": "crossing",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Crossing on the ability catalogue: a shielded adept, an armoured knight, a hidden wraith and an earth-bound boss; pick 2 of 8",
+  "description": "The Crossing: a soaked sentry machine across the abyss, a hidden wooden bramble, a heavy boss on a rotten brink that caves in when provoked; one skill each from six",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,31 +12,37 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T13:28:49.124659"
+    "last_checked": "2026-09-24T18:14:25.991998"
   },
   "provides": [
     "at/2",
+    "beat/1",
+    "behavior/4",
     "beyond/3",
     "clearCrossing/0",
+    "comboPool/1",
+    "comboSeat/2",
     "connected/2",
-    "funBlocker/1",
-    "funBlockerGoal/2",
-    "funChoice/2",
-    "funChoiceFact/2",
-    "funChoiceSpace/2",
     "funExpect/3",
     "knows/2",
     "lineOfSight/2",
     "mana/2",
     "onEnter/2",
+    "provoke/1",
     "rank/2",
     "region/1",
+    "regroup/0",
     "role/2",
-    "tag/2",
-    "trait/2",
-    "weakness/4"
+    "scorch/1",
+    "standing/0",
+    "stepBack/0",
+    "tag/2"
   ],
   "requires": [
-    "neutralize/1"
+    "cast/3",
+    "castFrom/4",
+    "confirmStopped/1",
+    "neutralize/1",
+    "walkTo/2"
   ]
 }
