@@ -2,28 +2,35 @@
 
 ## Purpose
 
-Category: **an enemy's power used against another enemy**. A sentry robot guards a hall; next door,
-a storm golem idles. Nobody in the party can make lightning, but the golem can. It answers a mood:
-taunted, it is dragged to whoever taunted it and discharges into everything around it; feared, it
-bolts along the line away from whoever frightened it and discharges where it lands
-(`behavior(golem, taunted|feared, discharge, here)`). The robot is a machine: a dry jolt only stuns
-it; soaked, then jolted, it short-circuits (its own catalogue weakness). Two companions, one skill
-each from eight.
+Category: **an enemy's power used against another enemy**. A sentry robot guards a hall; next door, a
+storm golem idles. Nobody in the party can make lightning, but the golem can. Taunted, it is dragged
+to whoever taunted it; blinded, it lashes out where it stands. Either way it winds up a **discharge**,
+a telegraphed heavy blow on the region it stands in (`behavior(golem, taunted|blinded, discharge,
+here)`, `heavy(discharge)`, `effect(discharge, area, grant(electrocuted))`). It lands on everyone in
+that region but the golem. The robot is a machine: a dry jolt only stuns it; soaked, then jolted, it
+short-circuits (its catalogue weakness). Two companions, one skill each from six.
+
+Three things must meet: a **wet robot**, the **golem in its region**, and the golem **set off there**,
+with **no companion left inside** when the blow lands (the team gets one cast in the window).
 
 | Step | Skills |
 |------|--------|
-| **Soak the robot** | `rainCall` (it stays in the hall); `tidalWave`, `gust` (from the gallery, washed or blown into the fountain); `magnetize` (hooked into the fountain) |
-| **Lure the golem onto it** | `taunt` (from the robot's region: the golem is dragged there); `provoke` (melee, from the hall only); `terrify`, `roar` (from the vent it bolts into the hall, from the chimney down the sluice into the fountain) |
+| **Soak the robot** | `tidalWave` (in place, or washed from the gallery into the fountain); `hook` (dragged into the fountain from the fountain); `vortex` (drawn into the fountain) |
+| **Bring them together** | `hook` (either one to the other); `vortex` (both into the hall); `tidalWave` (the golem washed out of the forge from the vent or the chimney) |
+| **Set it off** | `blindingFlash` (where it stands; its disjoint lets the flasher stay inside); `taunt` (from the robot's region: the golem is dragged there, with the taunter inside) |
+| **Get out** | the taunter needs a friend's cast in the window: only a `hook` drags it out without the robot |
 
 Why no single skill works:
 - Nothing in the pool jolts. The only lightning is the golem's.
-- The robot has no temper (`immune(robot, taunted)`): a taunt cannot drag it into the fountain.
-- A lure onto a dry robot only stuns it, and the golem will not answer the same mood twice (the tag
-  stays stored).
-- A soaker alone leaves the robot wet and standing.
+- The robot has no temper (`immune(robot, taunted)`): a taunt cannot move it.
+- A taunter is always inside its own lure's blow. A wave or a vortex cast to save it moves the robot
+  (and the golem) out too; only a hook takes one companion alone.
+- Movers alone bring a wet robot to the golem, and nothing sets it off.
+- Fire dries: a fireball on the soaked robot is steam, and one that sends it into the fountain puts its
+  own fire out instead of soaking it. Fireball is in the pool as the wrong element.
 
-Skills with two roles: `tidalWave` soaks and moves (the wave's area push washes the robot out of the
-hall). The fear skills lure in two different directions depending on where they are cast from.
+Skill with two roles: `hook` soaks (drags the robot into the pool), gathers (either enemy to the
+other), and rescues (drags the taunter out of the struck region).
 
 ## Layer
 
@@ -48,59 +55,73 @@ gallery --- hall (robot) --- forge (golem)
   forge lands in the hall; from the chimney, in the fountain.
 - **Line of sight:** gallery-hall, hall-forge, hall-fountain, fountain-forge, vent-forge,
   chimney-forge.
-- **Robot:** machine, immune to taunts. **Golem:** light; taunted or feared, it discharges
-  (`area: grant(electrocuted)`) where it stands after the tag's movement.
+- **Robot:** machine, immune to taunts. **Golem:** light; taunted or blinded, it winds up a heavy,
+  physical discharge (it cannot be interrupted) on its region.
 - Both companions start in the gallery with 4 mana.
-- **Level-local recipes:** `soak(?v, ?p)` (a cast, a push into the fountain, or a hook into it) and
-  `lure(?npc, ?v, ?not)` (give the NPC its trigger tag from where the tag's own movement lands it on
-  ?v). `shortOut` = soak, lure by the other companion, confirm.
+- **Level-local recipes:** `bring(?e, ?r)` (pulled there by someone standing in ?r, or pushed,
+  washed or drawn there - `placement/6`), `soak(?v)` (a cast that wets it, or brought into a pool),
+  `trigger(?npc, ?r)` (a trigger whose drag lands it in ?r, given from ?r; or any trigger in place),
+  `stepAside(?r, ?a)` (the other companion leaves ?r for a region that still sees it), and
+  `setOff(?npc, ?v)` (lured to ?v, brought to ?v, ?v brought to it, or both brought to a third
+  region). `win` = soak, set off, confirm.
 
 ## Hypothesis
 
 Measured with `htn_components combos versus_lightning_rod`:
 
-- No single skill wins, even held by both companions: 0 of 8.
-- 26 of 64 assignments win (13 unordered pairs), 13 methods, 0 solo plans, no dead skills.
-  - `rainCall` + any lure: `taunt`, `provoke`, `terrify`, `roar` (4 pairs);
-  - `tidalWave`, `gust` or `magnetize` + `taunt`, `terrify` or `roar` (9 pairs).
-- Losing pairs, each for a named reason: two soakers (no lightning), two lures (a dry jolt only
-  stuns), a mover + `provoke` (the fountain is not next to the forge).
-- Skill usage: rainCall 8, taunt 8, terrify 8, roar 8, tidalWave 6, gust 6, magnetize 6, provoke 2.
+- No single skill wins, even held by both companions: 0 of 6.
+- 8 of 36 assignments win (4 unordered pairs), 4 methods, 0 solo plans; dead skill: `fireball` (by
+  design, the wrong element):
+  - `hook` + `taunt`: hook the robot into the fountain, taunt the golem there, hook the taunter out;
+  - `hook` + `blindingFlash`: hook the robot into the pool and the golem to it (or the robot on into
+    the forge), flash;
+  - `vortex` + `blindingFlash`: vortex the robot into the pool, then both into the hall, flash;
+  - `tidalWave` + `blindingFlash`: soak the robot, wash the golem out of the forge to it, flash.
+- Losing pairs, each for a named reason: `taunt` + `tidalWave` / `vortex` (the rescue moves the robot
+  out), `taunt` + `blindingFlash` (nothing soaks), two movers (nothing sets it off), anything with
+  `fireball`.
+- Skill usage: blindingFlash 6, hook 4, taunt 2, vortex 2, tidalWave 2, fireball 0.
+- One `FindAllPlans` takes 0.1-4 s.
 
 ## Examples
 
-### Example 1: Rain, then taunt
+### Example 1: Hook it in, taunt, hook the taunter out
 
-**Given:** the player knows `rainCall`, the mage knows `taunt`.
-
-**When:** `win`
-
-**Then:** rain soaks the robot in the hall; the mage walks into the hall and taunts the golem, which is
-dragged in and discharges; the robot short-circuits (`dead`).
-
-### Example 2: Blown into the fountain, scared down the sluice
-
-**Given:** the player knows `gust`, the mage knows `terrify`.
+**Given:** the player knows `hook`, the mage knows `taunt`.
 
 **When:** `win`
 
-**Then:** the player's gust blows the robot into the fountain; the mage goes round to the chimney and
-frightens the golem, which bolts down the sluice into the fountain and discharges there.
+**Then:** the player stands in the fountain and hooks the robot in (soaked), then steps back into the
+hall; the mage walks into the fountain and taunts the golem, which is dragged in and winds up its
+discharge; in the window the player hooks the mage out to the hall; the blow lands on the robot
+(`dead`).
 
-### Example 3: Provoke from next door
+### Example 2: Wash them both into the pool, then flash
 
-**Given:** the player knows `provoke`, the mage knows `rainCall`.
+**Given:** the player knows `tidalWave`, the mage knows `blindingFlash`.
 
 **When:** `win`
 
-**Then:** the mage's rain soaks the robot; the player steps into the hall and provokes the golem across
-the doorway; it is dragged into the hall and discharges.
+**Then:** from the gallery the player's wave soaks the robot and washes it into the fountain; from the
+chimney a second wave washes the golem down the sluice into the fountain; the mage flashes it and the
+discharge lands on the robot.
+
+### Example 3: Vortex twice, flash from inside
+
+**Given:** the player knows `vortex`, the mage knows `blindingFlash`.
+
+**When:** `win`
+
+**Then:** the player vortexes the fountain (the robot is drawn in and soaked), then the hall from the
+hall: the golem, the robot and the mage are drawn in. The mage flashes from inside the struck hall;
+its disjoint lets the blow pass through it.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
-| P2 | Measured pairs win | Exactly the thirteen measured pairs have a plan. |
-| P3 | A dry jolt only stuns | Two lures and no water: no plan. |
-| P4 | Provoke stays in the hall | A mover with provoke loses: the fountain is out of melee reach. |
+| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
+| P2 | Measured pairs win | Exactly the four measured pairs have a plan. |
+| P3 | The taunter is pulled out | Every hook + taunt plan hooks the taunter between the wind-up and the blow. |
+| P4 | Only a hook rescues | taunt + tidalWave, taunt + vortex: no plan. |
+| P5 | Fire dries | fireball with any other skill: no plan. |

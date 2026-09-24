@@ -14,15 +14,16 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["rainCall", "tidalWave", "gust", "magnetize", "taunt", "provoke", "terrify", "roar"]
+POOL = ["taunt", "blindingFlash", "hook", "vortex", "tidalWave", "fireball"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = {
     frozenset(p) for p in [
-        ("rainCall", "taunt"), ("rainCall", "provoke"), ("rainCall", "terrify"), ("rainCall", "roar"),
-        ("tidalWave", "taunt"), ("tidalWave", "terrify"), ("tidalWave", "roar"),
-        ("gust", "taunt"), ("gust", "terrify"), ("gust", "roar"),
-        ("magnetize", "taunt"), ("magnetize", "terrify"), ("magnetize", "roar"),
+        # a hook soaks the robot (into the fountain), a taunt lures the golem
+        # onto it, and the hook drags the taunter out of the discharge
+        ("hook", "taunt"),
+        # soaked and brought together by a mover, set off by a flash
+        ("hook", "blindingFlash"), ("vortex", "blindingFlash"), ("tidalWave", "blindingFlash"),
     ]
 }
 
@@ -44,7 +45,7 @@ def plans_with(player, mage):
     text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     planner = HtnPlanner(False)
     planner.SetMemoryBudget(256 * 1024 * 1024)
-    loader = ComponentLoader(planner, ROOT)
+    loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
     loader.load("abilities/goals/neutralize")
     loader.load("abilities/primitives/ab_catalog")
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
@@ -52,15 +53,18 @@ def plans_with(player, mage):
     return _solutions(planner, "win.")
 
 
+def ops_list(plan):
+    out = []
+    for op in plan:
+        name = list(op.keys())[0]
+        args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
+        out.append(f"{name}({','.join(args)})")
+    return out
+
+
 def ops_text(plans):
     """Every operator of every plan, as `name(a,b,...)` strings joined by spaces."""
-    out = []
-    for plan in plans:
-        for op in plan:
-            name = list(op.keys())[0]
-            args = [list(a.keys())[0] if isinstance(a, dict) else str(a) for a in op[name]]
-            out.append(f"{name}({','.join(args)})")
-    return " ".join(out)
+    return " ".join(" ".join(ops_list(p)) for p in plans)
 
 
 class LightningRodTest(HtnTestSuite):
@@ -73,26 +77,35 @@ class LightningRodTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_rain_then_taunt(self):
-        self.assert_plan("win.", contains=[
-            "opCast(player, rainCall, robot)", "opCast(mage, taunt, golem)",
-            "opForcedMove(mage, golem, forge, hall)", "opProvoked(golem, taunted, discharge)",
-            "opExploit(golem, robot, electrocuted, dead)"])
+    def test_example_1_hook_it_in_taunt_the_golem_hook_the_taunter_out(self):
+        ops = ops_text(plans_with("hook", "taunt"))
+        for op in ["opForcedMove(player,robot,hall,fountain)", "opCast(mage,taunt,golem)",
+                   "opForcedMove(mage,golem,forge,fountain)", "opWindUp(golem,discharge,fountain)",
+                   "opCast(player,hook,mage)", "opForcedMove(player,mage,fountain,hall)",
+                   "opExploit(golem,robot,electrocuted,dead)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 1: hook the robot into the fountain, taunt, hook the taunter out")
 
-    def test_example_2_scare_it_down_the_sluice(self):
-        plans = plans_with("gust", "terrify")
-        ops = ops_text(plans)
-        assert plans and "opForcedMove(player,robot,hall,fountain)" in ops, ops[:400]
-        assert "opNavigate(mage,forge,chimney)" in ops, "the mage scares it from the chimney"
-        assert "opExploit(golem,robot,electrocuted,dead)" in ops
-        self._record(True, "Example 2: gust into the fountain, scare the golem down the sluice")
+    def test_example_2_wash_the_golem_over_and_flash_it(self):
+        ops = ops_text(plans_with("tidalWave", "blindingFlash"))
+        for op in ["opForcedMove(player,robot,hall,fountain)", "opForcedMove(player,golem,forge,fountain)",
+                   "opCast(mage,blindingFlash,mage)", "opWindUp(golem,discharge,fountain)",
+                   "opExploit(golem,robot,electrocuted,dead)"]:
+            assert op in ops, f"missing {op}"
+        self._record(True, "Example 2: wash the robot and the golem into the fountain, flash")
 
-    def test_example_3_provoke_from_next_door(self):
-        plans = plans_with("provoke", "rainCall")
+    def test_example_3_vortex_both_and_flash_from_inside(self):
+        plans = plans_with("vortex", "blindingFlash")
         ops = ops_text(plans)
-        assert plans and "opCast(player,provoke,golem)" in ops
-        assert "opProvoked(golem,taunted,discharge)" in ops
-        self._record(True, "Example 3: rain, then provoke from the hall")
+        for op in ["opCast(player,vortex,fountain)", "opCast(player,vortex,hall)",
+                   "opForcedMove(player,golem,forge,hall)", "opBlow(golem,discharge,hall,hall)",
+                   "opExploit(golem,robot,electrocuted,dead)"]:
+            assert op in ops, f"missing {op}"
+        # the mage was drawn into the hall by the vortex and flashes from inside: disjoint
+        inside = [p for p in plans if "opForcedMove(player,mage,gallery,hall)" in ops_list(p)
+                  and not any(o.startswith("opNavigate(mage") for o in ops_list(p))]
+        assert inside, "no plan flashes from inside the struck hall"
+        self._record(True, "Example 3: vortex the robot into the pool, then both into the hall; flash")
 
     # -------------------------------------------------------------- properties
 
@@ -106,15 +119,26 @@ class LightningRodTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
-    def test_property_p3_a_dry_jolt_only_stuns(self):
-        """Luring the golem onto a dry robot stuns it: not a win."""
-        assert not plans_with("taunt", "provoke")
-        self._record(True, "P3: two lures and no water: the robot is only stunned")
+    def test_property_p3_the_taunter_is_always_pulled_out(self):
+        """Every hook + taunt plan has the hook cast on the taunter inside the window."""
+        plans = plans_with("hook", "taunt")
+        assert plans
+        for p in plans:
+            ops = ops_list(p)
+            w = next(i for i, o in enumerate(ops) if o.startswith("opWindUp(golem"))
+            b = next(i for i, o in enumerate(ops) if o.startswith("opBlow(golem"))
+            assert "opCast(player,hook,mage)" in ops[w:b], ops
+        self._record(True, "P3: the taunter is hooked out between the wind-up and the blow")
 
-    def test_property_p4_provoke_cannot_follow_to_the_fountain(self):
-        """Once the robot is in the fountain, provoke (melee, next door only) is out of reach."""
-        assert not plans_with("gust", "provoke") and not plans_with("tidalWave", "provoke")
-        self._record(True, "P4: provoke only works while the robot stays in the hall")
+    def test_property_p4_no_rescue_but_a_hook(self):
+        """A wave or a vortex cast to save the taunter moves the robot out too."""
+        assert not plans_with("taunt", "tidalWave") and not plans_with("taunt", "vortex")
+        self._record(True, "P4: taunt with a wave or a vortex: no plan")
+
+    def test_property_p5_fire_dries(self):
+        """Fireball never helps: steam on the soaked robot, or its own fire put out in the pool."""
+        assert not any(plans_with("fireball", s) for s in POOL if s != "fireball")
+        self._record(True, "P5: fireball wins with nothing")
 
 
 def run_tests():

@@ -2,9 +2,10 @@
 %
 % A sentry robot guards the hall of a ruined foundry. Next door, in the
 % forge, a storm golem idles. Nobody in the party can make lightning - but
-% the golem can: anger it and it is dragged to whoever angered it, then
-% discharges into everything around it; frighten it and it bolts along the
-% line away from you, and discharges where it lands.
+% the golem can. Taunted, it is dragged to whoever taunted it; blinded, it
+% lashes out where it stands. Either way it winds up a discharge (a heavy
+% blow) on the region it stands in, and it lands on everyone there but the
+% golem: electrocuted.
 %
 %                           vent   chimney
 %                              \   /
@@ -13,26 +14,33 @@
 %           fountain (a pool: whoever arrives is soaked)
 %
 % The robot is a machine: jolted dry it is only stunned; soaked, then
-% jolted, it short-circuits. It has no temper (it cannot be taunted), and
-% nothing the party carries jolts it. Two steps, two companions:
-%   soak it    rain on it where it stands (rainCall); or put it in the
-%              fountain: a wave from the gallery soaks it and washes it in
-%              (tidalWave), a gust blows it in (gust), a hook from the
-%              fountain drags it in (magnetize)
-%   lure the golem onto it
-%              taunt it from where the robot stands (taunt: it is dragged
-%              to you); provoke it from next door (provoke, melee: only the
-%              hall is next to the forge); or scare it so it bolts along a
-%              line - from the vent it lands in the hall, from the chimney
-%              it slides down the sluice into the fountain (terrify, roar)
+% jolted, it short-circuits. It has no temper (it cannot be taunted).
+% Three things must meet: a wet robot, the golem in the same region, and
+% the golem set off there - with no companion left inside when it lands.
+%
+% Soak the robot:
+%   tidalWave  in the hall, or washed from the gallery into the fountain
+%   hook       dragged into the fountain from the fountain
+%   vortex     drawn into the fountain
+% Bring them together:
+%   hook       the golem to the robot, or the robot to the golem
+%   vortex     draw them both into one region
+%   tidalWave  wash the golem out of the forge from the vent (to the hall)
+%              or the chimney (to the fountain)
+% Set the golem off:
+%   blindingFlash  where it stands; the flash's disjoint makes the blow
+%              pass through the flasher, so it can be cast from inside
+%   taunt      from the robot's region: the golem is dragged there - and
+%              the taunter is inside the struck region. It gets one cast
+%              from a friend: a hook drags it out.
 % Traps:
 %   - setting the golem off before the robot is wet only stuns the robot,
-%     and a golem already taunted (or feared) will not answer that mood
-%     again;
-%   - a wave cast from the gallery washes the robot out of the hall: the
-%     lure has to follow it to the fountain, where provoke cannot reach;
-%   - scaring the golem from the wrong side sends it where the robot is not.
-% The golem's discharge also jolts whoever lured it - harmless to the party.
+%     and a golem already taunted (or blinded) will not answer again;
+%   - a wave cast to save the taunter washes the robot out too;
+%   - fire dries: a fireball on the soaked robot is steam, and a fireball
+%     that sends it into the fountain puts its own fire out instead.
+% The golem's discharge jolts nobody of the party: a plan that leaves a
+% companion in the struck region has no plan.
 
 % === Regions ===
 region(gallery).
@@ -58,12 +66,13 @@ lineOfSight(forge, hall).
 lineOfSight(hall, fountain).
 lineOfSight(fountain, hall).
 lineOfSight(fountain, forge).
+lineOfSight(forge, fountain).
 lineOfSight(vent, forge).
 lineOfSight(chimney, forge).
 
 % Push lines: from the gallery, a blow on the hall lands in the fountain;
-% from the vent, whatever bolts out of the forge lands in the hall; from
-% the chimney, down the sluice into the fountain.
+% from the vent, whatever is washed out of the forge lands in the hall;
+% from the chimney, down the sluice into the fountain.
 beyond(gallery, hall, fountain).
 beyond(vent, forge, hall).
 beyond(chimney, forge, fountain).
@@ -81,69 +90,83 @@ mana(mage, 4).
 % === Enemies ===
 role(robot, enemy).
 at(robot, hall).
-trait(robot, machine).
+tag(robot, machine).
 immune(robot, taunted).
 
-% The storm golem: its moods are its triggers.
+% The storm golem: taunted or blinded, it winds up a discharge where it
+% stands (after the taunt has dragged it).
 role(golem, enemy).
 at(golem, forge).
 behavior(golem, taunted, discharge, here).
-behavior(golem, feared, discharge, here).
-reach(discharge, self).
+behavior(golem, blinded, discharge, here).
+heavy(discharge).
 effect(discharge, area, grant(electrocuted)).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, rainCall).
+knows(player, hook).
 knows(mage, taunt).
 
 % === Recipes (level-local: the golem's power, turned) ===
 
-% Soak ?v, by ?p: a cast that wets it, a push into a wet zone, or a hook
-% that drags it into one.
-soak(?v, ?p) :-
-    if(canAct(?p), first(canInflict(?p, ?ab, wet, ?v))), do(inflictAs(?p, wet, ?v)).
-soak(?v, ?p) :-
-    if(zoneFor(?r, wet), canAct(?p), first(placement(?p, ?ab, ?from, ?v, ?r))),
-    do(placeAs(?p, ?v, ?r)).
-soak(?v, ?p) :-
-    if(zoneFor(?r, wet), not(at(?v, ?r)), canAct(?p), puller(?p, ?ab, ?v), reach(?ab, ?k),
-       at(?v, ?vr), inRange(?k, ?r, ?vr), canReachNow(?p, ?r)),
-    do(castFrom(?p, ?ab, ?v, ?r)).
+% ?e ends up in ?r: already there, pulled there by someone standing in ?r,
+% or pushed, washed or drawn there.
+bring(?e, ?r) :- if(at(?e, ?r)), do().
+bring(?e, ?r) :-
+    if(at(?e, ?er), \==(?er, ?r), puller(?p, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er),
+       canReachNow(?p, ?r)),
+    do(castFrom(?p, ?ab, ?e, ?r), arrived(?e, ?r)).
+bring(?e, ?r) :-
+    if(not(at(?e, ?r)), canAct(?p), first(placement(?p, ?ab, ?from, ?aim, ?e, ?r))),
+    do(castFrom(?p, ?ab, ?aim, ?from), arrived(?e, ?r)).
+arrived(?e, ?r) :- if(at(?e, ?r)), do().
 
-% Set ?npc off where ?v stands, by anyone but ?not. A mood that drags it to
-% whoever gave it: give it from ?v's region. A mood that drives it away:
-% give it from where the line runs into ?v's region.
-lure(?npc, ?v, ?not) :-
-    if(at(?v, ?r), at(?npc, ?nr), behavior(?npc, ?t, ?b, here), onGrant(?t, pull),
-       canAct(?a), \==(?a, ?not), knows(?a, ?ab), grants(?ab, ?t), ready(?a, ?ab, ?npc),
+% Soak ?v: a cast that wets it where it stands, or bring it into a pool.
+soak(?v) :- if(holds(?v, wet)), do().
+soak(?v) :- if(not(holds(?v, wet)), canAct(?p), first(canInflict(?p, ?ab, wet, ?v))), do(inflictAs(?p, wet, ?v)).
+soak(?v) :- if(not(holds(?v, wet)), zoneFor(?r, wet)), do(bring(?v, ?r), wetNow(?v)).
+wetNow(?v) :- if(holds(?v, wet)), do().
+
+% Set ?npc off in ?r: a trigger whose own movement drags it into ?r, given
+% from ?r; or, standing in ?r already, any trigger that does not move it.
+trigger(?npc, ?r) :-
+    if(behavior(?npc, ?t, ?b, here), onGrant(?t, pull), at(?npc, ?nr),
+       canAct(?a), knows(?a, ?ab), grants(?ab, ?t), ready(?a, ?ab, ?npc),
        reach(?ab, ?k), inRange(?k, ?r, ?nr), canReachNow(?a, ?r)),
-    do(castFrom(?a, ?ab, ?npc, ?r)).
-lure(?npc, ?v, ?not) :-
-    if(at(?v, ?r), at(?npc, ?nr), behavior(?npc, ?t, ?b, here), onGrant(?t, push),
-       landing(?from, ?nr, ?r),
-       canAct(?a), \==(?a, ?not), knows(?a, ?ab), grants(?ab, ?t), ready(?a, ?ab, ?npc),
-       reach(?ab, ?k), inRange(?k, ?from, ?nr), canReachNow(?a, ?from)),
-    do(castFrom(?a, ?ab, ?npc, ?from)).
+    do(stepAside(?r, ?a), castFrom(?a, ?ab, ?npc, ?r)).
+trigger(?npc, ?r) :-
+    if(at(?npc, ?r), behavior(?npc, ?t, ?b, here), not(hasOnGrant(?t)),
+       canAct(?a), first(canInflict(?a, ?ab, ?t, ?npc))),
+    do(stepAside(?r, ?a), inflictAs(?a, ?t, ?npc)).
 
-% The robot: soaked by one companion, jolted by the golem another sets off.
-shortOut(?v) :- if(canAct(?p)), do(soak(?v, ?p), lure(golem, ?v, ?p), confirmStopped(?v)).
+% Everyone but ?a steps out of ?r, to a next region that still sees it.
+stepAside(?r, ?a) :- if(not(first(and(at(?c, ?r), canAct(?c), \==(?c, ?a))))), do().
+stepAside(?r, ?a) :-
+    if(at(?c, ?r), canAct(?c), \==(?c, ?a), connected(?r, ?n), lineOfSight(?n, ?r)),
+    do(walkTo(?c, ?n)).
 
-win :- if(), do(shortOut(robot)).
+% The golem's discharge on the robot: lured to it, brought to it, or the
+% robot brought to the golem - then set off there.
+setOff(?npc, ?v) :- if(at(?v, ?r)), do(trigger(?npc, ?r)).
+setOff(?npc, ?v) :- if(at(?v, ?r), not(at(?npc, ?r))), do(bring(?npc, ?r), trigger(?npc, ?r)).
+setOff(?npc, ?v) :- if(at(?npc, ?r), not(at(?v, ?r))), do(bring(?v, ?r), wetNow(?v), trigger(?npc, ?r)).
+setOff(?npc, ?v) :-
+    if(at(?npc, ?nr), at(?v, ?vr), \==(?nr, ?vr), region(?r), \==(?r, ?nr), \==(?r, ?vr)),
+    do(bring(?npc, ?r), bring(?v, ?r), wetNow(?v), trigger(?npc, ?r)).
+
+win :- if(), do(soak(robot), setOff(golem, robot), confirmStopped(robot)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(rainCall).
-comboPool(tidalWave).
-comboPool(gust).
-comboPool(magnetize).
 comboPool(taunt).
-comboPool(provoke).
-comboPool(terrify).
-comboPool(roar).
-comboMinWins(10).
-comboMinMethods(4).
+comboPool(blindingFlash).
+comboPool(hook).
+comboPool(vortex).
+comboPool(tidalWave).
+comboPool(fireball).
+comboMinWins(6).
+comboMinMethods(3).
 
 goals(win).

@@ -1,39 +1,50 @@
 % Powder Keg (ability catalogue; category: enemies' powers used against them)
 %
-% A goblin warband has sent a clockwork powder-mule up the ridge, a keg of
-% blackpowder strapped to its back. Knock it flat (stun it) and the keg goes
-% off: everything around it catches fire. Down in the grove stands an old
-% ent the goblins have been feeding - wood, and nothing in the party burns.
-% Bring the keg and the ent together, then knock the mule down.
+% A goblin warband has sent a powder-mule up the ridge, a keg of blackpowder
+% strapped to its back. Jolt it, startle it or goad it and the keg's fuse
+% catches: the mule bucks, and a heartbeat later the keg goes off (a heavy
+% blow) on the region it stands in - that region is set on fire, and
+% everyone in it burns. Down in the grove stands an old ent the goblins
+% have been feeding: wood, rooted (heavy: nothing moves it), and nothing in
+% the party makes fire. Bring the keg to the ent, light it, and be gone
+% before it blows.
 %
-%   camp --- road --- grove (ent)
+%   camp --- road --- grove (ent) --- hollow
 %             |      /
 %            ridge (mule) --- crag
 %
-% Two steps, two companions:
-%   bring them together
-%       the keg to the ent - taunt the mule from the grove (it is dragged
-%       to you), hook it from the grove (magnetize), swap places with it
-%       from the grove (translocate), blow it down off the crag (gust), or
-%       shove it down from the crag (concuss, melee);
-%       or the ent to the keg - hook the ent from the ridge (magnetize),
-%       swap with it from the ridge (translocate), taunt it up (taunt)
-%   knock the mule down
-%       shieldBash (melee), charge (a dash), thunderclap (melee, once)
-% The mule is clockwork: mindless, so a translocate cannot daze it and it
-% cannot be frightened; knocked down, it goes off at once, wherever it is.
+% The mule is living: soaked, a jolt only makes it seize up (stunned), and
+% a stunned mule's fuse never catches. Each trigger works once (the tag
+% stays):
+%   electrocuted  lightningFlash: the jolt lands first, so the keg winds
+%                 up and blows while the flasher is still on its way; it
+%                 arrives in the flames (harmless to the party)
+%   blinded       blindingFlash, from its region or next to it; the flash
+%                 makes the flasher disjoint, so the blast passes through
+%   taunted       taunt: the mule is dragged to the taunter and goes off
+%                 there - with the taunter inside. A friend gets it out:
+%                 a hook drags it clear; a wave from the road washes it
+%                 (and the mule) into the hollow; a vortex on the road
+%                 draws it out. The ent is rooted: it stays for the blast.
+% Bring the keg to the ent first (for the flashes):
+%   hook       from the grove
+%   vortex     on the grove: the ridge and the road are drawn in
+%   tidalWave  from the crag, the mule is washed down the slope - soaked
 % Traps:
-%   - stunning the mule where it stands wastes the keg: it blows once, and
-%     a stunned mule cannot be stunned again;
-%   - a thunderclap from the crag stuns it before it shoves it down: the
-%     keg goes off on the ridge;
-%   - every stunner here also pushes, and never in a useful direction.
-% The blast sets the stunner alight too - harmless to the party.
+%   - lighting the keg on the ridge wastes it: it blows once;
+%   - a soaked mule only seizes up under lightning (the wave that washed
+%     it down wets its fuse); a blinding flash still sets it off;
+%   - a taunt with no friend to get the taunter out (two triggers, or a
+%     trigger and nothing that moves a companion);
+%   - a companion left in the blast has no plan.
+% The party keeps its head (immune to taunted): a taunt does not drag a
+% friend out of the blast - otherwise two taunts would win alone.
 
 % === Regions ===
 region(camp).
 region(road).
 region(grove).
+region(hollow).
 region(ridge).
 region(crag).
 connected(camp, road).
@@ -44,6 +55,8 @@ connected(road, ridge).
 connected(ridge, road).
 connected(grove, ridge).
 connected(ridge, grove).
+connected(grove, hollow).
+connected(hollow, grove).
 connected(ridge, crag).
 connected(crag, ridge).
 lineOfSight(camp, road).
@@ -54,10 +67,17 @@ lineOfSight(road, ridge).
 lineOfSight(ridge, road).
 lineOfSight(grove, ridge).
 lineOfSight(ridge, grove).
+lineOfSight(grove, hollow).
+lineOfSight(hollow, grove).
 lineOfSight(crag, ridge).
+lineOfSight(ridge, crag).
 
-% Push line: from the crag, a blow on the ridge sends it down into the grove.
+% Push lines: from the crag, a blow on the ridge sends it down the slope
+% into the grove; from the road, a blow on the grove carries into the
+% hollow; from the grove, a blow on the ridge carries onto the crag.
 beyond(crag, ridge, grove).
+beyond(road, grove, hollow).
+beyond(grove, ridge, crag).
 
 % === Companions ===
 role(player, player).
@@ -66,74 +86,89 @@ at(player, camp).
 at(mage, camp).
 mana(player, 4).
 mana(mage, 4).
+% The party keeps its head: a taunt does not drag a friend.
+immune(player, taunted).
+immune(mage, taunted).
 
 % === Enemies ===
 role(ent, enemy).
 at(ent, grove).
-trait(ent, wooden).
+tag(ent, wooden).
+tag(ent, heavy).
 
-% The powder-mule: knocked flat, the keg goes off where it lies.
+% The powder-mule: jolted, startled or goaded, its keg goes off where it
+% stands (after a taunt has dragged it).
 role(mule, enemy).
 at(mule, ridge).
-trait(mule, mindless).
+tag(mule, living).
 immune(mule, burning).
-behavior(mule, stunned, keg, here).
-reach(keg, self).
-effect(keg, area, grant(burning)).
+behavior(mule, electrocuted, blast, here).
+behavior(mule, blinded, blast, here).
+behavior(mule, taunted, blast, here).
+heavy(blast).
+effect(blast, target, spill(flames)).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, taunt).
-knows(mage, shieldBash).
+knows(player, hook).
+knows(mage, lightningFlash).
 
 % === Recipes (level-local: the keg, turned on the ent) ===
 
-% Bring ?b and ?v into one region, by ?p: pull one to where the other
-% stands, push one into the other's region, or swap places with one while
-% standing by the other.
-gather(?b, ?v, ?p) :-
-    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), puller(?p, ?ab, ?b), reach(?ab, ?k),
-       inRange(?k, ?vr, ?br), canReachNow(?p, ?vr)),
-    do(castFrom(?p, ?ab, ?b, ?vr)).
-gather(?b, ?v, ?p) :-
-    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), puller(?p, ?ab, ?v), reach(?ab, ?k),
-       inRange(?k, ?br, ?vr), canReachNow(?p, ?br)),
-    do(castFrom(?p, ?ab, ?v, ?br)).
-gather(?b, ?v, ?p) :-
-    if(at(?v, ?vr), first(placement(?p, ?ab, ?from, ?b, ?vr))), do(castFrom(?p, ?ab, ?b, ?from)).
-gather(?b, ?v, ?p) :-
-    if(at(?b, ?br), first(placement(?p, ?ab, ?from, ?v, ?br))), do(castFrom(?p, ?ab, ?v, ?from)).
-gather(?b, ?v, ?p) :-
-    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), knows(?p, ?ab), effect(?ab, target, swap),
-       ready(?p, ?ab, ?b), reach(?ab, ?k), inRange(?k, ?vr, ?br), canReachNow(?p, ?vr)),
-    do(castFrom(?p, ?ab, ?b, ?vr)).
-gather(?b, ?v, ?p) :-
-    if(at(?b, ?br), at(?v, ?vr), \==(?br, ?vr), knows(?p, ?ab), effect(?ab, target, swap),
-       ready(?p, ?ab, ?v), reach(?ab, ?k), inRange(?k, ?br, ?vr), canReachNow(?p, ?br)),
-    do(castFrom(?p, ?ab, ?v, ?br)).
+% ?e ends up in ?r: already there, pulled there by someone standing in ?r,
+% or pushed, washed or drawn there.
+bring(?e, ?r) :- if(at(?e, ?r)), do().
+bring(?e, ?r) :-
+    if(at(?e, ?er), \==(?er, ?r), puller(?p, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er),
+       canReachNow(?p, ?r)),
+    do(castFrom(?p, ?ab, ?e, ?r), arrived(?e, ?r)).
+bring(?e, ?r) :-
+    if(not(at(?e, ?r)), canAct(?p), first(placement(?p, ?ab, ?from, ?aim, ?e, ?r))),
+    do(castFrom(?p, ?ab, ?aim, ?from), arrived(?e, ?r)).
+arrived(?e, ?r) :- if(at(?e, ?r)), do().
 
-% Set ?b off where it stands, by anyone but ?not.
-setOff(?b, ?not) :- if(behavior(?b, ?t, ?x, here)), do(inflict(?t, ?b, ?not)).
+% Set ?npc off in ?r: a trigger whose own movement drags it into ?r, given
+% from ?r (the other companion first takes a stand somewhere); or, standing
+% in ?r already, any trigger that does not move it.
+trigger(?npc, ?r) :-
+    if(behavior(?npc, ?t, ?b, here), onGrant(?t, pull), at(?npc, ?nr),
+       canAct(?a), knows(?a, ?ab), grants(?ab, ?t), ready(?a, ?ab, ?npc),
+       reach(?ab, ?k), inRange(?k, ?r, ?nr), canReachNow(?a, ?r)),
+    do(standBy(?r, ?a), castFrom(?a, ?ab, ?npc, ?r)).
+trigger(?npc, ?r) :-
+    if(at(?npc, ?r), behavior(?npc, ?t, ?b, here), not(hasOnGrant(?t)),
+       canAct(?a), first(canInflict(?a, ?ab, ?t, ?npc))),
+    do(stepAside(?r, ?a), inflictAs(?a, ?t, ?npc)).
 
-% The ent: one companion brings keg and ent together, the other knocks the
-% mule down.
-detonate(?b, ?v) :- if(canAct(?p)), do(gather(?b, ?v, ?p), setOff(?b, ?p), confirmStopped(?v)).
+% Before a lure, the other companion steps out of ?r, or takes a stand
+% anywhere else, ready to answer the blast.
+standBy(?r, ?a) :- if(), do(stepAside(?r, ?a)).
+standBy(?r, ?a) :-
+    if(canAct(?c), \==(?c, ?a), region(?n), \==(?n, ?r), not(at(?c, ?n))), do(walkTo(?c, ?n)).
 
-win :- if(), do(detonate(mule, ent)).
+% Everyone but ?a steps out of ?r, to a next region that still sees it.
+stepAside(?r, ?a) :- if(not(first(and(at(?c, ?r), canAct(?c), \==(?c, ?a))))), do().
+stepAside(?r, ?a) :-
+    if(at(?c, ?r), canAct(?c), \==(?c, ?a), first(and(connected(?r, ?n), lineOfSight(?n, ?r)))),
+    do(walkTo(?c, ?n)).
+
+% The keg on the ent: lured to it, or brought to it and set off there.
+setOff(?npc, ?v) :- if(at(?v, ?r)), do(trigger(?npc, ?r)).
+setOff(?npc, ?v) :- if(at(?v, ?r), not(at(?npc, ?r))), do(bring(?npc, ?r), trigger(?npc, ?r)).
+
+win :- if(), do(setOff(mule, ent), confirmStopped(ent)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
+comboPool(lightningFlash).
+comboPool(blindingFlash).
 comboPool(taunt).
-comboPool(magnetize).
-comboPool(translocate).
-comboPool(gust).
-comboPool(concuss).
-comboPool(shieldBash).
-comboPool(charge).
-comboPool(thunderclap).
-comboMinWins(10).
-comboMinMethods(4).
+comboPool(hook).
+comboPool(vortex).
+comboPool(tidalWave).
+comboMinWins(6).
+comboMinMethods(3).
 
 goals(win).

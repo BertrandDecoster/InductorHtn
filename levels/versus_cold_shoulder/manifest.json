@@ -1,8 +1,8 @@
 {
   "name": "versus_cold_shoulder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "layer": "level",
-  "description": "Cold Shoulder: a frost troll breathes whenever a new mood takes it; drag, scare or charm it so its breath freezes two fire imps kept apart; one skill each from eight",
+  "description": "Cold Shoulder: a frost troll breathes a heavy frost blow when taunted or blinded, and the ice stays; gather two fire imps into the breath or send them onto the ice after, and get the taunter out; one skill each from six",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,37 +12,42 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T15:39:40.829474"
+    "last_checked": "2026-09-24T18:25:57.359659"
   },
   "provides": [
+    "after/2",
     "arrived/2",
     "at/2",
+    "before/2",
     "behavior/4",
     "beyond/3",
-    "bothOut/0",
-    "bringTo/3",
+    "breatheOn/2",
+    "bring/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
     "connected/2",
     "effect/3",
-    "element/2",
+    "floor/1",
     "funExpect/3",
+    "heavy/1",
     "immune/2",
     "knows/2",
     "lineOfSight/2",
-    "lure/3",
     "mana/2",
-    "reach/2",
     "region/1",
     "role/2",
-    "trait/2",
+    "standBy/2",
+    "stepAside/2",
+    "tag/2",
+    "trigger/2",
     "win/0"
   ],
   "requires": [
     "castFrom/4",
     "confirmStopped/1",
-    "inflictAs/3"
+    "inflictAs/3",
+    "walkTo/2"
   ]
 }
