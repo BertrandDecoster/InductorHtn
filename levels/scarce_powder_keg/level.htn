@@ -1,72 +1,66 @@
 % Powder Keg (resource scarcity: a spent reaction)
 %
-% A walled yard with one powder keg in it, sunk over an old cellar. A
-% bruiser stands guard by the keg; a lurker waits on the stair above. The
-% team watches from the landing at the top of the stair. Nothing the team
-% carries can stop either enemy - only the keg can: it blows the yard's
-% floor into the cellar, and it blows once. Two companions, one skill each,
-% from six.
+% A walled yard with one powder keg in it, sunk over an old cellar, and a
+% tripwire across the yard. A bruiser stands guard by the keg; a lurker
+% waits on the stair above. The team watches from the landing at the top
+% of the stair. Nothing the team carries can stop either enemy - only the
+% keg can: it blows the yard's floor into the cellar, and it blows once.
+% Two companions, one skill each, from seven.
 %
-%   gate --- yard (keg, bruiser) --- stair (lurker) --- landing (team)
-%     |                                                    |
-%     +-------------------- side path ---------------------+
+%   landing (team) --- stair (lurker) --- yard (keg, bruiser; tripwire)
+%       |                                   |
+%       +------------- side path --------- gate
 %
 % The keg is a telegraphed heavy attack the team sets off on purpose. Fire
-% or a spark (burning, electrocuted) lights its fuse: it winds up a cave-in
-% on the yard (the catalogue's caveIn, physical - it cannot be stopped).
-% The team gets one cast; then the yard's floor gives way and everything
-% still in it falls into the cellar - the bruiser, the keg itself, and any
-% companion who did not get out. The keg is gone after that: it blows once.
+% or a spark (burning, electrocuted) lights its fuse: it winds up a
+% cave-in on the yard (the catalogue's caveIn, physical - it cannot be
+% stopped). Then the yard's floor gives way and everything still in it
+% falls into the cellar - the bruiser, the keg itself, and any companion
+% who stayed. The keg is gone after that: it blows once.
+%
+% The tripwire is a plate: whatever is knocked onto it throws a spark
+% into the powder trail, and the whole yard catches fire (spill(flames,
+% yard)) - the keg with it.
 %
 % Methods (bring the lurker down into the yard, then light the keg):
-%   gather   wash it down the stair from the landing (tidalWave), drag it
-%            down from the yard (hook, taunt - the puller then walks out),
-%            or draw it in (vortex on the yard, from the landing)
-%   light    a fireball on the keg from the landing: the fuse burns while
-%            nobody is in the yard
-%   spark    a lightning flash from the stair at the gate: it strikes the
-%            keg on its way through the yard and carries its caster out
-%            the far side before the floor goes
-% Or light the keg first, and wash or draw the lurker into the crater
-% (tidalWave, vortex).
+%   gather   hook it down from the yard (the hooker then walks out), or
+%            taunt it from the yard (it follows its taunter, so the
+%            taunter has to stay - and goes down with the yard)
+%   light    a fireball on the yard from the landing; a lightning flash
+%            from the stair or the gate (its dash never lands in the new
+%            chasm); a shield bash from the stair, or a vortex on the
+%            tripwire from the landing, knocks the bruiser onto the
+%            tripwire; a blinding flash in the yard (its caster is spent)
 %
 % Traps:
-%   - lighting the keg first with a puller: the bruiser falls, the keg is
-%     spent, and nobody can stand in the yard to drag the lurker down;
-%   - a flash aimed at the keg itself carries its caster into the yard:
-%     it lands in the crater (the flash's strike sets the fuse off before
-%     its dash, so the caster arrives after the fall);
-%   - wading down to drag the lurker and staying there: the puller must be
-%     out before the fuse is lit.
+%   - lighting the keg first: the bruiser falls, the keg is spent, and
+%     nobody can stand in the yard to bring the lurker down;
+%   - a taunter who walks out of the yard takes the lurker with it;
+%   - a tidal wave in the yard soaks the keg: the tripwire's fire only
+%     makes steam.
 %
 % Hypothesis (design.md): no single skill wins; every gatherer with every
-% lighter wins, and no other pair does.
+% lighter wins (10 pairs), and no other pair does.
 
-% === Regions ===
-region(gate).
-region(yard).
-region(stair).
+% === Map: four areas round a loop; the tripwire is a plate in the yard ===
 region(landing).
-connected(gate, yard).
-connected(yard, gate).
-connected(yard, stair).
-connected(stair, yard).
-connected(stair, landing).
+region(stair).
+region(yard).
+region(gate).
 connected(landing, stair).
+connected(stair, yard).
+connected(yard, gate).
 connected(gate, landing).
-connected(landing, gate).
 lineOfSight(landing, yard).
+lineOfSight(landing, stair).
+lineOfSight(stair, yard).
+lineOfSight(yard, stair).
 lineOfSight(gate, yard).
 lineOfSight(yard, gate).
-lineOfSight(yard, stair).
-lineOfSight(stair, yard).
-lineOfSight(stair, gate).
 
-% Lines: from the landing, a push on the stair sends it down into the
-% yard; from the stair, the yard lies on the way to the gate (a flash from
-% the stair at the gate runs through the yard).
-beyond(landing, stair, yard).
-beyond(stair, yard, gate).
+feature(yard, tripwire, spark).
+plate(tripwire).
+effect(spark, target, spill(flames, yard)).
 
 % === The keg: one fuse, one cave-in ===
 role(keg, object).
@@ -93,61 +87,50 @@ at(lurker, stair).
 tag(lurker, living).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, tidalWave).
+knows(player, hook).
 knows(mage, fireball).
 
 % === Victory ===
-% Gather the lurker into the yard, clear the yard, then one cave-in takes
-% both.
+% Bring the lurker into the yard; whoever stands in the yard walks out (or
+% stays); then one cave-in takes both.
 win :-
     if(),
-    do(herd(lurker, yard), clearOut(yard, landing), detonate(keg),
-       confirmStopped(bruiser), confirmStopped(lurker), confirmTeam()).
-win :- if(), do(detonate(keg), neutralize(lurker), confirmStopped(bruiser), confirmTeam()).
+    do(bringTo(lurker, yard, none), stepOut(), detonate(keg),
+       confirmStopped(bruiser), confirmStopped(lurker)).
 
-% Nobody of the team went down with the yard.
-confirmTeam() :- if(not(first(and(canAct(?a), gone(?a))))), do().
+% Before the fuse is lit, the companions in the yard walk up to the
+% landing - or stay, and go down with it (sacrifice is allowed). A taunted
+% lurker follows its taunter out.
+inYard(?a) :- canAct(?a), at(?a, yard), not(gone(?a)).
+stepOut() :- if(not(first(inYard(?a)))), do().
+stepOut() :- if(first(inYard(?a))), do(leaveYard()).
+stepOut() :- if(first(inYard(?a))), do().
+leaveYard() :- allOf, if(inYard(?a)), do(walkTo(?a, landing)).
 
-% ?e ends up in ?r: pushed along a line or drawn in (placement), or dragged
-% to someone standing there.
-herd(?e, ?r) :- if(at(?e, ?r)), do().
-herd(?e, ?r) :-
-    if(not(at(?e, ?r)), canAct(?a), first(placement(?a, ?ab, ?from, ?aim, ?e, ?r))),
-    do(castFrom(?a, ?ab, ?aim, ?from), confirmAt(?e, ?r)).
-herd(?e, ?r) :-
-    if(not(at(?e, ?r)), at(?e, ?er), puller(?a, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er)),
-    do(castFrom(?a, ?ab, ?e, ?r), confirmAt(?e, ?r)).
-confirmAt(?e, ?r) :- if(at(?e, ?r)), do().
-
-% Whoever can walk leaves ?r for ?safe before the keg is lit.
-walksOut(?a, ?r) :- canAct(?a), at(?a, ?r), not(forbidden(?a, move)).
-clearOut(?r, ?safe) :- if(not(first(walksOut(?a, ?r)))), do().
-clearOut(?r, ?safe) :- if(first(walksOut(?a, ?r))), do(leaveAll(?r, ?safe)).
-leaveAll(?r, ?safe) :- allOf, if(walksOut(?a, ?r)), do(walkTo(?a, ?safe)).
-
-% Light the keg: fire or a spark, from anyone; it must have blown.
-detonate(?k) :- if(not(gone(?k))), do(inflict(burning, ?k, none), confirmStopped(?k)).
-detonate(?k) :- if(not(gone(?k))), do(inflict(electrocuted, ?k, none), confirmStopped(?k)).
-% A skill that strikes its way, aimed past the keg: it lights the fuse on
-% the way and carries its caster out the far side.
+% Light the keg: land the tag its fuse answers (fire, a spark), or knock
+% something onto the tripwire.
 detonate(?k) :-
-    if(not(gone(?k)), at(?k, ?kr), canAct(?a), knows(?a, ?ab), effect(?ab, path, grant(?t)),
-       first(behavior(?k, ?t, ?m, ?aim)), beyond(?from, ?kr, ?to), reach(?ab, ?rk),
-       inRange(?rk, ?from, ?to), ready(?a, ?ab, ?to), canReachNow(?a, ?from)),
-    do(castFrom(?a, ?ab, ?to, ?from), confirmStopped(?k)).
+    if(not(gone(?k)), behavior(?k, ?t, caveIn, here)),
+    do(inflict(?t, ?k, none), confirmStopped(?k)).
+detonate(?k) :-
+    if(not(gone(?k)), at(?k, ?r), feature(?r, ?f, ?ab), plate(?f), at(?x, ?r), \==(?x, ?k)),
+    do(knockOn(?x, feature(?f), none), confirmStopped(?k)).
 
+funBlocker(bruiser).
+funBlocker(lurker).
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(tidalWave).
 comboPool(hook).
 comboPool(taunt).
-comboPool(vortex).
 comboPool(fireball).
 comboPool(lightningFlash).
-comboMinWins(8).
-comboMinMethods(4).
+comboPool(shieldBash).
+comboPool(vortex).
+comboPool(blindingFlash).
+comboMinWins(10).
+comboMinMethods(5).
 
 goals(win).
