@@ -2,7 +2,7 @@
   "name": "ab_catalog",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "The standard catalogue: 11 multi-use skills, 14 atomic tags, 3 composites, reactions, zones, heavy enemy moves, archetype weaknesses",
+  "description": "The standard catalogue: 11 skills written with tags, movement, interrupt/disjoint and terrain; zones and zone reactions; heavy enemy moves; identity-tag weaknesses",
   "dependencies": [
     "abilities/primitives/ab_acts"
   ],

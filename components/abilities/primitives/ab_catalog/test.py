@@ -107,19 +107,10 @@ def consumers():
     return used
 
 
-def movers():
-    """Skills that move something (a push, pull, hook, dash, relocate, pull-in,
-    or a tag that drags its bearer)."""
-    effects, _, _ = catalogue()
-    dragging = {t for t, _ in facts("onGrant")}
-    out = set()
-    for ab, _ in facts("reach"):
-        for _, atom in effects[ab]:
-            m = re.match(r"grant\((\w+)\)", atom)
-            if atom in ("push", "pull", "hook", "dash", "relocate", "swap") \
-                    or atom.startswith("pullIn") or (m and m.group(1) in dragging):
-                out.add(ab)
-    return out
+# The keywords a skill may be written with.
+VOCABULARY = [r"grant\(\w+\)", r"remove\(\w+\)", r"moment\((grant|remove)\(\w+\)\)",
+              r"push", r"pull", r"hook", r"pullIn", r"dash", r"teleport", r"interrupt",
+              r"spill\(\w+\)"]
 
 
 class AbCatalogTest(HtnTestSuite):
@@ -129,49 +120,49 @@ class AbCatalogTest(HtnTestSuite):
         self.verify_contracts()
         self.set_state(WORLD)
 
+    def fresh(self, world, extra):
+        self.load_component("abilities/primitives/ab_catalog", reset_first=True)
+        self.set_state(world + extra)
+
     # ---------------------------------------------------------------- examples
 
     def test_example_1_a_robot_is_stunned_or_short_circuited(self):
-        self.set_state(["trait(foe, machine)", "mana(player, 2)", "knows(player, lightningFlash)"])
+        self.set_state(["tag(foe, machine)", "mana(player, 2)", "knows(player, lightningFlash)"])
         self.assert_state_after("cast(player, lightningFlash, foe).",
                                 has=["tag(foe,stunned)"], not_has=["tag(foe,dead)"])
 
     def test_example_2_a_soaked_robot_dies(self):
-        self.set_state(["trait(foe, machine)", "tag(foe, wet)", "mana(player, 2)",
+        self.set_state(["tag(foe, machine)", "tag(foe, wet)", "mana(player, 2)",
                         "knows(player, lightningFlash)"])
         self.assert_state_after("cast(player, lightningFlash, foe).", has=["tag(foe,dead)"])
 
-    def test_example_3_a_fire_imp_freezes_solid(self):
-        self.set_state(["element(foe, fire)", "mana(player, 2)", "knows(player, blizzard)"])
+    def test_example_3_a_fire_elemental_dies_of_cold(self):
+        self.set_state(["tag(foe, fireElemental)", "mana(player, 2)", "knows(player, blizzard)"])
         self.assert_state_after("cast(player, blizzard, floor).", has=["tag(foe,dead)"])
 
     def test_example_4_soak_then_freeze(self):
         """The wave soaks the foe and washes it to the far side; the blizzard
-        there freezes it."""
+        there freezes it: stunned (it looks frozen)."""
         self.set_state(["mana(player, 2)", "mana(mage, 2)",
                         "knows(player, tidalWave)", "knows(mage, blizzard)"])
         self.assert_state_after("cast(player, tidalWave, player), cast(mage, blizzard, far).",
-                                has=["at(foe,far)", "tag(foe,frozen)", "tag(player,wet)"],
-                                not_has=["tag(foe,wet)"])
+                                has=["at(foe,far)", "tag(foe,stunned)", "tag(foe,slowed)"],
+                                not_has=["tag(foe,wet)", "tag(foe,chilled)"])
 
-    def test_example_5_a_frozen_foe_shatters(self):
-        self.set_state(["tag(foe, frozen)", "knows(player, shieldBash)"])
-        self.assert_state_after("cast(player, shieldBash, foe).", has=["tag(foe,dead)"])
-
-    def test_example_6_the_magnet_takes_the_armour_while_it_lasts(self):
-        """Inside the field the guard's armour does nothing: it is bashed out,
-        and wears its armour again beyond."""
-        self.set_state(["tag(foe, armored)", "mana(mage, 2)",
-                        "knows(mage, magneticOrb)", "knows(player, shieldBash)"])
-        self.assert_state_after("cast(mage, magneticOrb, floor), cast(player, shieldBash, foe).",
-                                has=["at(foe,far)", "tag(foe,armored)"])
-        self.assert_no_plan("cast(player, shieldBash, foe), ensureMoved(foe, floor).")
-
-    def test_example_7_the_vortex_takes_friends_too(self):
+    def test_example_5_the_vortex_takes_friends_too(self):
         self.set_state(["connected(floor, far)", "connected(far, floor)",
                         "role(imp, enemy)", "at(imp, far)", "knows(player, vortex)"])
         self.assert_state_after("cast(player, vortex, floor).",
-                                has=["at(imp,floor)", "at(mage,floor)", "at(player,ledge)"])
+                                has=["at(imp,floor)", "at(mage,floor)", "at(player,ledge)",
+                                     "tag(imp,rooted)", "tag(foe,rooted)", "tag(mage,rooted)"])
+
+    def test_example_6_mist_then_push(self):
+        """For a moment the heavy foe is mist: the fireball throws it."""
+        self.set_state(["tag(foe, heavy)", "mana(player, 2)",
+                        "knows(mage, turnToMist)", "knows(player, fireball)"])
+        self.assert_state_after("cast(mage, turnToMist, foe), cast(player, fireball, foe).",
+                                has=["at(foe,far)"])
+        self.assert_state_after("cast(player, fireball, foe).", has=["at(foe,floor)"])
 
     # -------------------------------------------------------------- properties
 
@@ -193,23 +184,27 @@ class AbCatalogTest(HtnTestSuite):
         effects, _, _ = catalogue()
         bad = sorted(ab for ab, _ in facts("reach")
                      for _, atom in effects[ab]
-                     if re.match(r"grant\((\w+)\)", atom)
-                     and re.match(r"grant\((\w+)\)", atom).group(1) in gone)
+                     if re.match(r"(moment\()?grant\((\w+)\)", atom)
+                     and re.search(r"grant\((\w+)\)", atom).group(1) in gone)
         assert not bad, f"skills granting an outcome: {bad}"
         self._record(True, "P3: no skill grants dead or fell")
 
     def test_property_p4_looks_map_to_tags(self):
         _, _, tags = catalogue()
+        tags |= {"heavy", "flying"}
         looks = facts("appearance")
         stray = [(l, t) for l, t in looks if t not in tags or l in tags]
         assert not stray, f"looks that are tags, or map to no tag: {stray}"
         self._record(True, f"P4: {len(looks)} looks, each a new name for a catalogue tag")
 
-    def test_property_p5_most_skills_move_something(self):
+    def test_property_p5_skills_use_only_the_keywords(self):
+        effects, _, _ = catalogue()
         skills = {ab for ab, _ in facts("reach")}
-        still = sorted(skills - movers())
-        assert still == ["blindingFlash", "blizzard"], still
-        self._record(True, f"P5: {len(skills) - 2} of {len(skills)} skills move something")
+        odd = sorted((ab, atom) for ab in skills for _, atom in effects[ab]
+                     if not any(re.fullmatch(v, atom) for v in VOCABULARY))
+        assert not odd, f"atoms outside the keywords: {odd}"
+        assert len(skills) == 11, sorted(skills)
+        self._record(True, "P5: 11 skills, written only with tags, movement, interrupt, spills")
 
     def test_property_p6_a_shield_takes_the_next_hostile_tag(self):
         self.set_state(["tag(foe, shielded)", "knows(player, taunt)"])
@@ -219,12 +214,11 @@ class AbCatalogTest(HtnTestSuite):
     def test_property_p7_bosses_cannot_be_stunned_or_frozen(self):
         self.set_state(["rank(foe, boss)", "tag(foe, wet)", "mana(mage, 2)",
                         "knows(player, shieldBash)", "knows(mage, blizzard)"])
-        self.assert_state_after("cast(player, shieldBash, foe).",
-                                has=["at(foe,far)"], not_has=["tag(foe,stunned)"])
-        self.assert_state_after("cast(mage, blizzard, floor).", not_has=["tag(foe,frozen)"])
+        self.assert_state_after("cast(player, shieldBash, foe).", not_has=["tag(foe,stunned)"])
+        self.assert_state_after("cast(mage, blizzard, floor).", not_has=["tag(foe,stunned)"])
 
     def test_property_p8_lightning_flash_strikes_the_path(self):
-        self.set_state(["role(bot, enemy)", "at(bot, floor)", "trait(bot, machine)",
+        self.set_state(["role(bot, enemy)", "at(bot, floor)", "tag(bot, machine)",
                         "mana(player, 2)", "knows(player, lightningFlash)"])
         self.assert_state_after("cast(player, lightningFlash, far).",
                                 has=["tag(bot,stunned)", "at(player,far)"])
@@ -234,58 +228,74 @@ class AbCatalogTest(HtnTestSuite):
         self.assert_state_after("cast(player, fireball, foe).",
                                 has=["onEnter(floor,flames)", "tag(foe,burning)", "at(foe,far)"])
 
-    def test_property_p10_translocate_swaps_or_blinks(self):
-        self.set_state(["knows(player, translocate)"])
-        self.assert_state_after("cast(player, translocate, foe).",
-                                has=["at(player,floor)", "at(foe,ledge)"])
-        self.assert_state_after("cast(player, translocate, far).", has=["at(player,far)"])
+    def test_property_p10_a_moment_lasts_one_more_cast(self):
+        """Mist lasts through the next cast, then the foe is heavy again; a
+        blink's disjoint likewise."""
+        self.set_state(["tag(foe, heavy)", "knows(mage, turnToMist)",
+                        "knows(player, blink)", "knows(mage, taunt)"])
+        self.assert_state_after("cast(mage, turnToMist, foe), cast(player, blink, far).",
+                                has=["at(player,far)", "tag(player,disjoint)"],
+                                not_has=["tag(foe,heavy)"])
+        self.assert_state_after(
+            "cast(mage, turnToMist, foe), cast(player, blink, far), cast(mage, taunt, foe).",
+            has=["tag(foe,heavy)", "tag(player,disjoint)"])
 
-    def test_property_p11_hook_plucks_a_flyer(self):
-        self.set_state(["tag(foe, flying)", "knows(player, hook)"])
-        self.assert_state_after("cast(player, hook, foe).",
-                                has=["at(foe,ledge)"], not_has=["tag(foe,flying)"])
+    def test_property_p11_hook_drags_across_the_pit(self):
+        """Dragged across the pit, a walker falls in; a flyer is brought over it."""
+        self.set_state(["region(pit)", "onEnter(pit, chasm)", "lineOfSight(ledge, pit)",
+                        "beyond(ledge, pit, floor)", "role(bat, enemy)", "at(bat, floor)",
+                        "tag(bat, flying)", "knows(player, hook)"])
+        self.assert_state_after("cast(player, hook, foe).", has=["tag(foe,fell)"])
+        self.assert_state_after("cast(player, hook, bat).", has=["at(bat,ledge)"],
+                                not_has=["tag(bat,fell)"])
+
+    def test_property_p12_ice_is_a_bridge(self):
+        self.set_state(["onEnter(far, deepWater)", "region(sea)", "onEnter(sea, lava)",
+                        "lineOfSight(ledge, sea)", "mana(player, 4)", "knows(player, blizzard)"])
+        self.assert_state_after("cast(player, blizzard, far), cast(player, blizzard, sea).",
+                                has=["onEnter(far,iceSheet)"],
+                                not_has=["onEnter(far,deepWater)", "onEnter(sea,lava)",
+                                         "onEnter(sea,iceSheet)"])
 
     # ----------------------------------------------------------- heavy attacks
 
-    OGRE = ["role(ogre, enemy)", "at(ogre, floor)", "trait(ogre, living)",
-            "behavior(ogre, taunted, groundSlam, source)", "at(mage, far)"]
+    ARENA = [f for f in WORLD if f != "at(mage, ledge)"] + [
+        "at(mage, far)", "role(ogre, enemy)", "at(ogre, floor)", "tag(ogre, living)"]
+    SLAM = ["behavior(ogre, taunted, groundSlam, source)", "knows(player, taunt)"]
 
-    def ogre(self, extra):
-        """The arena with the mage out of the way, an ogre on the floor."""
-        self.load_component("abilities/primitives/ab_catalog", reset_first=True)
-        self.set_state([f for f in WORLD if f != "at(mage, ledge)"] + self.OGRE + extra)
-
-    def test_property_p12_a_heavy_blow_must_be_survived(self):
-        """Taunted, the ogre is dragged to the player and slams where they
-        stand. Nobody can answer: no plan."""
-        self.ogre(["knows(player, taunt)"])
+    def test_property_p13_a_heavy_blow_must_be_survived(self):
+        """Taunted, the ogre is dragged to the player and slams them. Nobody
+        can answer: no plan. A shield bash stuns it but cannot stop a
+        physical blow."""
+        self.fresh(self.ARENA, self.SLAM)
+        self.assert_no_plan("cast(player, taunt, ogre).")
+        self.fresh(self.ARENA, self.SLAM + ["knows(player, shieldBash)"])
         self.assert_no_plan("cast(player, taunt, ogre).")
 
-    def test_property_p13_phase_through_it(self):
-        self.ogre(["knows(player, taunt)", "knows(player, blindingFlash)"])
-        self.assert_state_after("cast(player, taunt, ogre).",
-                                has=["at(player,ledge)", "tag(ogre,blinded)"],
-                                not_has=["tag(player,phased)", "windingUp(ogre,ledge)"])
+    def test_property_p14_disjoint_and_it_misses(self):
+        self.fresh(self.ARENA, self.SLAM + ["knows(player, blindingFlash)"])
         self.assert_plan("cast(player, taunt, ogre).",
                          contains=["opCast(player, blindingFlash, player)",
-                                   "opBlow(ogre, groundSlam, ledge)"])
+                                   "opMiss(ogre, groundSlam, player)"])
+        self.assert_state_after("cast(player, taunt, ogre).", has=["tag(ogre,blinded)"])
 
-    def test_property_p14_interrupt_it(self):
-        self.ogre(["knows(player, taunt)", "knows(player, shieldBash)"])
+    def test_property_p15_interrupt_a_spell(self):
+        self.fresh(self.ARENA, ["behavior(ogre, taunted, meteor, source)",
+                                "knows(player, taunt)", "knows(player, shieldBash)"])
         self.assert_plan("cast(player, taunt, ogre).",
-                         contains=["opCast(player, shieldBash, ogre)",
-                                   "opInterrupt(ogre, groundSlam, ledge)"])
+                         contains=["opInterrupt(player, ogre, meteor, player)"])
 
-    def test_property_p15_swap_an_enemy_in(self):
-        """Translocate out: to an empty region, or by swapping with the imp
-        far off - and then the slam lands on the imp."""
-        self.ogre(["role(imp, enemy)", "at(imp, far)",
-                   "knows(player, taunt)", "knows(player, translocate)"])
+    def test_property_p16_leave_a_blow_on_a_region(self):
+        """Slammed where it stands: hook the pillar across and get out - and
+        the slam lands on the imp that was there."""
+        self.fresh(self.ARENA, ["behavior(ogre, taunted, groundSlam, here)",
+                                "knows(player, taunt)", "knows(player, hook)",
+                                "role(pillar, object)", "tag(pillar, heavy)", "at(pillar, far)",
+                                "role(imp, enemy)", "at(imp, ledge)", "tag(imp, living)"])
         self.assert_plan("cast(player, taunt, ogre).",
-                         contains=["opSwap(player, imp, ledge, far)",
+                         contains=["opCast(player, hook, pillar)",
+                                   "opBlow(ogre, groundSlam, ledge, ledge)",
                                    "opGrant(ogre, imp, stunned)"])
-        self.assert_plan("cast(player, taunt, ogre).",
-                         contains=["opDash(player, ledge, floor)", "opBlow(ogre, groundSlam, ledge)"])
 
 
 def run_tests():

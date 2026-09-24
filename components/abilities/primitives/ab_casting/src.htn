@@ -22,14 +22,23 @@
 % companion, an NPC. Nothing here gates on role(?a, player).
 %
 % Heavy attacks. An NPC behaviour whose ability is heavy(?ab) does not land
-% at once: the NPC winds up on the region it aims at, the team gets one
-% action - a cast, without walking - and then the blow falls on everyone
-% there but the NPC. A companion caught in it is downed, so no plan may let
-% that happen: someone disjoints (teleports out, phases), is carried out
-% (swapped, hooked, washed away), or interrupts - silencing the NPC (a
-% stun, a freeze) stops the blow. Whatever else stands there takes it: a
-% heavy blow is also a weapon to turn on other enemies. An NPC already
-% winding up does not start another.
+% at once: the NPC winds up on what it aims at - a region, or an entity it
+% follows wherever it goes - and the team gets one action: a cast, without
+% walking, by any companion. Then the blow falls on everyone in the struck
+% region but the NPC. A companion caught in it is downed, so no plan may
+% let that happen. The answers are skills:
+%   leave the region      teleport, dash, be hooked or washed out (not
+%                         against a blow that follows its target)
+%   disjoint              a moment untouchable: a blow that follows you
+%                         misses, a blow on your region passes through you
+%   interrupt             a magic attack (kind(?ab, magic)) stops; a
+%                         physical one cannot be stopped
+% Whatever else stands there takes the blow: it is also a weapon to turn
+% on other enemies. An NPC already winding up does not start another.
+%
+% Time. Every cast ticks a clock. Something done "for a moment"
+% (moment(Atom) in ab_effects) lasts through the next cast by anyone, then
+% is undone - never in the middle of a heavy attack's window.
 %
 
 % === Operators ===
@@ -43,14 +52,23 @@ opSpendMana(?a, ?n) :-
 opUseUp(?a, ?ab) :-
     del(), add(spent(?a, ?ab)).
 
-opWindUp(?npc, ?ab, ?r) :-
-    del(), add(windingUp(?npc, ?r)).
+opWindUp(?npc, ?ab, ?x) :-
+    del(), add(windingUp(?npc, ?ab, ?x)).
 
-opBlow(?npc, ?ab, ?r) :-
-    del(windingUp(?npc, ?r)), add().
+opBlow(?npc, ?ab, ?x, ?r) :-
+    del(windingUp(?npc, ?ab, ?x)), add().
 
-opInterrupt(?npc, ?ab, ?r) :-
-    del(windingUp(?npc, ?r)), add().
+opMiss(?npc, ?ab, ?x) :-
+    del(windingUp(?npc, ?ab, ?x)), add().
+
+opTick(?a, ?c, ?n) :-
+    del(clock(?c)), add(clock(?n)).
+
+opFirstTick(?a) :-
+    del(), add(clock(1)).
+
+opEndMoment(?e, ?t, ?how, ?u) :-
+    del(lasts(?e, ?t, ?how, ?u)), add().
 
 % === Rules ===
 
@@ -86,12 +104,15 @@ spot(?a, ?ab, ?r, ?from) :-
 aroundSpot(?a, ?r, ?r) :- at(?a, ?cur), canReach(?a, ?cur, ?r).
 aroundSpot(?a, ?r, ?from) :- connected(?from, ?r), at(?a, ?cur), canReach(?a, ?cur, ?from).
 
-% Heavy attacks: who a blow on ?r would down; whether the NPC is stopped.
+% Heavy attacks: where a blow on ?x falls (nowhere if it follows an entity
+% that disjointed or is gone), and whether it would down someone.
 mustSurvive(?x) :- canAct(?x).
-endangered(?r) :-
+struck(?x, ?x) :- region(?x).
+struck(?x, ?r) :- not(region(?x)), at(?x, ?r), not(gone(?x)), not(warded(?x, heavy)).
+endangered(?x) :-
+    struck(?x, ?r),
     first(and(at(?a, ?r), mustSurvive(?a), not(gone(?a)), not(warded(?a, heavy)))).
-interrupted(?npc) :- gone(?npc).
-interrupted(?npc) :- not(gone(?npc)), forbidden(?npc, skill).
+winding() :- first(windingUp(?n, ?ab, ?x)).
 % Anything a companion could aim at in the window: a region or an entity.
 aimable(?x) :- region(?x).
 aimable(?x) :- at(?x, ?r).
@@ -121,18 +142,32 @@ castFrom(?a, ?ab, ?e, ?from) :-
     do(walkTo(?a, ?from), useAbility(?a, ?ab, ?e)).
 
 % Gates are checked again once there: walking may have changed the caster.
-% Acting ends a phase.
+% Every cast ticks the clock, and ends the moments that are over.
 useAbility(?a, ?ab, ?e) :-
     if(ready(?a, ?ab, ?e), reach(?ab, ?k), at(?a, ?from), locus(?e, ?r), inRange(?k, ?from, ?r)),
-    do(payMana(?a, ?ab), useUp(?a, ?ab), endPhase(?a), opCast(?a, ?ab, ?e),
+    do(tick(?a), payMana(?a, ?ab), useUp(?a, ?ab), opCast(?a, ?ab, ?e),
        applyAbility(?a, ?ab, ?e, react)).
 useAbility(?a, ?ab, ?a) :-
     if(ready(?a, ?ab, ?a), reach(?ab, self)),
-    do(payMana(?a, ?ab), useUp(?a, ?ab), endPhase(?a), opCast(?a, ?ab, ?a),
+    do(tick(?a), payMana(?a, ?ab), useUp(?a, ?ab), opCast(?a, ?ab, ?a),
        applyAbility(?a, ?ab, ?a, react)).
 
-endPhase(?a) :- if(tag(?a, phased)), do(opRemove(?a, ?a, phased)).
-endPhase(?a) :- if(not(tag(?a, phased))), do().
+tick(?a) :- if(clock(?c), is(?n, +(?c, 1))), do(opTick(?a, ?c, ?n), expire()).
+tick(?a) :- if(not(clock(?c))), do(opFirstTick(?a), expire()).
+
+% A moment granted or taken at clock ?u is undone once the clock passes ?u -
+% but never inside a heavy attack's window.
+over(?e, ?t, ?how, ?u) :- clock(?c), lasts(?e, ?t, ?how, ?u), <(?u, ?c).
+expire() :- if(winding()), do().
+expire() :- if(not(winding()), not(first(over(?e, ?t, ?h, ?u)))), do().
+expire() :- if(not(winding()), first(over(?e, ?t, ?h, ?u))), do(expireAll()).
+expireAll() :- allOf, if(over(?e, ?t, ?how, ?u)), do(undo(?e, ?t, ?how, ?u)).
+undo(?e, ?t, grant, ?u) :- if(tag(?e, ?t)), do(opEndMoment(?e, ?t, grant, ?u), opRemove(?e, ?e, ?t)).
+undo(?e, ?t, grant, ?u) :- if(not(tag(?e, ?t))), do(opEndMoment(?e, ?t, grant, ?u)).
+undo(?e, ?t, remove, ?u) :-
+    if(not(tag(?e, ?t)), not(gone(?e))), do(opEndMoment(?e, ?t, remove, ?u), opGrant(?e, ?e, ?t)).
+undo(?e, ?t, remove, ?u) :- if(tag(?e, ?t)), do(opEndMoment(?e, ?t, remove, ?u)).
+undo(?e, ?t, remove, ?u) :- if(not(tag(?e, ?t)), gone(?e)), do(opEndMoment(?e, ?t, remove, ?u)).
 
 payMana(?a, ?ab) :- if(manaCost(?ab, ?n)), do(opSpendMana(?a, ?n)).
 payMana(?a, ?ab) :- if(not(manaCost(?ab, ?n))), do().
@@ -143,23 +178,27 @@ useUp(?a, ?ab) :- if(not(once(?ab))), do().
 % === Heavy attacks ===
 
 unleash(?npc, ?ab, ?x) :-
-    if(heavy(?ab), not(windingUp(?npc, ?r0)), locus(?x, ?r)),
-    do(opWindUp(?npc, ?ab, ?r), brace(?npc, ?r), landBlow(?npc, ?ab, ?r)).
-unleash(?npc, ?ab, ?x) :- if(heavy(?ab), windingUp(?npc, ?r0)), do().
+    if(heavy(?ab), not(first(windingUp(?npc, ?a0, ?x0)))),
+    do(opWindUp(?npc, ?ab, ?x), brace(?npc, ?x), landBlow(?npc, ?ab, ?x)).
+unleash(?npc, ?ab, ?x) :- if(heavy(?ab), first(windingUp(?npc, ?a0, ?x0))), do().
 
 % The window: nobody in danger, nothing to do; else one companion acts.
-brace(?npc, ?r) :- if(not(endangered(?r))), do().
-brace(?npc, ?r) :- if(endangered(?r)), do(respond(?npc, ?r)).
-respond(?npc, ?r) :-
-    if(canAct(?a), not(gone(?a)), knows(?a, ?ab), windowAim(?a, ?ab, ?x)),
-    do(useAbility(?a, ?ab, ?x)).
+brace(?npc, ?x) :- if(not(endangered(?x))), do().
+brace(?npc, ?x) :- if(endangered(?x)), do(respond(?npc)).
+respond(?npc) :-
+    if(canAct(?a), not(gone(?a)), knows(?a, ?ab), windowAim(?a, ?ab, ?y)),
+    do(useAbility(?a, ?ab, ?y)).
 
-% The blow: stopped, or it falls on everyone there - and never on someone
-% who must survive (no clause: that plan fails). A phase is spent on it.
-landBlow(?npc, ?ab, ?r) :- if(interrupted(?npc)), do(opInterrupt(?npc, ?ab, ?r)).
-landBlow(?npc, ?ab, ?r) :-
-    if(not(interrupted(?npc)), not(endangered(?r))),
-    do(opBlow(?npc, ?ab, ?r), applyAbility(?npc, ?ab, ?r, raw), unphaseIn(?npc, ?r)).
-unphaseIn(?npc, ?r) :- if(first(and(at(?x, ?r), tag(?x, phased)))), do(unphaseAll(?npc, ?r)).
-unphaseIn(?npc, ?r) :- if(not(first(and(at(?x, ?r), tag(?x, phased))))), do().
-unphaseAll(?npc, ?r) :- allOf, if(at(?x, ?r), tag(?x, phased)), do(opRemove(?npc, ?x, phased)).
+% The blow: interrupted (nothing left to land); gone or missed; or it falls
+% on everyone in the struck region - never on someone who must survive (no
+% clause: that plan fails). A disjoint is spent on it.
+landBlow(?npc, ?ab, ?x) :- if(not(windingUp(?npc, ?ab, ?x))), do().
+landBlow(?npc, ?ab, ?x) :- if(windingUp(?npc, ?ab, ?x), gone(?npc)), do(opMiss(?npc, ?ab, ?x)).
+landBlow(?npc, ?ab, ?x) :-
+    if(windingUp(?npc, ?ab, ?x), not(gone(?npc)), not(struck(?x, ?r))), do(opMiss(?npc, ?ab, ?x)).
+landBlow(?npc, ?ab, ?x) :-
+    if(windingUp(?npc, ?ab, ?x), not(gone(?npc)), struck(?x, ?r), not(endangered(?x))),
+    do(opBlow(?npc, ?ab, ?x, ?r), applyAbility(?npc, ?ab, ?r, raw), spendDisjoint(?npc, ?r)).
+spendDisjoint(?npc, ?r) :- if(first(and(at(?y, ?r), tag(?y, disjoint)))), do(spendAll(?npc, ?r)).
+spendDisjoint(?npc, ?r) :- if(not(first(and(at(?y, ?r), tag(?y, disjoint))))), do().
+spendAll(?npc, ?r) :- allOf, if(at(?y, ?r), tag(?y, disjoint)), do(opRemove(?npc, ?y, disjoint)).

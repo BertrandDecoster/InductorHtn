@@ -40,20 +40,28 @@ Also aim for:
 
 - Tags:
   - `tag(?e, ?t)`, composites `bundles/2`, groups `group/2`
-  - `immune/2`, `wards/2`, `forbids/2`, `suspends/2`, `disables/2`
-  - auras `auraOf(?zone, ?t)`: carried only while standing in the zone (temporary, no clock)
+  - `immune/2`, `wards/2`, `forbids/2`, `suspends/2`
+  - what an entity is, is a tag: `tag(golem, heavy)`, `tag(bot, machine)`, `tag(crate, filler)`
+    (no `trait/2`, no `element/2`)
 - Effects: `effect(?ab, target|self|area|around|path, ?atom)` with the atoms
   - tags: `grant(T)`, `remove(T)`, `purge(Group)`
   - movement: `push`, `pull`, `hook` (pull a light target, or be dragged to an anchored one),
-    `swap`, `dash`, `teleport(R)`, `relocate` (teleport to a region, swap with an entity),
-    `pullIn(all|metal)` (draw the next regions' contents into the target region)
-  - terrain: `spill(Zone)`, `hazard(H)`, `open(Door)`, `openWhenHeld(Door)`
+    `swap`, `dash`, `teleport` (the source to the target's region), `teleport(R)`, `pullIn`
+    (draw the next regions' contents into the target region)
+  - actions: `interrupt` (a magic heavy attack being wound up stops)
+  - terrain: `spill(Zone)`, `hazard(H)`, `open(Door)`, `close(Door)`, `openWhenHeld(Door)`, and
+    `zoneReaction(?old, ?in, ?new)` (ice over deep water is a floor)
+  - duration: `moment(grant(T))`, `moment(remove(T))` - through the next cast by anyone
+- Keep to the keywords. A new level-local ability is a combination of these atoms, never a new
+  word.
 - Heavy attacks: `heavy(?ab)` on an NPC ability makes its behaviour telegraphed. The NPC winds up
-  on a region, the team gets one cast (no walking), then the blow lands on everyone there but the
-  NPC. No plan may leave a companion (or a `mustSurvive(?x)` escort) in it unless `phased` or
-  `invulnerable`. A silenced (stunned, frozen) NPC is interrupted. Use them where you want players
-  to trigger a big effect on purpose and survive it: the catalogue has `groundSlam` (stun and
-  throw) and `caveIn` (the floor becomes a chasm); define your own.
+  on a region (aim `here`/`there(R)`) or on an entity it follows (aim `source`), the team gets one
+  cast (no walking), then the blow lands on everyone in the struck region but the NPC. No plan may
+  leave a companion (or a `mustSurvive(?x)` escort) in it unless `disjoint`. `kind(?ab, magic)`
+  makes it interruptible (Hook, Shield Bash); a physical one can only be survived. Use them where
+  you want players to trigger a big effect on purpose and survive it: the catalogue has
+  `groundSlam` (stun and throw), `caveIn` (the floor becomes a chasm) and `meteor` (magic: the
+  region burns); define your own.
 - Reactions (for everyone, never lethal): `reaction(?have, ?incoming, ?ab)`.
 - Weaknesses (per entity, the only way to an outcome): `weakness(?e, ?in, ?have|none, ?out)`.
   `?in` is a tag or a hazard.

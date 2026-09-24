@@ -87,19 +87,20 @@ class NeutralizeTest(HtnTestSuite):
         self.assert_no_plan("neutralize(golem).")
 
     def test_property_p3_a_guard_comes_off_first(self):
-        """On the catalogue: a stealthed treant cannot be aimed at; a blinding
-        flash next to it strips the stealth, then fire plays its weakness."""
+        """On the catalogue: a shielded treant takes the first hostile tag on its
+        shield; a blinding flash next to it pops the shield, then fire plays its
+        weakness."""
         self.load_component("abilities/goals/neutralize", reset_first=True)
         self.load_component("abilities/primitives/ab_catalog", reset_first=False)
         self.set_state(["region(ledge)", "region(floor)", "lineOfSight(ledge, floor)",
                         "connected(ledge, floor)", "connected(floor, ledge)",
                         "role(player, player)", "role(mage, companion)",
                         "at(player, ledge)", "at(mage, ledge)", "mana(player, 2)",
-                        "role(treant, enemy)", "at(treant, floor)", "tag(treant, stealthed)",
-                        "trait(treant, wooden)",
+                        "role(treant, enemy)", "at(treant, floor)", "tag(treant, shielded)",
+                        "tag(treant, wooden)",
                         "knows(mage, blindingFlash)", "knows(player, fireball)"])
         self.assert_plan("neutralize(treant).", contains=[
-            "opCast(mage, blindingFlash, mage)", "opRemove(mage, treant, stealthed)",
+            "opCast(mage, blindingFlash, mage)", "opReact(mage, treant, shielded, blinded, absorb)",
             "opCast(player, fireball, treant)", "opExploit(player, treant, burning, dead)"])
 
 

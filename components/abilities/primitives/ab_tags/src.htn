@@ -6,17 +6,15 @@
 %   bundles(?composite, ?atom)  frozen bundles rooted, brittle, offBalance
 %   group(?t, ?g)               orthogonal categories: group(dead, gone)
 %   immune(?e, ?x)              ?x is a tag, a damage type or an effect kind
-%                               (forcedMove is what "heavy" means)
+%                               (forcedMove)
+%
+% What an entity *is* is a tag too - heavy, flying, machine, filler - so
+% a skill can take it off, for a moment or for good.
 %   suspends(?t, ?x)            while ?e has ?t, its immunity to ?x lapses
 %   wards(?t, ?x)               while ?e has ?t, it is immune to ?x (a flyer
 %                               does not fall; the stealthed are not targeted)
 %   forbids(?t, ?kind)          while ?e has ?t, it cannot do ?kind (spell,
 %                               attack, ranged, dash, move, or any)
-%   disables(?t, ?x)            while ?e has ?t, its tag ?x does nothing: no
-%                               ward, no reaction (magnetised armour)
-%   auraOf(?zone, ?t)           whoever stands in a region with that zone
-%                               carries ?t - never stored, so it ends the
-%                               moment they leave
 %   hostile(?t)                 the tags a `hostile` ward covers
 %   stops(?e, ?t)               ?t takes ?e out of the fight (anything in the
 %                               group `gone`; a level adds more)
@@ -42,7 +40,6 @@ opRemove(?src, ?e, ?t) :-
 % Carries ?x, stored or bundled. Two clauses: use holds/2 inside allOf.
 has(?e, ?x) :- tag(?e, ?x).
 has(?e, ?x) :- tag(?e, ?c), bundles(?c, ?x).
-has(?e, ?x) :- at(?e, ?r), onEnter(?r, ?z), auraOf(?z, ?x).
 holds(?e, ?x) :- first(has(?e, ?x)).
 
 inGroup(?e, ?g) :- first(and(tag(?e, ?t), group(?t, ?g))).
@@ -53,11 +50,9 @@ gone(?e) :- inGroup(?e, gone).
 suspended(?e, ?x) :- first(and(suspends(?t, ?x), has(?e, ?t))).
 immuneNow(?e, ?x) :- immune(?e, ?x), not(suspended(?e, ?x)).
 immuneNow(?e, ?x) :- warded(?e, ?x).
-warded(?e, ?x) :- first(and(has(?e, ?t), wards(?t, ?x), not(disabledOn(?e, ?t)))).
-warded(?e, ?x) :- damageType(?x), first(and(has(?e, ?t), wards(?t, damage), not(disabledOn(?e, ?t)))).
-warded(?e, ?x) :- hostile(?x), first(and(has(?e, ?t), wards(?t, hostile), not(disabledOn(?e, ?t)))).
-% A tag ?e carries is switched off by another it carries.
-disabledOn(?e, ?t) :- first(and(disables(?d, ?t), has(?e, ?d))).
+warded(?e, ?x) :- first(and(has(?e, ?t), wards(?t, ?x))).
+warded(?e, ?x) :- damageType(?x), first(and(has(?e, ?t), wards(?t, damage))).
+warded(?e, ?x) :- hostile(?x), first(and(has(?e, ?t), wards(?t, hostile))).
 
 % ?e cannot do ?kind: a carried tag forbids it, or forbids everything.
 forbidden(?e, ?k) :- first(and(has(?e, ?t), forbids(?t, ?k))).

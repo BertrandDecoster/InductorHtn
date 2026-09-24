@@ -19,8 +19,8 @@ intoThePit(?e) :-
        canAct(?p), first(canInflict(?p, ?ab, ?t, ?e))),
     do(inflictAs(?p, ?t, ?e), sendInto(?e, ?r, ?p), confirmStopped(?e)).
 
-% A tag it wears holds it in place (armour): someone takes it off, someone
-% else pushes.
+% A tag it carries holds it in place (heavy): someone takes it off - for
+% good, or for a moment - and someone else pushes while it lasts.
 intoThePit(?e) :-
     if(not(receptive(?e, forcedMove)), dropFor(?r, ?e),
        first(and(has(?e, ?w), wards(?w, forcedMove))), canUnset(?p, ?ab, ?w, ?e, ?aim)),
@@ -33,15 +33,6 @@ intoThePit(?e) :-
        canUnset(?p, ?ab, flying, ?e, ?aim)),
     do(cast(?p, ?ab, ?aim), ensureOff(flying, ?e), sendInto(?e, ?r, ?p), confirmStopped(?e)).
 
-% It cannot: someone lays a field on it whose aura loosens it (a magnetic
-% field takes its armour and its footing), someone else pushes.
-intoThePit(?e) :-
-    if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), at(?e, ?er), auraOf(?z, ?t),
-       suspends(?t, forcedMove), canAct(?p), knows(?p, ?ab), effect(?ab, target, spill(?z)),
-       ready(?p, ?ab, ?er)),
-    do(cast(?p, ?ab, ?er), sendInto(?e, ?r, ?p), confirmStopped(?e)).
-
-% It cannot, and freezing unbalances it: soak, chill, push.
 intoThePit(?e) :-
     if(not(receptive(?e, forcedMove)), dropFor(?r, ?e), suspends(frozen, forcedMove),
        receptive(?e, frozen), receptive(?e, chilled), supplier(?p, wet, ?e)),

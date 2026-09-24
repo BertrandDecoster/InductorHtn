@@ -1,38 +1,33 @@
 % ab_catalog - the standard tags and skills
 %
-% Data for the ability layer: eleven skills, each landing a tag and a
-% movement (or two tags), the tags they lead to, and who is weak to what.
+% Data for the ability layer. Every skill is written with the same few
+% keywords, in three families:
+%   tags      what is applied to whom: grant, remove, for good or for a
+%             moment (moment(...): through the next cast by anyone)
+%   movement  forced movement (push away, pull in, draw to a point), dash,
+%             teleport
+%   actions   interrupt (a magic heavy attack stops) and disjoint (for a
+%             moment, untouchable: an attack aimed at you misses)
+% plus terrain: zones a skill leaves on a region, and how zones react.
 %
-% Three kinds of tag:
-%   atomic      one meaning each (blinded: no basic attack, cannot keep
-%               watch; silenced: no skills - and a heavy attack winding up
-%               is stopped; rooted: no moving; slowed: no dashing; wet,
-%               oiled, burning, electrocuted: what elements leave behind;
-%               taunted; and the buffs stealthed, shielded, armored,
-%               invulnerable, flying, phased)
-%   composite   a named bundle of atoms (stunned = blinded + silenced +
-%               rooted; chilled = slowed; frozen = a stun that lets go of
-%               the ground)
+% Tags:
+%   atomic      one meaning each: blinded, silenced, rooted, slowed, wet,
+%               chilled, oiled, burning, electrocuted, taunted, stealthed,
+%               shielded, disjoint; and what an entity is - heavy, flying,
+%               filler, machine, living, insect, wooden, fireElemental,
+%               waterElemental - so a skill can take it off
+%   composite   stunned = blinded + silenced + rooted
 %   outcome     dead, fell - never granted by a skill. Only an enemy's own
 %               weakness, or a hazard it is weak to, produces one.
-%   look        appearance(?look, ?tag): a status that plays exactly like a
-%               catalogue tag and only looks different (petrified is a
-%               stun). The runtime draws the look; the planner sees the tag.
+%   look        appearance(?look, ?tag): plays exactly like a catalogue tag,
+%               only looks different. Frozen is a look of stunned.
 %
-% One tag is an aura, never stored: magnetized, carried while standing in a
-% magnetic field. It switches armour and shields off and lets heavy things
-% be moved, and ends the moment its bearer leaves the field.
+% Chilled does nothing by itself: chilled meeting wet makes the bearer
+% stunned (it looks frozen). Things of fire and insects die of it.
 %
-% Nothing here kills in general. A combo is deadly because of who it lands
-% on: weakness(?e, ?in, ?have, ?out) says this enemy, taking ?in while
-% carrying ?have (or `none`), gets ?out. Archetype rules at the bottom give
-% the usual ones (a machine short-circuits; a fire elemental freezes solid).
-% Frozen stops most enemies only for as long as it lasts: a blow shatters
-% it, and fire thaws it.
-%
-% Skills do no damage: damage is incremental, and this layer is about the
-% combos. Enemy moves are at the end: a heavy one is telegraphed (see
-% ab_casting), and surviving it is what several skills are also for.
+% Skills do no damage. Enemy moves are at the end: a heavy one is
+% telegraphed (see ab_casting), and surviving it is what several skills are
+% also for.
 
 % === Atomic tags ===
 
@@ -47,39 +42,21 @@ forbids(slowed, dash).
 onGrant(taunted, pull).
 
 wards(stealthed, targeted).
-wards(armored, forcedMove).
-wards(invulnerable, hostile).
-wards(invulnerable, heavy).
+wards(heavy, forcedMove).
 wards(flying, fell).
 
-% Phased: out of the world for an instant - nothing lands, nothing moves
-% it, and a heavy blow passes through. Spent by the next blow on its
-% region, or by acting.
-wards(phased, hostile).
-wards(phased, forcedMove).
-wards(phased, targeted).
-wards(phased, heavy).
-
-% Magnetized (an aura of the magnetic field): armour and shields hang dead,
-% and the heavy lose their footing.
-auraOf(magnetField, magnetized).
-disables(magnetized, armored).
-disables(magnetized, shielded).
-suspends(magnetized, forcedMove).
+% Disjoint: for a moment, nothing aimed at it lands - no hostile tag, no
+% forced movement, no heavy blow.
+wards(disjoint, targeted).
+wards(disjoint, hostile).
+wards(disjoint, forcedMove).
+wards(disjoint, heavy).
 
 % === Composites ===
 
 bundles(stunned, blinded).
 bundles(stunned, silenced).
 bundles(stunned, rooted).
-
-bundles(chilled, slowed).
-
-% Frozen: a stun in ice - and ice slides, so even the heavy can be pushed.
-bundles(frozen, blinded).
-bundles(frozen, silenced).
-bundles(frozen, rooted).
-suspends(frozen, forcedMove).
 
 % === Groups ===
 
@@ -91,20 +68,16 @@ group(silenced, hostile).
 group(rooted, hostile).
 group(slowed, hostile).
 group(wet, hostile).
+group(chilled, hostile).
 group(oiled, hostile).
 group(burning, hostile).
 group(electrocuted, hostile).
 group(taunted, hostile).
 group(stunned, hostile).
-group(chilled, hostile).
-group(frozen, hostile).
 
 group(stealthed, buff).
 group(shielded, buff).
-group(armored, buff).
-group(invulnerable, buff).
-group(flying, buff).
-group(phased, buff).
+group(disjoint, buff).
 
 % A guard comes off before anything else can land.
 group(stealthed, guard).
@@ -112,7 +85,6 @@ group(shielded, guard).
 
 % What a boss shrugs off.
 group(stunned, hardControl).
-group(frozen, hardControl).
 
 hostile(?t) :- group(?t, hostile).
 
@@ -122,7 +94,8 @@ hostile(?t) :- group(?t, hostile).
 reaction(shielded, hostile, absorb).
 effect(absorb, target, remove(shielded)).
 
-% Water and fire put each other out; oil spreads fire.
+% Water and fire put each other out; oil spreads fire; cold on water
+% freezes (a stun), whichever came first; fire undoes cold.
 reaction(wet, burning, steam).
 effect(steam, target, remove(wet)).
 reaction(burning, wet, extinguish).
@@ -132,24 +105,20 @@ reaction(burning, oiled, blaze).
 effect(blaze, target, remove(oiled)).
 effect(blaze, target, grant(burning)).
 effect(blaze, area, grant(burning)).
-
-% Cold on water freezes, whichever came first; fire undoes cold.
 reaction(wet, chilled, freeze).
 effect(freeze, target, remove(wet)).
-effect(freeze, target, grant(frozen)).
+effect(freeze, target, grant(stunned)).
 reaction(chilled, wet, freezeOver).
 effect(freezeOver, target, remove(chilled)).
-effect(freezeOver, target, grant(frozen)).
+effect(freezeOver, target, grant(stunned)).
 reaction(chilled, burning, thaw).
 effect(thaw, target, remove(chilled)).
-reaction(frozen, burning, meltdown).
-effect(meltdown, target, remove(frozen)).
-effect(meltdown, target, grant(wet)).
 reaction(burning, chilled, quench).
 effect(quench, target, remove(burning)).
 
 % === Looks: same play, different appearance ===
 
+appearance(frozen, stunned).
 appearance(petrified, stunned).
 appearance(paralyzed, stunned).
 appearance(knockedDown, stunned).
@@ -163,35 +132,44 @@ appearance(entangled, rooted).
 appearance(netted, rooted).
 appearance(drenched, wet).
 appearance(frostbitten, chilled).
-appearance(encased, frozen).
 appearance(ignited, burning).
 appearance(shocked, electrocuted).
 appearance(provoked, taunted).
 appearance(invisible, stealthed).
 appearance(camouflaged, stealthed).
 appearance(warded, shielded).
-appearance(barkskin, armored).
-appearance(ironclad, armored).
-appearance(untouchable, invulnerable).
+appearance(armored, heavy).
 appearance(hovering, flying).
-appearance(blinking, phased).
+appearance(blinking, disjoint).
+appearance(misty, disjoint).
 
-% === Zones (a level places them with onEnter/2; skills spill them) ===
+% === Terrain ===
+% Zones a level places with onEnter/2, or a skill spills. Whoever is in the
+% region when it is spilled, or walks in later, takes it.
 
 effect(puddle, target, grant(wet)).
 effect(slick, target, grant(oiled)).
 effect(flames, target, grant(burning)).
+effect(iceSheet, target, grant(slowed)).
 effect(iceSheet, target, grant(chilled)).
 effect(shadows, target, grant(stealthed)).
 effect(chasm, target, hazard(chasm)).
 effect(lava, target, hazard(lava)).
 effect(deepWater, target, grant(wet)).
 effect(deepWater, target, hazard(deepWater)).
-% magnetField: no effect on entering, only its aura (see Atomic tags).
 
 hazardType(chasm).
 hazardType(lava).
 hazardType(deepWater).
+
+% Zones meeting zones: water and lava freeze into a floor; fire melts ice
+% and lights oil; cold puts fire out.
+zoneReaction(deepWater, iceSheet, iceSheet).
+zoneReaction(puddle, iceSheet, iceSheet).
+zoneReaction(lava, iceSheet, none).
+zoneReaction(iceSheet, flames, puddle).
+zoneReaction(flames, iceSheet, puddle).
+zoneReaction(slick, flames, flames).
 
 % === Archetypes: who is weak to what ===
 
@@ -200,108 +178,109 @@ immune(?e, ?t) :- rank(?e, boss), group(?t, hardControl).
 
 % Anything that walks falls; anything not made of fire burns in lava; the
 % heavy sink.
-weakness(?e, chasm, none, fell) :- not(trait(?e, flier)).
-weakness(?e, lava, none, fell) :- not(trait(?e, flier)), not(element(?e, fire)).
-weakness(?e, deepWater, none, fell) :- trait(?e, heavy).
-immune(?e, forcedMove) :- trait(?e, heavy).
+weakness(?e, chasm, none, fell).
+weakness(?e, lava, none, fell) :- not(has(?e, fireElemental)).
+weakness(?e, deepWater, none, fell) :- has(?e, heavy).
 
 % Machines: a jolt stuns them; soaked first, they short-circuit.
-weakness(?e, electrocuted, wet, dead) :- trait(?e, machine).
-weakness(?e, electrocuted, none, stunned) :- trait(?e, machine).
+weakness(?e, electrocuted, wet, dead) :- has(?e, machine).
+weakness(?e, electrocuted, none, stunned) :- has(?e, machine).
 % The living: soaked and jolted, they seize up.
-weakness(?e, electrocuted, wet, stunned) :- trait(?e, living).
-% Things of fire freeze solid; water creatures are all conductor.
-weakness(?e, chilled, none, dead) :- element(?e, fire).
-immune(?e, burning) :- element(?e, fire).
-weakness(?e, electrocuted, none, dead) :- element(?e, water).
-immune(?e, wet) :- element(?e, water).
-% Cold-blooded insects freeze solid; wood burns.
-weakness(?e, chilled, none, dead) :- trait(?e, insect).
-weakness(?e, burning, none, dead) :- trait(?e, wooden).
-% Anything frozen shatters under a stunning blow.
-weakness(?e, stunned, frozen, dead).
+weakness(?e, electrocuted, wet, stunned) :- has(?e, living).
+% Things of fire and insects die of the cold; water creatures are all
+% conductor; wood burns.
+weakness(?e, chilled, none, dead) :- has(?e, fireElemental).
+immune(?e, burning) :- has(?e, fireElemental).
+weakness(?e, chilled, none, dead) :- has(?e, insect).
+weakness(?e, electrocuted, none, dead) :- has(?e, waterElemental).
+immune(?e, wet) :- has(?e, waterElemental).
+weakness(?e, burning, none, dead) :- has(?e, wooden).
 
 % === Skills ===
 % Every skill is a `skill` for silence.
 
 kind(?ab, skill) :- reach(?ab, ?r).
 
-% Hook: a light target is dragged to you (across a pit, it falls in) and
-% plucked out of the air; an anchored one drags you to it.
+% Hook: forced movement toward the caster (an anchored target pulls the
+% caster to it instead; dragged across a pit, it falls in) + interrupt.
 reach(hook, ranged).
-effect(hook, target, remove(flying)).
+effect(hook, target, interrupt).
 effect(hook, target, hook).
 
-% Vortex: everything next to the target region is sucked into it.
+% Vortex: forced movement of everything next to the target region into
+% it + rooted on everyone there.
 reach(vortex, ranged).
-effect(vortex, target, pullIn(all)).
+effect(vortex, target, pullIn).
+effect(vortex, area, grant(rooted)).
 
-% Tidal Wave: you stand in a flood - everyone here and next door is soaked,
-% and whoever is next door is washed further away.
+% Tidal Wave: forced movement of everyone next to the caster, away from it
+% + wet on everyone around.
 reach(tidalWave, self).
 manaCost(tidalWave, 2).
-effect(tidalWave, self, spill(puddle)).
 effect(tidalWave, around, grant(wet)).
 effect(tidalWave, around, push).
 
-% Blizzard: the region ices over - everyone there, and whoever walks in
-% later, is chilled; the wet freeze.
+% Blizzard: the region ices over - slowed and chilled on everyone there,
+% and on whoever walks in later.
 reach(blizzard, ranged).
 manaCost(blizzard, 2).
 effect(blizzard, target, spill(iceSheet)).
 
-% Fireball: the impact region catches fire - everyone in it burns and it
-% stays a fire zone - and the target is thrown out of it.
+% Fireball: the region catches fire - burning on everyone there and on
+% whoever walks in later - + forced movement of the target away from the
+% caster.
 reach(fireball, ranged).
 manaCost(fireball, 2).
 effect(fireball, target, spill(flames)).
 effect(fireball, target, push).
 
-% Lightning Flash: become the lightning - everyone between you and where
-% you land is struck, and so is whoever stands there.
+% Lightning Flash: the caster dashes to the target + electrocuted on the
+% target and everyone on the way.
 reach(lightningFlash, ranged).
 manaCost(lightningFlash, 2).
 effect(lightningFlash, path, grant(electrocuted)).
 effect(lightningFlash, target, grant(electrocuted)).
 effect(lightningFlash, target, dash).
 
-% Translocate: appear where you look - in an empty spot, or in someone's
-% place, who appears in yours.
-reach(translocate, ranged).
-effect(translocate, target, relocate).
+% Blink: disjoint + the caster teleports to the target region.
+reach(blink, ranged).
+effect(blink, self, moment(grant(disjoint))).
+effect(blink, target, teleport).
 
-% Blinding Flash: you phase out for an instant and reappear in a flash that
-% blinds everyone around and shows up whatever hides there.
+% Blinding Flash: disjoint + blinded on everyone around.
 reach(blindingFlash, self).
-effect(blindingFlash, self, grant(phased)).
+effect(blindingFlash, self, moment(grant(disjoint))).
 effect(blindingFlash, around, grant(blinded)).
-effect(blindingFlash, around, remove(stealthed)).
 
-% Taunt: it fixates on you and comes at you - and does what it does when
-% provoked.
+% Taunt: taunted (dragged to the caster; sets off its behaviours).
 reach(taunt, ranged).
 effect(taunt, target, grant(taunted)).
 
-% Magnetic Orb: the region becomes a magnetic field; metal next to it is
-% drawn in.
-reach(magneticOrb, ranged).
-manaCost(magneticOrb, 2).
-effect(magneticOrb, target, spill(magnetField)).
-effect(magneticOrb, target, pullIn(metal)).
+% Turn to Mist: for a moment, the target is neither heavy nor shielded.
+reach(turnToMist, ranged).
+effect(turnToMist, target, moment(remove(heavy))).
+effect(turnToMist, target, moment(remove(shielded))).
 
-% Shield Bash: stunned and knocked back.
+% Shield Bash: stunned + interrupt.
 reach(shieldBash, melee).
+effect(shieldBash, target, interrupt).
 effect(shieldBash, target, grant(stunned)).
-effect(shieldBash, target, push).
 
 % === Enemy moves ===
-% A level gives them to NPCs with behavior/4. Heavy ones are telegraphed.
+% A level gives them to NPCs with behavior/4. Heavy ones are telegraphed;
+% magic ones can be interrupted, physical ones only survived.
 
-% Ground Slam: everyone in the struck region is stunned and thrown back.
+% Ground Slam (physical): everyone in the struck region is stunned and
+% thrown back.
 heavy(groundSlam).
 effect(groundSlam, area, grant(stunned)).
 effect(groundSlam, area, push).
 
-% Cave-in: the struck floor gives way.
+% Cave-in (physical): the struck floor gives way.
 heavy(caveIn).
 effect(caveIn, target, spill(chasm)).
+
+% Meteor (magic): the struck region burns.
+heavy(meteor).
+kind(meteor, magic).
+effect(meteor, target, spill(flames)).

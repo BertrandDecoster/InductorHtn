@@ -142,9 +142,9 @@ class AbEffectsTest(HtnTestSuite):
     def test_property_p11_a_weakness_answers_for_that_entity(self):
         """The same tag stuns a machine and is merely stored on anyone else;
         soaked first, the machine dies."""
-        self.set_state(["trait(golem, machine)", "effect(zap, target, grant(sparked))",
-                        "weakness(?e, sparked, wet, dead) :- trait(?e, machine)",
-                        "weakness(?e, sparked, none, stunned) :- trait(?e, machine)",
+        self.set_state(["tag(golem, machine)", "effect(zap, target, grant(sparked))",
+                        "weakness(?e, sparked, wet, dead) :- has(?e, machine)",
+                        "weakness(?e, sparked, none, stunned) :- has(?e, machine)",
                         "tag(gob, wet)"])
         self.assert_state_after("applyAbility(player, zap, golem, react), applyAbility(player, zap, gob, react).",
                                 has=["tag(golem,stunned)", "tag(gob,sparked)"], not_has=["tag(golem,dead)"])
@@ -153,8 +153,8 @@ class AbEffectsTest(HtnTestSuite):
         self.set_state(["region(chasm)", "region(cliff)", "at(storm, cliff)",
                         "beyond(cliff, pool, chasm)", "onEnter(chasm, drop)",
                         "effect(drop, target, hazard(chasm))",
-                        "weakness(?e, chasm, none, fell) :- not(trait(?e, flier))",
-                        "role(bat, enemy)", "at(bat, pool)", "trait(bat, flier)",
+                        "weakness(?e, chasm, none, fell) :- not(has(?e, flying))",
+                        "role(bat, enemy)", "at(bat, pool)", "tag(bat, flying)",
                         "effect(gale, area, push)"])
         self.assert_state_after("applyAbility(storm, gale, pool, react).",
                                 has=["tag(gob,fell)", "at(bat,chasm)"], not_has=["tag(bat,fell)"])
@@ -187,7 +187,7 @@ class AbEffectsTest(HtnTestSuite):
         self.set_state(["region(gap)", "region(far)", "connected(ledge, gap)", "connected(gap, ledge)",
                         "connected(gap, far)", "connected(far, gap)", "beyond(ledge, gap, far)",
                         "onEnter(gap, drop)", "effect(drop, target, hazard(gap))",
-                        "weakness(?e, gap, none, fell) :- not(trait(?e, flier))",
+                        "weakness(?e, gap, none, fell) :- not(has(?e, flying))",
                         "role(imp, enemy)", "at(imp, far)", "effect(hk, target, hook)"])
         self.assert_state_after("applyAbility(player, hk, imp, react).",
                                 has=["at(imp,gap)", "tag(imp,fell)"])
@@ -196,8 +196,8 @@ class AbEffectsTest(HtnTestSuite):
         self.set_state(["region(gap)", "region(far)", "connected(ledge, gap)", "connected(gap, ledge)",
                         "connected(gap, far)", "connected(far, gap)", "beyond(ledge, gap, far)",
                         "onEnter(gap, drop)", "effect(drop, target, hazard(gap))",
-                        "weakness(?e, gap, none, fell) :- not(trait(?e, flier))",
-                        "role(crate, object)", "trait(crate, filler)", "at(crate, gap)",
+                        "weakness(?e, gap, none, fell) :- not(has(?e, flying))",
+                        "role(crate, object)", "tag(crate, filler)", "at(crate, gap)",
                         "tag(crate, fell)"])
         self.assert_state_after("walkTo(player, far).", has=["at(player,far)"],
                                 not_has=["tag(player,fell)"])
@@ -206,7 +206,7 @@ class AbEffectsTest(HtnTestSuite):
         self.set_state(["region(gap)", "region(far)", "connected(ledge, gap)", "connected(gap, ledge)",
                         "connected(gap, far)", "connected(far, gap)", "beyond(ledge, gap, far)",
                         "onEnter(gap, drop)", "effect(drop, target, hazard(gap))",
-                        "weakness(?e, gap, none, fell) :- not(trait(?e, flier))"])
+                        "weakness(?e, gap, none, fell) :- not(has(?e, flying))"])
         self.assert_no_plan("walkTo(player, far).")
 
     def test_property_p20_blockers_and_doors_stop_a_walk(self):
@@ -257,6 +257,36 @@ class AbEffectsTest(HtnTestSuite):
                         "onEnter(p2, press2)", "effect(press2, target, openWhenHeld(vault))",
                         "connected(ledge, p2)"])
         self.assert_state_after("walkTo(player, p2).", not_has=["open(vault)"])
+
+    def test_property_p26_a_zone_reshapes_a_zone(self):
+        self.set_state(["onEnter(pool, water)", "effect(water, target, grant(wet))",
+                        "effect(ice, target, grant(chilled))", "zoneReaction(water, ice, ice)",
+                        "effect(frost, target, spill(ice))"])
+        self.assert_state_after("applyAbility(player, frost, pool, react).",
+                                has=["onEnter(pool,ice)"], not_has=["onEnter(pool,water)"])
+
+    def test_property_p27_a_zone_can_leave_nothing(self):
+        self.set_state(["onEnter(pool, water)", "effect(water, target, grant(wet))",
+                        "effect(ice, target, grant(chilled))", "zoneReaction(water, ice, none)",
+                        "effect(frost, target, spill(ice))"])
+        self.assert_state_after("applyAbility(player, frost, pool, react).",
+                                not_has=["onEnter(pool,ice)", "onEnter(pool,water)"])
+
+    def test_property_p28_a_door_can_be_closed(self):
+        self.set_state(["door(gate)", "open(gate)", "effect(shut, target, close(gate))"])
+        self.assert_state_after("applyAbility(player, shut, ledge, react).", not_has=["open(gate)"])
+
+    def test_property_p29_only_magic_is_interrupted(self):
+        self.set_state(["role(brute, enemy)", "at(brute, pool)", "kind(spell, magic)",
+                        "windingUp(brute, spell, player)", "effect(stop, target, interrupt)"])
+        self.assert_state_after("applyAbility(player, stop, brute, react).",
+                                not_has=["windingUp(brute,spell,player)"])
+
+    def test_property_p30_a_physical_blow_goes_on(self):
+        self.set_state(["role(brute, enemy)", "at(brute, pool)",
+                        "windingUp(brute, slam, player)", "effect(stop, target, interrupt)"])
+        self.assert_state_after("applyAbility(player, stop, brute, react).",
+                                has=["windingUp(brute,slam,player)"])
 
 
 def run_tests():

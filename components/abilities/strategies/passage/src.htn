@@ -22,10 +22,9 @@
 % === Rules ===
 
 selfMover(?ab) :- effect(?ab, target, dash).
-selfMover(?ab) :- effect(?ab, target, relocate).
+selfMover(?ab) :- effect(?ab, target, teleport).
 anchorHook(?ab) :- effect(?ab, target, hook).
 swapper(?ab) :- effect(?ab, target, swap).
-swapper(?ab) :- effect(?ab, target, relocate).
 ahead(?from, ?to) :- progress(?from, ?n1), progress(?to, ?n2), >(?n2, ?n1).
 
 % ?a lands at ?land by casting ?ab at ?aim from ?from, a region it can walk
@@ -50,7 +49,7 @@ ferry(?a, ?b, ?ab, ?land) :-
 
 % The plate of a door; something that fills a gap.
 plateOf(?p, ?d) :- onEnter(?p, ?z), effect(?z, target, open(?d)).
-filler(?x) :- trait(?x, filler), not(gone(?x)).
+filler(?x) :- tag(?x, filler), not(gone(?x)).
 
 % === Methods ===
 

@@ -21,7 +21,7 @@ WORLD = [
     "beyond(a, b, gap)", "beyond(b, gap, c)", "beyond(c, gap, b)",
     "onEnter(gap, chasm)", "onEnter(p, press)", "effect(press, target, open(d))", "door(d)",
     "role(player, player)", "at(player, a)", "mana(player, 4)",
-    "role(pillar, object)", "trait(pillar, heavy)", "at(pillar, c)",
+    "role(pillar, object)", "tag(pillar, heavy)", "at(pillar, c)",
 ]
 
 
@@ -40,8 +40,8 @@ class PassageTest(HtnTestSuite):
                          not_contains=["opCast"])
 
     def test_example_2_a_leap_over_the_gap(self):
-        self.set_state(["knows(player, translocate)"])
-        self.assert_plan("reach(player, e).", contains=["opCast(player, translocate, c)"])
+        self.set_state(["knows(player, blink)"])
+        self.assert_plan("reach(player, e).", contains=["opCast(player, blink, c)"])
 
     def test_example_3_a_hook_to_the_pillar(self):
         self.set_state(["knows(player, hook)"])
@@ -50,15 +50,16 @@ class PassageTest(HtnTestSuite):
                                                          "opDash(player, b, c)"])
 
     def test_example_4_a_friend_swaps_you_over(self):
-        self.set_state(["role(mage, companion)", "at(mage, c)", "knows(mage, translocate)",
+        self.set_state(["role(mage, companion)", "at(mage, c)", "knows(mage, swapper)",
+                        "reach(swapper, ranged)", "effect(swapper, target, swap)",
                         "lineOfSight(c, a)"])
-        self.assert_plan("reach(player, c).", contains=["opCast(mage, translocate, player)"])
+        self.assert_plan("reach(player, c).", contains=["opCast(mage, swapper, player)"])
 
     def test_example_5_the_door_latches(self):
         self.assert_state_after("openWay(d).", has=["open(d)", "at(player,p)"])
 
     def test_example_6_the_crate_bridges_the_gap(self):
-        self.set_state(["role(crate, object)", "trait(crate, filler)", "at(crate, b)",
+        self.set_state(["role(crate, object)", "tag(crate, filler)", "at(crate, b)",
                         "knows(player, vortex)", "lineOfSight(a, gap)"])
         self.assert_plan("span(gap).", contains=["opCast(player, vortex, gap)"])
         self.assert_state_after("span(gap), reach(player, c).",
@@ -68,11 +69,11 @@ class PassageTest(HtnTestSuite):
 
     def test_property_p1_leaps_only_go_forward(self):
         """A scout across the gap may leap forward, never back."""
-        self.set_state(["role(scout, companion)", "at(scout, c)", "knows(scout, translocate)"])
+        self.set_state(["role(scout, companion)", "at(scout, c)", "knows(scout, blink)"])
         self.assert_no_plan("reach(scout, a).")
 
     def test_property_p2_a_pull_across_bridges_too(self):
-        self.set_state(["role(crate, object)", "trait(crate, filler)", "at(crate, c)",
+        self.set_state(["role(crate, object)", "tag(crate, filler)", "at(crate, c)",
                         "knows(player, hook)"])
         self.assert_plan("span(gap).", contains=["opForcedMove(player, crate, c, gap)"])
 

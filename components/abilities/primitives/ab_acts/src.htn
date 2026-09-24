@@ -19,6 +19,7 @@ aimed(target).
 aimed(area).
 aimed(around).
 grantsAny(?ab, ?t) :- effect(?ab, ?w, grant(?t)), aimed(?w).
+grantsAny(?ab, ?t) :- effect(?ab, ?w, moment(grant(?t))), aimed(?w).
 grantsAny(?ab, ?t) :- effect(?ab, ?w, grant(?c)), aimed(?w), bundles(?c, ?t).
 grantsAny(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?t)).
 grantsAny(?ab, ?t) :- effect(?ab, target, spill(?z)), effect(?z, target, grant(?c)), bundles(?c, ?t).
@@ -27,6 +28,7 @@ zoneFor(?r, ?t) :- onEnter(?r, ?ab), first(grantsAny(?ab, ?t)).
 
 % What an ability takes off: a remove, or a purge of its group.
 stripsAny(?ab, ?t) :- effect(?ab, ?w, remove(?t)), aimed(?w).
+stripsAny(?ab, ?t) :- effect(?ab, ?w, moment(remove(?t))), aimed(?w).
 stripsAny(?ab, ?t) :- effect(?ab, ?w, purge(?g)), aimed(?w), group(?t, ?g).
 strips(?ab, ?t) :- reach(?ab, ?k), first(stripsAny(?ab, ?t)).
 
@@ -54,8 +56,8 @@ placement(?a, ?ab, ?from, ?a, ?e, ?r) :-
     first(effect(?ab, around, push)), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?a),
     connected(?from, ?over), landing(?from, ?over, ?r), canReachNow(?a, ?from).
 placement(?a, ?ab, ?from, ?r, ?e, ?r) :-
-    at(?e, ?over), connected(?over, ?r), knows(?a, ?ab), effect(?ab, target, pullIn(?k)),
-    drawnKind(?k, ?e), not(anchoredAgainst(?e)), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?r),
+    at(?e, ?over), connected(?over, ?r), knows(?a, ?ab), effect(?ab, target, pullIn),
+    not(anchoredAgainst(?e)), canAct(?a), \==(?a, ?e), ready(?a, ?ab, ?r),
     first(spot(?a, ?ab, ?r, ?from)).
 
 % ?a can take ?t off ?e with ?ab, aimed at ?aim: ?e itself, or its region
@@ -93,7 +95,6 @@ pulls(?ab) :- reach(?ab, ?k), first(pullsAny(?ab)).
 movesAny(?ab) :- pullsAny(?ab).
 movesAny(?ab) :- effect(?ab, ?w, push), aimed(?w).
 movesAny(?ab) :- effect(?ab, target, swap).
-movesAny(?ab) :- effect(?ab, target, relocate).
 movesAny(?ab) :- effect(?ab, target, grant(?t)), onGrant(?t, push).
 moves(?ab) :- reach(?ab, ?k), first(movesAny(?ab)).
 puller(?a, ?ab, ?e) :- canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, ?e).
