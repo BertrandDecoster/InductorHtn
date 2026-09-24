@@ -1,81 +1,71 @@
 % The Shellback (enemy state machines)
 %
-% A giant tortoise holds the causeway over a chasm. It is a boss (no stuns),
-% heavy (nothing moves it), blocks the way, and wears an energy shield that
-% eats the next hostile tag. Its state machine:
+% A giant tortoise sits on the causeway over a chasm. It is a boss (no
+% stuns), heavy (nothing moves it) and wears an energy shield that eats the
+% next hostile tag. Its state machine:
 %   shielded   -> any hostile tag only pops the shield (a guard: it comes
 %                 off first)
 %   burning    -> withdraw: it curls into its shell - the shell closes again
 %                 (shielded), but it lets go of the stone (heavy no more): a
 %                 ball that rolls
-%   taunted    -> snap: its head lunges at the taunter (rooted) and it is left
-%                 exhausted
+%   taunted    -> it lumbers after its taunter, and snaps: its head lunges
+%                 at the taunter (rooted) and it is left exhausted
 %   exhausted  -> the window: its head lies out of the shell, and the cold or
 %                 a jolt stops it (dead)
 % Its defence becomes its weakness: the fire that shuts it in makes it roll.
 % And the mist (turnToMist) takes weight and shield off it for a moment.
 %
-%   strand --- islet          (the islet faces the causeway across the chasm)
-%     |
-%   shore --- causeway (Shellback) --- far
-%                 |
-%               chasm (below)
+%   strand ------ islet
+%     |             :  (gap: the chasm between the islet and the causeway)
+%   shore ------ causeway (Shellback; the abyss, a pit at its side)
+%
+% Map: four areas. The causeway and the islet face each other across the
+% chasm (a gap); the causeway's open side is the abyss (a chasm feature).
+% The shore sees the causeway and the islet sees it across the chasm.
 %
 % Methods:
-%   curl and roll    a popper takes the shield (taunt, tidalWave, lightning-
-%                    Flash); fireball sets it burning, it curls, and the same
-%                    blast rolls it off the causeway into the chasm
-%   taunt and strike taunt pops the shield, a second taunt makes it snap and
-%                    spend itself; then blizzard or lightningFlash on its head
+%   curl and roll    a popper takes the shield (taunt, tidalWave from the
+%                    causeway, lightningFlash, vortex); fireball sets it
+%                    burning, it curls, and the same blast knocks the ball
+%                    into the abyss or over the edge into the chasm
+%   taunt and strike taunt pops the shield, a second taunt makes it follow
+%                    and snap and spend itself; blizzard or lightningFlash on
+%                    its head (or the jolt pops the shield first, and a
+%                    second jolt ends it)
 %   mist and roll    turnToMist lifts shield and weight for a moment; in that
-%                    moment a push from the shore (fireball, tidalWave), a pull
-%                    across the chasm from the islet (hook, a taunt's drag), or
-%                    a vortex into the chasm drops it
+%                    moment a knock (fireball; tidalWave on the causeway; a
+%                    vortex into the abyss) or a hook across the chasm from
+%                    the islet drops it
 %
 % Traps:
 %   - the first hostile tag is always lost on the shield: a fire that pops it
 %     leaves flames that will not burn it twice;
-%   - frost and fire undo each other: blizzard then fireball only thaws it;
-%   - curled, the shell is up again: the next tag is lost too;
-%   - a push, a hook or a vortex on the heavy shell does nothing (a hook
-%     drags its caster onto the causeway);
-%   - a vortex on the causeway sucks the partner onto it, rooted;
-%   - the mist lasts one more cast: the push must come at once.
+%   - frost then fire: the flames only melt the ice sheet into a puddle, and
+%     it is soaked, not burning;
+%   - curled, the shell is up again: a tag after that is lost too;
+%   - a knock, a hook or a vortex on the heavy shell does nothing (a hook
+%     from the islet only drags its caster onto the causeway);
+%   - taunted, it walks - around by the strand, never across the chasm;
+%   - the mist lasts one more cast: the knock must come at once.
 
-% === Regions ===
+% === Areas ===
 region(shore).
 region(causeway).
-region(far).
-region(chasm).
 region(strand).
 region(islet).
 connected(shore, causeway).
-connected(causeway, shore).
-connected(causeway, far).
-connected(far, causeway).
 connected(shore, strand).
-connected(strand, shore).
 connected(strand, islet).
-connected(islet, strand).
-connected(causeway, chasm).
-connected(chasm, causeway).
+gap(causeway, islet).
+feature(causeway, abyss, chasm).
 lineOfSight(shore, causeway).
 lineOfSight(causeway, shore).
-lineOfSight(far, causeway).
 lineOfSight(islet, causeway).
+lineOfSight(causeway, islet).
 lineOfSight(shore, strand).
 lineOfSight(strand, shore).
 lineOfSight(strand, islet).
 lineOfSight(islet, strand).
-lineOfSight(shore, chasm).
-lineOfSight(islet, chasm).
-
-% A push from the shore rolls it off into the chasm; from the islet, the
-% chasm lies between, so a pull drops it in; a vortex on the chasm draws
-% the causeway in.
-beyond(shore, causeway, chasm).
-beyond(islet, chasm, causeway).
-onEnter(chasm, chasm).
 
 % === Companions ===
 role(player, player).
@@ -92,7 +82,6 @@ rank(shellback, boss).
 tag(shellback, living).
 tag(shellback, heavy).
 tag(shellback, shielded).
-blocker(shellback).
 
 % Burning, it withdraws into its shell: the shell closes (shielded again),
 % but it has let go of the stone - heavy no more, a ball that rolls.
@@ -101,7 +90,7 @@ reach(withdraw, self).
 effect(withdraw, self, remove(heavy)).
 effect(withdraw, self, grant(shielded)).
 
-% Taunted, it snaps at its taunter (pinned) and is spent.
+% Taunted, it follows its taunter and snaps at it (pinned), and is spent.
 behavior(shellback, taunted, snap, source).
 reach(snap, ranged).
 effect(snap, target, grant(rooted)).
@@ -116,18 +105,22 @@ knows(mage, fireball).
 
 % === Victory ===
 % The standard recipes (the guard off first; a mist that lifts shield and
-% weight for a moment, then a push or a pull) ...
-win :- if(), do(neutralize(shellback), teamStanding()).
+% weight for a moment, then a knock or a hook) ...
+win :- if(), do(neutralize(shellback)).
 % ... or: the shield off, a transition set off, then the standard recipes
 % in the state it is left in.
-win :- if(), do(popShield(shellback), setOff(shellback), neutralize(shellback), teamStanding()).
+win :- if(), do(popShield(shellback), setOff(shellback), neutralize(shellback)).
 
 % Any hostile tag pops the shield: cast, area or spilled zone.
 popShield(?e) :- if(not(tag(?e, shielded))), do().
 popShield(?e) :-
-    if(tag(?e, shielded), canAct(?a), knows(?a, ?sk), grants(?sk, ?t), hostile(?t),
+    if(tag(?e, shielded), canAct(?a), knows(?a, ?sk), lands(?sk, ?t), hostile(?t),
        ready(?a, ?sk, ?e)),
     do(cast(?a, ?sk, ?e), confirmOff(?e, shielded)).
+% What a skill lands on the NPCs where it is aimed: what grants/2 sees, and
+% a vortex's moment of roots (grants/2 does not read `foes`).
+lands(?sk, ?t) :- grants(?sk, ?t).
+lands(?sk, ?t) :- reach(?sk, ?k), effect(?sk, foes, moment(grant(?t))).
 
 % Someone lands a tag it answers with a behaviour.
 setOff(?e) :-
@@ -137,7 +130,6 @@ setOff(?e) :-
 
 confirmTag(?e, ?t) :- if(tag(?e, ?t)), do().
 confirmOff(?e, ?t) :- if(not(tag(?e, ?t))), do().
-teamStanding() :- if(not(first(and(canAct(?a), gone(?a))))), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
