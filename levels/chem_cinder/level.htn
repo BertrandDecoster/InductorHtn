@@ -1,84 +1,62 @@
 % Cinder (elemental chemistry)
 %
-% A fire imp, wreathed in flame, holds the cloister yard; its heat keeps
-% everyone out of the region it stands in (a blocker). Things of fire die of
-% the cold (catalogue: fireElemental, chilled -> dead) - but cold on a
-% burning thing only quenches the flame, and cold on a wet thing only
+% A fire imp, wreathed in flame, holds the cloister yard. Things of fire
+% die of the cold (catalogue: fireElemental, chilled -> dead) - but cold on
+% a burning thing only quenches the flame, and cold on a wet thing only
 % freezes it (stunned). Every chill is spent on a layer: burning or wet
-% absorbs one, and only a chill on a dry, unlit imp kills. The cloister
-% keeps a fountain (a puddle) and a frozen pond (an ice sheet). Two
-% companions, one skill each, from a pool of six.
+% absorbs one, and only a chill on a dry, unlit imp kills. The yard keeps a
+% fountain (a pool feature: what is knocked in is soaked); the frozen pond
+% next door is ice all over (an iceSheet zone). Two companions, one skill
+% each, from a pool of seven.
 %
-%   court (player, mage) ---- yard (imp: fireElemental, burning) ---- fountain (puddle)
-%     |                        |
-%   cloister --------------- arch
-%     |
-%   pond (iceSheet)        sight: court->yard, court->fountain, arch->yard,
-%                                 pond->yard, pond->fountain; nothing sees the pond
+%   court (player, mage) ---- yard (imp; fountain) ---- pond (iceSheet)
+%     |                                                   |
+%     +-------------------- cloister --------------------+
+%
+%   sight: court->yard, cloister->pond, pond->yard
 %
 % Obstacles:
 %   burning   cold on it only quenches it; water on it only puts it out
 %   wet       cold on it only freezes it (stunned, not dead)
-%   blocker   nobody walks into the imp's region
 %   a spilled zone does not land again where it already lies: a second
 %   blizzard on the same ice does nothing
 %
-% Methods (each needs two different companions):
-%   douse, then chill   a wave from beside it (the arch, where no push line
-%                       runs) puts the fire out; then a blizzard on the yard,
-%                       or a drag onto the pond (hook, taunt)
-%   quench, then drag   a blizzard quenches it; from the pond, hook or taunt
-%                       drags it onto the ice
-%   dunk, then freeze   fireball from the court (its blast; the flames do
-%                       nothing to a thing of fire) or a vortex on the
-%                       fountain drops it in the water, which puts the fire
-%                       out. Then ice the fountain: puddle + ice = iceSheet,
-%                       and the imp freezes where it stands (zone reaction);
-%                       or drag it from the fountain onto the pond
-%   light, then ice     fireball on the yard itself (a region: no push)
-%   twice               leaves flames; a blizzard turns them to a puddle
-%                       (ice on flames = puddle: the fire goes out), and a
-%                       second blizzard freezes the puddle over (puddle +
-%                       ice = iceSheet): the chill lands on a dry imp
+% Methods (one companion puts the fire out, the other lands the cold):
+%   douse, then chill   put the fire out: a wave in the yard (tidalWave), a
+%                       knock into the fountain (fireball, shieldBash, or a
+%                       vortex on the fountain), or a blizzard (a quench);
+%                       then chill it dry: a blizzard on the yard, or bring
+%                       it onto the pond (a hook from the pond; a taunt, and
+%                       it walks onto the ice after you)
+%   light, then ice     fireball on the yard itself leaves flames; a
+%                       blizzard melts them to a puddle (the fire goes out),
+%                       a second blizzard freezes the puddle over (a dry
+%                       chill: zone reactions do the whole combo)
 %
 % Traps:
-%   a wave from the court also washes it into the fountain: wet again, so
-%   the next chill only freezes it (and it soaks the partner beside you).
-%   Blizzard first, then fire on the ice: flames on ice = puddle, the imp is
-%   wet again, and the next blizzard only freezes it. Dragged onto the pond
-%   while burning, it is only quenched, and nothing sees the pond to bring
-%   it there twice. A vortex on the fountain after the fire is out soaks it.
+%   the wave's own knockback, aimed into the fountain, soaks the doused imp
+%   again: the next chill only freezes it. A fireball at the imp leaves
+%   flames in the yard: a blizzard there melts them to a puddle and soaks
+%   it - only the pond still kills. Shield Bash stuns it: a stunned imp
+%   cannot follow a taunt. The vortex roots it for a moment: taunted on the
+%   next cast, it cannot follow either. Dragged onto the pond while
+%   burning, it is only quenched, and the pond takes it once.
 
-% === Regions ===
+% === Areas ===
 region(court).
 region(yard).
-region(fountain).
-region(cloister).
-region(arch).
 region(pond).
+region(cloister).
 connected(court, yard).
-connected(yard, court).
-connected(yard, fountain).
-connected(fountain, yard).
+connected(yard, pond).
 connected(court, cloister).
-connected(cloister, court).
 connected(cloister, pond).
-connected(pond, cloister).
-connected(cloister, arch).
-connected(arch, cloister).
-connected(arch, yard).
-connected(yard, arch).
 lineOfSight(court, yard).
-lineOfSight(court, fountain).
-lineOfSight(arch, yard).
+lineOfSight(cloister, pond).
 lineOfSight(pond, yard).
-lineOfSight(pond, fountain).
 
-% Push line: from the court, the yard tips into the fountain.
-beyond(court, yard, fountain).
-
-% === Zones ===
-onEnter(fountain, puddle).
+% === Terrain ===
+feature(yard, fountain, puddle).
 onEnter(pond, iceSheet).
 
 % === Companions ===
@@ -89,19 +67,17 @@ at(mage, court).
 mana(player, 4).
 mana(mage, 4).
 
-% === Enemy: a thing of fire, alight; its heat holds its ground ===
+% === Enemy: a thing of fire, alight ===
 role(imp, enemy).
 at(imp, yard).
 tag(imp, fireElemental).
 tag(imp, burning).
-blocker(imp).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
 knows(player, tidalWave).
 knows(mage, blizzard).
 
 % === The goal: the imp dies of the cold ===
-win :- if(), do(neutralize(imp)).
 win :- if(), do(douseThenChill(imp)).
 win :- if(), do(lightThenIce(imp)).
 
@@ -110,29 +86,17 @@ douseThenChill(?e) :-
     if(holds(?e, burning), canAct(?p)),
     do(putOut(?p, ?e), ensureOff(burning, ?e), chill(?e, ?p), confirmStopped(?e)).
 
-% Water or cold on it: a wave from beside it, a cast, a push or pull into
-% water, or a drag onto the ice.
-putOut(?p, ?e) :- if(), do(waveBeside(?p, ?e)).
-putOut(?p, ?e) :- if(), do(primeAs(?p, wet, ?e)).
+% Water or cold on it: a cast (a wave, a blizzard), or a knock into water.
+putOut(?p, ?e) :- if(), do(inflictAs(?p, wet, ?e)).
 putOut(?p, ?e) :- if(), do(inflictAs(?p, chilled, ?e)).
-putOut(?p, ?e) :- if(zoneFor(?r, chilled)), do(pullOnto(?p, ?e, ?r)).
+putOut(?p, ?e) :-
+    if(at(?e, ?r), feature(?r, ?f, ?ab), featureFor(?f, wet),
+       first(knocks(?p, ?kab, ?from, ?aim, ?e, feature(?f)))),
+    do(castFrom(?p, ?kab, ?aim, ?from)).
 
-% Cold on it, by anyone but ?not: a cast on its ground, or a drag onto the ice.
+% Cold on it, by anyone but ?not: a cast on its ground, or brought onto ice.
 chill(?e, ?not) :- if(), do(inflict(chilled, ?e, ?not)).
-chill(?e, ?not) :-
-    if(canAct(?a), \==(?a, ?not), zoneFor(?r, chilled)), do(pullOnto(?a, ?e, ?r)).
-
-% ?p casts a wave around itself from a region next to ?e.
-waveBeside(?p, ?e) :-
-    if(canAct(?p), knows(?p, ?ab), reach(?ab, self), effect(?ab, around, grant(wet)),
-       ready(?p, ?ab, ?p), at(?e, ?r), connected(?from, ?r), canReachNow(?p, ?from)),
-    do(castFrom(?p, ?ab, ?p, ?from)).
-
-% ?a, standing in ?r, drags ?e there.
-pullOnto(?a, ?e, ?r) :-
-    if(puller(?a, ?ab, ?e), at(?e, ?er), \==(?er, ?r), reach(?ab, ?k), inRange(?k, ?r, ?er),
-       canReachNow(?a, ?r)),
-    do(castFrom(?a, ?ab, ?e, ?r)).
+chill(?e, ?not) :- if(zoneFor(?r, chilled)), do(bringTo(?e, ?r, ?not)).
 
 % Fire on its ground, then ice twice: the ice melts the flames into a
 % puddle (the fire goes out), and the puddle freezes over.
@@ -140,7 +104,7 @@ lightThenIce(?e) :-
     if(holds(?e, burning), at(?e, ?r), not(hasZone(?r)), canAct(?p)),
     do(spillOn(?p, flames, ?r), iceOver(?r, ?p), iceOver(?r, ?p), confirmStopped(?e)).
 
-% ?p leaves zone ?z on region ?r; anyone but ?not ices ?r over.
+% ?p leaves zone ?z on area ?r; anyone but ?not ices ?r over.
 spillOn(?p, ?z, ?r) :-
     if(canAct(?p), knows(?p, ?ab), effect(?ab, target, spill(?z)), ready(?p, ?ab, ?r),
        first(spot(?p, ?ab, ?r, ?from))),
@@ -149,14 +113,15 @@ iceOver(?r, ?not) :- if(canAct(?a), \==(?a, ?not)), do(spillOn(?a, iceSheet, ?r)
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
 comboPool(tidalWave).
 comboPool(blizzard).
 comboPool(fireball).
-comboPool(hook).
+comboPool(shieldBash).
 comboPool(vortex).
+comboPool(hook).
 comboPool(taunt).
 comboMinWins(4).
 comboMinMethods(3).

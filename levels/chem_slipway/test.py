@@ -14,12 +14,15 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["tidalWave", "lightningFlash", "turnToMist", "fireball", "hook", "vortex", "taunt"]
-MOVERS = ["tidalWave", "fireball", "hook", "vortex", "taunt"]
+POOL = ["tidalWave", "lightningFlash", "blindingFlash", "turnToMist", "fireball", "hook",
+        "vortex", "taunt"]
+SOAK = ["tidalWave", "taunt"]
+JOLT = ["lightningFlash", "blindingFlash"]
+MOVERS = ["tidalWave", "fireball", "hook", "vortex"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = (
-    {frozenset(("tidalWave", "lightningFlash"))}                 # short it
+    {frozenset((s, j)) for s in SOAK for j in JOLT}              # short it
     | {frozenset(("turnToMist", m)) for m in MOVERS}             # mist, then sink it
 )
 
@@ -78,34 +81,42 @@ class SlipwayTest(HtnTestSuite):
             "opCast(player, tidalWave, player)", "opGrant(player, crab, wet)",
             "opCast(mage, lightningFlash, crab)", "opExploit(mage, crab, electrocuted, dead)"])
 
-    def test_example_2_mist_then_hook_across_the_dock(self):
+    def test_example_2_lure_through_the_berth_then_flash(self):
+        plans = plans_with("taunt", "blindingFlash")
+        assert some_plan_has(plans, "opCast(player, taunt, crab)",
+                             "opNavigate(crab, slipway, berth)", "opGrant(crab, crab, wet)",
+                             "opCast(mage, blindingFlash, mage)",
+                             "opExploit(mage, crab, electrocuted, dead)")
+        self._record(True, "Example 2: lured through the flooded berth, then flashed")
+
+    def test_example_3_mist_then_hook_across_the_channel(self):
         plans = plans_with("turnToMist", "hook")
         assert some_plan_has(plans, "opRemove(player, crab, heavy)",
-                             "opNavigate(mage, stairs, gantry)",
-                             "opForcedMove(mage, crab, slipway, dock)",
+                             "opNavigate(mage, quay, gantry)",
+                             "opFall(mage, crab, slipway, gantry)",
+                             "opExploit(mage, crab, gap, fell)")
+        self._record(True, "Example 3: misted, then hooked across the channel from the gantry")
+
+    def test_example_4_mist_then_vortex_into_the_dock(self):
+        plans = plans_with("turnToMist", "vortex")
+        assert some_plan_has(plans, "opRemove(player, crab, heavy)",
+                             "opCast(mage, vortex, dock)", "opKnock(mage, crab, dock)",
                              "opExploit(mage, crab, deepWater, fell)")
-        self._record(True, "Example 2: misted, then hooked across the dock from the gantry")
+        self._record(True, "Example 4: misted, then pulled into the dock")
 
-    def test_example_3_mist_then_wash_it_in(self):
-        plans = plans_with("tidalWave", "turnToMist")
-        assert some_plan_has(plans, "opRemove(mage, crab, heavy)",
-                             "opForcedMove(player, crab, slipway, dock)",
-                             "opExploit(player, crab, deepWater, fell)")
-        self._record(True, "Example 3: misted, then washed off the slipway into the dock")
-
-    def test_example_4_fire_then_water_is_steam_not_soak(self):
+    def test_example_5_fire_then_water_is_steam_not_soak(self):
         assert not plans_with("fireball", "tidalWave")
         plan = plans_with("fireball", "tidalWave",
-                          "cast(player, fireball, crab), castFrom(mage, tidalWave, mage, quay).")[0]
+                          "cast(player, fireball, crab), cast(mage, tidalWave, crab).")[0]
         assert "opReact(mage, crab, burning, wet, extinguish)" in plan
         assert "opGrant(mage, crab, wet)" not in plan
-        self._record(True, "Example 4: fire, then water: the fire goes out, the crab stays dry")
+        self._record(True, "Example 5: fire, then water: the fire goes out, the crab stays dry")
 
-    def test_example_5_a_dry_jolt_only_stuns(self):
+    def test_example_6_a_dry_jolt_only_stuns(self):
         plan = plans_with("lightningFlash", "hook", "cast(player, lightningFlash, crab).")[0]
         assert "opExploit(player, crab, electrocuted, stunned)" in plan
         assert not plans_with("lightningFlash", "hook")
-        self._record(True, "Example 5: a dry machine jolted is only stunned")
+        self._record(True, "Example 6: a dry machine jolted is only stunned")
 
     # -------------------------------------------------------------- properties
 
@@ -114,7 +125,7 @@ class SlipwayTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_six_pairs_win_in_either_hand(self):
+    def test_property_p2_eight_pairs_win_in_either_hand(self):
         wins = {(a, b): bool(plans_with(a, b)) for a, b in itertools.permutations(POOL, 2)}
         found = {frozenset(k) for k, w in wins.items() if w}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
@@ -123,21 +134,31 @@ class SlipwayTest(HtnTestSuite):
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win, in either hand")
 
     def test_property_p3_the_mist_lasts_one_cast(self):
-        """Any cast between the mist and the push, and the crab is heavy again."""
-        plan = plans_with("turnToMist", "tidalWave",
-                          "cast(player, turnToMist, crab), castFrom(mage, tidalWave, mage, stairs), "
-                          "castFrom(mage, tidalWave, mage, quay).")[0]
-        assert "opGrant(crab, crab, heavy)" in plan
-        assert not any("opForcedMove(mage, crab" in o for o in plan)
+        """Any cast between the mist and the knock, and the crab is heavy again."""
+        plans = plans_with("turnToMist", "tidalWave",
+                           "cast(player, turnToMist, crab), castFrom(mage, tidalWave, mage, quay), "
+                           "castFrom(mage, tidalWave, mage, slipway).")
+        assert plans
+        for plan in plans:
+            assert not any(o.startswith(("opKnock(mage, crab", "opFall(mage, crab")) for o in plan)
+            assert not any("fell" in o for o in plan)
         self._record(True, "P3: a wasted cast after the mist, and the crab is heavy again")
 
     def test_property_p4_heavy_stops_every_mover(self):
         """Without the mist, no mover shifts it: a hook drags the caster to it instead."""
         plan = plans_with("hook", "vortex", "castFrom(player, hook, crab, gantry).")[0]
         assert "opDash(player, gantry, slipway)" in plan
-        assert not any(o.startswith("opForcedMove") for o in plan)
+        assert not any(o.startswith(("opForcedMove", "opFall")) for o in plan)
         assert not plans_with("hook", "vortex") and not plans_with("fireball", "taunt")
         self._record(True, "P4: the hook on the heavy crab pulls the caster to it")
+
+    def test_property_p5_the_berth_only_soaks(self):
+        """A misted crab hooked from the berth lands in the puddle: wet, not sunk."""
+        plan = plans_with("turnToMist", "hook",
+                          "cast(player, turnToMist, crab), castFrom(mage, hook, crab, berth).")[0]
+        assert "opForcedMove(mage, crab, slipway, berth)" in plan
+        assert "opGrant(mage, crab, wet)" in plan and not any("fell" in o for o in plan)
+        self._record(True, "P5: hooked into the berth, the crab is only soaked")
 
 
 def run_tests():

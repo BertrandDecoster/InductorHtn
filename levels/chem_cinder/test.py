@@ -14,15 +14,16 @@ from htn_components.loader import ComponentLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-POOL = ["tidalWave", "blizzard", "fireball", "hook", "vortex", "taunt"]
+POOL = ["tidalWave", "blizzard", "fireball", "shieldBash", "vortex", "hook", "taunt"]
 DRAG = ["hook", "taunt"]
 
 # The measured matrix: the pairs that win, and nothing else does.
 WINNING = (
-    {frozenset(("tidalWave", x)) for x in ["blizzard"] + DRAG}        # douse beside, then chill
-    | {frozenset(("blizzard", x)) for x in DRAG}                      # quench, then drag
-    | {frozenset((d, x)) for d in ["fireball", "vortex"] for x in DRAG}  # dunk, then drag
-    | {frozenset(("blizzard", x)) for x in ["fireball", "vortex"]}    # dunk (or light), then ice
+    {frozenset(("tidalWave", x)) for x in ["blizzard"] + DRAG}        # douse, then chill
+    | {frozenset(("blizzard", x)) for x in DRAG}                      # quench, then onto the pond
+    | {frozenset(("blizzard", x)) for x in ["fireball", "shieldBash", "vortex"]}  # dunk, then ice
+    | {frozenset(("fireball", x)) for x in DRAG}                      # dunk, then onto the pond
+    | {frozenset((x, "hook")) for x in ["shieldBash", "vortex"]}      # dunk, then hook
 )
 
 
@@ -75,19 +76,19 @@ class CinderTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_douse_beside_then_chill(self):
+    def test_example_1_douse_then_chill(self):
         self.assert_plan("win.", contains=[
-            "opNavigate(player, cloister, arch)", "opCast(player, tidalWave, player)",
+            "opNavigate(player, court, yard)", "opCast(player, tidalWave, player)",
             "opReact(player, imp, burning, wet, extinguish)", "opCast(mage, blizzard, imp)",
             "opExploit(mage, imp, chilled, dead)"])
 
-    def test_example_2_dunk_then_freeze_the_fountain(self):
-        plans = plans_with("fireball", "blizzard")
-        assert some_plan_has(plans, "opForcedMove(player, imp, yard, fountain)",
+    def test_example_2_dunk_then_lure_onto_the_ice(self):
+        plans = plans_with("fireball", "taunt")
+        assert some_plan_has(plans, "opKnock(player, imp, fountain)",
                              "opReact(player, imp, burning, wet, extinguish)",
-                             "opReshape(mage, fountain, puddle, iceSheet)",
-                             "opExploit(mage, imp, chilled, dead)")
-        self._record(True, "Example 2: blown into the fountain; the fountain freezes over it")
+                             "opCast(mage, taunt, imp)", "opNavigate(imp, yard, pond)",
+                             "opExploit(imp, imp, chilled, dead)")
+        self._record(True, "Example 2: blown into the fountain; lured onto the pond")
 
     def test_example_3_light_then_ice_twice(self):
         plans = plans_with("fireball", "blizzard")
@@ -102,7 +103,7 @@ class CinderTest(HtnTestSuite):
         plans = plans_with("vortex", "hook")
         assert some_plan_has(plans, "opCast(player, vortex, fountain)",
                              "opReact(player, imp, burning, wet, extinguish)",
-                             "opForcedMove(mage, imp, fountain, pond)",
+                             "opForcedMove(mage, imp, yard, pond)",
                              "opExploit(mage, imp, chilled, dead)")
         self._record(True, "Example 4: pulled into the fountain, then hooked onto the pond")
 
@@ -117,7 +118,7 @@ class CinderTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_eleven_pairs_win_in_either_hand(self):
+    def test_property_p2_twelve_pairs_win_in_either_hand(self):
         wins = {(a, b): bool(plans_with(a, b)) for a, b in itertools.permutations(POOL, 2)}
         found = {frozenset(k) for k, w in wins.items() if w}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
@@ -125,33 +126,33 @@ class CinderTest(HtnTestSuite):
         assert not one_way, f"win in one order only: {one_way}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win, in either hand")
 
-    def test_property_p3_a_wave_from_the_court_soaks_it_twice(self):
-        """Washed into the fountain, the imp is wet again: the blizzard on the fountain
-        only freezes it (stunned), and the partner beside the caster is soaked too."""
-        plan = plans_with("tidalWave", "blizzard",
-                          "castFrom(player, tidalWave, player, court), cast(mage, blizzard, imp).")[0]
-        assert "opGrant(player, imp, wet)" in plan and "opGrant(player, mage, wet)" in plan
-        assert "opReact(mage, imp, wet, chilled, freeze)" in plan
-        assert not any("dead" in o for o in plan)
-        self._record(True, "P3: a wave from the court dunks it wet; the ice only freezes it")
+    def test_property_p3_the_wave_can_soak_it_again(self):
+        """Aimed into the fountain, the wave's own knockback soaks the doused imp: the
+        blizzard then only freezes it (stunned)."""
+        plans = plans_with("tidalWave", "blizzard",
+                           "cast(player, tidalWave, imp), cast(mage, blizzard, imp).")
+        assert some_plan_has(plans, "opKnock(player, imp, fountain)", "opGrant(player, imp, wet)",
+                             "opReact(mage, imp, wet, chilled, freeze)")
+        assert some_plan_has(plans, "opExploit(mage, imp, chilled, dead)")
+        self._record(True, "P3: knocked into the fountain after the douse, it only freezes")
 
-    def test_property_p4_fire_on_the_ice_is_a_puddle(self):
-        """Blizzard first quenches it; fire on the ice melts it to a puddle and soaks it;
-        the next blizzard only freezes it."""
-        plan = plans_with("blizzard", "fireball",
-                          "cast(player, blizzard, yard), castFrom(mage, fireball, yard, arch), "
-                          "cast(player, blizzard, yard).")[0]
-        assert "opReshape(mage, yard, iceSheet, puddle)" in plan
-        assert "opReact(player, imp, wet, chilled, freeze)" in plan
-        assert not any("dead" in o for o in plan)
-        self._record(True, "P4: ice, then fire: a puddle, and the imp is wet again")
+    def test_property_p4_rooted_it_cannot_follow(self):
+        """Shield Bash stuns it and the vortex roots it for a moment: taunted then, it
+        does not walk onto the pond."""
+        for first, goal in [("shieldBash", "cast(player, shieldBash, imp), "),
+                            ("vortex", "cast(player, vortex, fountain), ")]:
+            assert not plans_with(first, "taunt")
+            plans = plans_with(first, "taunt", goal + "castFrom(mage, taunt, imp, pond).")
+            assert plans and not any("opNavigate(imp, yard, pond)" in p for p in plans)
+        self._record(True, "P4: a stunned or rooted imp does not follow the taunt")
 
     def test_property_p5_the_pond_takes_it_once(self):
-        """Dragged onto the pond while burning, it is only quenched, and nothing sees the
-        pond to bring it there again: two drags lose."""
+        """Brought onto the pond while burning, it is only quenched: hook + taunt lose."""
         assert not plans_with("hook", "taunt")
-        plan = plans_with("hook", "taunt", "pullOnto(player, imp, pond).")[0]
-        assert "opReact(player, imp, burning, chilled, quench)" in plan
+        plans = plans_with("hook", "taunt", "bringTo(imp, pond, none).")
+        assert plans and all("opReact(" in " ".join(p) and not any("dead" in o for o in p)
+                             for p in plans)
+        assert some_plan_has(plans, "opReact(player, imp, burning, chilled, quench)")
         self._record(True, "P5: the first arrival on the ice only quenches it")
 
 
