@@ -1,87 +1,76 @@
 % The Wyvern Roost (hazard terrain and physics objects)
 %
-% A wyvern roosts on a crag across a channel of lava, above a sheer cliff.
-% While it flies, neither the lava nor the drop can take it. Nobody can hurt
-% it: the mountain can, once it is on the ground - and the mountain itself
-% can be reshaped. Two companions, one skill each, from six.
+% A wyvern roosts on a crag above a sheer cliff. A short chasm cuts the
+% crag off from the ledge; the only walkable way round is a channel of
+% lava. On the ledge itself bubbles a lava pool. While it flies, neither the
+% lava, the chasm nor the cliff can take it. Nobody can hurt it: the
+% mountain can, once it is on the ground - and the mountain itself can be
+% reshaped. Two companions, one skill each, from eight.
 %
-%   camp --- ledge ~~ lava ~~ crag (wyvern) ::: cliff
-%              |                 :
-%             path --- overlook -'   (the overlook looks down on the crag)
+%   camp --- ledge (lava pool) :gap: crag (wyvern; the cliff)
+%              \                     /
+%               +--- flow (lava) ---+
 %
 % Its wings fail it (level-local reactions, each a remove(flying) plus the
-% tag that came in): soaked (wet), frosted (chilled), or struck by lightning
-% (electrocuted).
+% tag that came in): soaked (wet), frosted (chilled), or struck by
+% lightning (electrocuted).
 %
 % Methods, always by two companions:
-%   bring it down, then let the mountain have it
-%               ground it - freeze the crag (blizzard) or strike it
-%               (lightningFlash, which also dashes the caster onto the crag) -
-%               then pull it across the lava from the ledge (hook, taunt) or
-%               blast it off the crag into the cliff from the overlook
-%               (fireball: a frozen crag melts into a puddle under it, and the
-%               soaked, chilled wyvern freezes solid as it goes over).
-%   fetch it, then drown it in fire
-%               hook or taunt the flyer across the lava onto the ledge (it
-%               just flies over), step aside, and a wave from the camp
-%               (tidalWave) soaks its wings and washes it back into the lava.
+%   fetch it, then wash it into the fire
+%               hook it across the chasm from the ledge (a flyer is brought
+%               over, it does not fall), or taunt it (it flies after you over
+%               the lava); then a wave on the ledge (tidalWave) soaks its
+%               wings and knocks it into the lava pool or back into the gap.
+%   ground it, then let the mountain have it
+%               frost the crag (blizzard) or strike it (lightningFlash, which
+%               also leaps the caster onto the crag); then knock it off the
+%               cliff or into the chasm (fireball, shieldBash across the gap,
+%               vortex on the cliff), or drag it across the chasm from the
+%               ledge (hook): grounded, it falls in.
 %   cool the lava, then wade out
-%               a blizzard on the lava channel leaves cooled rock (terrain:
-%               lava meeting an ice sheet leaves no zone). Walk out onto it,
-%               next to the crag, and a wave (tidalWave) soaks the wyvern and
-%               washes it over the cliff.
-% Traps: flying, it is pulled over the lava or pushed over the drop and
-% simply hovers there; cool the lava and nobody can drop it in any more;
-% whoever stands on the ledge when the wave comes goes into the lava with it.
+%               a blizzard on the lava channel leaves cooled rock (lava
+%               meeting an ice sheet leaves no zone). Walk out over it onto
+%               the crag, and a wave (tidalWave) soaks the wyvern and washes
+%               it over the cliff.
+% Traps: flying, it is knocked over the cliff or dragged over the chasm and
+% simply hovers; grounded, it will not walk over the lava after a taunter;
+% whoever stands on the ledge when the wave comes is washed in with it; the
+% crag is reached only by a leap, or over cooled rock.
 region(camp).
 region(ledge).
-region(lava).
+region(flow).
 region(crag).
-region(cliff).
-region(path).
-region(overlook).
 connected(camp, ledge).
-connected(ledge, camp).
-connected(ledge, path).
-connected(path, ledge).
-connected(path, overlook).
-connected(overlook, path).
-connected(ledge, lava).
-connected(lava, ledge).
-connected(lava, crag).
-connected(crag, lava).
+connected(ledge, flow).
+connected(flow, crag).
+gap(ledge, crag).
 lineOfSight(camp, ledge).
-lineOfSight(ledge, lava).
 lineOfSight(ledge, crag).
-lineOfSight(overlook, crag).
-
-% Push lines (and what lies between): a pull from the ledge on the crag
-% crosses the lava; a push from the overlook, or from the lava channel once
-% it is rock, throws the crag's occupant over the cliff; a push from the camp
-% throws whoever is on the ledge into the lava.
-beyond(ledge, lava, crag).
-beyond(overlook, crag, cliff).
-beyond(lava, crag, cliff).
-beyond(camp, ledge, lava).
+lineOfSight(ledge, flow).
+lineOfSight(flow, crag).
 
 % === Terrain ===
-onEnter(lava, lava).
-onEnter(cliff, chasm).
+onEnter(flow, lava).
+feature(ledge, lavaPool, lava).
+feature(crag, cliff, chasm).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
 at(player, camp).
 at(mage, camp).
-mana(player, 2).
-mana(mage, 2).
+mana(player, 4).
+mana(mage, 4).
 
 % === The wyvern ===
 role(wyvern, enemy).
 at(wyvern, crag).
 tag(wyvern, living).
 tag(wyvern, flying).
-blocker(wyvern).
+% Taunted, it flies after its taunter and breathes fire on it (the
+% catalogue's meteor: telegraphed, magic - a hook or a shield bash
+% interrupts it; the struck area catches fire).
+behavior(wyvern, taunted, meteor, source).
 % What brings it down: soaked, frosted or struck wings.
 reaction(flying, wet, sodden).
 effect(sodden, target, remove(flying)).
@@ -94,51 +83,46 @@ effect(struck, target, remove(flying)).
 effect(struck, target, grant(electrocuted)).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, blizzard).
-knows(mage, hook).
+knows(player, hook).
+knows(mage, tidalWave).
 
 % === Victory ===
-win :- if(), do(neutralize(wyvern), standing()).
-win :- if(), do(ground(wyvern), neutralize(wyvern), standing()).
-win :- if(), do(fetch(wyvern), neutralize(wyvern), standing()).
-win :- if(), do(cool(), neutralize(wyvern), standing()).
+% A knock that also grounds it (a wave), wherever it is brought to.
+win :- if(), do(sendDown(wyvern, none), confirmStopped(wyvern)).
+% Grounded first; then someone else knocks it or drags it down.
+win :- if(canAct(?p)), do(ground(wyvern, ?p), sendDown(wyvern, ?p), confirmStopped(wyvern)).
+% The lava channel cooled into rock, someone else walks out and knocks it.
+win :-
+    if(onEnter(?r, ?z), zoneReaction(?z, ?in, none), canAct(?c)),
+    do(cool(?r, ?c), sendDown(wyvern, ?c), confirmStopped(wyvern)).
 
 % Ground it: land something its wings answer by failing.
-ground(?e) :-
+ground(?e, ?p) :-
     if(tag(?e, flying), reaction(flying, ?t, ?rab), effect(?rab, target, remove(flying)),
-       canInflict(?a, ?ab, ?t, ?e)),
-    do(cast(?a, ?ab, ?e), ensureOff(flying, ?e)).
+       canInflict(?p, ?ab, ?t, ?e)),
+    do(cast(?p, ?ab, ?e), ensureOff(flying, ?e)).
 
-% Fetch it across a hazard it flies over, and step off the landing spot.
-fetch(?e) :-
-    if(at(?e, ?re), beyond(?from, ?m, ?re), puller(?a, ?ab, ?e), reach(?ab, ?k),
-       inRange(?k, ?from, ?re), canReachNow(?a, ?from)),
-    do(castFrom(?a, ?ab, ?e, ?from), confirmAt(?e, ?from), stepAside(?a, ?from)).
-stepAside(?a, ?r) :- if(connected(?r, ?s), passable(?a, ?s)), do(walkTo(?a, ?s)).
-confirmAt(?x, ?r) :- if(at(?x, ?r)), do().
-
-% Cool a hazard: spill on it the zone that leaves nothing there.
-cool() :-
+% Cool a hazard area: spill on it the zone that leaves nothing there.
+cool(?r, ?a) :-
     if(onEnter(?r, ?z), zoneReaction(?z, ?in, none), canAct(?a), knows(?a, ?ab),
        effect(?ab, target, spill(?in)), ready(?a, ?ab, ?r)),
     do(cast(?a, ?ab, ?r), confirmCooled(?r, ?z)).
 confirmCooled(?r, ?z) :- if(not(onEnter(?r, ?z))), do().
 
-% Nobody the team needs is lost on the way.
-standing() :- if(not(first(and(canAct(?a), gone(?a))))), do().
-
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from eight (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(blizzard).
-comboPool(lightningFlash).
-comboPool(tidalWave).
-comboPool(fireball).
 comboPool(hook).
 comboPool(taunt).
-comboMinWins(10).
-comboMinMethods(4).
+comboPool(tidalWave).
+comboPool(blizzard).
+comboPool(lightningFlash).
+comboPool(fireball).
+comboPool(shieldBash).
+comboPool(vortex).
+comboMinWins(12).
+comboMinMethods(5).
 
 goals(win).

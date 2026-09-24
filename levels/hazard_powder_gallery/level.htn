@@ -1,151 +1,129 @@
 % The Powder Gallery (hazard terrain and physics objects)
 %
-% A siege golem holds the nave of a ruined chapel. Between it and the hall
-% the gallery floor is cracked, and a powder keg sits on it. Nobody can hurt
-% the golem: the floor can. Two companions, one skill each, from six.
+% A siege golem holds the nave of a ruined chapel. The gallery floor that
+% led to it has broken away (a gap), and on what is left of it sits a
+% powder keg. Nobody can hurt the golem: the floor can. The golem is heavy
+% (nothing knocks it, a hook drags you to it) and a machine. Two
+% companions, one skill each, from eight.
 %
-%   entry --- hall ------ gallery (keg) ------ nave (golem) --- apse
-%               \______________ cloister ______________________/
+%   entry --- gallery (keg) :gap: nave (golem; the open crypt) --- apse
+%     |                                                             |
+%     +------------------------ cloister ---------------------------+
 %
-% The floor gives way twice over, and both are the catalogue's caveIn - a
-% telegraphed heavy blow that turns the struck region into a chasm:
-%   the keg     a flame or a spark (burning, electrocuted) lights its fuse,
-%               and the floor it stands on caves in.
-%   the golem   taunted, it is dragged to its taunter and stamps: the floor
-%               under it (and under whoever stands there) caves in.
+% The keg is the star: a flame or a spark (burning, electrocuted) lights
+% its fuse, and the floor it stands on caves in (the catalogue's caveIn, a
+% telegraphed heavy blow: the struck area becomes a chasm and takes
+% everyone there). The golem, taunted, walks round by the cloister after
+% its taunter and slams it (groundSlam: stunned and knocked back, everyone
+% in that area but the golem).
 % Methods:
-%   lure it        taunt it into your own region and let it stamp - the
-%                  floor takes it. The taunter is caught in the blow unless a
-%                  friend, standing ready, gets them out in the one cast the
-%                  wind-up allows: hook them away, or blast them out along a
-%                  line (fireball from the entry).
-%   open, then drop  blow the keg where it stands; the gallery is now a
-%                  chasm between the hall and the nave. Pull the golem across
-%                  it from the hall (hook, taunt). The keg is lit with a
-%                  fireball, or struck through: a lightning flash from the
-%                  hall at the nave passes over the keg.
-%   bomb to it     bring the golem and the keg onto one floor - suck the
-%                  golem into the gallery or the keg into the nave (vortex),
-%                  or wash the keg into the nave (tidalWave) - then blow it.
-%   short it       it is a machine: soak it (tidalWave), then jolt it
-%                  (lightningFlash).
-% Traps: a wet keg does not light (steam), so a wave that rolls it also
-% spoils it; a wave or a vortex that pulls the taunter out of the stamp
-% takes the golem with it; a lightning flash aimed at the keg itself dashes
-% the caster into the pit it opens; the golem holds the nave, so the apse is
-% reached by the cloister.
+%   bomb it     taunt it onto the keg's floor (the long way round), then
+%               light the keg: fireball from the entry, lightningFlash into
+%               the gallery, blindingFlash beside it - the cave-in takes the
+%               golem (and whoever stayed: sacrifice is allowed). A friend
+%               standing by the keg is caught in the golem's slam unless it
+%               answers in the wind-up (the flash is disjoint): lit then, the
+%               floor goes before the blow lands.
+%   short it    soak it (tidalWave, in the nave), then jolt it
+%               (lightningFlash, blindingFlash): a wet machine dies.
+%   drop it     turn it to mist (turnToMist) and knock it into the open crypt
+%               or the gap while the moment lasts: fireball, vortex on the
+%               crypt, tidalWave in the nave, or hook it across the gap from
+%               the gallery.
+% Traps: a wet keg does not light with fire (steam); a wave or a slam in the
+% gallery can knock the keg into the gap; hooked across the gap, the keg
+% drops in; a dry jolt only stuns the golem; a keg lit on its own caves in
+% an empty floor; misted, it lasts one cast.
 region(entry).
-region(hall).
 region(gallery).
 region(nave).
 region(apse).
 region(cloister).
-% (The apse is listed first as the nave's neighbour: a wave for the golem is
-% raised there, clear of the keg.)
-connected(apse, nave).
-connected(entry, hall).
-connected(hall, entry).
-connected(hall, gallery).
-connected(gallery, hall).
-connected(gallery, nave).
-connected(nave, gallery).
+connected(entry, gallery).
+gap(gallery, nave).
 connected(nave, apse).
-connected(hall, cloister).
-connected(cloister, hall).
-connected(cloister, apse).
 connected(apse, cloister).
-lineOfSight(entry, hall).
-lineOfSight(hall, gallery).
-lineOfSight(hall, nave).
+connected(cloister, entry).
+lineOfSight(entry, gallery).
+lineOfSight(gallery, nave).
 lineOfSight(apse, nave).
 lineOfSight(cloister, apse).
 
-% Push lines (and what lies between): from the hall the keg rolls into the
-% nave, and a pull from the hall on the nave crosses the gallery; from the
-% entry, whoever stands in the hall is thrown onto the gallery.
-beyond(hall, gallery, nave).
-beyond(entry, hall, gallery).
+% === Terrain ===
+% The open crypt in the nave: a pit.
+feature(nave, crypt, chasm).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
 at(player, entry).
 at(mage, entry).
-mana(player, 2).
-mana(mage, 2).
-% A taunt provokes enemies: it does not drag a friend about (else one taunt
-% would both provoke the golem and pull the taunter out of its stamp).
-immune(?c, taunted) :- canAct(?c).
+mana(player, 4).
+mana(mage, 4).
 
-% === Things ===
-% The golem: a machine (soaked and jolted, it dies). Taunted, it is dragged
-% to its taunter and stamps where it stands.
+% === The golem ===
+% Heavy and a machine (soaked and jolted, it dies). Taunted, it walks after
+% its taunter and slams it.
 role(golem, enemy).
 at(golem, nave).
 tag(golem, machine).
-blocker(golem).
-behavior(golem, taunted, caveIn, here).
+tag(golem, heavy).
+behavior(golem, taunted, groundSlam, source).
 
-% The keg: a flame or a spark lights the fuse; the floor under it caves in.
+% === The keg ===
+% A flame or a spark lights the fuse; the floor under it caves in. It does
+% not walk.
 role(keg, object).
 at(keg, gallery).
+immune(keg, taunted).
 behavior(keg, burning, caveIn, here).
 behavior(keg, electrocuted, caveIn, here).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, fireball).
-knows(mage, hook).
+knows(player, taunt).
+knows(mage, fireball).
 
 % === Victory ===
-win :- if(), do(neutralize(golem), standing()).
-win :- if(), do(detonate(keg), neutralize(golem), standing()).
-win :- if(), do(together(golem, keg), detonate(keg), confirmStopped(golem), standing()).
-win :- if(), do(lure(golem), standing()).
+win :- if(), do(bomb(golem, keg)).
+win :- if(), do(combo(wet, electrocuted, golem)).
+win :- if(), do(dropIt(golem)).
 
-% Light the keg: land a tag it answers on it, or strike through it - an
-% ability that marks its path, aimed at a region beyond the keg.
-detonate(?k) :-
-    if(behavior(?k, ?t, ?ab, here), heavy(?ab)),
+% Bomb: bring ?e onto the keg's floor, then light the keg - or first post
+% a friend by the keg, to light it in the golem's wind-up.
+bomb(?e, ?k) :-
+    if(at(?k, ?r)), do(bringTo(?e, ?r, none), light(?k), confirmStopped(?e)).
+bomb(?e, ?k) :-
+    if(at(?k, ?r), canAct(?b), not(at(?b, ?r))),
+    do(walkTo(?b, ?r), bringTo(?e, ?r, ?b), light(?k), confirmStopped(?e)).
+
+% Light the keg: land on it a tag its fuse answers - unless it already
+% went up (lit in the golem's wind-up).
+light(?k) :- if(gone(?k)), do().
+light(?k) :-
+    if(not(gone(?k)), behavior(?k, ?t, ?ab, here), heavy(?ab)),
     do(inflict(?t, ?k, none), confirmBlown(?k)).
-detonate(?k) :-
-    if(behavior(?k, ?t, ?ab, here), heavy(?ab), at(?k, ?rk), beyond(?from, ?rk, ?to),
-       canAct(?a), knows(?a, ?sk), effect(?sk, path, grant(?t)), reach(?sk, ?reach),
-       inRange(?reach, ?from, ?to), canReachNow(?a, ?from), ready(?a, ?sk, ?to)),
-    do(castFrom(?a, ?sk, ?to, ?from), confirmBlown(?k)).
 confirmBlown(?k) :- if(gone(?k)), do().
 
-% The golem and the keg share a floor: the golem drawn onto the keg's floor,
-% or the keg onto the golem's.
-together(?e, ?k) :- if(at(?k, ?r), not(at(?e, ?r))), do(place(?e, ?r, none), confirmAt(?e, ?r)).
-together(?e, ?k) :- if(at(?e, ?r), not(at(?k, ?r))), do(place(?k, ?r, none), confirmAt(?k, ?r)).
-confirmAt(?x, ?r) :- if(at(?x, ?r)), do().
-
-% Lure: someone provokes ?e into stamping in their own region, while a
-% friend stands ready somewhere their skill reaches that region - the one
-% cast of the wind-up is theirs.
-lure(?e) :-
-    if(behavior(?e, ?t, ?ab, here), heavy(?ab), canAct(?a), canInflict(?a, ?sk, ?t, ?e),
-       at(?e, ?re), reach(?sk, ?k), region(?r), inRange(?k, ?r, ?re), canReachNow(?a, ?r),
-       canAct(?b), \==(?b, ?a), region(?s), \==(?s, ?r), readyFor(?b, ?s, ?r), canReachNow(?b, ?s)),
-    do(walkTo(?b, ?s), castFrom(?a, ?sk, ?e, ?r), confirmStopped(?e)).
-readyFor(?b, ?s, ?r) :-
-    first(and(knows(?b, ?sk), reach(?sk, ?k), \==(?k, self), inRange(?k, ?s, ?r))).
-
-% Nobody the team needs is lost on the way.
-standing() :- if(not(first(and(canAct(?a), gone(?a))))), do().
+% Drop: take its weight away for a moment, and someone else sends it down
+% while the moment lasts.
+dropIt(?e) :-
+    if(has(?e, heavy), canUnset(?p, ?ab, heavy, ?e, ?aim)),
+    do(cast(?p, ?ab, ?aim), ensureOff(heavy, ?e), sendDown(?e, ?p), confirmStopped(?e)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from eight (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
+comboPool(taunt).
 comboPool(fireball).
 comboPool(lightningFlash).
+comboPool(blindingFlash).
 comboPool(tidalWave).
+comboPool(turnToMist).
 comboPool(vortex).
 comboPool(hook).
-comboPool(taunt).
-comboMinWins(10).
-comboMinMethods(4).
+comboMinWins(12).
+comboMinMethods(5).
 
 goals(win).

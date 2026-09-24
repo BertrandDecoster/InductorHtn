@@ -2,7 +2,7 @@
   "name": "hazard_powder_gallery",
   "version": "0.1.0",
   "layer": "level",
-  "description": "The Powder Gallery: a siege golem beyond a cracked floor with a powder keg on it; the keg drops the floor, the players deliver the golem or the keg",
+  "description": "The Powder Gallery: a heavy siege golem beyond a broken gallery floor with a powder keg on it; lure it onto the keg's floor and light the fuse in its wind-up, short it, or mist it and knock it into the crypt or the gap",
   "dependencies": [
     "abilities/goals/neutralize",
     "abilities/primitives/ab_catalog"
@@ -12,41 +12,40 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-24T18:07:04.738471"
+    "last_checked": "2026-09-24T20:30:10.108258"
   },
   "provides": [
     "at/2",
     "behavior/4",
-    "beyond/3",
-    "blocker/1",
+    "bomb/2",
     "comboMinMethods/1",
     "comboMinWins/1",
     "comboPool/1",
     "comboSeat/2",
-    "confirmAt/2",
     "confirmBlown/1",
     "connected/2",
-    "detonate/1",
+    "dropIt/1",
+    "feature/3",
     "funExpect/3",
+    "gap/2",
     "immune/2",
     "knows/2",
+    "light/1",
     "lineOfSight/2",
-    "lure/1",
     "mana/2",
-    "readyFor/3",
     "region/1",
     "role/2",
-    "standing/0",
     "tag/2",
-    "together/2",
     "win/0"
   ],
   "requires": [
-    "castFrom/4",
+    "bringTo/3",
+    "cast/3",
+    "combo/3",
     "confirmStopped/1",
+    "ensureOff/2",
     "inflict/3",
-    "neutralize/1",
-    "place/3",
+    "sendDown/2",
     "walkTo/2"
   ]
 }

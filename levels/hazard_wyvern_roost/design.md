@@ -2,35 +2,34 @@
 
 ## Purpose
 
-A hazard-terrain level where **the mountain is the weapon, and the mountain can be reshaped**. A
-wyvern roosts on a crag across a channel of lava, above a sheer cliff. While it flies, neither the
-lava nor the drop can take it (`wards(flying, fell)`). Nobody can hurt it; the mountain can, once it
-is on the ground. The player and the mage pick one skill each from a pool of six catalogue skills.
+A hazard-terrain level where **the enemy flies over every hazard, and the mountain can be
+reshaped**. A wyvern roosts on a crag above a sheer cliff. A short chasm cuts the crag off from the
+ledge; the only walkable way round is a channel of lava; on the ledge itself bubbles a lava pool.
+While it flies (`flying` wards `fell`), neither the lava, the chasm nor the cliff can take it.
+Its wings fail it through level-local reactions (each a `remove(flying)` plus the tag that came in):
+soaked (`wet`), frosted (`chilled`), or struck (`electrocuted`).
 
-Its wings fail it (level-local reactions, each a `remove(flying)` plus the tag that came in): soaked
-(`wet`), frosted (`chilled`), or struck (`electrocuted`).
+The player and the mage pick one skill each from a pool of eight catalogue skills.
 
 | Method | First | Then |
 |--------|-------|------|
-| **Ground it, drop it** | freeze the crag (`blizzard`) or strike the wyvern (`lightningFlash`, which dashes the caster onto the crag) | pull it across the lava from the ledge (`hook`, `taunt`), or blast it off the crag into the cliff from the overlook (`fireball`) |
-| **Fetch it, wash it back** | hook or taunt the flyer across the lava onto the ledge (`hook`, `taunt`): flying, it just crosses; the puller steps aside | a wave from the camp (`tidalWave`) soaks its wings and washes it into the lava |
-| **Cool the lava, wade out** (terrain) | a `blizzard` on the lava channel: lava meeting an ice sheet leaves no zone - cooled rock | walk out onto the rock next to the crag; a `tidalWave` soaks the wyvern and washes it over the cliff |
-
-Terrain chemistry does the work twice: the blizzard turns the lava into ground, and a fireball on a
-frozen crag melts the ice sheet into a puddle (`zoneReaction(iceSheet, flames, puddle)`) - the
-frosted wyvern is soaked where it stands, freezes solid (`freezeOver`), and goes over the cliff.
+| **Fetch it, then wash it into the fire** | bring the flyer to the ledge: `hook` it over the chasm (a flyer is brought, it does not fall), or `taunt` it (it flies after you over the lava) | a wave on the ledge (`tidalWave`) soaks its wings and knocks it into the lava pool or back into the chasm |
+| **Ground it, then let the mountain have it** | frost the crag (`blizzard`) or strike it (`lightningFlash`, which leaps the caster onto the crag) | knock it off the cliff or into the chasm (`fireball`, `shieldBash` across the gap, `vortex` on the cliff), or drag it over the chasm from the ledge (`hook`): grounded, it falls in |
+| **Cool the lava, then wade out** | a `blizzard` on the lava channel leaves cooled rock (lava meeting an ice sheet leaves no zone) | walk out over it onto the crag, and a wave (`tidalWave`) soaks the wyvern and washes it over the cliff |
 
 Why no single skill works:
-- Flying, it is pulled over the lava or pushed over the drop and simply hovers.
-- A grounder alone leaves it grounded on the crag; nothing reaches it on foot.
-- A wave needs to stand next to it: only on the ledge (fetched) or on cooled rock.
+- Flying, it is knocked over the cliff or dragged over the chasm and simply hovers.
+- Grounding alone leaves it on its crag; grounded, it will not walk over the lava after a taunter.
+- The crag is reached only by a leap (`lightningFlash`) or over cooled rock: a wave from the ledge
+  never reaches it.
 
-Traps: cool the lava and nobody can drop it in any more; whoever stands on the ledge when the wave
-comes goes into the lava with it.
+Its heavy move: taunted, it flies after its taunter and breathes fire on it (`meteor`: magic,
+telegraphed, interruptible by a hook or a shield bash; the struck area catches fire). The wave
+still soaks its wings through the flames.
 
-`blizzard` serves two roles (frost the wings; cool the lava), and so do `tidalWave` (wash the fetched
-flyer back into the lava; wash it off the crag from the rock), `hook` and `taunt` (drag the grounded
-wyvern into the lava; fetch the flyer over it).
+`blizzard` serves two roles (it grounds the wyvern; it cools the lava into a road), `hook` two
+(fetch the flyer; drag the grounded one into the chasm), and `tidalWave` two (the knock that also
+grounds, on the ledge or on the crag).
 
 ## Layer
 
@@ -44,79 +43,83 @@ level
 ## World
 
 ```
-camp --- ledge ~~ lava ~~ crag (wyvern) ::: cliff
-           |                 :
-          path --- overlook -'   (the overlook looks down on the crag)
+  camp --- ledge (lava pool) :gap: crag (wyvern; the cliff)
+             \                     /
+              +--- flow (lava) ---+
 ```
 
-- **Walking:** camp-ledge-path-overlook; ledge-lava-crag, but the lava is a live hazard and the
-  wyvern holds the crag (a blocker). Once cooled, the channel is walkable.
-- **Line of sight:** camp to ledge; ledge to lava and crag; overlook to crag.
-- **Push lines:** a pull from the ledge on the crag crosses the lava; a push from the overlook, or
-  from the lava channel, throws the crag's occupant over the cliff; a push from the camp throws the
-  ledge's occupant into the lava.
-- **Zones:** the channel is `lava`, the cliff is `chasm`.
-- **Wyvern:** `tag(wyvern, living)`, `tag(wyvern, flying)`, blocker; reactions `sodden`, `frosted`,
-  `struck`.
-- Both companions have 2 mana (one blizzard, fireball, tidalWave or lightningFlash).
-- **Goal** `win`, with `standing()` after each: `neutralize(wyvern)`; `ground(wyvern)` then
-  `neutralize`; `fetch(wyvern)` then `neutralize`; or `cool()` then `neutralize`.
+- **Areas (4):** camp, ledge, flow, crag.
+- **Links:** walkable camp-ledge, ledge-flow, flow-crag; a `gap` ledge-crag (the chasm).
+- **Terrain:** `onEnter(flow, lava)` - a whole-area hazard nobody walks into (the flyer crosses);
+  a blizzard on it erases it (cooled rock). Features `feature(ledge, lavaPool, lava)` and
+  `feature(crag, cliff, chasm)`.
+- **Line of sight:** camp to ledge; ledge to crag and flow; flow to crag.
+- **Wyvern:** `living`, `flying`; the three level-local reactions; `behavior(wyvern, taunted,
+  meteor, source)`.
+- Both companions have 4 mana.
+- **Goal** `win`: `sendDown(wyvern, none)` (a knock that also grounds: the wave, after fetching it
+  wherever); `ground(wyvern, ?p)` then `sendDown(wyvern, ?p)`; or `cool(?r, ?c)` then
+  `sendDown(wyvern, ?c)`. Every branch ends with `confirmStopped`.
 
 ## Hypothesis
 
 Measured by `htn_components combos hazard_wyvern_roost` (pinned by `test.py`):
 
-- No single skill wins, even when both companions hold it: 0 of 6.
-- 18 of 36 assignments win: 9 pairs, whichever companion holds which half:
-  - ground, drop: `blizzard` or `lightningFlash`, plus `hook`, `taunt` or `fireball` (6 pairs);
-  - fetch, wash back: `tidalWave` plus `hook` or `taunt` (2 pairs);
-  - cool, wade out: `blizzard` + `tidalWave`.
-- 9 methods (distinct skill sets) of three kinds. No solo plans; no dead skills.
+- No single skill wins, even when both companions hold it: 0 of 8.
+- 22 of 64 assignments win: 11 pairs, whichever companion holds which half:
+  - `hook` or `taunt` plus `tidalWave`: 2 pairs (fetch);
+  - `blizzard` or `lightningFlash` plus `fireball`, `shieldBash`, `vortex` or `hook`: 8 pairs
+    (ground);
+  - `blizzard` plus `tidalWave`: 1 pair (cool).
+- 11 methods of three kinds. No solo plans; no dead skills.
+- Losses with a reason: two knocks (it hovers), two grounders (it stays up there), `taunt` +
+  `blizzard` (grounded, it will not cross the lava), `lightningFlash` + `tidalWave` (the wave cannot
+  reach the crag).
 
 ## Examples
 
-### Example 1: Frost, then hook
-
-**Given:** the player knows `blizzard`, the mage knows `hook`.
-
-**When:** `win`
-
-**Then:** the player's blizzard ices the crag and frosts the wyvern's wings; the mage hooks it from
-the ledge, and it is dragged into the lava.
-
-### Example 2: Ice, then fire
-
-**Given:** the player knows `blizzard`, the mage knows `fireball`.
-
-**When:** `win`
-
-**Then:** the blizzard frosts the wyvern; the mage's fireball from the overlook melts the ice sheet
-into a puddle, the soaked, chilled wyvern freezes solid, and the blast throws it over the cliff.
-
-### Example 3: Fetch it, wash it back
+### Example 1: Fetch it, then wash it into the lava
 
 **Given:** the player knows `hook`, the mage knows `tidalWave`.
 
 **When:** `win`
 
-**Then:** the player hooks the flying wyvern across the lava onto the ledge and steps aside; the
-mage's wave from the camp soaks its wings and washes it back into the lava.
+**Then:** the player hooks the wyvern over the chasm onto the ledge; the mage walks up and raises a
+wave: its wings soaked, it is washed into the lava pool (and the player may go in with it).
 
-### Example 4: Cool the lava
+### Example 2: Cool the lava and wade out
 
 **Given:** the player knows `blizzard`, the mage knows `tidalWave`.
 
 **When:** `win`
 
-**Then:** the player's blizzard on the channel cools the lava to rock; the mage walks out onto it
-and raises a wave that soaks the wyvern and washes it over the cliff.
+**Then:** the player freezes the lava channel into rock; the mage walks over it onto the crag and
+waves the wyvern over the cliff.
+
+### Example 3: Strike, then drag
+
+**Given:** the player knows `hook`, the mage knows `lightningFlash`.
+
+**When:** `win`
+
+**Then:** the mage strikes the crag and lands on it: the wyvern is grounded. The player hooks it
+from the ledge; dragged over the chasm, it falls in.
+
+### Example 4: Taunted, it flies over the lava
+
+**Given:** the player knows `taunt`, the mage knows `tidalWave`.
+
+**When:** `win`
+
+**Then:** taunted from the ledge, the wyvern flies over the lava channel and breathes fire on the
+player; the mage's wave soaks its wings and washes it into the lava pool.
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No single skill wins | Each of the six, held by both companions: no plan. |
-| P2 | Nine pairs win | Exactly the nine measured pairs have a plan. |
-| P3 | A flyer just hovers | hook + fireball, taunt + fireball, hook + taunt: no plan. |
-| P4 | Blizzard, two roles | With taunt it grounds the wyvern; with tidalWave it turns the lava into ground. |
-| P5 | Nobody falls | No winning plan washes a companion into the lava. |
+| P1 | No single skill wins | Each of the eight, held by both companions: no plan. |
+| P2 | Eleven pairs win | Exactly the eleven measured pairs have a plan. |
+| P3 | Each hand matters | A pair wins whichever companion holds which half. |
+| P4 | Flying, it hovers | fireball + vortex, hook + fireball, hook + shieldBash: no plan. |
+| P5 | Grounded, it stays put | taunt + blizzard and lightningFlash + tidalWave: no plan. |
