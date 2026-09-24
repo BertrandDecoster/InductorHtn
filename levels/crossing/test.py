@@ -15,17 +15,26 @@ from htn_components.combos import run_combos
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 COMPANIONS = {"player", "mage", "warden"}
-DEPS = ("abilities/goals/neutralize", "abilities/primitives/ab_catalog")
+DEPS = ("abilities/goals/neutralize", "abilities/strategies/passage",
+        "abilities/primitives/ab_catalog")
 
-# The measured matrix, unordered; each pair wins in both seat orders. The
-# bramble takes fire or the wave; the sentry a jolt or a drag across.
-WINNING = {frozenset((b, s)) for b in ("fireball", "tidalWave")
-           for s in ("lightningFlash", "hook", "taunt", "vortex")}
+# The measured matrix, unordered: each pair wins in both seat orders.
+WINNING = {frozenset(p) for p in [
+    # the fireball burns the crypt; the other drops the sentry and the brute (free casts)
+    ("fireball", "hook"), ("fireball", "shieldBash"),
+    # the vortex takes the bramble and the brute; the fireball the sentry
+    ("fireball", "vortex"),
+    # the wave takes the bramble; the other the sentry and the brute
+    ("tidalWave", "hook"), ("tidalWave", "shieldBash"),
+    # the vortex takes the bramble and the brute; the other the sentry
+    ("vortex", "lightningFlash"), ("vortex", "hook"), ("vortex", "shieldBash"),
+]}
 
 _REPORT = []
 
 
 def combos_report():
+    """One parallel `combos` run, shared by the properties that read it."""
     if not _REPORT:
         _REPORT.append(run_combos(HERE, ROOT))
     return _REPORT[0]
@@ -40,14 +49,21 @@ def _solutions(planner, goal):
     return solutions
 
 
-def _actor(op):
-    return list(op[list(op.keys())[0]][0].keys())[0]
+def _casters(plan):
+    """The companions who cast in a plan (walking is not a second pair of hands)."""
+    out = set()
+    for op in plan:
+        name = list(op.keys())[0]
+        if name == "opCast":
+            out.add(list(op[name][0].keys())[0])
+    return out & COMPANIONS
 
 
-def _planner(extra=""):
+def _planner(extra="", strip_kit=True):
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
-    text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
+    if strip_kit:
+        text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     planner = HtnPlanner(False)
     planner.SetMemoryBudget(256 * 1024 * 1024)
     loader = ComponentLoader(planner, ROOT)
@@ -83,42 +99,48 @@ class CrossingTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_jolt_burn_and_throw(self):
+    def test_example_1_bash_over_the_abyss_burn_the_crypt(self):
         self.assert_state_after("clearCrossing.", has=[
-            "tag(sentry,dead)", "tag(bramble,dead)", "tag(brute,fell)"])
+            "tag(sentry,fell)", "tag(bramble,dead)", "tag(brute,fell)"])
         self.assert_plan("clearCrossing.", contains=[
-            "opExploit(mage, sentry, electrocuted, dead)", "opCast(player, fireball, crypt)",
-            "opCast(warden, turnToMist, brute)", "opForcedMove(player, brute, brink, abyss)"])
+            "opCast(warden, turnToMist, sentry)", "opCast(mage, shieldBash, sentry)",
+            "opFall(mage, sentry, ledge, brink)", "opCast(player, fireball, crypt)",
+            "opExploit(player, bramble, burning, dead)", "opCast(warden, turnToMist, brute)",
+            "opCast(mage, shieldBash, brute)"])
 
-    def test_example_2_provoke_the_brute_into_the_cave_in(self):
-        ops = _ops(plans_with("taunt", "tidalWave"))
-        assert _op("opForcedMove", "mage", "bramble", "crypt", "abyss") in ops, ops[:400]
-        assert _op("opForcedMove", "player", "sentry", "ledge", "abyss") in ops
-        assert _op("opBlow", "brute", "caveIn", "brink", "brink") in ops
-        assert _op("opExploit", "brute", "brute", "chasm", "fell") in ops
-        self._record(True, "Example 2: taunted from the hall, the brute caves the brink in under itself")
+    def test_example_2_jolt_the_sentry_vortex_the_rest(self):
+        ops = _ops(plans_with("vortex", "lightningFlash"))
+        assert _op("opExploit", "mage", "sentry", "electrocuted", "dead") in ops, ops[:400]
+        assert _op("opDash", "mage", "brink", "ledge") in ops
+        assert _op("opKnock", "player", "bramble", "rift") in ops
+        assert _op("opKnock", "player", "brute", "sinkhole") in ops
+        self._record(True, "Example 2: the flash short-circuits the soaked sentry; the vortex draws "
+                           "the bramble into the rift and the misted brute into the sinkhole")
 
-    def test_example_3_vortex_on_the_abyss(self):
-        ops = _ops(plans_with("fireball", "vortex"))
-        assert _op("opCast", "mage", "vortex", "abyss") in ops, ops[:400]
-        assert _op("opForcedMove", "mage", "sentry", "ledge", "abyss") in ops
-        self._record(True, "Example 3: the misted sentry is sucked off the ledge into the abyss")
+    def test_example_3_swing_over_and_haul_the_brute(self):
+        ops = _ops(plans_with("tidalWave", "hook"))
+        assert _op("opFall", "mage", "sentry", "ledge", "brink") in ops, ops[:400]
+        assert _op("opCast", "player", "tidalWave", "player") in ops
+        assert _op("opKnock", "player", "bramble", "rift") in ops
+        assert _op("opDash", "mage", "brink", "ledge") in ops
+        assert _op("opFall", "mage", "brute", "brink", "ledge") in ops
+        self._record(True, "Example 3: the hook drops the sentry, swings over on the pillar and "
+                           "hauls the misted brute into the abyss; the wave takes the bramble")
 
-    def test_example_4_drag_it_across(self):
-        ops = _ops(plans_with("hook", "tidalWave"))
-        assert _op("opCast", "warden", "turnToMist", "sentry") in ops, ops[:400]
-        assert _op("opForcedMove", "player", "sentry", "ledge", "abyss") in ops
-        self._record(True, "Example 4: misted, the sentry is hooked from the brink and falls on the way")
+    def test_example_4_fire_on_the_crypt(self):
+        ops = _ops(plans_with("fireball", "hook"))
+        assert _op("opCast", "player", "fireball", "crypt") in ops, ops[:400]
+        assert _op("opExploit", "player", "bramble", "burning", "dead") in ops
+        self._record(True, "Example 4: the fireball on the crypt burns the hidden bramble")
 
     # -------------------------------------------------------------- properties
 
     def test_property_p1_no_companion_carries_a_plan_alone(self):
         plans = _solutions(self._planner, "clearCrossing.")
-        assert plans, "the encounter must be solvable"
+        assert plans, "the level must be winnable"
         for plan in plans:
-            allies = {_actor(op) for op in plan} & COMPANIONS
-            assert len(allies) >= 2, f"one companion carries this plan alone: {plan}"
-        self._record(True, f"P1: {len(plans)} plans, none by one companion")
+            assert len(_casters(plan)) >= 2, f"one companion carries this plan alone: {plan}"
+        self._record(True, f"P1: {len(plans)} plans, each with two or more casters")
 
     def test_property_p2_no_single_skill_wins(self):
         report = combos_report()
@@ -134,23 +156,30 @@ class CrossingTest(HtnTestSuite):
         assert not report.dead_skills, report.dead_skills
         self._record(True, f"P3: exactly the {len(WINNING)} measured pairs win, both ways round")
 
-    def test_property_p4_the_cave_in_takes_the_brink_for_good(self):
-        """Drag the sentry across first: once the brute has brought the brink
-        down, nobody can stand where a pull drops it."""
-        assert plans_with("taunt", "hook", "beat(sentry), regroup, provoke(brute).")
-        assert not plans_with("taunt", "hook", "provoke(brute), beat(sentry).")
-        self._record(True, "P4: provoke the brute first and the sentry cannot be dragged across")
+    def test_property_p4_the_bramble_cannot_be_aimed_at(self):
+        assert not plans_with("lightningFlash", "hook")
+        assert not plans_with("shieldBash", "hook")
+        self._record(True, "P4: without fire, a wave or a vortex, the bramble stands")
 
-    def test_property_p5_the_vortex_takes_friends_on_the_brink(self):
-        planner = _planner("knows(player, vortex).\nknows(mage, fireball).\n")
-        plans = _solutions(planner, "castFrom(warden, turnToMist, sentry, brink), "
-                                    "cast(player, vortex, abyss).")
-        assert _op("opExploit", "player", "warden", "chasm", "fell") in _ops(plans)
-        self._record(True, "P5: a vortex on the abyss sucks in the Warden standing on the brink")
+    def test_property_p5_set_alight_the_brute_caves_in_the_brink(self):
+        """Fire on the brute makes it stamp: the brink becomes a chasm under it
+        - and nobody reaches the sentry from there any more."""
+        planner = _planner("knows(player, fireball).\nknows(mage, hook).\n")
+        plans = _solutions(planner, "castFrom(player, fireball, brute, hall).")
+        ops = _ops(plans)
+        assert _op("opWindUp", "brute", "caveIn", "brink") in ops, ops[:400]
+        assert _op("opSpill", "brute", "brink", "chasm") in ops
+        assert _op("opExploit", "brute", "brute", "chasm", "fell") in ops
+        planner = _planner("knows(player, fireball).\nknows(mage, hook).\n")
+        assert not _solutions(planner, "castFrom(player, fireball, brute, hall), beat(sentry).")
+        self._record(True, "P5: the fire brings the brink down on the brute, and cuts off the ledge")
 
-    def test_property_p6_the_bramble_cannot_be_aimed_at(self):
-        assert not plans_with("lightningFlash", "hook", "beat(bramble).")
-        self._record(True, "P6: hidden in the shadows, the bramble takes only fire or the wave")
+    def test_property_p6_one_costly_cast_each(self):
+        """Three enemies, two costly casts: the fireball and the flash cannot
+        also take the brute."""
+        assert not plans_with("fireball", "lightningFlash")
+        assert not plans_with("fireball", "fireball")
+        self._record(True, "P6: fireball + lightningFlash and fireball + fireball lose on mana")
 
 
 def run_tests():

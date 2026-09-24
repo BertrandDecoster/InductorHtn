@@ -18,19 +18,15 @@ COMPANIONS = {"player", "mage", "golem"}
 DEPS = ("abilities/goals/neutralize", "abilities/strategies/passage",
         "abilities/primitives/ab_catalog")
 
-# The measured matrix, unordered; each pair wins in both seat orders.
-WINNING = {frozenset(p) for p in [
-    # a puller brings the crate to the brink, a pusher or a vortex sends it down
-    ("hook", "fireball"), ("hook", "tidalWave"), ("hook", "vortex"),
-    ("taunt", "fireball"), ("taunt", "tidalWave"), ("taunt", "vortex"),
-    # someone flashes down, a puller hauls them out
-    ("lightningFlash", "hook"), ("lightningFlash", "taunt"),
-]}
+# The measured matrix, unordered: a way down with the hook for the way out.
+WINNING = {frozenset(("hook", s)) for s in
+           ("lightningFlash", "fireball", "shieldBash", "tidalWave")}
 
 _REPORT = []
 
 
 def combos_report():
+    """One parallel `combos` run, shared by the properties that read it."""
     if not _REPORT:
         _REPORT.append(run_combos(HERE, ROOT))
     return _REPORT[0]
@@ -45,8 +41,14 @@ def _solutions(planner, goal):
     return solutions
 
 
-def _actor(op):
-    return list(op[list(op.keys())[0]][0].keys())[0]
+def _casters(plan):
+    """The companions who cast in a plan (walking is not a second pair of hands)."""
+    out = set()
+    for op in plan:
+        name = list(op.keys())[0]
+        if name == "opCast":
+            out.add(list(op[name][0].keys())[0])
+    return out & COMPANIONS
 
 
 def _planner(extra="", strip_kit=True):
@@ -89,33 +91,37 @@ class WellTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_go_down_and_be_pulled_out(self):
+    def test_example_1_flash_down_and_be_hauled_out(self):
         self.assert_state_after("win.", has=[
-            "at(player,exit)", "at(mage,exit)", "at(golem,exit)", "open(lock)"])
+            "at(player,exit)", "at(mage,exit)", "at(golem,exit)", "open(lock)",
+            "tag(player,rooted)"])
         self.assert_plan("win.", contains=[
-            "opDash(player, quay, well)", "opOpen(golem, lock)",
+            "opStepOn(golem, golem, step)", "opDash(player, brink, well)",
+            "opStepOn(player, player, floor)", "opOpen(player, lock)",
             "opForcedMove(mage, player, well, exit)"])
 
-    def test_example_2_fetch_the_crate_and_throw_it(self):
-        ops = _ops(plans_with("taunt", "tidalWave"))
-        assert _op("opForcedMove", "player", "crate", "nook", "brink") in ops, ops[:300]
-        assert _op("opForcedMove", "mage", "crate", "brink", "well") in ops
-        self._record(True, "Example 2: the player taunts the crate onto the brink; the mage's wave "
-                           "throws it in")
-
-    def test_example_3_hook_the_crate_and_suck_it_down(self):
-        ops = _ops(plans_with("hook", "vortex"))
-        assert _op("opForcedMove", "player", "crate", "nook", "brink") in ops, ops[:300]
-        assert _op("opCast", "mage", "vortex", "well") in ops
-        assert _op("opForcedMove", "mage", "crate", "brink", "well") in ops
-        self._record(True, "Example 3: the player hooks the crate onto the brink; the mage's vortex "
-                           "sucks it down the well")
-
-    def test_example_4_flash_down_and_be_taunted_out(self):
-        ops = _ops(plans_with("lightningFlash", "taunt"))
-        assert _op("opDash", "player", "quay", "well") in ops, ops[:300]
+    def test_example_2_fill_the_shaft_and_climb_out_on_the_golem(self):
+        ops = _ops(plans_with("fireball", "hook"))
+        assert _op("opBridge", "player", "brink", "well") in ops, ops[:400]
+        assert _op("opNavigate", "mage", "brink", "well") in ops
+        assert _op("opCast", "mage", "hook", "golem") in ops
+        assert _op("opDash", "mage", "well", "exit") in ops
+        # ... or the player goes down and the mage hauls him out.
         assert _op("opForcedMove", "mage", "player", "well", "exit") in ops
-        self._record(True, "Example 4: the player flashes down; the mage's taunt drags her up")
+        self._record(True, "Example 2: the fireball fills the shaft; whoever walks down is hauled "
+                           "out, or hooks the golem at the exit and swings up")
+
+    def test_example_3_bash_the_crate_in(self):
+        ops = _ops(plans_with("shieldBash", "hook"))
+        assert _op("opCast", "player", "shieldBash", "crate") in ops, ops[:400]
+        assert _op("opBridge", "player", "brink", "well") in ops
+        self._record(True, "Example 3: the bash knocks the crate into the shaft")
+
+    def test_example_4_a_wave_on_the_brink(self):
+        ops = _ops(plans_with("tidalWave", "hook"))
+        assert _op("opCast", "player", "tidalWave", "player") in ops, ops[:400]
+        assert _op("opFall", "player", "crate", "brink", "well") in ops
+        self._record(True, "Example 4: the wave washes the crate into the shaft")
 
     # -------------------------------------------------------------- properties
 
@@ -123,9 +129,8 @@ class WellTest(HtnTestSuite):
         plans = _solutions(self._planner, "win.")
         assert plans, "the level must be winnable"
         for plan in plans:
-            allies = {_actor(op) for op in plan} & COMPANIONS
-            assert len(allies) >= 2, f"one companion carries this plan alone: {plan}"
-        self._record(True, f"P1: {len(plans)} plans, none by one companion")
+            assert len(_casters(plan)) >= 2, f"one companion carries this plan alone: {plan}"
+        self._record(True, f"P1: {len(plans)} plans, each with two or more casters")
 
     def test_property_p2_no_single_skill_wins(self):
         report = combos_report()
@@ -138,30 +143,33 @@ class WellTest(HtnTestSuite):
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         assert len(report.winning) == 2 * len(WINNING), "each pair should win in both seat orders"
         assert not report.failures, report.failures
-        assert not report.dead_skills, report.dead_skills
-        self._record(True, f"P3: exactly the {len(WINNING)} measured pairs win, both ways round")
+        assert report.dead_skills == ["vortex"], report.dead_skills
+        self._record(True, f"P3: exactly the {len(WINNING)} measured pairs win; vortex is the trap")
 
-    def test_property_p4_the_wisp_does_not_weigh_the_plate(self):
-        kit = "knows(player, lightningFlash).\nknows(mage, hook).\n"
-        assert _solutions(_planner(kit), "walkTo(golem, step).")
-        planner = _planner(kit)
-        assert not _solutions(planner, "walkTo(golem, step), confirmOpen(lock).")
-        self._record(True, "P4: the Golem on the step alone does not open the lock")
+    def test_property_p4_whoever_goes_down_is_stuck(self):
+        """The mud roots whoever lands: one flash down, and nobody can bring
+        the flasher up without a hook - not even over a filled shaft."""
+        assert not plans_with("lightningFlash", "fireball")
+        assert not plans_with("fireball", "shieldBash")
+        self._record(True, "P4: without a hook, the one in the well stays there")
 
-    def test_property_p5_a_blinker_is_disjoint_for_a_moment(self):
-        """Blinked down, the player is untouchable through the next cast: the
-        hook right after misses, so blink is not in the pool."""
-        assert not plans_with("blink", "hook")
-        self._record(True, "P5: blinked down, the player cannot be hooked out by the next cast")
+    def test_property_p5_the_puddle_takes_the_shield(self):
+        """The bash's shield would take the mud; the water in the well takes the
+        shield first, and the mud roots the basher."""
+        planner = _planner("knows(player, shieldBash).\nknows(mage, hook).\n")
+        plans = _solutions(planner, "cast(player, shieldBash, crate), walkTo(player, well).")
+        ops = _ops(plans)
+        assert _op("opRemove", "player", "player", "shielded") in ops, ops[:400]
+        assert _op("opGrant", "player", "player", "rooted") in ops
+        self._record(True, "P5: the puddle breaks the shield; the mud roots the basher")
 
-    def test_property_p6_a_thrown_friend_is_stranded(self):
-        """The throw works and the lock opens, but the only puller is down the
-        well."""
-        kit = "knows(player, fireball).\nknows(mage, hook).\n"
-        throw = "walkTo(mage, brink), castFrom(player, fireball, mage, quay), walkTo(golem, step)"
-        assert _solutions(_planner(kit), throw + ", confirmOpen(lock).")
-        assert not _solutions(_planner(kit), throw + ", getOut(mage).")
-        self._record(True, "P6: the fireball throws the mage down and the lock opens; nobody hauls her out")
+    def test_property_p6_the_well_is_empty(self):
+        """A vortex on the floor has nothing to draw onto it."""
+        assert not plans_with("vortex", "hook")
+        planner = _planner("knows(player, vortex).\nknows(mage, hook).\n")
+        plans = _solutions(planner, "cast(player, vortex, floor).")
+        assert plans and "opKnock" not in _ops(plans)
+        self._record(True, "P6: the vortex on the floor draws nothing")
 
 
 def run_tests():

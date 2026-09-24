@@ -1,90 +1,72 @@
 % The Well (pure movement)
 %
-% A lock gate opens only while two plates are weighed down at once: a step by
-% the quay, and the floor of a well. The Golem is too heavy to leap or to be
-% moved - he is the counterweight on the step, and he walks out once the
-% lock is open. The well is the problem: it is seen into from the quay, the
-% brink and the exit above, but from the bottom you cannot see out, and
-% nobody climbs down or up. Whoever goes down cannot leap back up; a friend
-% at the exit has to pull them out. Lost Vikings: one companion is the
-% weight, one goes down, one hauls out.
+% A lock gate opens only while two plates are weighed down at once: a step
+% on the quay, and the floor of a well. The Golem is heavy and knows
+% nothing: he is the counterweight on the step, and walks out once the lock
+% is open. The well is the problem: it lies down a shaft from the brink,
+% its floor is mud under a hand of water, and whoever lands in it is stuck.
+% The lock opens on the brink and, through a grate, on the well floor.
+% Lost Vikings: one companion is the weight, one goes down, one hauls out.
 %
-%   nook (crate; a niche up the wall, seen from the quay and the brink)
-%     :
-%   quay (player, mage, golem) --- step (plate)
-%     |
-%   brink ...> well (plate; wisp; barred: nobody walks in or out)
-%     |
-%   lock (door: step + well held at once) --- exit
+%   quay (player, mage, golem; step) --- brink (crate) ~~ well (floor; mud)
+%                                           |               |
+%                                           +---- exit -----+  (the lock)
 %
 % Victory: all three companions reach the exit. The player and the mage
-% pick one skill each from six; the Golem knows nothing.
+% pick one skill each from six, with mana for one costly cast each.
 %
-% The well, weighed two ways:
-%   go down      a lightning flash drops in - and a friend with a hook or a
-%                taunt pulls them out from the exit
-%   the crate    it sits in the nook, where nothing but a pull reaches it:
-%                someone draws it onto the brink (a hook or a taunt from the
-%                brink), steps off, and someone else sends it into the well:
-%                throws it from the quay (fireball, tidal wave) or sucks the
-%                brink into the well (a vortex)
+%   down    leap the shaft (a lightning flash - one, with no mana for the
+%           way back); or knock the crate into the shaft to fill it (a
+%           fireball, a shield bash, a tidal wave on the brink) and walk
+%   out     the mud roots whoever lands: a friend at the exit hooks them out
+%           through the grate; or the one below hooks the Golem once he
+%           stands at the exit, and swings out on him
 %
-% Traps: a leaper at the bottom cannot get out alone; a pusher or a vortex
-% can send a friend down, but then the only one left to haul them out is
-% the one who sent them; nothing but a pull reaches the crate in the nook; a
-% puller alone brings the crate to the brink and no further; a wave or a
-% vortex takes whoever still stands on the brink down the well with the
-% crate. The wisp in the well floats: it does not weigh the plate. Blink is
-% left out of the pool on purpose: a friend who blinks down is disjoint for
-% a moment, and the pull right after it misses.
+% Traps: without a hook, whoever goes down stays down, even over a filled
+% shaft; the bash's shield would take the mud, but the water breaks it
+% first; a vortex on the floor has nothing to draw - the well is empty.
+% Blink is left out of the pool: disjoint as it lands, the mud never takes.
 
-% === Regions ===
-region(nook).
+% === Map: four areas ===
 region(quay).
-region(step).
 region(brink).
 region(well).
-region(lock).
 region(exit).
-connected(quay, step).
-connected(step, quay).
 connected(quay, brink).
-connected(brink, quay).
-connected(brink, lock).
-connected(lock, brink).
-connected(lock, exit).
-connected(exit, lock).
-% The brink gives onto the well (a vortex draws it down), but the well is
-% barred: nobody walks in, and there is no way back up.
-connected(brink, well).
+% The shaft: a short drop between the brink and the well floor.
+gap(brink, well).
+% The lock gate opens on the brink and, through a grate, on the well floor.
+doorway(brink, exit, lock).
+doorway(well, exit, lock).
+door(lock).
 
-lineOfSight(quay, nook).
-lineOfSight(brink, nook).
 lineOfSight(quay, brink).
 lineOfSight(quay, well).
 lineOfSight(brink, well).
+lineOfSight(brink, quay).
 lineOfSight(exit, well).
+lineOfSight(exit, brink).
 
 % The route, for leaps: only forward.
-progress(nook, 0).
 progress(quay, 0).
-progress(step, 1).
 progress(brink, 1).
 progress(well, 2).
-progress(lock, 3).
-progress(exit, 4).
-
-% Push lines: from the quay, what stands on the brink goes into the well.
-beyond(quay, brink, well).
+progress(exit, 3).
 
 % === Terrain ===
-door(lock).
-door(well).
+% Two plates hold the lock open only together: the step on the quay, and
+% the floor of the well. The floor is sucking mud: whoever lands in it is
+% stuck.
+feature(quay, step, weigh).
+plate(step).
 plateFor(step, lock).
-plateFor(well, lock).
-onEnter(step, weigh).
-onEnter(well, weigh).
+feature(well, floor, weigh).
+plate(floor).
+plateFor(floor, lock).
 effect(weigh, target, openWhenHeld(lock)).
+onEnter(well, puddle).
+onEnter(well, mud).
+effect(mud, target, grant(rooted)).
 
 % === Companions ===
 role(player, player).
@@ -93,73 +75,63 @@ role(golem, companion).
 at(player, quay).
 at(mage, quay).
 at(golem, quay).
-mana(player, 4).
-mana(mage, 4).
+mana(player, 2).
+mana(mage, 2).
 tag(golem, heavy).
 
 % === Things ===
+% A crate on the brink.
 role(crate, object).
-at(crate, nook).
-
-role(wisp, object).
-at(wisp, well).
-tag(wisp, flying).
+at(crate, brink).
+tag(crate, filler).
 
 % === Default kit (a winning pair; combos strips these) ===
 knows(player, lightningFlash).
 knows(mage, hook).
 
-% === Victory ===
+% === Victory: all three reach the exit ===
 win :- if(), do(escape).
 
 escape :-
     if(),
-    do(weighWell, walkTo(golem, step), confirmOpen(lock),
-       getOut(player), getOut(mage), walkTo(golem, exit)).
+    do(stepOn(golem, step), weighFloor, confirmOpen(lock),
+       leave(golem), leave(mage), leave(player)).
 
-% The well: someone drops in; or the crate is fetched onto the brink and
-% sent down; or a friend is sent down (it never pays: see the traps).
-weighWell :-
+% The floor: someone drops in; the shaft is filled with the crate and
+% someone walks down; or the stone toad, misted, is knocked onto it.
+weighFloor :-
     if(canAct(?a), \==(?a, golem), first(leap(?a, ?ab, ?from, ?aim, well))),
-    do(castFrom(?a, ?ab, ?aim, ?from)).
-weighWell :-
-    if(at(crate, ?r), placement(?p, ?ab, ?from, ?aim, crate, well)),
-    do(castFrom(?p, ?ab, ?aim, ?from), onSpot(crate, well)).
-weighWell :-
-    if(at(crate, ?r), first(and(beyond(?f, ?spot, well), \==(?r, ?spot)))),
-    do(fetch(crate, ?spot), stepOff(?spot), place(crate, well, none)).
-weighWell :-
-    if(first(and(beyond(?f, ?spot, well), region(?spot))), canAct(?a), \==(?a, golem)),
-    do(walkTo(?a, ?spot), place(?a, well, ?a)).
+    do(castFrom(?a, ?ab, ?aim, ?from), stepOn(?a, floor)).
+weighFloor :-
+    if(at(crate, brink)),
+    do(knockOn(crate, gap(well), none), confirmBridged(brink, well), goDown(floor)).
+goDown(?p) :-
+    if(feature(?r, ?p, ?ab), canAct(?a), \==(?a, golem), canReachNow(?a, ?r)),
+    do(walkTo(?a, ?r), stepOn(?a, ?p)).
 
-% Draw something onto a spot: pulled to the caster's feet there.
-fetch(?x, ?spot) :-
-    if(puller(?a, ?ab, ?x)),
-    do(castFrom(?a, ?ab, ?x, ?spot), onSpot(?x, ?spot)).
-onSpot(?e, ?r) :- if(at(?e, ?r)), do().
-
-% Whoever stands on the spot steps back to the quay.
-stepOff(?r) :- if(not(first(and(at(?a, ?r), canAct(?a))))), do().
-stepOff(?r) :- if(first(and(at(?a, ?r), canAct(?a)))), do(allOff(?r)).
-allOff(?r) :- allOf, if(at(?a, ?r), canAct(?a)), do(walkTo(?a, quay)).
-
-% Out: walk, or be pulled up by a friend standing at the exit.
-getOut(?a) :- if(canReachNow(?a, exit)), do(walkTo(?a, exit)).
-getOut(?a) :-
-    if(not(canReachNow(?a, exit)), canAct(?b), \==(?b, ?a), knows(?b, ?ab), pulls(?ab),
-       ready(?b, ?ab, ?a)),
+% Out: walk; or, stuck in the mud, be hauled out by a friend at the exit.
+leave(?a) :- if(canWalk(?a, exit)), do(walkTo(?a, exit)).
+leave(?a) :-
+    if(not(canWalk(?a, exit)), at(?a, ?r), canAct(?b), \==(?b, ?a), knows(?b, ?ab), pulls(?ab),
+       canWalk(?b, exit)),
     do(walkTo(?b, exit), castFrom(?b, ?ab, ?a, exit), onSpot(?a, exit)).
+leave(?a) :-
+    if(not(canWalk(?a, exit)), at(?a, ?r), dashEdge(?r, exit), knows(?a, ?ab),
+       effect(?ab, target, hook), at(?x, exit), anchoredAgainst(?x), ready(?a, ?ab, ?x)),
+    do(castFrom(?a, ?ab, ?x, ?r), onSpot(?a, exit)).
+canWalk(?a, ?r) :- not(forbidden(?a, move)), canReachNow(?a, ?r).
+onSpot(?e, ?r) :- if(at(?e, ?r)), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
 % === Choice: one skill each, from six (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
-comboPool(hook).
-comboPool(taunt).
-comboPool(vortex).
-comboPool(fireball).
-comboPool(tidalWave).
 comboPool(lightningFlash).
+comboPool(hook).
+comboPool(fireball).
+comboPool(shieldBash).
+comboPool(tidalWave).
+comboPool(vortex).
 
 goals(win).
