@@ -1,99 +1,63 @@
 % Cold Shoulder (ability catalogue; category: enemies' powers used against them)
 %
 % Two fire imps keep the goblin foundry hot: one in the forge, one in the
-% kiln. Below, in the cave, sleeps the frost troll the goblins keep for the
-% cold-room. Chilled, an imp dies (it is a fire elemental) - but nobody in
-% the party carries cold. The troll does. Taunted, it is dragged to whoever
-% taunted it; blinded, it lashes out where it stands. Either way it winds up
-% a frost breath (a heavy blow) on its region: everyone there but the troll
-% is chilled, and the floor ices over. The ice stays: an imp that arrives on
-% it later is chilled too. Each mood works once (the tag stays).
+% kiln. Chilled, an imp dies (it is a fire elemental) - but nobody in the
+% party carries cold. The frost troll in the cave does. Taunted, blinded or
+% jolted, it breathes frost on the area it stands in: the floor ices over,
+% and everyone there is chilled (applied raw: the imps' weakness answers).
+% The ice stays - an imp brought onto it later dies too. Each mood works
+% once (the tag stays), and a taunted troll keeps following its taunter.
 %
-%                  kiln (imp2)
-%                 /   |
-%   gate --- hall --- | --- cave (troll) --- vent
-%                 \   |
-%                  forge (imp1)
+%     hall (party) ---------- cave (troll)
+%       |                  .'   :
+%     forge (imp1) ---- kiln (imp2)      kiln : cave is a gap (the lip of
+%                                        the cold-room); the rest walk
 %
-% (Walks: the hall joins the gate, forge, kiln and cave; the forge and kiln
-% share a flue; the vent is behind the cave. The forge and kiln both look
-% down into the cave through grates.)
-%
+% Sight: hall-forge, hall-cave, forge-cave, kiln-cave.
 % The imps are sparks of the forge: mindless (no taunt lands) and light.
-% Three shapes, two companions:
-%   gather, then one breath
-%       put both imps in one room - hook one across (hook), draw them both
-%       into the hall (vortex), wash or blast one along a line (tidalWave,
-%       fireball) - and bring the troll's breath there: blinded where it
-%       stands (blindingFlash, after it was brought), or taunted from that
-%       room (taunt: the taunter is in the struck region, and a friend must
-%       get it out in the one cast it has - a hook, or a fireball that
-%       knocks it clear)
-%   breathe first, then deliver
-%       set the troll off where it stands (blindingFlash) and send the imps
-%       onto the ice it leaves (hook, fireball along the flue line)
-%   bring them to the troll
-%       hook both imps into the cave, then blind it
+% Two companions, one skill each from seven. The ways:
+%   lure it     taunt from an imp's room: the troll walks over and breathes
+%               there (taunt moves and triggers); then lead it on to the
+%               kiln (it follows) and set it off again - a blinding flash
+%               from inside, or a lightning flash from next door
+%   gather      hook imp1 into the hall, then into the cave, and set the
+%               troll off where it stands (flash or jolt); or breathe first
+%               and hook the imp onto the ice
+%   the lip     imp2 stands at the gap: knock it in (fireball, tidalWave,
+%               shieldBash) or hook it across from the cave (it falls)
 % Traps:
-%   - taunting from a room with one imp: the second imp is out of reach,
-%     and the troll will not answer a taunt twice;
-%   - a soaked imp that walks onto ice only freezes over (stunned): water
-%     and cold react on arrival, but the breath itself kills a wet imp;
-%   - fire on the ice leaves a puddle: a fireball on the iced room undoes
-%     the trap for the second imp;
-%   - a vortex or a wave cast to save the taunter moves the imps out too.
-% The breath never lands on a companion: a plan that leaves one in the
-% struck region has no plan.
+%   - the troll answers each mood once: a second taunt does nothing;
+%   - a shield bash on the troll stuns it (silenced: no breath), and a
+%     knock can drop the troll itself into the gap;
+%   - fire on the ice leaves a puddle: a fireball on an iced room undoes
+%     it for the second imp;
+%   - a wave soaks the imps: a wet imp brought onto the ice only freezes
+%     over (stunned), though the breath itself still kills it.
+% The breath is instant (no wind-up): nothing to answer.
 
-% === Regions ===
-region(gate).
+% === Map ===
 region(hall).
 region(forge).
 region(kiln).
 region(cave).
-region(vent).
-connected(gate, hall).
-connected(hall, gate).
 connected(hall, forge).
-connected(forge, hall).
-connected(hall, kiln).
-connected(kiln, hall).
 connected(hall, cave).
-connected(cave, hall).
 connected(forge, kiln).
-connected(kiln, forge).
-connected(cave, vent).
-connected(vent, cave).
-lineOfSight(gate, hall).
-lineOfSight(hall, gate).
+gap(kiln, cave).
 lineOfSight(hall, forge).
 lineOfSight(forge, hall).
-lineOfSight(hall, kiln).
-lineOfSight(kiln, hall).
 lineOfSight(hall, cave).
 lineOfSight(cave, hall).
-lineOfSight(forge, kiln).
-lineOfSight(kiln, forge).
-lineOfSight(forge, cave).
-lineOfSight(cave, forge).
 lineOfSight(kiln, cave).
 lineOfSight(cave, kiln).
-lineOfSight(vent, cave).
-
-% Push lines: from the vent, whatever is driven out of the cave lands in
-% the kiln; from the hall, back into the vent. From the hall, a blow on the
-% forge carries into the kiln; from the forge, a blow on the kiln carries
-% down into the cave.
-beyond(vent, cave, kiln).
-beyond(hall, cave, vent).
-beyond(hall, forge, kiln).
-beyond(forge, kiln, cave).
+lineOfSight(forge, cave).
+lineOfSight(cave, forge).
 
 % === Companions ===
 role(player, player).
 role(mage, companion).
-at(player, gate).
-at(mage, gate).
+at(player, hall).
+at(mage, hall).
 mana(player, 4).
 mana(mage, 4).
 
@@ -108,97 +72,95 @@ at(imp2, kiln).
 tag(imp2, fireElemental).
 immune(imp2, taunted).
 
-% The frost troll: taunted or blinded, it breathes frost where it stands.
+% The troll: taunted, blinded or jolted, it breathes frost where it stands
+% (after a taunt, where it has walked to).
 role(troll, enemy).
 at(troll, cave).
 tag(troll, living).
 immune(troll, chilled).
 behavior(troll, taunted, frostBreath, here).
 behavior(troll, blinded, frostBreath, here).
-heavy(frostBreath).
-effect(frostBreath, area, grant(chilled)).
+behavior(troll, electrocuted, frostBreath, here).
 effect(frostBreath, target, spill(iceSheet)).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
-knows(player, hook).
-knows(mage, blindingFlash).
+knows(player, taunt).
+knows(mage, fireball).
 
 % === Recipes (level-local: the troll's breath, turned on the imps) ===
 
-% ?e ends up in ?r: already there, pulled there by someone standing in ?r,
-% or pushed, washed or drawn there.
-bring(?e, ?r) :- if(at(?e, ?r)), do().
-bring(?e, ?r) :-
-    if(at(?e, ?er), \==(?er, ?r), puller(?p, ?ab, ?e), reach(?ab, ?k), inRange(?k, ?r, ?er),
-       canReachNow(?p, ?r)),
-    do(castFrom(?p, ?ab, ?e, ?r), arrived(?e, ?r)).
-bring(?e, ?r) :-
-    if(not(at(?e, ?r)), canAct(?p), first(placement(?p, ?ab, ?from, ?aim, ?e, ?r))),
-    do(castFrom(?p, ?ab, ?aim, ?from), arrived(?e, ?r)).
-arrived(?e, ?r) :- if(at(?e, ?r)), do().
+iced(?r) :- onEnter(?r, iceSheet).
+settled(?e, ?r) :- if(at(?e, ?r)), do().
 
-% Set ?npc off in ?r: a trigger whose own movement drags it into ?r, given
-% from ?r; or, standing in ?r already, any trigger that does not move it.
-trigger(?npc, ?r) :-
-    if(behavior(?npc, ?t, ?b, here), onGrant(?t, pull), at(?npc, ?nr),
-       canAct(?a), knows(?a, ?ab), grants(?ab, ?t), ready(?a, ?ab, ?npc),
-       reach(?ab, ?k), inRange(?k, ?r, ?nr), canReachNow(?a, ?r)),
-    do(standBy(?r, ?a), castFrom(?a, ?ab, ?npc, ?r)).
-trigger(?npc, ?r) :-
-    if(at(?npc, ?r), behavior(?npc, ?t, ?b, here), not(hasOnGrant(?t)),
-       canAct(?a), first(canInflict(?a, ?ab, ?t, ?npc))),
-    do(stepAside(?r, ?a), inflictAs(?a, ?t, ?npc)).
+% ?e ends up in ?r: there already, brought one link (a hook, a taunt), or
+% two, through the area between.
+fetch(?e, ?r) :- if(at(?e, ?r)), do().
+fetch(?e, ?r) :- if(not(at(?e, ?r))), do(bringTo(?e, ?r, nobody)).
+fetch(?e, ?r) :-
+    if(at(?e, ?f), \==(?f, ?r), edge(?f, ?m, walk), edge(?m, ?r, walk), \==(?m, ?r)),
+    do(bringTo(?e, ?m, nobody), bringTo(?e, ?r, nobody)).
 
-% Before a lure, the other companion steps out of ?r - or, if it pushes,
-% takes a stand next to ?r on a line that would knock the lurer clear.
-standBy(?r, ?a) :- if(), do(stepAside(?r, ?a)).
-standBy(?r, ?a) :-
-    if(canAct(?c), \==(?c, ?a), knows(?c, ?ab), effect(?ab, target, push), connected(?r, ?n),
-       lineOfSight(?n, ?r), landing(?n, ?r, ?x), not(at(?c, ?n))),
-    do(walkTo(?c, ?n)).
+% The troll comes to ?r: there already, brought (a hook; a taunt, which
+% sets it off on arrival), or led there by the one it follows.
+come(?r) :- if(at(troll, ?r)), do().
+come(?r) :- if(not(at(troll, ?r))), do(bringTo(troll, ?r, nobody)).
+come(?r) :-
+    if(not(at(troll, ?r)), follows(troll, ?a), tag(troll, taunted)),
+    do(walkTo(?a, ?r), settled(troll, ?r)).
 
-% Everyone but ?a steps out of ?r, to a next region that still sees it.
-stepAside(?r, ?a) :- if(not(first(and(at(?c, ?r), canAct(?c), \==(?c, ?a))))), do().
+% Everyone but ?a steps out of ?r.
 stepAside(?r, ?a) :-
-    if(at(?c, ?r), canAct(?c), \==(?c, ?a), first(and(connected(?r, ?n), lineOfSight(?n, ?r)))),
+    if(not(first(and(at(?c, ?r), canAct(?c), \==(?c, ?a), not(follows(troll, ?c)))))), do().
+stepAside(?r, ?a) :-
+    if(at(?c, ?r), canAct(?c), \==(?c, ?a), not(follows(troll, ?c)), first(edge(?r, ?n, walk))),
     do(walkTo(?c, ?n)).
 
-% The troll breathes on ?r: lured there, or brought there and set off.
-breatheOn(?npc, ?r) :- if(), do(trigger(?npc, ?r)).
-breatheOn(?npc, ?r) :- if(not(at(?npc, ?r))), do(bring(?npc, ?r), trigger(?npc, ?r)).
+% The troll, in ?r, breathes there: it has already, or a companion sets it
+% off - a flash from inside, a jolt or a taunt from where it reaches.
+setOff(?r) :- if(iced(?r)), do().
+setOff(?r) :-
+    if(not(iced(?r)), at(troll, ?r), canAct(?a), knows(?a, ?ab), reach(?ab, self),
+       grants(?ab, ?t), behavior(troll, ?t, ?b, here), canReachNow(?a, ?r)),
+    do(walkTo(?a, ?r), stepAside(?r, ?a), castFrom(?a, ?ab, ?a, ?r), settled(troll, ?r), iceOn(?r)).
+setOff(?r) :-
+    if(not(iced(?r)), at(troll, ?r), canAct(?a), knows(?a, ?ab), reach(?ab, ?k),
+       \==(?k, self), grants(?ab, ?t), behavior(troll, ?t, ?b, here), region(?from),
+       inRange(?k, ?from, ?r), canReachNow(?a, ?from)),
+    do(stepAside(?r, ?a), castFrom(?a, ?ab, troll, ?from), settled(troll, ?r), iceOn(?r)).
+iceOn(?r) :- if(iced(?r)), do().
 
-% An imp is in ?r before the breath, or left where it is for now.
-before(?e, ?r) :- if(), do(bring(?e, ?r)).
-before(?e, ?r) :- if(not(at(?e, ?r))), do().
-% After the breath, an imp still standing is sent onto the ice.
-after(?e, ?r) :- if(neutralized(?e)), do().
-after(?e, ?r) :- if(not(neutralized(?e))), do(bring(?e, ?r), confirmStopped(?e)).
+% An imp is out: dropped in the gap at its edge, brought onto the ice, or
+% caught in the breath - the troll brought to it, or it to the troll.
+chill(?imp) :- if(neutralized(?imp)), do().
+chill(?imp) :-
+    if(not(neutralized(?imp)), gapNextTo(?imp)), do(dropInGap(?imp, nobody), confirmStopped(?imp)).
+chill(?imp) :-
+    if(not(neutralized(?imp)), iced(?r)), do(fetch(?imp, ?r), confirmStopped(?imp)).
+chill(?imp) :-
+    if(not(neutralized(?imp)), at(?imp, ?r), not(iced(?r))),
+    do(come(?r), setOff(?r), confirmStopped(?imp)).
+chill(?imp) :-
+    if(not(neutralized(?imp)), at(troll, ?r), not(at(?imp, ?r)), not(iced(?r))),
+    do(fetch(?imp, ?r), setOff(?r), confirmStopped(?imp)).
+chill(?imp) :-
+    if(not(neutralized(?imp)), at(troll, ?r), not(at(?imp, ?r)), not(iced(?r))),
+    do(setOff(?r), fetch(?imp, ?r), confirmStopped(?imp)).
 
-% Pick the room the breath falls on; gather there what can be gathered,
-% set the troll off there, deliver the rest onto the ice.
-% The troll can be brought first, before the imps.
-win :-
-    if(floor(?r)),
-    do(before(troll, ?r), before(imp1, ?r), before(imp2, ?r), breatheOn(troll, ?r),
-       after(imp1, ?r), after(imp2, ?r), confirmStopped(imp1), confirmStopped(imp2)).
-
-% The rooms a breath can be brought to (the gate and the vent are too far).
-floor(hall).
-floor(forge).
-floor(kiln).
-floor(cave).
+% Both imps out, the forge imp first.
+win :- if(), do(chill(imp1), chill(imp2)).
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from six (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
+comboPool(hook).
 comboPool(taunt).
 comboPool(blindingFlash).
-comboPool(hook).
-comboPool(vortex).
-comboPool(tidalWave).
+comboPool(lightningFlash).
 comboPool(fireball).
+comboPool(tidalWave).
+comboPool(shieldBash).
 comboMinWins(6).
 comboMinMethods(3).
 
