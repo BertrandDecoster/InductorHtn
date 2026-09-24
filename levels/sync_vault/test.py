@@ -1,5 +1,6 @@
 """Tests for the Sync: Vault level."""
 
+import functools
 import itertools
 import json
 import os
@@ -15,26 +16,18 @@ from htn_components.manifest import Manifest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-ISLAND = ["pounce", "charge", "magnetize", "translocate"]
-CLOSET = ["vanish", "flashbang", "net", "gust"]
+ISLAND = ["blink", "lightningFlash", "hook"]
+CLOSET = ["blindingFlash", "fireball", "tidalWave", "taunt"]
 POOL = ISLAND + CLOSET
 
-# The measured matrix: every island skill with every closet skill, and nothing else.
+# The measured matrix: each island skill with each closet skill.
 WINNING = {frozenset((a, b)) for a in ISLAND for b in CLOSET}
 
 
-def _solutions(planner, goal):
-    error, result = planner.FindAllPlansCustomVariables(goal)
-    assert error is None, error
-    solutions = json.loads(result)
-    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
-        return []
-    return solutions
-
-
+@functools.lru_cache(maxsize=None)
 def plans_with(player, mage):
-    """All winning plans with the player knowing `player` and the mage `mage`, on a fresh
-    planner (a failed search locks the rule set)."""
+    """All winning plans (lists of (operator, args)) with the player knowing `player` and
+    the mage `mage`, on a fresh planner (a failed search locks the rule set)."""
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
     text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
@@ -45,11 +38,24 @@ def plans_with(player, mage):
         loader.load(dep)
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    error, result = planner.FindAllPlansCustomVariables("win.")
+    assert error is None, error
+    solutions = json.loads(result)
+    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+        return []
+    plans = []
+    for sol in solutions:
+        plan = []
+        for op in sol:
+            name = list(op.keys())[0]
+            plan.append((name, tuple(list(a.keys())[0] if isinstance(a, dict) else str(a)
+                                     for a in op[name])))
+        plans.append(plan)
+    return plans
 
 
-def ops(plans):
-    return " ".join(json.dumps(p) for p in plans).replace(" ", "")
+def has(plans, name, *args):
+    return any((name, tuple(args)) in plan for plan in plans)
 
 
 class SyncVaultTest(HtnTestSuite):
@@ -63,22 +69,30 @@ class SyncVaultTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_pounce_over_blind_the_sentry(self):
+    def test_example_1_blink_to_the_island_fireball_the_barrel(self):
         self.assert_plan("win.", contains=[
-            "opDash(player, rim, outcrop)", "opCast(mage, flashbang, sentry)",
-            "opNavigate(mage, post, closet)", "opOpen(mage, vaultdoor)"])
+            "opCast(player, blink, outcrop)", "opTeleport(player, rim, outcrop)",
+            "opNavigate(player, outcrop, island)", "opCast(mage, fireball, barrel)",
+            "opForcedMove(mage, barrel, post, closet)", "opOpen(mage, vaultdoor)",
+            "opNavigate(mage, vaultdoor, vault)"])
 
-    def test_example_2_hook_over_shove_the_sentry_onto_the_plate(self):
-        text = ops(plans_with("magnetize", "gust"))
-        assert '{"opCast":[{"player":[]},{"magnetize":[]},{"pillar":[]}]}' in text, text[:400]
-        assert '{"opForcedMove":[{"mage":[]},{"sentry":[]},{"post":[]},{"closet":[]}]}' in text
-        self._record(True, "Example 2: the hook drags the player over; the gust puts the sentry on the plate")
+    def test_example_2_hook_the_pillar_taunt_the_warden(self):
+        plans = plans_with("hook", "taunt")
+        assert has(plans, "opCast", "player", "hook", "pillar"), plans[:1]
+        assert has(plans, "opDash", "player", "rim", "outcrop")
+        assert has(plans, "opWindUp", "warden", "groundSlam", "post")
+        assert has(plans, "opForcedMove", "warden", "barrel", "post", "closet")
+        assert has(plans, "opOpen", "warden", "vaultdoor")
+        self._record(True, "Example 2: hooked over the rift; the warden's own slam throws the "
+                           "barrel onto the plate")
 
-    def test_example_3_swap_over_sneak_in(self):
-        text = ops(plans_with("vanish", "translocate"))
-        assert '{"opSwap":[{"mage":[]},{"barrel":[]},{"rim":[]},{"outcrop":[]}]}' in text
-        assert '{"opNavigate":[{"player":[]},{"post":[]},{"closet":[]}]}' in text
-        self._record(True, "Example 3: the mage swaps with the barrel; the stealthed player walks in")
+    def test_example_3_flash_over_blind_and_walk_in(self):
+        plans = plans_with("blindingFlash", "lightningFlash")
+        assert has(plans, "opDash", "mage", "rim", "outcrop"), plans[:1]
+        assert has(plans, "opGrant", "player", "warden", "blinded")
+        assert has(plans, "opNavigate", "player", "post", "closet")
+        self._record(True, "Example 3: the mage flashes over; the player blinds the warden and "
+                           "walks onto the closet plate")
 
     # -------------------------------------------------------------- properties
 
@@ -87,22 +101,38 @@ class SyncVaultTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_sixteen_pairs_win(self):
+    def test_property_p2_the_measured_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_either_seat(self):
-        assert plans_with("gust", "charge") and plans_with("charge", "gust")
+        assert plans_with("tidalWave", "hook") and plans_with("hook", "tidalWave")
         self._record(True, "P3: a pair wins whichever companion holds which half")
 
-    def test_property_p4_the_boss_sentry_is_not_blinded_by_hard_control(self):
-        assert not plans_with("charge", "translocate")
-        self._record(True, "P4: a stun or a confusion does not blind the boss sentry")
+    def test_property_p4_the_door_waits_for_both_plates(self):
+        """One plate alone does not open the door; the second arrival does."""
+        self.assert_state_after("weighIsland.", has=["at(player,island)"], not_has=["open(vaultdoor)"])
+        self.assert_plan("weighIsland, weighCloset.", contains=["opOpen(mage, vaultdoor)"])
+        self._record(True, "P4: the door opens only when both plates are held at once")
 
-    def test_property_p5_the_door_needs_both_plates(self):
-        self.assert_state_after("weighIsland.", not_has=["open(vaultdoor)"])
-        self._record(True, "P5: one plate alone leaves the vault shut")
+    def test_property_p5_no_companion_on_the_post_under_the_slam(self):
+        """The warden's slam throws everything on its post into the closet;
+        no taunt plan has a companion standing there when it lands."""
+        for crosser in ISLAND:
+            for plan in plans_with(crosser, "taunt"):
+                blow = plan.index(("opBlow", ("warden", "groundSlam", "post", "post")))
+                thrown = [a for n, a in plan[blow:] if n == "opForcedMove" and a[0] == "warden"]
+                assert thrown == [("warden", "barrel", "post", "closet")], thrown
+        self._record(True, "P5: the slam throws only the barrel")
+
+    def test_property_p6_the_warden_does_not_budge(self):
+        """Heavy, the warden stays on its post whatever pushes it; only the
+        barrel moves."""
+        for skill in ["fireball", "tidalWave"]:
+            for plan in plans_with("blink", skill):
+                assert not any(n == "opForcedMove" and a[1] == "warden" for n, a in plan), skill
+        self._record(True, "P6: pushes move the barrel, never the warden")
 
 
 def run_tests():

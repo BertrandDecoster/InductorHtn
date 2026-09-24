@@ -1,53 +1,74 @@
-% Sync: The Decoy (one baits, the other slips to the switch)
+% Sync: The Decoy (one baits the golem's slam, the other pulls it clear)
 %
-% A stone golem stands in the arch to the switch room, and from there it
-% keeps its eye on the whole hall. Two companions, one skill each from
-% eight. One of them is the decoy: it gets the golem out of the arch. The
-% other waits in the nook, out of the way, then slips across the hall and
-% through the arch onto the switch.
+% A golem stands in the arch to the switch room, and nobody gets past it.
+% Up on the balcony, a stone eye - a heavy machine - watches the hall in
+% front of the arch: nobody walks into the hall under its gaze. Two
+% companions, one skill each from seven. Someone gets the golem out of the
+% arch; someone puts the eye out; then one of them walks across the hall
+% and steps onto the switch.
 %
-%   camp --- hall (watched) --- arch (golem) --- switch [plate: portcullis]
-%     \      /      \
-%      nook          alcove
+%                 balcony (eye)
+%                /    |   (a shove from the nook throws it down to the camp)
+%   camp ---- nook    |
+%     \        \      v
+%      ------- hall (watched) --- arch (golem) --- switch [plate] --- portcullis
+%                 \               /
+%                  --- alcove ---
+%
+% The decoy: a taunted golem is dragged to its taunter and winds up a
+% ground slam there (heavy, physical: it cannot be stopped). The team gets
+% one cast before it lands on everyone in that region but the golem. Taunt
+% it from the balcony, and the slam stuns the eye (a stunned eye cannot
+% watch) - but the taunter is in the blast, and cannot save themselves: the
+% friend's one cast in the window must pull them clear.
 %
 % Obstacles and every method:
-%   the arch    the golem is a blocker: nobody walks into its region. Get it
-%               out: taunt it (it is dragged to its taunter - and slams it:
-%               the decoy is stunned where it stands), hook it with
-%               magnetize (dragged to the caster), or shove it into the
-%               alcove from the nook (gust, or tidalWave's wave).
-%   the hall    the golem watches it from wherever it stands: nobody walks
-%               in seen. The slipper goes stealthed (vanish, smokeBomb), or
-%               someone blinds the golem (flashbang, net, smokeBomb).
-%   the switch  the slipper walks onto it; the portcullis latches open.
+%   the arch    the golem is a blocker. Get it out: taunt it (dragged to
+%               the taunter), hook it (dragged to the hooker), fireball it
+%               from the nook (thrown into the alcove), or vortex it into
+%               the alcove (rooted there).
+%   the hall    the eye watches it. Blind it: blindingFlash next to it, or
+%               shieldBash it (stunned); or bait the golem's slam onto it.
+%   the slam    the taunter on the balcony is caught in it; the friend's
+%               cast in the window gets them out: hook them away, fireball
+%               or tidalWave them off the balcony (they land in the camp),
+%               or vortex everything movable on the balcony into the nook.
+%               The heavy eye stays and takes the blow.
 %
 % Traps:
-%   - moving the golem does not stop it watching; blinding it does not
-%     move it out of the arch;
-%   - the taunted golem slams everyone standing with its taunter, so the
-%     slipper waits in the nook, apart from the decoy;
-%   - the nook does not open onto the arch: the only way to the switch is
-%     across the hall.
+%   - moving the golem does not blind the eye; blinding the eye does not
+%     move the golem;
+%   - taunting from the camp or the nook drags the golem there: its slam
+%     hits no eye, and the taunter still needs saving;
+%   - blindingFlash only saves its caster (disjoint), never the taunter; a
+%     shield bash cannot stop a physical blow;
+%   - companions cannot be taunted, so a taunt never rescues anyone.
 %
-% Hypothesis (design.md): no single skill wins; 32 of 64 assignments win
-% (each lure with each veil, either seat).
+% Hypothesis (design.md): no single skill wins; 20 of 49 assignments win
+% (the taunt with each of its four rescuers, and each of three lures with
+% each of two blinders, either seat), by 10 methods.
 
 % === Regions ===
 region(camp).
 region(nook).
+region(balcony).
 region(hall).
 region(alcove).
 region(arch).
 region(switch).
 region(portcullis).
-connected(camp, hall).
-connected(hall, camp).
 connected(camp, nook).
 connected(nook, camp).
+connected(nook, balcony).
+connected(balcony, nook).
+connected(camp, hall).
+connected(hall, camp).
 connected(nook, hall).
 connected(hall, nook).
 connected(hall, alcove).
 connected(alcove, hall).
+connected(alcove, arch).
+connected(arch, alcove).
 connected(hall, arch).
 connected(arch, hall).
 connected(arch, switch).
@@ -57,15 +78,18 @@ connected(portcullis, switch).
 
 lineOfSight(camp, nook).
 lineOfSight(nook, camp).
-lineOfSight(camp, hall).
-lineOfSight(nook, hall).
+lineOfSight(camp, balcony).
+lineOfSight(nook, balcony).
 lineOfSight(camp, arch).
 lineOfSight(nook, arch).
+lineOfSight(balcony, arch).
 lineOfSight(camp, alcove).
 lineOfSight(nook, alcove).
 
-% From the nook, a shove on the arch lands in the alcove.
+% From the nook, a shove on the arch lands in the alcove; a shove on the
+% balcony throws whoever is up there down into the camp.
 beyond(nook, arch, alcove).
+beyond(nook, balcony, camp).
 
 % === Terrain ===
 onEnter(switch, winch).
@@ -79,59 +103,68 @@ at(player, camp).
 at(mage, camp).
 mana(player, 4).
 mana(mage, 4).
+% Only enemies can be provoked.
+immune(?x, taunted) :- canAct(?x).
 
 % === The golem ===
 role(golem, enemy).
 at(golem, arch).
-trait(golem, living).
+tag(golem, living).
 blocker(golem).
-watches(golem, hall).
 % Taunted, it is dragged to its taunter (onGrant pull) and slams the
-% ground there: whoever stands with it is stunned.
-behavior(golem, taunted, slam, here).
-effect(slam, area, grant(stunned)).
+% ground there: a telegraphed groundSlam on that region.
+behavior(golem, taunted, groundSlam, here).
+
+% === The eye ===
+role(eye, enemy).
+at(eye, balcony).
+tag(eye, machine).
+tag(eye, heavy).
+watches(eye, hall).
 
 % === Default kit: one skill each (combos replans the whole matrix) ===
 knows(player, taunt).
-knows(mage, flashbang).
+knows(mage, hook).
 
 % === Victory ===
-% ?b is the one who slips: it waits in the nook, the golem leaves the arch,
-% the hall stops being seen, and ?b walks onto the switch.
+% ?b stands by (in the camp or the nook), the golem leaves the arch, the
+% eye stops seeing, and someone walks onto the switch.
 win :-
-    if(canAct(?b)),
-    do(walkTo(?b, nook), lure, veil(?b), walkTo(?b, switch), opened(portcullis)).
+    if(canAct(?b), standby(?w)),
+    do(walkTo(?b, ?w), lure, veil, slip).
 
-% Drag it out: anything that pulls (a taunt, a hook).
+standby(camp).
+standby(nook).
+
+% Drag it out: anything that pulls (a taunt, a hook), from wherever it
+% sees the arch.
 lure :-
-    if(canAct(?a), knows(?a, ?ab), pulls(?ab), ready(?a, ?ab, golem)),
-    do(cast(?a, ?ab, golem), leftArch).
-% Shove it out, along the line from the nook.
-lure :- if(), do(place(golem, alcove, none)).
+    if(canAct(?a), knows(?a, ?ab), pulls(?ab), spot(?a, ?ab, arch, ?from)),
+    do(castFrom(?a, ?ab, golem, ?from), leftArch).
+% Shove it or suck it out of the arch.
+lure :- if(region(?r), \==(?r, arch)), do(place(golem, ?r, none), leftArch).
 leftArch :- if(not(at(golem, arch))), do().
 
-% The slipper goes unseen ...
-veil(?b) :-
-    if(knows(?b, ?ab), effect(?ab, self, grant(stealthed)), ready(?b, ?ab, ?b)),
-    do(cast(?b, ?ab, ?b)).
-% ... or the golem is blinded, by anyone.
-veil(?b) :- if(), do(inflict(blinded, golem, none)).
+% The eye is already out (the slam), or someone blinds it.
+veil :- if(forbidden(eye, watch)), do().
+veil :- if(not(forbidden(eye, watch))), do(inflict(blinded, eye, none), unseeing).
+unseeing :- if(forbidden(eye, watch)), do().
 
+slip :- if(canAct(?c)), do(walkTo(?c, switch), opened(portcullis)).
 opened(?d) :- if(open(?d)), do().
 
 funExpect(single_actor_plans, atMost, 0).
 
-% === Choice: one skill each, from eight (htn_components combos) ===
+% === Choice: one skill each, from seven (htn_components combos) ===
 comboSeat(player, 1).
 comboSeat(mage, 1).
 comboPool(taunt).
-comboPool(magnetize).
-comboPool(gust).
+comboPool(hook).
+comboPool(fireball).
+comboPool(vortex).
 comboPool(tidalWave).
-comboPool(vanish).
-comboPool(flashbang).
-comboPool(net).
-comboPool(smokeBomb).
+comboPool(blindingFlash).
+comboPool(shieldBash).
 comboMinWins(8).
 comboMinMethods(4).
 

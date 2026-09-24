@@ -1,5 +1,6 @@
 """Tests for the Sync: Drawbridge level."""
 
+import functools
 import itertools
 import json
 import os
@@ -15,32 +16,24 @@ from htn_components.manifest import Manifest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "../.."))
-CROSS = ["pounce", "charge", "shadowStep", "translocate"]
-JOB = ["gust", "magnetize", "taunt", "zap"]
-POOL = CROSS + JOB
+CROSS = ["blink", "lightningFlash"]
+THROW = ["fireball", "tidalWave", "hook", "taunt", "vortex"]
+POOL = CROSS + THROW
 
-# The measured matrix: every crossing skill with every job skill, and nothing else.
-WINNING = {frozenset((a, b)) for a in CROSS for b in JOB}
-
-
-def _solutions(planner, goal):
-    error, result = planner.FindAllPlansCustomVariables(goal)
-    assert error is None, error
-    solutions = json.loads(result)
-    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
-        return []
-    return solutions
+# The measured matrix: each crossing skill with each thrower.
+WINNING = {frozenset((a, b)) for a in CROSS for b in THROW}
 
 
+@functools.lru_cache(maxsize=None)
 def plans_with(player, mage, porter=True):
-    """All winning plans with the player knowing `player` and the mage `mage` (and the
-    porter its rain, unless `porter` is False), on a fresh planner (a failed search locks
-    the rule set)."""
+    """All winning plans (lists of (operator, args)) with the player knowing `player` and
+    the mage `mage` (and the porter its mist, unless `porter` is False), on a fresh
+    planner (a failed search locks the rule set)."""
     with open(os.path.join(HERE, "level.htn"), encoding="utf-8") as f:
         text = f.read()
     text = re.sub(r"^knows\((player|mage), \w+\)\.\n", "", text, flags=re.M)
     if not porter:
-        text = text.replace("knows(porter, rainCall).\n", "")
+        text = text.replace("knows(porter, turnToMist).\n", "")
     planner = HtnPlanner(False)
     planner.SetMemoryBudget(256 * 1024 * 1024)
     loader = ComponentLoader(planner, ROOT, warn=lambda m: None)
@@ -48,15 +41,28 @@ def plans_with(player, mage, porter=True):
         loader.load(dep)
     kit = f"knows(player, {player}).\nknows(mage, {mage}).\n"
     assert planner.HtnCompileCustomVariables(text + kit) is None
-    return _solutions(planner, "win.")
+    error, result = planner.FindAllPlansCustomVariables("win.")
+    assert error is None, error
+    solutions = json.loads(result)
+    if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+        return []
+    plans = []
+    for sol in solutions:
+        plan = []
+        for op in sol:
+            name = list(op.keys())[0]
+            plan.append((name, tuple(list(a.keys())[0] if isinstance(a, dict) else str(a)
+                                     for a in op[name])))
+        plans.append(plan)
+    return plans
 
 
-def ops(plans):
-    return " ".join(json.dumps(p) for p in plans).replace(" ", "")
+def has(plans, name, *args):
+    return any((name, tuple(args)) in plan for plan in plans)
 
 
-def op(name, *args):
-    return json.dumps({name: [{a: []} for a in args]}).replace(" ", "")
+def casts(plan):
+    return [args for name, args in plan if name == "opCast"]
 
 
 class SyncDrawbridgeTest(HtnTestSuite):
@@ -70,25 +76,28 @@ class SyncDrawbridgeTest(HtnTestSuite):
 
     # ---------------------------------------------------------------- examples
 
-    def test_example_1_pounce_over_then_gust_it_off(self):
+    def test_example_1_blink_over_mist_then_fireball(self):
         self.assert_plan("win.", contains=[
-            "opDash(player, dock, pier)", "opOpen(player, drawbridge)",
-            "opNavigate(mage, drawbridge, pier)", "opForcedMove(mage, sentinel, ledge, cliff)",
-            "opExploit(mage, sentinel, chasm, fell)"])
+            "opTeleport(player, dock, pier)", "opOpen(player, drawbridge)",
+            "opCast(porter, turnToMist, sentinel)", "opRemove(porter, sentinel, heavy)",
+            "opNavigate(mage, drawbridge, pier)", "opCast(mage, fireball, sentinel)",
+            "opForcedMove(mage, sentinel, ledge, cliff)", "opExploit(mage, sentinel, chasm, fell)"])
 
-    def test_example_2_swap_over_then_taunt_it_across_the_cliff(self):
-        text = ops(plans_with("translocate", "taunt"))
-        assert op("opSwap", "player", "barrel", "dock", "pier") in text, text[:400]
-        assert op("opNavigate", "mage", "stair", "overlook") in text
-        assert op("opForcedMove", "mage", "sentinel", "ledge", "cliff") in text
-        self._record(True, "Example 2: the swap lowers the bridge; the taunt drags it into the cliff")
+    def test_example_2_flash_over_mist_then_taunt_it_across_the_cliff(self):
+        plans = plans_with("lightningFlash", "taunt")
+        assert has(plans, "opDash", "player", "dock", "pier"), plans[:1]
+        assert has(plans, "opNavigate", "mage", "stair", "overlook")
+        assert has(plans, "opForcedMove", "mage", "sentinel", "ledge", "cliff")
+        self._record(True, "Example 2: the flash lowers the bridge; misted, the taunt drags it "
+                           "into the cliff")
 
-    def test_example_3_charge_over_rain_then_jolt(self):
-        text = ops(plans_with("zap", "charge"))
-        assert op("opDash", "mage", "dock", "pier") in text
-        assert op("opCast", "porter", "rainCall", "sentinel") in text
-        assert op("opExploit", "player", "sentinel", "electrocuted", "dead") in text
-        self._record(True, "Example 3: the porter soaks it, the player's jolt shorts it")
+    def test_example_3_soak_then_jolt_no_mist(self):
+        plans = plans_with("tidalWave", "lightningFlash")
+        short = [p for p in plans if ("opExploit", ("mage", "sentinel", "electrocuted", "dead")) in p]
+        assert short, plans[:1]
+        assert all(c[1] != "turnToMist" for p in short for c in casts(p))
+        self._record(True, "Example 3: the mage flashes over; the wave soaks the sentinel, the "
+                           "mage's second flash shorts it")
 
     # -------------------------------------------------------------- properties
 
@@ -97,20 +106,27 @@ class SyncDrawbridgeTest(HtnTestSuite):
         assert not winners, f"a single skill wins: {winners}"
         self._record(True, "P1: no skill wins alone, even held by both companions")
 
-    def test_property_p2_sixteen_pairs_win(self):
+    def test_property_p2_the_measured_pairs_win(self):
         found = {frozenset((a, b)) for a, b in itertools.combinations(POOL, 2) if plans_with(a, b)}
         assert found == WINNING, f"extra: {found - WINNING}, missing: {WINNING - found}"
         self._record(True, f"P2: exactly the {len(WINNING)} measured pairs win")
 
     def test_property_p3_either_seat(self):
-        assert plans_with("magnetize", "shadowStep") and plans_with("shadowStep", "magnetize")
+        assert plans_with("hook", "blink") and plans_with("blink", "hook")
         self._record(True, "P3: a pair wins whichever companion holds which half")
 
-    def test_property_p4_zap_needs_the_porter(self):
-        """Without the porter's rain, a jolt only stuns the machine."""
-        assert plans_with("pounce", "zap"), "with the porter, pounce + zap wins"
-        assert not plans_with("pounce", "zap", porter=False)
-        self._record(True, "P4: pounce + zap wins only with the porter's rain")
+    def test_property_p4_the_throw_is_the_cast_right_after_the_mist(self):
+        """Every throw rides the porter's moment: the cast after the mist is
+        the throw, and without the porter only the short circuit is left."""
+        for thrower in THROW:
+            for plan in plans_with("blink", thrower):
+                cs = casts(plan)
+                i = cs.index(("porter", "turnToMist", "sentinel"))
+                assert cs[i + 1][1] == thrower, (thrower, cs)
+        without = {t for t in THROW if plans_with("blink", t, porter=False)}
+        assert not without, without
+        assert plans_with("lightningFlash", "tidalWave", porter=False)
+        self._record(True, "P4: mist, then throw - back to back; the short needs no mist")
 
     def test_property_p5_the_bridge_is_up_until_someone_crosses(self):
         self.assert_query("canReach(mage, dock, pier).", min_solutions=0, max_solutions=0)
