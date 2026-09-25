@@ -1,0 +1,102 @@
+{
+ "task": "open_extend_burn",
+ "run": 3,
+ "commit": "8fc6e41",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "damage(gob).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "damage(rat).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "damage(statue).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "damage(bat).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "damage(salamander).",
+   "ok": true
+  },
+  {
+   "instance": "../../open_damage/hidden/i3.htn",
+   "goal": "damage(orc).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.9277059999999999,
+ "turns": 18,
+ "duration_s": 244,
+ "is_error": false,
+ "final_message": "I've added burning on oil as a third way to damage an enemy, and the final domain is in `task/domain.htn`. The plans came out as expected on the sample level and on several variations of it.\n\n**What I added:**\n- **A third `damage(?t)` method** that calls the new `burnOnOil(?t)`.\n- **`burnOnOil(?t)`** works when the enemy isn't immune to fire and some location is oily. It brings the enemy onto the oil with the existing `bringMobToLocation`, then sets it on fire with the existing `applyTag(fire, ?t)`. A static enemy can't be moved, so it only burns if it already stands on oil.\n- **`burn(?t, ?l)`** records `damaged(?t)`, but only if the enemy has the fire tag and is still on that oily spot. This check matters because two of the existing ways to apply a tag move the enemy: to a location that sets things on fire, or to a creature with a fire skill. Either one can pull it off the oil, and those plans are now dropped.\n\nThe domain names no characters, places or skills. Nothing else in the file changed.\n\n**Results:**\n- **Sample level, `damage(gob)`:** 20 plans, the original 11 plus 9 burn plans. These cover each ally leading the enemy to the kitchen, and the fire coming from pyro's fireball or from an ally who first learns fireball at the forge.\n- **Sample level, `damage(tower)`:** still the original 2 plans. The tower is static and not on oil, so it can't burn.\n- **Variations:**\n  - A static tower that stands on oil burns (3 plans).\n  - There is no burn plan when the enemy is immune to fire, or when the level has no oil.\n  - If fire can only be applied somewhere without oil, there is no plan. If that fire location is itself oily, or a fire-casting creature stands on the oil, there is.\n\n**Review:** the `htn-reviewer` agent scored it 4/5. I applied two of its fixes: `burn` now takes the location the strategy chose, and the comment is shorter. Two points I left as they were:\n- **An enemy already on fire** that is led onto oil counts as burned. This matches how wet-then-electrocute accepts a tag the enemy already has. If the rule should be strict (\"gets the fire tag\" while on the oil), adding `not(hasTag(?t, fire))` to `burnOnOil`'s conditions would enforce it.\n- **Damaging twice:** `opDamage` doesn't check whether the enemy is already damaged. This comes from the original domain, and all three ways of damaging share it.\n\nThis checkout has no `check` command in `htn_components`, so I tested with a throwaway Python script and deleted it afterwards. Nothing is committed.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R2",
+    "line": 24,
+    "severity": "high",
+    "issue": "`burn(?t, ?l)` is a helper that only burnOnOil uses. It hides the condition \"still standing on the oil\" in a check made after the actions, instead of stating it as a state to achieve. It exists because the enemy may have been moved: applyTagNotPresent cases 2 and 3 (lines 31-34) can lead the enemy off the oil to a fire location or to a fire mob. The planner explores those branches, and they then die in `burn`.",
+    "fix": "Treat oil as a tag, as wetAndElectrocute does with wet: `burnOnOil(?t) :- if(enemy(?t), not(immune(?t, fire))), do(applyTag(oil, ?t), applyTag(fire, ?t), opDamage(?t)).` Level facts then give `locationCanApplyTag(pool, oil)`. Delete `burn/2`."
+   },
+   {
+    "rule": "R3",
+    "line": 20,
+    "severity": "medium",
+    "issue": "`oily(?l)` is a new predicate. The existing vocabulary already covers it with `locationCanApplyTag(?l, oil)`.",
+    "fix": "Drop `oily/1`. Let the reused `applyTag` verb find the oil through `locationCanApplyTag(?l, oil)`, so a skill or a mob that applies oil also works."
+   },
+   {
+    "rule": "Correctness",
+    "line": 68,
+    "severity": "medium",
+    "issue": "`opDamage` does `add(damaged(?t))` with no guard. If a world already has `damaged(?t)`, the add is an error that aborts the whole search, not only this branch.",
+    "fix": "Guard it in the goal: `damage(?t) :- if(enemy(?t), not(damaged(?t))), do(...)` on each of the three methods."
+   },
+   {
+    "rule": "R1",
+    "line": 21,
+    "severity": "low",
+    "issue": "The strategy fixes one order: bring the enemy to the oil, then ignite it. The plan that sets the enemy on fire first and then lures it onto the oil is never found, and the if() does not say that the order matters.",
+    "fix": "With oil as a tag (first finding), `do(applyTag(oil, ?t), applyTag(fire, ?t), ...)` states the two states to achieve. If both orders are valid, add a second method with the tags in the other order."
+   },
+   {
+    "rule": "Correctness",
+    "line": 43,
+    "severity": "low",
+    "issue": "`useSkillOnTarget` is an `allOf` whose if() excludes tags the target already has. If the target already has every tag the skill applies, allOf has no solution and fails. So stunAndSlow (line 11) fails on an enemy that is already stunned, although that state is already achieved.",
+    "fix": "Add a base case: `useSkillOnTarget(?a, ?s, ?t) :- if(forall(skillAppliesTag(?s, ?tag), hasTag(?t, ?tag))), do().` Or have stunAndSlow go through `applyTag`."
+   },
+   {
+    "rule": "R3",
+    "line": 8,
+    "severity": "low",
+    "issue": "`skillHasTag` and `skillAppliesTag` are two predicates for the same property: a skill that applies a tag.",
+    "fix": "Use `skillAppliesTag(?slow, slow)` everywhere and drop `skillHasTag`."
+   },
+   {
+    "rule": "R9",
+    "line": 26,
+    "severity": "low",
+    "issue": "Most methods have no comment: stunAndSlow, wetAndElectrocute, applyTag, the three applyTagNotPresent cases, prepareToUseSkill, getSkill and bringMobToLocation.",
+    "fix": "Add one line per method or case, e.g. `% Case 2: a location applies the tag - bring the target there.`"
+   }
+  ],
+  "summary": "The architecture is the GameHack one: a goal menu, reusable applyTag, prepareToUseSkill and bringMobToLocation verbs, and op actions. But the new burn strategy adds a coined `oily` predicate and a one-off `burn` post-check, where modelling oil as a tag would make it a two-line strategy with the same shape as wetAndElectrocute. `opDamage` is an unguarded add.",
+  "cost_usd": 0.36005699999999996
+ },
+ "domain": "% Damage an enemy: the allies find every combination that damages it.\ndamage(?t) :- if(enemy(?t)), do(stunAndSlow(?t)).\ndamage(?t) :- if(enemy(?t)), do(wetAndElectrocute(?t)).\ndamage(?t) :- if(enemy(?t)), do(burnOnOil(?t)).\n\nstunAndSlow(?t) :-\n    if(enemy(?t), not(immune(?t, stun)), not(immune(?t, slow)),\n       skillAppliesTag(?stun, stun), skillHasTag(?slow, slow),\n       ally(?a1), ally(?a2), \\==(?a1, ?a2)),\n    do(prepareToUseSkill(?a1, ?stun, ?t), prepareToUseSkill(?a2, ?slow, ?t),\n       opSynchronize(?a1, ?a2), useSkillOnTarget(?a1, ?stun, ?t), useSkillOnTarget(?a2, ?slow, ?t),\n       opDamage(?t)).\n\nwetAndElectrocute(?t) :-\n    if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))),\n    do(applyTag(wet, ?t), applyTag(electrocute, ?t), opDamage(?t)).\n\n% Burn on oil: bring the enemy onto oil, then set it on fire there.\nburnOnOil(?t) :-\n    if(enemy(?t), not(immune(?t, fire)), oily(?l)),\n    do(bringMobToLocation(?t, ?l), applyTag(fire, ?t), burn(?t, ?l)).\n\n% An enemy on fire while still standing on the oil burns.\nburn(?t, ?l) :- if(hasTag(?t, fire), at(?t, ?l)), do(opDamage(?t)).\n\napplyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do().\napplyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag))), do(applyTagNotPresent(?tag, ?t)).\n\napplyTagNotPresent(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag)),\n    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).\napplyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag)),\n    do(bringMobToLocation(?t, ?l), opApplyTag(?tag, ?t)).\napplyTagNotPresent(?tag, ?t) :- if(hasSkill(?m, ?s), \\==(?m, ?t), not(ally(?m)), skillAppliesTag(?s, ?tag)),\n    do(bringMobsTogether(?t, ?m), useSkillOnTarget(?m, ?s, ?t)).\n\nprepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).\nprepareToUseSkill(?a, ?s, ?t) :- if(ally(?a), not(hasSkill(?a, ?s)), canGetSkillAtLocation(?l, ?s)),\n    do(goToLocation(?a, ?l), getSkill(?a, ?s), goToSameLocation(?a, ?t)).\n\ngetSkill(?a, ?s) :- if(hasSkill(?a, ?old)), do(opSwapSkill(?a, ?old, ?s)).\ngetSkill(?a, ?s) :- if(not(hasSkill(?a, ?old))), do(opGetSkill(?a, ?s)).\n\nuseSkillOnTarget(?a, ?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).\n\nbringMobsTogether(?m1, ?m2) :- if(at(?m1, ?l), at(?m2, ?l)), do().\nbringMobsTogether(?m1, ?m2) :- if(not(static(?m1)), at(?m1, ?l1), at(?m2, ?l2), \\==(?l1, ?l2)), do(bringMobToLocation(?m1, ?l2)).\n\nbringMobToLocation(?t, ?l) :- if(at(?t, ?l)), do().\nbringMobToLocation(?t, ?l) :- if(at(?t, ?from), \\==(?l, ?from), not(static(?t)), ally(?a)),\n    do(goToLocation(?a, ?from), aggroTarget(?t, ?a), goToLocation(?a, ?l), opFollow(?t, ?from, ?l)).\n\naggroTarget(?t, ?a) :- if(aggro(?t, ?a)), do().\naggroTarget(?t, ?a) :- if(aggro(?t, ?old), \\==(?old, ?a)), do(opRemoveAggro(?t, ?old), opAggro(?t, ?a)).\naggroTarget(?t, ?a) :- if(not(aggro(?t, ?any))), do(opAggro(?t, ?a)).\n\ngoToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).\ngoToLocation(?a, ?l) :- if(at(?a, ?l)), do().\ngoToLocation(?a, ?l) :- if(at(?a, ?from), \\==(?l, ?from)), do(opMoveTo(?a, ?from, ?l)).\n\nopMoveTo(?a, ?from, ?to) :- del(at(?a, ?from)), add(at(?a, ?to)).\nopFollow(?t, ?from, ?to) :- del(at(?t, ?from)), add(at(?t, ?to)).\nopAggro(?t, ?a) :- del(), add(aggro(?t, ?a)).\nopRemoveAggro(?t, ?a) :- del(aggro(?t, ?a)), add().\nopSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).\nopGetSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).\nopApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).\nopSynchronize(?a1, ?a2) :- del(), add().\nopDamage(?t) :- del(), add(damaged(?t)).\n"
+}

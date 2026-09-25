@@ -1,0 +1,1983 @@
+{
+ "core_primitives": {
+  "score": 1,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 45,
+    "severity": "high",
+    "issue": "part3.htn/part4.htn: the vocabulary is an invented ontology, and it is the rubric's own list of slop terms: holder, primer, guarded, exposed, open, vulnerable, blast/3, reacts/3, strike/2, mark/2, signature/2, and 'vantage' (takeVantage). Game words are renamed too: role(?e, enemy) or canAct instead of enemy/ally, connected instead of linked, and regionHas and skillElement stand in for terrain, hasTag and skillAppliesTag.",
+    "fix": "Use the game's words: ally(?a), enemy(?t), at, linked, hasSkill, skillAppliesTag(?s, ?tag), hasTag, immune, terrain. Delete holder, primer, guarded, exposed, open, vulnerable and signature. A skill is picked by the tag it applies."
+   },
+   {
+    "rule": "R1",
+    "line": 78,
+    "severity": "high",
+    "issue": "part3.htn castElementAs, blastEntities, settleTerrain and sufferTerrain make up an effect engine. The planner simulates reactions (a feature rewrites into a new feature, the blast applies statuses, the terrain settles on whoever stands there) through allOf passes and opStatus. Nothing here states what makes a strategy possible.",
+    "fix": "Delete the chemistry simulator. Write each combo as a strategy whose if() names the tags it needs, e.g. if(enemy(?t), not(immune(?t, wet)), skillAppliesTag(?s1, wet), skillAppliesTag(?s2, electrocute), ally(?a1), ally(?a2), \\==(?a1, ?a2)), with do(applyTag(wet, ?t), applyTag(electrocute, ?t))."
+   },
+   {
+    "rule": "Correctness",
+    "line": 54,
+    "severity": "high",
+    "issue": "ruleset.htn uses first(and(...)) here and at line 61. The same pattern is in part2.htn at lines 41, 48, 56 and 64, and in part3.htn at lines 47, 80, 114 and 122. `and` is not a built-in, so an undefined name is silently false. The two-hop move, takeVantage's move, lure, push, taunt, holder, castElementAs, strikeElement and markElement therefore never find a binding.",
+    "fix": "first() already takes a conjunction. Write first(hasSkill(?a, ?s), skillAppliesTag(?s, ?tag)) without the and()."
+   },
+   {
+    "rule": "Correctness",
+    "line": 46,
+    "severity": "high",
+    "issue": "ruleset.htn navigate is a 1- and 2-hop ladder written with else. A target 3 regions away has no plan. takeVantage adds a third hand-rolled search over region/lineOfSight on top of it.",
+    "fix": "Use recursion with pathNext over linked/2: navigate(?a, ?to) :- else, if(at(?a, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?a, ?here, ?next), navigate(?a, ?to)). Plan at room level and let the engine handle line of sight."
+   },
+   {
+    "rule": "R1",
+    "line": 31,
+    "severity": "high",
+    "issue": "part4.htn: cooperation is threaded through a `?not` extra arity with a `none` sentinel (blastDeadAt/2, strikeDead/2, castElement/3, strikeElement/3). The distinct-actors requirement is buried in helpers instead of being stated in the strategy's if().",
+    "fix": "Bind both actors in the strategy's if() with ally(?a1), ally(?a2), \\==(?a1, ?a2), then pass them to generic verbs like prepareToUseSkill(?a1, ?s, ?t) and useSkillOnTarget(?a1, ?s, ?t). Delete every ?not overload."
+   },
+   {
+    "rule": "R7",
+    "line": 39,
+    "severity": "medium",
+    "issue": "part3.htn: charges, signature, unlimited, free, canPay and payFor are resource bookkeeping, a level below what the game needs decisions at. Each cast verb repeats the same hasSkill/skillElement/canPay triple.",
+    "fix": "Remove the cost accounting. A skill is available if ally(?a) and hasSkill(?a, ?s). If learning a skill matters, give prepareToUseSkill two cases: already has it, or go learn it."
+   },
+   {
+    "rule": "R2",
+    "line": 38,
+    "severity": "medium",
+    "issue": "part2.htn lure, push and taunt each rebuild the actor search, takeVantage, payFor and try(sufferTerrain) inline. The lure method with else releases an anchored ally, which ties holdPosition's shield state into movement. opLure and opPush are the same operator.",
+    "fix": "Make one verb, bringMobToLocation(?t, ?l), with one method per way to move a mob, each gated by a skill tag (pull, push, dash) and not(immune(?t, ?tag)). Drop anchoring from this component."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "Every file opens with an essay-length header: design rationale, GDD citations, links to .claude/rules, and schema lists of the invented predicates. Several method comments run to 3 or 4 lines and name level content (Warden, Magnetize, flare), which also breaks R8.",
+    "fix": "Keep a one-line header per file and one short line per method, e.g. '% Case 2: no ally has the skill - learn it first.' Remove the named characters and skills."
+   }
+  ],
+  "summary": "This is an effect engine with an invented ontology: a chemistry simulator, role-exclusion sentinels, charge bookkeeping and a 2-hop navigation ladder, with no strategy that states its feasibility in if(). The undefined `and` inside first() also silently disables most of its methods.",
+  "cost_usd": 0.32440420000000003
+ },
+ "fsm_wraith": {
+  "score": 1,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 102,
+    "severity": "high",
+    "issue": "The Wraith is modelled as an effect engine with made-up terms: behavior/4, effect/3 with remove()/grant()/spill(), reach/2, suspends/2, heavy/1, weakness/4, zoneReaction, receptive. The planner has to simulate the physics to find out what works. This is the ontology of the deleted core/abilities tree, which the owner rated slop.",
+    "fix": "Write the Wraith's weaknesses and reactions as plain game facts: skillAppliesTag(?s, blind), immune(wraith, forcedMove), hasTag(wraith, stealthed). Then write one method per winning strategy whose if() states those facts directly."
+   },
+   {
+    "rule": "R1",
+    "line": 132,
+    "severity": "high",
+    "issue": "The win methods have empty or near-empty if()s. What makes each strategy possible (who has a flash or taunt, who can reveal, who can drown or drop the Wraith, two distinct allies) is hidden inside spend/reveal/iceOver/neutralize. You can't read an if() and say when a strategy works.",
+    "fix": "Write one strategy per method, like flashAndDrop(?t) :- if(enemy(?t), skillAppliesTag(?s1, blind), skillAppliesTag(?s2, forcedMove), ally(?a1), ally(?a2), \\==(?a1, ?a2)), do(applyTag(blind, ?t), applyTag(forcedMove, ?t)). Then planToDefeat(?t) lists those strategies as its menu."
+   },
+   {
+    "rule": "R2",
+    "line": 140,
+    "severity": "high",
+    "issue": "iceOver, spend, reveal, stepOut, stepAll, confirmTag and confirmOff are one-off helpers, and each is used by a single win line. These are the makeTrap/coverAt/finishTrap pattern. None of them is a reusable verb whose methods are the ways to reach a state.",
+    "fix": "Replace them with the generic verbs applyTag(?tag, ?t) and prepareToUseSkill/useSkillOnTarget. Give applyTag one method per way (a skill, a location such as the well, a terrain zone), as in gh_tag_application."
+   },
+   {
+    "rule": "Correctness",
+    "line": 173,
+    "severity": "high",
+    "issue": "`first(and(canAct(?a), at(?a, ?r)))`: `and` is not a built-in and not defined, so it is silently false. The second stepOut method never applies, and the team can never leave the crypt before the soulfire.",
+    "fix": "Write `first(canAct(?a), at(?a, ?r))`: first() already takes a conjunction. Better, make leaving the danger area a navigate step that the strategy's do() asks for."
+   },
+   {
+    "rule": "R4",
+    "line": 171,
+    "severity": "high",
+    "issue": "`stepOut(?e) :- if(), do().` is a maybe-walk: every plan branches into staying and leaving. aimFor (lines 165-167) searches every way to aim, and spend/reveal search every skill and tag through behavior/effect. The planner is searching a physics simulator instead of carrying out plans the author chose.",
+    "fix": "Delete the do-nothing alternative and the aim search. Each strategy decides where its actors stand and what they aim at, and states that in its if() and do()."
+   },
+   {
+    "rule": "R8",
+    "line": 131,
+    "severity": "medium",
+    "issue": "The level file contains methods (win, iceOver, spend, reveal, aimFor, stepOut) and names specific skills in its design (blindingFlash, tidalWave, hook). A level should be facts plus a goal. The strategies belong in reusable components that pick skills by their properties.",
+    "fix": "Move the strategies into components/strategies with no level names in them, leave only facts and `goals(planToDefeat(wraith)).` in the level, and use skill properties (skillAppliesTag) instead of skill names."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "A 58-line essay header walks through the state machine, the methods and the traps in prose. The prose restates what the code should say plainly.",
+    "fix": "Cut it to a one-line header saying what the file is, plus one short comment per method."
+   },
+   {
+    "rule": "R7",
+    "line": 97,
+    "severity": "low",
+    "issue": "rooted + immune(forcedMove) + suspends(exhausted, forcedMove), and rank(boss) + mana: a rule system stacked on the tags. The planner has to derive whether it can move the Wraith at all.",
+    "fix": "Use tags alone. The exhausted strategy's if() needs hasTag(?t, exhausted), and a method sets exhausted through applyTag. There is no suspends/2 layer."
+   }
+  ],
+  "summary": "An effect-engine level in the style of the deleted core tree: a made-up behavior/effect/spill vocabulary, feasibility hidden in one-off helpers, maybe-walks and an aim search. It also has a silently-false `and(...)` that disables leaving the crypt. It needs to be rewritten as tag facts plus a menu of strategies whose if() states feasibility.",
+  "cost_usd": 0.2976992
+ },
+ "core_upper": {
+  "score": 1,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 15,
+    "severity": "high",
+    "issue": "theSlipstream's do() is an imperative script of one-off helpers (makeTrap, coverAt, bringTo, gatherIntoTrap, finishTrap). The feasibility is hidden inside trapSite/primer rather than stated in if(): who snares, who finishes, and what the enemy is not immune to. This is the rubric's own slop example.",
+    "fix": "Put the enemy, not(immune(?e, snare)), skillAppliesTag(?s, snare), the finisher skill and distinct allies (\\==(?a1, ?a2)) in if(). Then do(applyTag(snare, ?e), applyTag(<finishing tag>, ?e))."
+   },
+   {
+    "rule": "R3",
+    "line": 13,
+    "severity": "high",
+    "issue": "The ruleset uses an invented ontology: role/2, status/2, regionHas, blast/3, reacts/3, primer, signature/2, expose, trapSite, strikeDead, blastDeadAt. The primitives add exposed/guarded/open/holder/vantage. Each term is another thing the reader and the planner must learn.",
+    "fix": "Use the game's words instead: enemy/1, ally/1, at, linked, hasSkill, skillAppliesTag, immune, hasTag, terrain. Replace blast/reacts/primer with skillAppliesTag and tag facts."
+   },
+   {
+    "rule": "R2",
+    "line": 24,
+    "severity": "high",
+    "issue": "makeTrap, coverAt, gatherIntoTrap, finishTrap and trapSite are each used by exactly one strategy. gatherOthers (ruleset.htn:18) duplicates gatherIntoTrap. There is no reusable verb whose methods are the ways to get a tag onto a target.",
+    "fix": "Write one applyTag(?tag, ?t) verb with one method per way: an ally skill, a location or terrain, or another mob's skill. Have both strategies call it, and delete the per-strategy helpers."
+   },
+   {
+    "rule": "correctness",
+    "line": 31,
+    "severity": "high",
+    "issue": "and(...) is not a built-in, so it is silently false. connected/2 is not the game's linked/2. The first coverAt method can never fire, and the else no-op at line 33 always runs, so the shield commitment described in the header never happens.",
+    "fix": "Drop coverAt. If cover matters, state it in if() as ally(?a), hasSkill(?a, ?s), skillAppliesTag(?s, shielded), linked(?edge, ?r), and call a generic verb."
+   },
+   {
+    "rule": "R1",
+    "line": 42,
+    "severity": "medium",
+    "issue": "Both finishTrap methods require status(?e, snared), but nothing in theSlipstream's if() or do() makes the enemy snared. Whether the plan works depends on a hidden side effect of bringTo/terrain in the primitives. The two alternatives also share an identical if(), so neither states what makes it possible.",
+    "fix": "Make snare an explicit state in do() (applyTag(snare, ?e)). Give each finish method its own feasibility, e.g. skillAppliesTag(?s, ?killTag) with not(immune(?e, ?killTag))."
+   },
+   {
+    "rule": "R8",
+    "line": 20,
+    "severity": "medium",
+    "issue": "The component encodes level mechanics: oil as a primer, sludge that persists, a shield-bearer, 'none' as a sentinel primer. It also picks actors by signature(?a, shield) (line 31), which selects a skill by name rather than by its properties.",
+    "fix": "Select skills by property (skillAppliesTag(?s, ?tag)) and actors by hasSkill. Move the terrain facts and oil/sludge specifics into the level file."
+   },
+   {
+    "rule": "correctness",
+    "line": 15,
+    "severity": "medium",
+    "issue": "try(gatherOthers(...)) wraps an allOf, which fails if any single enemy can't be brought, so the whole gather is silently skipped. Also, once try succeeds it commits, so a gather that uses up a mover can make castElement or finishTrap fail without backtracking.",
+    "fix": "Drop the gather. If multi-target matters, use anyOf over enemies that can be brought, and state the needed movers in if() so the commit can't starve later steps."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "low",
+    "issue": "The headers are design essays (roles, commitments, persistence across fights, 'one match, one fire') rather than a one-line file header plus one short line per method.",
+    "fix": "Use one header line ('the_burn: kill an enemy with a fire reaction on its terrain') and one line per method case."
+   }
+  ],
+  "summary": "This is the deleted core the_burn/the_slipstream shape: imperative chains of one-off helpers over an invented ontology (primer, reacts, blast, expose, signature), with feasibility hidden in helpers instead of if(). coverAt's and() is silently false, so the shield step never runs. The only sound part is defeatGroup as a menu (R5).",
+  "cost_usd": 0.3087012
+ },
+ "combatlevel1_greasetrap": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R5",
+    "line": 227,
+    "severity": "high",
+    "issue": "The goal `defeatEnemy` marks theSlipstream with `else`, so it is a fallback rather than an item on the menu. FindAllPlans never returns a Slipstream plan while theBurn works.",
+    "fix": "Drop `else`. Make both lines plain alternatives: `defeatEnemy(?e) :- if(enemy(?e), health(?e, healthy)), do(theBurn(?e)).` and `defeatEnemy(?e) :- if(enemy(?e), health(?e, healthy)), do(theSlipstream(?e)).`"
+   },
+   {
+    "rule": "correctness",
+    "line": 257,
+    "severity": "high",
+    "issue": "theSlipstream freezes the room before the enemy arrives. triggerSnareEnemies (line 184) only snares enemies already in the room, and the `try` quietly skips it when there are none. The plan ends with the enemy standing on sludge, not snared, and it is still counted as a way to defeat the enemy.",
+    "fix": "Make being snared a state the strategy must reach: `do(bringEnemyTo(?lurer, ?e, ?oilRoom), applyTag(?freezer, frozen, ?oilRoom))`. Or give the frozen terrain a rule that snares whoever enters. Also, the Slipstream only disables the enemy, so it belongs under a disable goal, not `defeatEnemy`."
+   },
+   {
+    "rule": "R1",
+    "line": 234,
+    "severity": "medium",
+    "issue": "The `if()` picks the lurer because it can apply `magnetized`, but `do()` never uses that skill. bringEnemyTo is a walk-over-and-take-aggro lure that any ally could perform. The `if()` therefore states a need the plan does not have.",
+    "fix": "Either have bringEnemyTo use the pull skill (a method `bringEnemyTo` with `if(canApplyTag(?a, magnetized))` that casts it), or change the condition to `ally(?lurer)` and let bringEnemyTo's methods choose between the aggro lure and the magnetize pull."
+   },
+   {
+    "rule": "R6",
+    "line": 155,
+    "severity": "medium",
+    "issue": "applyTagEffect/triggerBurnOil/triggerBurnEnemies/triggerFreezeOil/triggerSnareEnemies form a small effect engine: reactions are chained through `try`, and the bespoke operators opFreezeOilIntoSludge and opInstakill are called from inside the tag verb. The reactions are hidden from the strategy, and each `try` can silently do nothing.",
+    "fix": "Keep the physics as data at the bottom, e.g. `reaction(burning, oil, none)` and `reaction(frozen, oil, frozenSludge)`. Use a single opApplyTag operator. Let the strategy's `do()` name the state it wants, e.g. `applyTag(?igniter, burning, ?oilRoom)`, then `defeated(?e)`, and have the methods test the reaction facts in `if()`."
+   },
+   {
+    "rule": "correctness",
+    "line": 108,
+    "severity": "medium",
+    "issue": "Nothing guards the `add` calls in opApplyCondition (lines 108-109) or opGetAggro (lines 132-133). A second burn or freeze of the same room, snaring an enemy that is already snared, or luring twice raises an error that aborts the whole search. Aggro is also never released after the lure.",
+    "fix": "Guard with `not(condition(?loc, ?tag))` and `not(hasAggro(?a, ?e))` in the calling method's `if()`. Call opReleaseAggro at the end of bringEnemyTo."
+   },
+   {
+    "rule": "R7",
+    "line": 122,
+    "severity": "low",
+    "issue": "This is dead or unused vocabulary: opWound, opKill, the healthy/bloodied/dead health ladder, and the facts `size/2`, `location/1`, `room/1`, `corridor/1`, `agent/1` and `opRemoveCondition`. It is stat bookkeeping and ontology that no method reads.",
+    "fix": "Delete the unused operators and facts. Use a single tag such as `hasTag(?e, dead)` in place of the three-step health ladder."
+   },
+   {
+    "rule": "R9",
+    "line": 5,
+    "severity": "low",
+    "issue": "The header does not match the file. It says 8 Swarmers (there are 3), says the Warden 'pulls' with Magnetize (the code walks over and takes aggro), and names specific characters that the generic code never names.",
+    "fix": "Replace it with one line that says what the file is, and one short line per strategy that names its tags (lure onto oil, then burning; frozen oil, then lure in)."
+   },
+   {
+    "rule": "R2",
+    "line": 238,
+    "severity": "low",
+    "issue": "`at(?enemy, ?enemyLoc)` in both strategies binds a variable that `do()` never uses (bringEnemyTo looks it up again). Also, applyTag needs the caster to already be standing at the location, so every strategy has to add its own navigateTo before calling it.",
+    "fix": "Remove the unused `at/2` conditions. Give applyTag a second method, 'not there yet: navigateTo then apply', so strategies only list `applyTag(?who, ?tag, ?loc)`."
+   }
+  ],
+  "summary": "The architecture is right: skills are chosen by the tags they apply, the actors are distinct, the verbs are mostly generic, and the file is level facts plus a goal. But the goal uses `else` where it should offer a menu, the Slipstream never actually snares the enemy, the magnetize condition is decorative, and the tag effects are a small try-chained effect engine.",
+  "cost_usd": 0.29880059999999997
+ },
+ "ab_effects": {
+  "score": 1,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 347,
+    "severity": "high",
+    "issue": "This is an effect engine. The ruleset contains no strategies. `applyAbility`, `applyEffect` and `effectOn` interpret `effect(?ab, recipient, atom)` data one atom at a time, so the planner has to simulate physics to find a combo. None of the `if()` clauses say when anything works.",
+    "fix": "Delete the interpreter. Write goal methods such as `defeat(?t) :- if(enemy(?t), skillAppliesTag(?s, wet), ...), do(applyTag(wet, ?t), applyTag(shock, ?t))`, with one method per winning strategy and operators that apply the tag directly."
+   },
+   {
+    "rule": "R3",
+    "line": 11,
+    "severity": "high",
+    "issue": "The vocabulary is invented: grant/remove/purge atoms, `moment`, the recipients `target|self|area|foes|around`, `locus`, `receptive`, `anchoredAgainst`, `leapable`, `dashEdge`/`blinkEdge`, `heldAgainst`, `spotted`, `trudge`, `regionAtom`, `onGrant`, `behavior` aims `source/self/here/there`, `zoneReaction`, `mustSurvive`. It also mixes `tag/2` and `has/2` for the same idea.",
+    "fix": "Keep to the game's words: `ally`, `enemy`, `at`, `linked`, `hasSkill`, `skillAppliesTag`, `immune`, `hasTag`, `terrain`. Add a predicate only when those can't express it."
+   },
+   {
+    "rule": "R4",
+    "line": 628,
+    "severity": "high",
+    "issue": "`shove` has an unconditional `if(), do()` method, and the comment says every knockback aim is a plan. Push, pull, hook and pullIn are all searched as a physics simulator. The planner explores aims, and the author does not choose the plans.",
+    "fix": "Remove the simulated movement atoms. Where a strategy needs an enemy in a pit, write `bringMobToLocation(?t, ?l)` with one method per way to do it, chosen by `locationCanApplyTag(?l, ?tag)` in the strategy's `if()`."
+   },
+   {
+    "rule": "correctness",
+    "line": 472,
+    "severity": "high",
+    "issue": "`loseTrack` guards only `follows(?npc, ?src)`, but `opLoseTrack` also deletes `tag(?npc, taunted)`. The second method calls `opRemove(?src, ?npc, taunted)` with no guard at all. Because `effectOn(..., chase, ...)` on line 402 reaches this code without checking for a taunt, it can `del` a fact that doesn't exist, and that error aborts the whole search.",
+    "fix": "Guard both methods with `tag(?npc, taunted)`, and add a third method `if(not(tag(?npc, taunted))), do()`. Better: remove the chase simulation."
+   },
+   {
+    "rule": "R7",
+    "line": 304,
+    "severity": "medium",
+    "issue": "A hand-written iterative-deepening route search (`hop/1`, `walkable/5`, `nextStep`), plus `linked/3`, `edge/3`, bridged gaps, plates and knockbacks. This plans at a level the engine should handle, and it reimplements `pathNext`.",
+    "fix": "Use `navigate` over `linked/2` with the built-in `pathNext` and plan at the room level. Leave pathing, knockback landing and plate timing to the game engine."
+   },
+   {
+    "rule": "R6",
+    "line": 116,
+    "severity": "medium",
+    "issue": "`opReact`, `opProvoked`, `opExploit`, `opFall` and `opKnock` are `del(), add()` trace markers for the simulator, not game actions. Real state changes go through `opGrant`, `opRemove`, `opNavigate` and `telegraph`, which this file never defines.",
+    "fix": "Give each operator one game action and its real effect, e.g. `opUseSkill(?a, ?s, ?t) :- del(), add(hasTag(?t, ?tag))`. Drop the marker operators."
+   },
+   {
+    "rule": "R2",
+    "line": 380,
+    "severity": "medium",
+    "issue": "Each atom's method always succeeds by design ('one refused atom never cancels the rest'). Tens of no-op branches such as `suffer`, `dashTo`, `blink`, `swapPlaces`, `drag` and `openIfHeld` make every ability 'succeed' whether or not it did anything. Each helper exists for one atom, so none of them is a reusable verb.",
+    "fix": "Make a verb fail when its goal state can't be reached. Replace the per-atom helpers with a few verbs (`applyTag`, `prepareToUseSkill`, `bringMobToLocation`), each with one method per way to achieve it."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The header is a 112-line essay: a design spec, a mode semantics section (react/raw/bare), and design history about `else`. Inline comments run to three or four lines.",
+    "fix": "Cut it to one header line saying what the file is, plus one short line per method or case."
+   }
+  ],
+  "summary": "A physics and effect interpreter with its own invented ontology, not an HTN ruleset. It has no strategies and no feasibility in any `if()`, and it searches simulated knockbacks, chases and zones. It is textbook slop by R1, R3 and R4.",
+  "cost_usd": 0.4566804
+ },
+ "challenges": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R2",
+    "line": 24,
+    "severity": "high",
+    "issue": "part4.htn navigateTo is a 2-hop ladder: 'direct' then 'via one intermediate' under else. Any route of 3 or more rooms gives no plan. clearZone, escortTo, pushToTarget and reachThroughGate all depend on it, so every challenge fails on a real map. The methods count hops; they are not different ways to move.",
+    "fix": "Use the recursive form from language.md \u00a76: a base case if(at(?a, ?to)), then else, if(at(?a, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?a, ?here, ?next), navigateTo(?a, ?to)) over linked/2. Blocked rooms should be missing from linked, not checked as each hop is unrolled."
+   },
+   {
+    "rule": "R2",
+    "line": 24,
+    "severity": "high",
+    "issue": "part3.htn escortTo repeats the hop ladder (single-hop, then two-hop through ?via), and so does part5.htn pushToTarget (one push, then two pushes). These are copies of navigation that stop at 2 steps, not ways to escort or push.",
+    "fix": "Make each one recursive on pathNext: escortTo(?npc, ?dest) calls navigateTo(?a, npc's room), opEscort one hop, then escortTo again. pushToTarget does one opPush per hop and recurses. Filter safe rooms with a rule on the next hop."
+   },
+   {
+    "rule": "R3",
+    "line": 13,
+    "severity": "high",
+    "issue": "The six files use seven overlapping words for position and obstruction: at, npcAt, objectAt, blocked, blocker, gateBlocking and safeFor, plus connected instead of linked. Because of this the parts don't compose. navigateTo checks blocked(?dest), not gateBlocking, so a gated room is walkable, and reachThroughGate is never needed.",
+    "fix": "Use one at(?thing, ?room) for agents, NPCs and objects, and linked/2 for adjacency. A closed gate removes a linked fact and opening it adds the fact back, so navigation respects gates without special cases."
+   },
+   {
+    "rule": "R1",
+    "line": 13,
+    "severity": "high",
+    "issue": "part2.htn: opApplyEffect makes an effect appear with no actor and no skill, and ruleset.htn: opEliminate removes any blocker just by arriving. Neither if() says what makes the action possible (who does it, which skill produces which tag, whether the target is immune). This is an effect engine, not a strategy.",
+    "fix": "Guard the verb with its feasibility, for example applyTag(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag), not(immune(?t, ?tag))), do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)). Removing a blocker should call the verbs that achieve its weakness, not an opEliminate."
+   },
+   {
+    "rule": "R8",
+    "line": 23,
+    "severity": "medium",
+    "issue": "The constant 'agent' is hard-coded in removeBlocker, escortTo and pushToTarget. Reusable components shouldn't name the character; companions are interchangeable and chosen by the plan.",
+    "fix": "Bind the actor in if() with ally(?a) (and ally(?a2), \\==(?a, ?a2) where two are needed), then pass ?a to navigateTo and the op."
+   },
+   {
+    "rule": "R2",
+    "line": 29,
+    "severity": "medium",
+    "issue": "part2.htn executeCombo unrolls a 3-step combo and then a 2-step combo under else. Both if()s require needsEffect for every step, so the 'already present' case of applyEffect can never be reached, and a combo whose first step is already on the target fails. not(comboStep(?e3, 3)) is global, not per target. needsEffect/hasEffect duplicate hasTag.",
+    "fix": "Write the sequence as its needs, e.g. do(applyTag(wet, ?t), applyTag(electrocute, ?t)), or recurse over the steps in order. Use hasTag, and have applyTag's base case be if(hasTag(?t, ?tag))."
+   },
+   {
+    "rule": "R6",
+    "line": 15,
+    "severity": "medium",
+    "issue": "part5.htn opPush: the comment says the agent moves to objLoc, but the operator only moves the object, so the agent's position is wrong for the next step. The if() takes any neighbour as ?pushFrom rather than the opposite side, and never checks that the target is free.",
+    "fix": "Change the effect to del(at(?a, ?from)), del(at(?obj, ?objLoc)), add(at(?a, ?objLoc)), add(at(?obj, ?target)). State 'behind' as a fact such as opposite(?from, ?objLoc, ?target) in if(), along with not(at(?other, ?target))."
+   },
+   {
+    "rule": "R9",
+    "line": 5,
+    "severity": "low",
+    "issue": "Every file has a signature(...) block for the linter plus header jargon ('Pressure-class', 'Insight-class'). This is noise in the domain. In part6.htn the at(?agent, ?cur) bindings bind ?cur and never use it.",
+    "fix": "Drop the signature facts and the class labels; keep one header line saying what the file is. Delete the unused at(?agent, ?cur) conditions."
+   }
+  ],
+  "summary": "Each file is one small reusable verb, which is the right direction. But the methods count hops instead of being different ways to do the task, the vocabulary splits one idea into seven predicates so the parts don't compose, and the ops produce effects with no stated feasibility. Workable toy challenges with a bad navigation core.",
+  "cost_usd": 0.314511
+ },
+ "gamehack3": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 64,
+    "severity": "high",
+    "issue": "stunAndBurn calls applyIce and applyFireball, which are never defined, with ?a1 and ?a2 unbound. The strategy can never produce a plan, and it names skills rather than the tags it needs.",
+    "fix": "Write it like wetAndElectrocute: `if(enemy(?t), not(immune(?t, stun)), not(immune(?t, burn)))`, `do(applyEffect(stun, ?t), applyEffect(burn, ?t), opInflictDamage(?t))`."
+   },
+   {
+    "rule": "R1",
+    "line": 67,
+    "severity": "high",
+    "issue": "The strategies' if() checks only enemy(?t) and never says what makes them possible. wetAndElectrocute plans against electricityElemental even though that enemy has immune(electricityElemental, electrocute).",
+    "fix": "Add the feasibility conditions to if(): `not(immune(?t, wet)), not(immune(?t, electrocute))`, plus some source for each tag (a skill that applies it, or a location that has it)."
+   },
+   {
+    "rule": "R8",
+    "line": 78,
+    "severity": "high",
+    "issue": "castSkill dispatches on skill names (wet, electrocute) to one operator per skill (opCastWet, opCastElectrocute). Each new skill needs new rules, and skills are chosen by name rather than by their properties.",
+    "fix": "Add a property fact `skillAppliesTag(?s, ?tag)` and select with `if(hasSkill(?a, ?s), skillAppliesTag(?s, ?e))`. Use one generic operator, `opUseSkillOnTarget(?a, ?s, ?t) :- del(), add(hasTag(?t, ?tag))`."
+   },
+   {
+    "rule": "R6",
+    "line": 84,
+    "severity": "high",
+    "issue": "The cast operators (lines 84-87) and useLocationToApplyEffect (line 123) have no effect, so the tag never lands on the target. opInflictDamage then succeeds whether or not wet or electrocute was applied.",
+    "fix": "Make each way of applying a tag end in an operator that adds `hasTag(?t, ?tag)`, guarded with `not(hasTag(?t, ?tag))`. Let opInflictDamage's caller check `hasTag(?t, wet), hasTag(?t, electrocute)` in if()."
+   },
+   {
+    "rule": "R7",
+    "line": 90,
+    "severity": "medium",
+    "issue": "castSpellToTarget, doCastSpellToTarget and doSetMana are dead code that nothing calls. They use mana arithmetic, their names lack the op prefix, and doCastSpellToTarget has two overlapping heads (lines 105-106).",
+    "fix": "Delete lines 46-50 and 90-109. If a cost matters, model it as a tag such as `exhausted(?a)`, not as mana bookkeeping."
+   },
+   {
+    "rule": "Correctness",
+    "line": 131,
+    "severity": "medium",
+    "issue": "The second goToSameLocation method does not exclude the case where both are already in the same place. Co-located actors therefore get two plans, one of which is a self-move opMoveTo(?a, X, X). opStayInLocation and opTargetAlreadyAggroed are no-op operators that pollute the plan.",
+    "fix": "Guard the move with `\\==(?aOldLocation, ?tOldLocation)`. Make the base cases `do()` instead of calling no-op operators."
+   },
+   {
+    "rule": "R8",
+    "line": 2,
+    "severity": "medium",
+    "issue": "The level facts (actors, positions, skills, mana, immunities) share one file with the reusable verbs. The file also has commented-out actors and facts, and gob is declared as an agent.",
+    "fix": "Move the facts and the goal into a level file and keep only the strategies, verbs and operators here. Delete the commented-out facts."
+   },
+   {
+    "rule": "R9",
+    "line": 104,
+    "severity": "low",
+    "issue": "Commented-out code (line 104, line 163) and an empty section header (lines 166-173) are left in. No method has a one-line comment saying what case it handles.",
+    "fix": "Delete the leftovers. Add one line per method, e.g. `% Case 2: bring the target to a location that has the tag.`"
+   }
+  ],
+  "summary": "The shape is right: planToDamage is a menu of strategies, applyEffect has one method per way to apply a tag, and bringMobToLocation uses aggro. But stunAndBurn cannot run, no strategy states its feasibility (immunity is ignored), skills are dispatched by name, and the cast operators have no effect, so tags are never tracked. Dead mana code adds clutter.",
+  "cost_usd": 0.2778054
+ },
+ "gamehack": {
+  "score": 2,
+  "findings": [
+   {
+    "rule": "R2",
+    "line": 116,
+    "severity": "high",
+    "issue": "doWet/doElectrocute (and the copies doWet2/doElectrocute2 at 140-150) repeat the same two methods once per tag. Each strategy gets its own verb instead of sharing one verb whose methods are the ways to get a tag.",
+    "fix": "Replace them with one verb, applyTag(?tag, ?t). Give it one method per way: an ally casts a skill with skillAppliesTag(?s, ?tag), or the target is brought to a location that applies ?tag. Then wetAndElectrocute(?t) :- if(enemy(?t)), do(applyTag(wet, ?t), applyTag(electrocute, ?t))."
+   },
+   {
+    "rule": "R8",
+    "line": 61,
+    "severity": "high",
+    "issue": "stunAndBurn picks skills by name (hasSkill(?a, ice), hasSkill(?a, fireball)), and hasSkill(companionE, electrocute) makes a skill's name the same as its tag. It never checks ally(?a) or immune(?t, stun/burn).",
+    "fix": "Name skills separately from the tags they apply: skillAppliesTag(frostBolt, stun), skillAppliesTag(fireball, burn). The if() becomes: enemy(?t), not(immune(?t, stun)), not(immune(?t, burn)), skillAppliesTag(?s1, stun), skillAppliesTag(?s2, burn), ally(?a1), ally(?a2), \\==(?a1, ?a2)."
+   },
+   {
+    "rule": "R2",
+    "line": 70,
+    "severity": "high",
+    "issue": "The file carries dead experiments: wetAndElectrocute2 (defined twice, at 70 and 129), 3 and 4, test_wetAndElectrocute, and ifCanApply/canApply/canApply2/canApply3/ifCanSkillApplyEffect/ifCanLocationApplyEffect. castice, castWet, castSpellToTarget and skillApplyEffect are never called.",
+    "fix": "Delete every variant. Keep one planToDamage menu, one method per strategy, and one applyTag verb."
+   },
+   {
+    "rule": "correctness",
+    "line": 102,
+    "severity": "high",
+    "issue": "doEffectTE is a Prolog rule with no if()/do(), not a method. When do() calls it as a task, there is no method or operator, so wetAndElectrocute3/4 silently never plan. doEffectLocation also binds ?a to any ally, with no check.",
+    "fix": "Delete doEffectTE and doEffectLocation. The applyTag verb's methods replace them."
+   },
+   {
+    "rule": "correctness",
+    "line": 210,
+    "severity": "high",
+    "issue": "The first takeAggro method runs doAggro without checking for an existing aggro fact, so a duplicate add aborts the whole search. The second method only removes the old aggro and never adds the new one. It is also called as takeAggro(?t, ?a), so the argument order is unclear.",
+    "fix": "Guarded cases: takeAggro(?m, ?a) :- if(aggro(?m, ?a)), do(). takeAggro(?m, ?a) :- if(aggro(?m, ?o), \\==(?o, ?a)), do(opAggro(?m, ?o, ?a)). takeAggro(?m, ?a) :- if(not(aggro(?m, ?x))), do(opAggro(?m, ?a)). In the last two, opAggro deletes any old aggro fact and adds aggro(?m, ?a)."
+   },
+   {
+    "rule": "R6",
+    "line": 194,
+    "severity": "medium",
+    "issue": "applyice, applyFireball, applyWet and applyElectrocute have no effect, so no tag is ever recorded. inflictDamage then assumes the combo happened. Operators also lack the op prefix (moveTo, aggroMoveTo, doSetMana).",
+    "fix": "Use one operator, opUseSkillOnTarget(?a, ?s, ?t) :- del(), add(hasTag(?t, ?tag)). Guard it with not(hasTag(?t, ?tag)) in the caller. Rename moveTo to opMoveTo, and give inflictDamage a guard: if(hasTag(?t, wet), hasTag(?t, electrocute), not(damaged(?t)))."
+   },
+   {
+    "rule": "R7",
+    "line": 167,
+    "severity": "medium",
+    "issue": "Mana bookkeeping (hasMana, manaCost, is/-, doSetMana) is stat arithmetic that no strategy uses.",
+    "fix": "Remove the mana facts and castSpellToTarget. If casting has a precondition, express it as a tag or skill property (e.g. hasSkill plus being in the same room)."
+   },
+   {
+    "rule": "R8",
+    "line": 2,
+    "severity": "medium",
+    "issue": "The level world (agents, rooms, immunities, commented-out companions) is in the same file as the strategies and verbs. The movement methods also teleport the ally across rooms without linked/pathNext.",
+    "fix": "Split the facts into a level file. Keep the domain generic, and move with a navigate(?who, ?to) verb over linked/2 (pathNext), not with a bare moveTo from one room to another."
+   }
+  ],
+  "summary": "The top is the right shape: planToDamage is a menu, and wetAndElectrocute lists the tags it needs. Below that, skills are chosen by name, the per-tag verbs are copy-pasted, dead variants are left in, operators have no effect, and takeAggro is broken.",
+  "cost_usd": 0.32684799999999997
+ },
+ "gamehack4": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 91,
+    "severity": "high",
+    "issue": "The strategies' if() only says enemy(?t). What makes them possible is hidden inside applyTag. immune(electricityElemental, electrocute) (line 45) is never checked, so wetAndElectrocute plans against an electrocute-immune enemy. Nothing makes the two actors distinct either, so cooperation is never required.",
+    "fix": "State the feasibility in if(), as in stunAndSlowSkill: enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute)), skillAppliesTag(?s1, wet), skillAppliesTag(?s2, electrocute), ally(?a1), ally(?a2), \\==(?a1, ?a2). Then do() lists the tags to achieve."
+   },
+   {
+    "rule": "R7",
+    "line": 138,
+    "severity": "high",
+    "issue": "Mana arithmetic (hasMana, manaCost, opSetMana) and effort bookkeeping (allyEffort, moveEffort, increaseEffort, opUpdateEffort, lines 66-75 and 195-211) are stat accounting. This is the TrunkThumper granularity that the rubric says is too fine for this game.",
+    "fix": "Delete mana and effort. useSkillOnTarget checks hasSkill and co-location, then calls opUseSkill. Leave costs to the game engine, or express them as tags (for example, exhausted)."
+   },
+   {
+    "rule": "correctness",
+    "line": 158,
+    "severity": "high",
+    "issue": "opApplyTag adds hasTag(?t, ?tag) with no guard. waterSkill applies both wet and clean, so if the target already has clean, the add is an error that aborts the whole search. opInflictDamage (line 162) is also unguarded if damaged(?t) already holds.",
+    "fix": "Guard the anyOf method with if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag))), and check not(damaged(?t)) in the strategy's if()."
+   },
+   {
+    "rule": "R2",
+    "line": 168,
+    "severity": "high",
+    "issue": "useLocationToApplyTag and useMobToApplyTag (line 184) are empty stubs. Two of the three ways in applyTagNotPresent return 'success' without the tag ever being applied, so those plans lie about the state.",
+    "fix": "Give each an operator that applies the tag: opUseLocationToApplyTag(?l, ?tag, ?t) and opMobSkillAppliesTag(?m, ?s, ?t), each adding hasTag(?t, ?tag) and guarded by not(hasTag(?t, ?tag))."
+   },
+   {
+    "rule": "R3",
+    "line": 86,
+    "severity": "medium",
+    "issue": "stunAndBurn applies ice and fire, so the name contradicts the body. applySkillTags_L_ApplyTag (line 152) is an invented, unreadable name.",
+    "fix": "Either rename it to freezeAndBurn, or make it apply the stun tag. Rename applySkillTags_L_ApplyTag to applySkillTags."
+   },
+   {
+    "rule": "R9",
+    "line": 118,
+    "severity": "medium",
+    "issue": "Dead code: moveAndUseSkillOnTargetSafe and useSkillOnTargetSafe are never called. useSkillOnTargetSafe calls applySpellToTarget, which is undefined. The distance/3 facts (lines 39-43, including distance(inn, inn, 10)) are unused, and there are commented-out companions.",
+    "fix": "Delete the *Safe variants, the distance facts and the commented-out facts. Keep one path, prepareToUseSkill then useSkillOnTarget."
+   },
+   {
+    "rule": "R8",
+    "line": 2,
+    "severity": "medium",
+    "issue": "Level facts (agents, positions, skills, mana) share one file with the reusable verbs (applyTag, bringMobToLocation, aggroTarget).",
+    "fix": "Split the file: the world facts plus goals(planToDamage(...)) go in a level, and applyTag, the movement verbs and the aggro verbs go in components."
+   },
+   {
+    "rule": "R6",
+    "line": 97,
+    "severity": "low",
+    "issue": "opTagAlreadyOnTarget, opStayInLocation and opTargetAlreadyAggroed are no-op operators that only pad the plan with bookkeeping. They are not game actions.",
+    "fix": "Make these base cases do(), with nothing to do, guarded by the positive condition: applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do()."
+   }
+  ],
+  "summary": "The shape is right: a menu of strategies, and an applyTag verb with one method per way. But the strategies' if() hides feasibility and ignores immunity, two of the three ways are empty stubs, and the file carries mana/effort arithmetic, dead *Safe code and an unguarded add that can abort the search.",
+  "cost_usd": 0.30405340000000003
+ },
+ "gamehack2": {
+  "score": 2,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 60,
+    "severity": "high",
+    "issue": "Both strategies' if() says only enemy(?t). Nothing states what makes them possible: no immunity check, no skill or location that produces each tag, no distinct actors. stunAndBurn calls applyIce(?a1, ?t) and applyFireball(?a2, ?t) with ?a1 and ?a2 unbound, and no ally has ice or fireball, so the plan holds variables and no real caster. wetAndElectrocute plans electrocute on electricityElemental, which is immune to it.",
+    "fix": "Put the feasibility in if(): `enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute)), skillAppliesTag(?s, electrocute), ally(?a)`. Then do() should be only the states to reach: `do(applyTag(wet, ?t), applyTag(electrocute, ?t))`."
+   },
+   {
+    "rule": "R2",
+    "line": 69,
+    "severity": "high",
+    "issue": "There is one hand-copied verb per tag (doWet, doElectrocute, doWet2, doElectrocute2, applyEffect, doEffectCast, skillApplyEffect, applySkill, castWet, castice, castSpellToTarget). The location method's 4-step body is pasted five times (lines 72, 79, 144, 169, 175). The right idea is here (a skill way and a location way to get a tag), but it isn't a single reusable verb.",
+    "fix": "Write one `applyTag(?tag, ?t)` with one method per way: `if(ally(?a), skillAppliesTag(?s, ?tag))` then prepareToUseSkill and useSkillOnTarget; and `if(locationCanApplyTag(?l, ?tag))` then bringMobToLocation and useLocationToApplyTag. Delete the per-tag copies."
+   },
+   {
+    "rule": "R3",
+    "line": 36,
+    "severity": "high",
+    "issue": "Skills are named after the tag they produce (hasSkill(companionW, wet)), so the skill and the effect are the same atom. Strategies then pick skills by name (applyIce, applyFireball, applySkill(?a, ?t, wet)), not by their properties.",
+    "fix": "Give skills their own names and properties: `hasSkill(companionW, splash)`, `skillAppliesTag(splash, wet)`. Choose skills in if() only through skillAppliesTag or skillHasTag."
+   },
+   {
+    "rule": "Correctness",
+    "line": 76,
+    "severity": "high",
+    "issue": "doElectrocute's first method is `if()` with an unbound ?a. It always succeeds and emits applyElectrocute(?a, ?t) with no caster, no range and no immunity check, so every enemy gets a bogus electrocute plan.",
+    "fix": "Bind and check in if(): `ally(?a), skillAppliesTag(?s, electrocute), hasSkill(?a, ?s), not(immune(?t, electrocute))`, then go to the target before casting."
+   },
+   {
+    "rule": "Correctness",
+    "line": 236,
+    "severity": "high",
+    "issue": "takeAggro's first method adds aggro(?a, ?t) with no guard. If the enemy already has that aggro, the add is an error that aborts the whole search. The second method only removes the old aggro and never adds the new one. The call at line 73 is takeAggro(?t, ?a), so the argument roles are also muddled.",
+    "fix": "Write two exclusive cases: `if(not(aggro(?e, ?any)))` then opTakeAggro(?e, ?a); and `if(aggro(?e, ?old), \\==(?old, ?a))` then opSwitchAggro(?e, ?old, ?a), which does del(aggro(?e, ?old)) and add(aggro(?e, ?a))."
+   },
+   {
+    "rule": "Correctness",
+    "line": 83,
+    "severity": "high",
+    "issue": "ifCanApply and ifCanLocationApplyEffect use `!`, which is not a built-in here, so they are always false. wetAndElectrocute2, 3 and 4 can never plan. doEffectTE (line 140) is a Prolog rule, not a method, so do(doEffectTE(...)) finds no method and fails silently. static/1 is never defined.",
+    "fix": "Delete the cut variants, the numbered strategy copies and test_wetAndElectrocute. For one binding use first(...) inside if(). Write doEffectTE as `if(...), do(...)` methods, or remove it in favour of applyTag."
+   },
+   {
+    "rule": "R6",
+    "line": 220,
+    "severity": "medium",
+    "issue": "Operators are not named op*, and almost none has an effect. applyWet and applyElectrocute add nothing, so nothing records that the target is wet, and electrocute never depends on wet. There are duplicate operators: doCastSpellToTarget at lines 208-209 gives duplicate plans, and casticeOperator overlaps applyIce. doStayInLocation() is an empty no-op.",
+    "fix": "Have `opUseSkillOnTarget(?a, ?s, ?t)` add `hasTag(?t, ?tag)`. Guard it with `not(hasTag(?t, ?tag))` in the calling method, and make the damage step require hasTag(?t, wet). Give the already-there case of goToSameLocation an empty do()."
+   },
+   {
+    "rule": "R7",
+    "line": 193,
+    "severity": "medium",
+    "issue": "castSpellToTarget does mana arithmetic (hasMana, manaCost, is/>=) that no strategy uses. This is stat bookkeeping below the level the game plans at, and it adds to the dead code (castice, castWet, canApply3, applyEffect). The file also mixes level facts with the domain.",
+    "fix": "Drop the mana, and gate skills with tags or preconditions if needed. Delete the unused helpers. Split the world facts (lines 1-48) into a level file, and keep the reusable verbs free of companionE/companionW specifics."
+   }
+  ],
+  "summary": "Underneath this is the right idea: a menu of strategies, plus a skill way and a location way to get a tag. But the file is a pile of copied per-tag helpers and abandoned numbered variants. Strategies check only enemy(?t), and skills are named after their effects. Several parts can never work or give wrong plans: `!`, unbound casters, the unguarded aggro add, and operators with no effect.",
+  "cost_usd": 0.3142534
+ },
+ "game": {
+  "score": 5,
+  "findings": [
+   {
+    "rule": "R5",
+    "line": 58,
+    "severity": "medium",
+    "issue": "The header says 'using else so that only one thing happens', but the first two doAI methods (lines 62, 64) are plain alternatives. attackKingAttackers and attackKing both return plans, and the else group only runs when both of them fail. The comment and the menu disagree.",
+    "fix": "Decide whether the goal is a menu or a priority list. For a priority list, mark line 64 `else` too. For a menu, change the comment to say the first two are alternatives and the rest are fallbacks."
+   },
+   {
+    "rule": "correctness",
+    "line": 116,
+    "severity": "medium",
+    "issue": "attackUnit reuses ?Type, which line 111 already bound to the enemy's type. As a result a pawn can only capture pawns and a king can only capture kings, so a pawn next to the enemy king can never take it.",
+    "fix": "Use a fresh variable for the attacker, `unit(?Unit, ?AttackerType, ?Player)`, or drop the type with `unit(?Unit, ?_, ?Player)`."
+   },
+   {
+    "rule": "correctness",
+    "line": 184,
+    "severity": "low",
+    "issue": "The plain-move fallback is `else, if(at(?Unit, ?Current))`. Because else is not a cut, backtracking can re-enter it while the destination is occupied, and the plan then puts two units on one tile.",
+    "fix": "Guard the base case with the negation: `if(at(?Unit, ?Current), not(at(?Other, ?Destination)))`."
+   },
+   {
+    "rule": "R6",
+    "line": 196,
+    "severity": "low",
+    "issue": "The operators captureUnit and doMove don't follow the op... naming, so the plan can't be told apart from the methods at a glance.",
+    "fix": "Rename them to opCapture(?unit, ?tile) and opMove(?unit, ?from, ?to)."
+   },
+   {
+    "rule": "R3",
+    "line": 207,
+    "severity": "low",
+    "issue": "opponent/2 is computed with ==, = and a cut, but it is a fixed fact of the world.",
+    "fix": "Replace it with two facts: `opponent(Player1, Player2). opponent(Player2, Player1).`"
+   },
+   {
+    "rule": "R8",
+    "line": 22,
+    "severity": "low",
+    "issue": "The world (tiles, units, positions) sits in the same file as the domain, so the strategies can't be reused on another board.",
+    "fix": "Move the tile/unit/at facts to a level or problem file and keep the methods, operators and axioms as the domain."
+   },
+   {
+    "rule": "R9",
+    "line": 11,
+    "severity": "low",
+    "issue": "The header points to gettingstarted.md, which isn't part of the ruleset. The rule comments also restate each goal line ('Get its position').",
+    "fix": "Keep one line per method saying what it is for, and drop the per-goal narration and the external pointer."
+   }
+  ],
+  "summary": "This is a clear teaching example. doAI is a short, prioritized menu of strategies built from reusable verbs (attackUnit, moveClosestPawnNearKing, tryMove), and the board geometry lives in plain axioms. The rough edges are the ?Type reuse bug in attackUnit, an else fallback that isn't guarded by a negation, and a priority comment that doesn't match how the methods are grouped.",
+  "cost_usd": 0.3605766
+ },
+ "gamehack5onlyplans": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 76,
+    "severity": "high",
+    "issue": "The strategies' if() only says enemy(?t), so it does not state what makes them possible. wetAndElectrocute does not check not(immune(?t, electrocute)), so it plans against electricityElemental, which is immune (line 39). stunAndBurn plans ice with no ice skill in the world. Nothing checks immunity anywhere in the file.",
+    "fix": "Put the feasibility in if(): wetAndElectrocute(?t) :- if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))), do(applyTag(wet, ?t), applyTag(electrocute, ?t)). Do the same for stunAndBurn with ice and fire."
+   },
+   {
+    "rule": "R6",
+    "line": 140,
+    "severity": "high",
+    "issue": "useLocationToApplyTag and useMobToApplyTag (line 156) are empty do() stubs. The location and mob routes never add hasTag, and they put no game action in the plan. The plan claims the target is wet, but the state never says so, and the engine has nothing to execute.",
+    "fix": "Make each one end in an operator that is a game action and adds the tag, for example opApplyTag(?tag, ?t) guarded by not(hasTag(?t, ?tag)). The mob route should also check at(?m, ?l), at(?t, ?l)."
+   },
+   {
+    "rule": "correctness",
+    "line": 126,
+    "severity": "high",
+    "issue": "The anyOf in applySkillTags_L_ApplyTag calls opApplyTag for every tag the skill has, with no guard. waterSkill adds both wet and clean, so if the target already has clean, add(hasTag(?t, clean)) is an error and aborts the whole search.",
+    "fix": "Guard the anyOf condition with if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag))). Rename the task to something plain such as applySkillTags(?s, ?t)."
+   },
+   {
+    "rule": "R2",
+    "line": 89,
+    "severity": "medium",
+    "issue": "The skill route only works if an ally already has the skill. canGetSkillAtLocation (lines 58-59) is declared but never used. The player has no skills, so the 'go learn it first' case is missing and the player can never be the actor.",
+    "fix": "Add a prepareToUseSkill(?a, ?s, ?t) verb with two methods: the ally already has the skill (go to the target), or it doesn't (go to a location with canGetSkillAtLocation(?l, ?s), learn the skill with an operator, then go to the target). Call it from applyTagNotPresent."
+   },
+   {
+    "rule": "R2",
+    "line": 104,
+    "severity": "medium",
+    "issue": "Dead helpers: moveAndUseSkillOnTargetSafe, useSkillOnTargetSafe (which calls applySpellToTarget, never defined), and opAggroMoveTo's twin opMoveTo. The unused agent/1 and commented-out companion facts are clutter too. moveAndUseSkillOnTarget names its skill parameter ?tag.",
+    "fix": "Delete the *Safe variants, agent/1 and the commented-out facts. Keep one version of useSkillOnTarget, and name its parameter ?s."
+   },
+   {
+    "rule": "R6",
+    "line": 83,
+    "severity": "low",
+    "issue": "opTagAlreadyOnTarget, opStayInLocation (line 174) and opTargetAlreadyAggroed (line 197) are empty operators that exist only as bookkeeping. They are not game actions, and they add noise to every plan.",
+    "fix": "Write those base cases as methods with an empty do(), for example applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do()."
+   },
+   {
+    "rule": "R7",
+    "line": 167,
+    "severity": "low",
+    "issue": "goToLocation teleports in one opMoveTo and ignores linked/2. It is marked only '% Unsafe', and when ?a is already at ?l it moves the actor from ?l to ?l.",
+    "fix": "Use the navigate pattern: a base case at(?a, ?l) with do(), then a recursive step over pathNext(?here, ?l, ?next) with opMoveTo."
+   },
+   {
+    "rule": "R8",
+    "line": 2,
+    "severity": "low",
+    "issue": "The world facts (actors, rooms, skills) and the reusable verbs share one file, and the file has no header and no goal line.",
+    "fix": "Split the domain (applyTag, the strategies, movement, aggro) from the level facts. Add a one-line header and goals(planToDamage(...))."
+   }
+  ],
+  "summary": "This is the right GameHack architecture: a menu of strategies, a generic applyTag verb whose methods are the ways to apply a tag, and tags chosen by skill properties. But it is unfinished. The strategies check no immunity, the location and mob routes are empty stubs that never apply the tag, an unguarded add in the anyOf can abort the search, and dead *Safe helpers and no-op operators add noise.",
+  "cost_usd": 0.2995754
+ },
+ "gamehack6swapskills": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "Correctness",
+    "line": 92,
+    "severity": "high",
+    "issue": "Both ally methods call useSkillOnTarget(?a, ?tag, ?t), passing the tag where the skill belongs. applySkillTags_L_ApplyTag then asks skillAppliesTag(ice, ?tag), finds nothing, and falls into the empty second method. The plan says the ally used the skill, but hasTag is never added. The same bug is at line 96.",
+    "fix": "Pass the skill that if() found: useSkillOnTarget(?a, ?s, ?t)."
+   },
+   {
+    "rule": "R1",
+    "line": 77,
+    "severity": "high",
+    "issue": "Neither strategy's if() says what makes it possible: it is only enemy(?t). immune(electricityElemental, electrocute) is declared but never checked, so wetAndElectrocute plans against an immune target. stunAndBurn also doesn't say which skills give the tags.",
+    "fix": "Put the feasibility in if(): wetAndElectrocute(?t) :- if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))), do(applyTag(wet, ?t), applyTag(electrocute, ?t)). Do the same for stunAndBurn."
+   },
+   {
+    "rule": "Correctness",
+    "line": 163,
+    "severity": "high",
+    "issue": "The location and mob ways to apply a tag are stubs with do(). They 'succeed' without adding hasTag, so a plan can finish with the target still untagged. useMobSkillToApplyTag's head also says ?tag, but callers pass the skill ?s (line 104).",
+    "fix": "Give them operators that do the game action: useLocationToApplyTag(?l, ?tag, ?t) :- if(not(hasTag(?t, ?tag))), do(opApplyTag(?tag, ?t)). Do the same for useMobSkillToApplyTag(?m, ?s, ?t), going through the skill's tags."
+   },
+   {
+    "rule": "Correctness",
+    "line": 134,
+    "severity": "medium",
+    "issue": "The anyOf adds every tag the skill applies, with no guard. waterSkill gives both wet and clean, so if the target already has clean, add(hasTag(?t, clean)) is an error and aborts the whole search.",
+    "fix": "Guard the binding: if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag))). Rename the verb to plain words, e.g. applySkillTags(?s, ?t)."
+   },
+   {
+    "rule": "R2",
+    "line": 109,
+    "severity": "medium",
+    "issue": "Dead and half-written verbs sit beside the live ones: moveAndUseSkillOnTarget (empty), moveAndUseSkillOnTargetSafe and useSkillOnTargetSafe (never called, and they call applySpellToTarget, which is undefined). useSkillOnTarget has an empty if(), so it never checks that the actor has the skill or is at the target.",
+    "fix": "Delete the unused variants. Keep one useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do(applySkillTags(?s, ?t))."
+   },
+   {
+    "rule": "R6",
+    "line": 84,
+    "severity": "low",
+    "issue": "No-op operators (opTagAlreadyOnTarget, opStayInLocation, opTargetAlreadyAggroed) put steps into the plan that the game doesn't perform.",
+    "fix": "Write the base cases as do(), e.g. applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do()."
+   },
+   {
+    "rule": "R3",
+    "line": 73,
+    "severity": "low",
+    "issue": "stunAndBurn applies the tags ice and fire. The strategy name and the tags disagree, and the skill facts are iceSkill/fireballSkill while the commented hasSkill facts say ice/fireball.",
+    "fix": "Name the strategy by the tags it achieves (freezeAndBurn), or add a stun tag. Use one set of skill names."
+   },
+   {
+    "rule": "R8",
+    "line": 2,
+    "severity": "low",
+    "issue": "The level facts (with commented-out companions and locations) live in the same file as the reusable verbs. goToSameLocation also duplicates goToLocation.",
+    "fix": "Move the facts and the goal to a level file. goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l))."
+   }
+  ],
+  "summary": "The GameHack architecture is right: a strategy menu, an applyTag verb whose methods are the ways to apply a tag, and aggro to pull mobs. But the strategies don't check feasibility (immunity), the skill/tag argument mix-up means the ally path never tags anything, and the location/mob paths and several verbs are empty stubs or dead code.",
+  "cost_usd": 0.2990992
+ },
+ "gamehack8agentattop": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 118,
+    "severity": "high",
+    "issue": "wetAndElectrocute's if() checks only enemy(?t). It never says the target must not be immune to wet or electrocute, so it plans to electrocute electricityElemental, which is immune(electricityElemental, electrocute).",
+    "fix": "State what makes the strategy possible: if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))), as stunAndSlowSkill does for stun."
+   },
+   {
+    "rule": "R1",
+    "line": 82,
+    "severity": "high",
+    "issue": "not(immune(?t, ?slowSkill)) checks immunity against a skill name. immune/2 holds tags, so this check is always true.",
+    "fix": "not(immune(?t, slow)). Immunity is to the tag, never to the skill."
+   },
+   {
+    "rule": "R2",
+    "line": 132,
+    "severity": "high",
+    "issue": "The skill case of applyTagNotPresent leaves ?a unbound. prepareToUseSkill then binds ?a through hasSkill(?a, ?s), so any skill holder, such as teslaTower, can become the caster.",
+    "fix": "Put the actor in if(): if(ally(?a), skillAppliesTag(?s, ?tag))."
+   },
+   {
+    "rule": "Correctness",
+    "line": 178,
+    "severity": "high",
+    "issue": "opApplyTag does add(hasTag(?t, ?tag)) with no guard. useSkillOnTarget has an empty if(), and the anyOf at line 172 does not check the tag. If the tag is already on the target, the add is an error that aborts the whole search.",
+    "fix": "Guard it in the anyOf: if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag))). Give useSkillOnTarget an if() that checks hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)."
+   },
+   {
+    "rule": "R6",
+    "line": 207,
+    "severity": "medium",
+    "issue": "useLocationToApplyTag and useMobSkillToApplyTag are empty stubs, so the location and mob routes never put the tag on the target. Also, useMobSkillToApplyTag's head names its second argument ?tag, but line 141 passes a skill.",
+    "fix": "Make each one call a game action that adds hasTag(?t, ?tag), guarded by not(hasTag(?t, ?tag)). Name the arguments consistently: (?m, ?s, ?t)."
+   },
+   {
+    "rule": "R6",
+    "line": 125,
+    "severity": "medium",
+    "issue": "opTagAlreadyOnTarget, opStayInLocation and opTargetAlreadyAggroed are 'nothing to do' base cases written as operators. They are not game actions, and they clutter every plan.",
+    "fix": "Write already-true cases as empty do(): applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(). Do the same in goToLocation, goToSameLocation and aggroTarget."
+   },
+   {
+    "rule": "R3",
+    "line": 99,
+    "severity": "medium",
+    "issue": "The file carries dead and half-finished code: stunAndSlowSkillDebug, useSkillOnTargetSafe (it calls an undefined applySpellToTarget and tests hasTag against a skill), prepareToApplyTag (never called), and bringMobToLocation/3. The coined name applySkillTags_L_ApplyTag is jargon.",
+    "fix": "Delete the unused methods and rename the helper to a plain verb, such as applySkillTags(?s, ?t)."
+   },
+   {
+    "rule": "R8",
+    "line": 2,
+    "severity": "low",
+    "issue": "The level facts, including commented-out alternatives for companions and skills, share one file with the reusable verbs and strategies. The domain is tied to this one world.",
+    "fix": "Move the facts and the goal to a level file, and keep the strategies and verbs in components that name no specific characters, places or skills."
+   }
+  ],
+  "summary": "The architecture is right: a menu of strategies, feasibility in if(), and reusable tag, skill and aggro verbs with one method per way. It is unfinished: wetAndElectrocute ignores immunity, one immunity check tests a skill instead of a tag, the caster can be unbound, opApplyTag's add is unguarded, stub methods never apply tags, and dead code and no-op operators remain.",
+  "cost_usd": 0.3097232
+ },
+ "gamehack7combined": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 82,
+    "severity": "high",
+    "issue": "`not(immune(?t, ?slowSkill))` tests immunity against a skill name, not a tag. Immunity is declared per tag, so this check is always true and a target immune to slow still gets this strategy.",
+    "fix": "Use `not(immune(?t, slow))`, the same way line 80 checks `stun`."
+   },
+   {
+    "rule": "R6",
+    "line": 201,
+    "severity": "high",
+    "issue": "`useLocationToApplyTag` and `useMobSkillToApplyTag` (line 217) are empty stubs. The plan never adds `hasTag(?t, wet)` or `hasTag(?t, electrocute)`, and nothing appears for the game to execute. As a result, `wetAndElectrocute` succeeds without applying either tag. Line 139 also passes the skill `?s` into the `?tag` slot.",
+    "fix": "Make each stub call a game action, such as `opUseLocationToApplyTag(?l, ?tag, ?t)` or `opMobUsesSkill(?m, ?s, ?t)`, that adds `hasTag(?t, ?tag)` behind a `not(hasTag(?t, ?tag))` guard. Pass the tag and the skill in the correct argument positions."
+   },
+   {
+    "rule": "R1",
+    "line": 130,
+    "severity": "high",
+    "issue": "The ally route's `if()` never states who acts. `?a` is first bound inside `prepareToUseSkill` by `hasSkill(?a, ?s)` (line 146), which also matches enemies, so `teslaTower` can be picked as the caster.",
+    "fix": "Put the actor in `if()`: `if(ally(?a), skillAppliesTag(?s, ?tag))`. Also add `ally(?a)` to the first `prepareToUseSkill` case."
+   },
+   {
+    "rule": "Correctness",
+    "line": 178,
+    "severity": "high",
+    "issue": "`opApplyTag` adds `hasTag(?t, ?tag)` without a guard. `useSkillOnTarget` has an empty `if()` (line 165), so a skill that applies a tag the target already has makes the add fail, and that error aborts the whole search. `useSkillOnTarget` also never checks that the caster has the skill or is in the same place as the target.",
+    "fix": "In `applySkillTags`, use `if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)))`. Give `useSkillOnTarget` the conditions that make the cast possible: `hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)`."
+   },
+   {
+    "rule": "R9",
+    "line": 100,
+    "severity": "medium",
+    "issue": "The file carries dead code. `stunAndSlowSkillDebug` has unbound actors. `useSkillOnTargetSafe` (line 155) calls an `applySpellToTarget` that does not exist and checks `hasTag(?t, ?s)` with a skill as the tag. `bringMobToLocation/3` (line 248) is an empty stub, and `opAggroMoveTo` duplicates `opMoveTo`.",
+    "fix": "Delete these, and keep one version of each verb."
+   },
+   {
+    "rule": "R6",
+    "line": 123,
+    "severity": "medium",
+    "issue": "No-op bookkeeping operators clutter the plan with steps that are not game actions: `opTagAlreadyOnTarget`, `opStayInLocation` (line 237) and `opTargetAlreadyAggroed` (line 261).",
+    "fix": "Write each 'already true' case as `if(hasTag(?t, ?tag)), do()`, and likewise for being in place or already aggroed. Keep only no-op operators the renderer needs, such as `opSynchronize`."
+   },
+   {
+    "rule": "R2",
+    "line": 208,
+    "severity": "medium",
+    "issue": "The `bringMobsTogether` methods overlap: when both mobs can move, cases 2 and 3 both apply, and cases 2 and 3 do not exclude the already-together case 1. The result is duplicate plans. `getSkillFromLocation` (line 186) also swaps out an arbitrary skill when an ally has several.",
+    "fix": "Make the cases exclusive. Add `\\==(?l1, ?l2)` and `static(?m2)` to the case that moves `?m1`. For skills, pick the skill to replace explicitly, or give each ally one skill slot."
+   },
+   {
+    "rule": "R3",
+    "line": 172,
+    "severity": "low",
+    "issue": "`applySkillTags_L_ApplyTag` is a coined name, not a game word. Level facts (lines 1-63) sit in the same file as the reusable verbs, with no header saying which part is which.",
+    "fix": "Rename it `applySkillTags(?s, ?t)`. Move the world facts into a level file and keep the strategies and verbs as a component (R8)."
+   }
+  ],
+  "summary": "The architecture is right: `planToDamage` is a menu of strategies, and `stunAndSlowSkill` and `wetAndElectrocute` state their needs through reusable verbs such as `applyTag` and `prepareToUseSkill`. It is unfinished, though: two tag-application routes are stubs that never apply the tag, `opApplyTag` is unguarded, the slow-immunity check tests the wrong thing, and dead debug code and no-op operators are left in.",
+  "cost_usd": 0.3214104
+ },
+ "gamehack_gh4": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 5,
+    "severity": "medium",
+    "issue": "Lines 5-35 declare a second ontology (`type(agent, ...)`, `type(location, ...)`, `type(tag, ...)`, `type(skill, ...)`) only for a linter. No method reads it, and it repeats what `ally`/`enemy`/`at`/`hasSkill`/`skillAppliesTag` already say. That is about 30 lines of scaffolding in a level that should be only the world.",
+    "fix": "Delete the `type/2` block. The linter can infer kinds from the component `signature/2` facts and the game facts. A level file is its facts plus its goal (R8)."
+   },
+   {
+    "rule": "R3",
+    "line": 38,
+    "severity": "medium",
+    "issue": "No component uses `agent/1`, and it is inconsistent: it lists `gob` but leaves out the enemies `mimic`, `electricityElemental` and `teslaTower`. A reader can't tell what 'agent' means here.",
+    "fix": "Remove `agent/1`. `ally/1` and `enemy/1` are the game words that the strategies actually query."
+   },
+   {
+    "rule": "R3",
+    "line": 61,
+    "severity": "low",
+    "issue": "No method queries `location/1`. Every location already appears in `at/2` or `locationCanApplyTag/2`, so these facts are dead vocabulary.",
+    "fix": "Delete the `location/1` facts, or add them only when a verb needs to list locations."
+   },
+   {
+    "rule": "R5",
+    "line": 87,
+    "severity": "medium",
+    "issue": "The goal `planToDamage(gob)` has a third method, `stunAndBurn`, but the level manifest doesn't depend on `gamehack/strategies/stun_and_burn`. That menu entry fails silently, as an undefined task, instead of failing because the world makes it impossible.",
+    "fix": "Add `stun_and_burn` to the level's dependencies, so every strategy on the menu is loaded and is ruled out by the world's facts (no stun/ice/fire skill), not by a missing file."
+   },
+   {
+    "rule": "R1",
+    "line": 72,
+    "severity": "medium",
+    "issue": "The level declares `immune(electricityElemental, electrocute)`, but the dependency `wetAndElectrocute(?t)` only checks `enemy(?t)` in `if()`. Pointed at `electricityElemental`, it would plan to electrocute an immune target. The world fact is ignored where it matters.",
+    "fix": "In the strategy, state what makes it possible: `if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute)))`."
+   },
+   {
+    "rule": "R1",
+    "line": 3,
+    "severity": "low",
+    "issue": "The header says stun/slow is ruled out because there are no stun/slow skills. In fact the dependency `stunAndSlowSkill` queries `skillHasTag`, which nothing defines, so that strategy can never hold in any world. The level is 'correct' by accident.",
+    "fix": "In `stun_and_slow_skill`, use `skillAppliesTag(?slowSkill, slow)`. The level's lack of stun/slow skills then really is what rules the strategy out."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "low",
+    "issue": "The header records how the level was designed ('GH4-style', 'Only wetAndElectrocute strategy viable'). It doesn't say what the puzzle is: two routes to each tag (companion skill, or the lake plus the static tesla tower).",
+    "fix": "Use one line that says what the world offers, e.g. `% GH4: wet by companion or lake, electrocute by companion or the static tesla tower at the lake.`"
+   }
+  ],
+  "summary": "The level has the right shape (world facts plus a goal, running on the GameHack verbs), and the lake plus static tesla tower gives the puzzle real alternative routes. It carries dead scaffolding (`type/2`, `agent/1`, `location/1`) and relies on a goal menu with an unloaded strategy and an unguarded immunity.",
+  "cost_usd": 0.3956742
+ },
+ "gamehack_mvp": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R8",
+    "line": 29,
+    "severity": "medium",
+    "issue": "The world is trivial. One ally holds both skills and already stands next to the only enemy, so wetAndElectrocute gives a single plan that one actor finishes alone. The level asks the planner to decide nothing: no movement, no second ally, no choice between strategies.",
+    "fix": "Add a second ally and split the skills between them (hasSkill(player, waterSkill), hasSkill(ally2, lightningSkill)). Put the enemy in another location, and add skills with the properties that stunAndSlowSkill needs, so the goal's menu offers more than one real plan."
+   },
+   {
+    "rule": "R3",
+    "line": 6,
+    "severity": "medium",
+    "issue": "The type/2 block (lines 6-23) is linter scaffolding that repeats the world a second time. type(agent, ...) repeats agent/1 and ally/enemy, and type(location, room) repeats location/1. type(tag, ice) and type(tag, fire) name tags that nothing in this world produces.",
+    "fix": "Delete the type/2 block. The facts ally/enemy/at/hasSkill/skillAppliesTag already are the world. If the linter needs types, derive them from those facts in one place instead of listing them in every level."
+   },
+   {
+    "rule": "R3",
+    "line": 26,
+    "severity": "low",
+    "issue": "agent/1 and location/1 add vocabulary that no strategy or verb in the loaded components reads. ally/1, enemy/1 and at/2 already say who and where everyone is.",
+    "fix": "Remove agent(...) and location(...), and keep only the game words the components query: ally, enemy, at, hasSkill, skillAppliesTag."
+   },
+   {
+    "rule": "R9",
+    "line": 2,
+    "severity": "low",
+    "issue": "The header is test and design commentary ('Exercises applyTag -> applyTagNotPresent path 1', '... backtracks to wetAndElectrocute'), not a statement of what the level is. It is also wrong: planToDamage is a menu of plain alternatives, so nothing backtracks. stunAndSlowSkill just gives no plan.",
+    "fix": "Replace lines 1-4 with one line, e.g. '% GameHack MVP: one ally with water and lightning, one goblin in the same room.'"
+   },
+   {
+    "rule": "R1",
+    "line": 4,
+    "severity": "low",
+    "issue": "The comment depends on stunAndSlowSkill failing because skillHasTag(?, slow) is missing, but the level uses skillAppliesTag. The dependency uses two predicates for one property, so the reason that strategy fails here is a vocabulary mismatch, not the world.",
+    "fix": "Use skillAppliesTag everywhere in the strategy's if(), so the level fails or succeeds on its facts (no skill applies slow or stun), not on a misspelled predicate."
+   },
+   {
+    "rule": "R5",
+    "line": 45,
+    "severity": "low",
+    "issue": "goals(planToDamage(gob)) calls a goal whose methods reach stunAndSlowSkill and stunAndBurn, but the level's manifest loads only wet_and_electrocute. Two of the three menu entries are undefined here and fail silently.",
+    "fix": "Add stun_and_slow_skill and stun_and_burn to the level's dependencies so the whole menu is loaded, and let the world's facts decide which strategies produce plans."
+   }
+  ],
+  "summary": "The shape is correct: a level made only of facts plus a goal, with no level specifics leaking into components. But the world is trivial: one ally solos a single plan. Linter type scaffolding, unused agent/location facts and a test-narrative header make it bloated.",
+  "cost_usd": 0.34320359999999994
+ },
+ "gamehack_gh7": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 84,
+    "severity": "high",
+    "issue": "The fireball's slow is written as skillHasTag(fireballSkill, slow), but its fire is skillAppliesTag. That gives two predicates for one idea, what a skill puts on a target. useSkillOnTarget only applies skillAppliesTag tags, so the check found 21 plans and none puts slow on gob. stunAndSlowSkill's slow is chosen in if() and then never achieved.",
+    "fix": "Write skillAppliesTag(fireballSkill, slow) next to skillAppliesTag(fireballSkill, fire), and drop skillHasTag from the vocabulary so the strategy selects its slow skill with skillAppliesTag(?slowSkill, slow)."
+   },
+   {
+    "rule": "R3",
+    "line": 5,
+    "severity": "medium",
+    "issue": "Lines 5-38 are 30 type/2 facts kept only for the linter. That is a third of the level, and it adds a second vocabulary (type(agent,_), type(location,_), type(tag,_), type(skill,_)) that no method reads. It also lists tags (ice, clean) and entities that play no part in the level.",
+    "fix": "Delete the type/2 block. A level is the world facts plus its goal. Let the linter infer kinds from ally/enemy/at/skillAppliesTag, or put its declarations in the component signatures."
+   },
+   {
+    "rule": "R3",
+    "line": 41,
+    "severity": "medium",
+    "issue": "agent/1 and location/1 (lines 41-44 and 64-70) are dead facts that no component reads. They also disagree with the world: agent(gob) is listed, but mimic, electricityElemental and teslaTower are not, even though they are enemies with positions.",
+    "fix": "Delete agent/1 and location/1. ally/1, enemy/1 and at/2 already say who exists and where."
+   },
+   {
+    "rule": "R9",
+    "line": 2,
+    "severity": "low",
+    "issue": "The header claims 'companionF: fireball' as the slow half of stunAndSlowSkill, and 'Both ... viable'. But slow is never applied (see line 84). The goal's third strategy, stunAndBurn, needs a skill that applies ice, and this world has none, so the menu option fails without any note.",
+    "fix": "Use a one-line header that says what the world is (two allies, a lake that makes things wet, a static lightning tower), and make the facts match what it claims."
+   },
+   {
+    "rule": "R8",
+    "line": 58,
+    "severity": "low",
+    "issue": "mimic, electricityElemental with immune(electricityElemental, electrocute), and volcano as a skill source appear to be copied from another GH level. None of them touches planToDamage(gob), so they add noise without adding any choice.",
+    "fix": "Remove the entities the goal never uses. Or make a distractor count: for example, put gob somewhere the tower can't be brought, so immunity and static matter."
+   },
+   {
+    "rule": "R7",
+    "line": 92,
+    "severity": "low",
+    "issue": "Every ally can learn every skill at no cost, and the allies start with the two needed skills. So stunAndSlowSkill returns every ordered ally pair, including companions who swap away the skills they already have (plan 1: companionI trades iceBlast for fireball while player learns iceBlast). That makes 21 near-duplicate plans, not distinct strategies.",
+    "fix": "Keep the skill sources that create a real decision (sea for waterSkill). Drop mountain and volcano, which only re-teach skills the allies already hold."
+   }
+  ],
+  "summary": "It is a level of the right shape: world facts and a goal built on the GameHack components. But a third of it is linter scaffolding and dead vocabulary (type/2, agent/1, location/1). skillHasTag splits the skill-tag vocabulary in two, so the slow that stunAndSlowSkill promises is never applied.",
+  "cost_usd": 0.41407740000000004
+ },
+ "gh_primitives": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "Correctness",
+    "line": 38,
+    "severity": "high",
+    "issue": "part5.htn: `applySkillTags_L_ApplyTag` runs `opApplyTag` for every tag the skill applies, and nothing checks whether the target already has that tag. `useSkillOnTarget` and `useMobSkillToApplyTag` both reach this path without a guard. A multi-tag skill used on a target that already has one of its tags, or a stun strategy on a target that is already stunned, adds a fact that already exists. That error aborts the whole search.",
+    "fix": "Guard the anyOf method with `if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)))`. Better still, have it call `applyTag(?tag, ?t)`, which already handles the tag being present or absent."
+   },
+   {
+    "rule": "R1",
+    "line": 29,
+    "severity": "medium",
+    "issue": "part2.htn: `unlockDoor` synchronizes two allies on two plates but never moves them there. The plates' locations are missing from `if()`, and `do()` has no `goToLocation`. The unordered choice of plates and allies also returns the same plan four times: (p1,p2) \u00d7 (a1,a2).",
+    "fix": "In `if()`, bind `at(?p1, ?l1), at(?p2, ?l2)`. In `do()`, call `goToLocation(?a1, ?l1), goToLocation(?a2, ?l2)` and then the sync operator. To break the symmetry, order the plates, or give each plate fact a role."
+   },
+   {
+    "rule": "R6",
+    "line": 20,
+    "severity": "medium",
+    "issue": "The already-done cases are operators with no effect: `opTargetAlreadyAggroed` (ruleset.htn:20), `opStayInLocation` (part3.htn:20) and `opTagAlreadyOnTarget` (part5.htn:21). They are not game actions and they clutter every plan with bookkeeping steps.",
+    "fix": "Make each base case `do()` (e.g. `goToLocation(?a, ?l) :- if(at(?a, ?l)), do().`) and delete these operators. Keep only real markers such as `opSynchronize`."
+   },
+   {
+    "rule": "R3",
+    "line": 38,
+    "severity": "medium",
+    "issue": "part5.htn: `applySkillTags_L_ApplyTag` is a coined name that exposes an implementation detail. It is not a plain game verb.",
+    "fix": "Rename it `applySkillTags(?s, ?t)`. Its methods would be 'apply each tag the skill has' and 'the skill has no tags'."
+   },
+   {
+    "rule": "Correctness",
+    "line": 42,
+    "severity": "low",
+    "issue": "ruleset.htn: `bringMobsTogether` methods 2 and 3 don't exclude method 1 or each other. When the two mobs already share a location, all three give an empty plan, and when both can move, both movers are offered. The result is duplicate plans.",
+    "fix": "Add `at(?m1, ?l1), at(?m2, ?l2), \\==(?l1, ?l2)` to methods 2 and 3 so that each method is a distinct way."
+   },
+   {
+    "rule": "Correctness",
+    "line": 34,
+    "severity": "low",
+    "issue": "part3.htn: `goToSameLocation` checks `not(static(?a))`, but `goToLocation` does not. So `bringMobToLocation` and `prepareToUseSkill` can move a static entity. `bringMobToLocation` also binds `at(?a, ?aOldLocation)` (ruleset.htn:36) and never uses it.",
+    "fix": "Put `not(static(?a))` in the moving case of `goToLocation` and drop the unused `at(?a, ?aOldLocation)`."
+   },
+   {
+    "rule": "R9",
+    "line": 3,
+    "severity": "low",
+    "issue": "part2.htn: the header and operator comments describe runtime internals ('SynchroLens', 'lens carries plate positions', 'Pure marker operator'), which is design notes rather than what the method is for.",
+    "fix": "Cut them to one line each, e.g. `% Two allies stand on the door's two plates at once.`"
+   },
+   {
+    "rule": "R3",
+    "line": 6,
+    "severity": "low",
+    "issue": "Every file declares `signature/2` linter metadata inside the domain. It is one more predicate for the reader and the planner that the game does not use.",
+    "fix": "Move the type signatures to the component manifest or a linter sidecar, so the .htn holds only the domain."
+   }
+  ],
+  "summary": "The architecture is right: reusable verbs (`applyTag`, `prepareToUseSkill`, `bringMobToLocation`), and each verb's methods are the ways to achieve it. But the multi-tag skill path has an unguarded `add` that can abort the search. The door primitive also skips moving the allies to the plates, and effect-free bookkeeping operators clutter the plans.",
+  "cost_usd": 0.312734
+ },
+ "gamehack_multipath": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 102,
+    "severity": "high",
+    "issue": "Slow is written with a second predicate, `skillHasTag`, and not with `skillAppliesTag`. `useSkillOnTarget` applies only `skillAppliesTag` tags, so the stun-and-slow plan casts fireballSkill and gives gob `fire`, never `slow`. The strategy reports success, but the state it names is never reached.",
+    "fix": "Write `skillAppliesTag(fireballSkill, slow).` and change stunAndSlowSkill's if() to `skillAppliesTag(?slowSkill, slow)`, so one plain game word covers every tag a skill produces."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The header lists test coverage (\"all three damage strategies\", \"dispatcher paths exercised\", \"returns many distinct plans\"), not the world. Line 101 names a component's internal precondition (\"unlocks stunAndSlowSkill precondition\"), which ties the level's facts to one strategy's implementation.",
+    "fix": "Use one header line that describes the world, e.g. `% Arena: gob with the party; a tesla tower at the lake shore, an ice elemental on the glacier.` Give each section a plain label, e.g. `% Skill tags`."
+   },
+   {
+    "rule": "R5",
+    "line": 4,
+    "severity": "medium",
+    "issue": "The level aims for plan count, not distinct strategies. Four interchangeable allies, two wet locations (lakeShore, sea), and waterSkill both held and learnable multiply each strategy into many plans that differ only by who or where. FindAllPlans no longer reads as a menu of strategies.",
+    "fix": "Keep one source for each way to get a tag: one ally skill, one wet location, one skill-bearing mob. Then each plan is a different strategy or way (ally skill / location / mob), not a different actor permutation."
+   },
+   {
+    "rule": "R3",
+    "line": 6,
+    "severity": "medium",
+    "issue": "Every entity is declared three times: `type(agent, X)`, `agent(X)`, and `ally/enemy(X)`, and every location twice. That is 30+ lines of bookkeeping that the reader must keep in sync with the real facts.",
+    "fix": "Keep `ally`, `enemy`, `at` and `locationCanApplyTag` as the world. Derive the rest with rules: `agent(?x) :- ally(?x).` `agent(?x) :- enemy(?x).` `type(agent, ?x) :- agent(?x).`, and the same for locations. Or drop the linter-only `type` facts."
+   },
+   {
+    "rule": "R3",
+    "line": 28,
+    "severity": "low",
+    "issue": "The tag `clean` (declared here, produced by waterSkill at line 95) is used by no strategy and no weakness. It is vocabulary the planner and reader must carry for nothing. The same goes for `sea` (line 71), a wet location nobody stands in or needs.",
+    "fix": "Delete `type(tag, clean)`, `skillAppliesTag(waterSkill, clean)` and the `sea` facts, unless an immunity or strategy uses them."
+   },
+   {
+    "rule": "R8",
+    "line": 54,
+    "severity": "low",
+    "issue": "teslaTower and iceElemental are declared `enemy` only so that they act as skill-bearing mobs, but that also makes them valid planToDamage targets. Their role in the level is a tag source, and nothing states that.",
+    "fix": "If they are hazards and not foes, drop `enemy` and rely on `hasSkill` plus `not(ally(?m))`, which path 3 already requires. Otherwise keep them, and give them immunities so that damaging them is a real puzzle."
+   }
+  ],
+  "summary": "The shape is right: the level is only facts plus a goal, uses the component vocabulary, and names nothing inside the components. But the fireball fact uses a second predicate (`skillHasTag`), so stun-and-slow never actually applies slow, and the file is padded with triple declarations, test-coverage comments and redundant sources that inflate the plan count without adding strategies.",
+  "cost_usd": 0.3893312
+ },
+ "gh_upper": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R8",
+    "line": 8,
+    "severity": "high",
+    "issue": "part5.htn: the reusable goal completeToyLevel hard-codes door1 and gob1. Its first two methods also repeat the locked/unlocked split that unlockDoor already handles with its own no-op case.",
+    "fix": "Pass the door and enemy as parameters, e.g. completeLevel(?d, ?t) :- if(enemy(?t)), do(unlockDoor(?d), planToDamage(?t)). Keep door1 and gob1 in the level's facts and goal, and drop the duplicated locked/not(locked) methods."
+   },
+   {
+    "rule": "R1",
+    "line": 8,
+    "severity": "high",
+    "issue": "part4.htn: wetAndElectrocute's if() checks only enemy(?t). It never rules out immune(?t, wet) or immune(?t, electrocute). Levels gh4 and gh7 declare immune(electricityElemental, electrocute), so this strategy returns a plan against an immune enemy. stunAndBurn (part2.htn:10) and applyTagNotPresent path 1 (ruleset.htn:10) have the same gap.",
+    "fix": "State the immunities in if(): if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))). Do the same for ice/fire in stunAndBurn."
+   },
+   {
+    "rule": "Correctness",
+    "line": 31,
+    "severity": "high",
+    "issue": "part3.htn: stunAndSlowSkill calls useSkillOnTarget directly and skips applyTag's hasTag guard. useSkillOnTarget ends in opApplyTag, whose add(hasTag(?t, ?tag)) is an error if the target is already stunned or slowed, and that error aborts the whole search rather than just this branch.",
+    "fix": "Add not(hasTag(?t, stun)) and not(hasTag(?t, slow)) to the strategy's if()."
+   },
+   {
+    "rule": "R3",
+    "line": 20,
+    "severity": "medium",
+    "issue": "part3.htn: skillHasTag(?slowSkill, slow) is a second predicate for the same fact as skillAppliesTag. Levels must now declare both (gh7 and multipath do). A level that declares only skillAppliesTag silently loses this strategy, as the gamehack_mvp comment shows.",
+    "fix": "Use skillAppliesTag(?slowSkill, slow) and delete skillHasTag from the vocabulary."
+   },
+   {
+    "rule": "R2",
+    "line": 27,
+    "severity": "medium",
+    "issue": "part3.htn: stunAndSlowSkill hand-rolls skill use and does not go through the shared tag verb. It cannot use the location or non-ally-mob ways to apply stun/slow that applyTagNotPresent offers, so it is less general than its sequential siblings.",
+    "fix": "Keep the synchronized skill use, since it is the point of the strategy. Choose skills by property in if() and add the hasTag guards so the only thing that differs from applyTag is the timing."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "part2.htn: the header is design history ('documented failure', 'declared in GH1-GH6 but never had the required skills'). The name stunAndBurn says stun, but the strategy applies ice.",
+    "fix": "Use a one-line header such as '% freeze_and_burn - apply ice, then fire'. Rename the task to match the tags it applies."
+   },
+   {
+    "rule": "R6",
+    "line": 10,
+    "severity": "low",
+    "issue": "part3.htn: opSynchronize is defined inside one strategy file, but it is a generic game action that any simultaneous strategy needs.",
+    "fix": "Move opSynchronize into a shared primitive (for example gh_movement) so other strategies can reuse it."
+   },
+   {
+    "rule": "R9",
+    "line": 2,
+    "severity": "low",
+    "issue": "part6.htn: the comment says planToDamage 'tries stunAndSlowSkill first, then wetAndElectrocute', but the methods are plain alternatives and FindAllPlans returns all of them. The comment also leaves out stunAndBurn.",
+    "fix": "Replace it with '% Menu of damage strategies; one plan per strategy that works.'"
+   }
+  ],
+  "summary": "The architecture is right: a menu goal, sequential strategies built from a reusable applyTag verb whose methods are the three ways to apply a tag, and skills chosen by tag. The rough edges are a level-specific goal component, immunities missing from if() (so plans are made against immune enemies), an unguarded opApplyTag in stunAndSlowSkill, and a duplicate skillHasTag predicate.",
+  "cost_usd": 0.40399399999999996
+ },
+ "grease_trap": {
+  "score": 1,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 80,
+    "severity": "high",
+    "issue": "The world is written in the deleted core's invented chemistry: reacts/3, blast/3, hazard/2, strike/2 and mark/2. The rubric lists these by name as slop. They turn the level into input data for an effect engine instead of stating the game's facts.",
+    "fix": "State what each skill does with skillAppliesTag(ignite, burn) and friends. Give enemies weaknesses and immune/2 facts. Say what the ground does with terrain(corridor, oil) and locationCanApplyTag(corridor, burn), so the strategies call applyTag(burn, ?t) instead of searching a reaction table."
+   },
+   {
+    "rule": "R3",
+    "line": 58,
+    "severity": "high",
+    "issue": "signature/2 repeats hasSkill/2 for the same pairs, and the core strategies use it to pick a companion by name ('the Warden plants the shield'). That makes it a skill kind and a role marker at once.",
+    "fix": "Delete signature/2. Strategies choose an ally by the skill's property, e.g. hasSkill(?a, ?s), skillAppliesTag(?s, block)."
+   },
+   {
+    "rule": "R3",
+    "line": 43,
+    "severity": "high",
+    "issue": "role(player, player) and role(_, companion) give the player a special status. Companions are interchangeable and differ only in who controls them. role/2 also stands in for the game words ally/enemy.",
+    "fix": "Use ally(player). ally(warden). ally(arcanist). enemy(swarm). enemy(bearer). Cooperation should come from distinct actors in if() (\\==(?a1, ?a2)), not from role(player)."
+   },
+   {
+    "rule": "R7",
+    "line": 73,
+    "severity": "medium",
+    "issue": "unlimited/1 and charge(player, ignite, i1) are bookkeeping for ammunition tokens, which is too fine-grained for the decisions this game makes. skillElement(dash, dash) and skillElement(flare, light) are elements with no meaning.",
+    "fix": "Drop the charges and the unlimited facts. If a skill can be used only once, make that a tag or state that the operator consumes. Map dash to what it does: skillAppliesTag(dash, push)."
+   },
+   {
+    "rule": "R3",
+    "line": 29,
+    "severity": "medium",
+    "issue": "Rooms use connected/2 and regionHas/2 instead of the game words linked/2 (which the built-in pathNext reads) and terrain. lineOfSight/2 adds a third graph that no strategy states it needs.",
+    "fix": "Write linked(entry, corridor) etc. and terrain(corridor, oil). Remove lineOfSight unless a strategy's if() requires it."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The 22-line header is an essay. It narrates both strategies step by step, names which companion does what, and includes a design hypothesis with fun-metric targets.",
+    "fix": "Cut it to one line that says what the level is, e.g. '% Grease Trap: oiled corridor, a swarm in the gallery, an iron bearer at the exit.' Move the hypothesis to the level's design notes."
+   },
+   {
+    "rule": "R8",
+    "line": 97,
+    "severity": "low",
+    "issue": "The goal is fine as a level goal, but it depends on core's defeatGroup, whose strategies (theBurn, theSlipstream) are scripts of one-off helpers (makeTrap, coverAt, gatherIntoTrap, finishTrap). The level inherits their slop.",
+    "fix": "Build the goal on a menu of generic strategies (e.g. defeatEnemy(?t) with one method per way to kill, each built from applyTag and bringMobToLocation) and keep this file to facts plus clearGreaseTrap."
+   },
+   {
+    "rule": "R3",
+    "line": 114,
+    "severity": "low",
+    "issue": "The names defeatGroup and funBlocker tie the goal to the core vocabulary. 'Group' is not a game concept here, because each blocker is a single enemy fact.",
+    "fix": "Name the goal verb defeatEnemy(?t) and point funBlockerGoal at it."
+   }
+  ],
+  "summary": "The level has the right shape (facts plus a goal), but its whole vocabulary is the deleted core ontology (reacts/blast/strike/mark/signature/role/charge), which the rubric calls slop, and it has an essay header. It needs rewriting into ally/enemy/linked/terrain/skillAppliesTag/immune facts that sit on top of generic strategies.",
+  "cost_usd": 0.3094016
+ },
+ "movement_ringout": {
+  "score": 1,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 72,
+    "severity": "high",
+    "issue": "The goal `win` is one fixed script: `bringTo(ogre, brink, none), stepBack, finish(ogre)`. Its `if()` is empty, so nothing says when a ring-out works: no enemy, no verge area, no skill that moves or knocks, no two distinct actors. The feasibility is hidden inside the core helpers `bringTo`, `knockOn` and `confirmStopped`, which do not exist in this repo and came from the deleted slop tree.",
+    "fix": "State the strategy's needs in `if()`, for example `ringOut(?t) :- if(enemy(?t), hasTag(?edge, verge), skillAppliesTag(?pull, pull), skillAppliesTag(?push, knockback), ally(?a1), ally(?a2), \\==(?a1, ?a2))`. Then write `do()` as generic verbs: `do(applyTag(pull, ?t), applyTag(knockback, ?t))`."
+   },
+   {
+    "rule": "R5",
+    "line": 72,
+    "severity": "high",
+    "issue": "The goal is not a menu. The four ways to bring the ogre (hook, taunt) and knock it over (fireball, bash, wave, vortex) are described only in the header essay. They are not separate strategies, so FindAllPlans cannot return one plan per strategy.",
+    "fix": "Write one `ringOut` method per winning strategy, such as pull-then-knock and lure-then-knock. Put the different ways to move a mob into the methods of a reusable `bringMobToLocation(?t, ?l)` verb."
+   },
+   {
+    "rule": "R2",
+    "line": 76,
+    "severity": "high",
+    "issue": "`stepBack` is a maybe-walk. Its empty method always succeeds, and a second method optionally walks everyone off the brink, so every plan is doubled. `allBack`, `onBrink` and `finish` are one-off helpers that no other strategy uses. The planner is searching a physics simulator instead of the author choosing the plans.",
+    "fix": "Delete `stepBack`, `allBack` and `onBrink`. If a strategy needs an actor to leave the edge, make that a step of that strategy's `do()` using the shared movement verb (`navigate(?a, ?safe)`)."
+   },
+   {
+    "rule": "R3",
+    "line": 65,
+    "severity": "high",
+    "issue": "The file uses an invented ontology: `behavior(ogre, taunted, groundSlam, here)`, `feature(brink, verge, chasm)`, `knockOn(?e, feature(verge), none)`, `neutralized`, `confirmStopped`, `canAct`, `gone` and `forbidden(?a, move)`. The planner and the reader must learn each of these terms, and they encode an effect engine (slam windows, stuns, sacrifices).",
+    "fix": "Use the game's words: `enemy(ogre)`, `at(ogre, plinth)`, `hasTag(brink, verge)`, `skillAppliesTag(hook, pull)`, `skillAppliesTag(fireball, knockback)`. Drop the slam and stun simulation (R7)."
+   },
+   {
+    "rule": "R3",
+    "line": 54,
+    "severity": "medium",
+    "issue": "`role(player, player)` versus `role(mage, companion)`, and `role(ogre, enemy)`, give actors roles by who controls them. Companions are interchangeable, and cooperation should come from the strategy's two distinct actors.",
+    "fix": "Write `ally(player). ally(mage). enemy(ogre).`, and require `ally(?a1), ally(?a2), \\==(?a1, ?a2)` in the strategy's `if()`."
+   },
+   {
+    "rule": "R3",
+    "line": 34,
+    "severity": "medium",
+    "issue": "The map uses `region/1` and one-way `connected/2`, plus nine hand-written `lineOfSight/2` facts. The built-in `pathNext` works over `linked/2`, so this vocabulary needs its own navigation code. Line of sight is detail the engine should resolve.",
+    "fix": "Declare the map as `linked/2` facts in both directions and navigate with `pathNext`. Drop `lineOfSight`, or reduce range to a property such as `skillRange(?s, adjacent)` only if a strategy's `if()` needs it."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The 27-line header is an essay. It gives the design history (Into the Breach), the slam physics, the traps and the sacrifice rules. The code does not express this logic.",
+    "fix": "Reduce the header to one line: `% Ring-Out: push the ogre off the brink's verge.`. Add one short comment per strategy method."
+   },
+   {
+    "rule": "R7",
+    "line": 58,
+    "severity": "low",
+    "issue": "`mana(player, 4)` and `mana(mage, 4)` are stat bookkeeping, and nothing in this file uses them.",
+    "fix": "Delete the mana facts. Plan with tags and skill properties, not resource arithmetic."
+   }
+  ],
+  "summary": "This is a level whose goal is an imperative script over deleted core helpers. It has an empty `if()`, a maybe-walk `stepBack`, an invented slam and verge ontology, and a header essay that describes strategies the code never states as a menu. It is slop in the core-tree style, not a list of feasibility conditions followed by generic verbs.",
+  "cost_usd": 0.285207
+ },
+ "pathtest": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R5",
+    "line": 38,
+    "severity": "high",
+    "issue": "The file has no methods, operators or goal. It is a fixture of facts only, so there is no strategy or plan to judge, and nothing calls pathNext from a task.",
+    "fix": "Add the idiomatic verb from language.md section 6: `navigate(?who, ?to) :- if(at(?who, ?to)), do().` and `navigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).`, with `opMoveTo` doing `del(at(?who, ?from)), add(at(?who, ?to))`, an `at(hero, roomNW).` fact and `goals(navigate(hero, roomSE)).`"
+   },
+   {
+    "rule": "R7",
+    "line": 28,
+    "severity": "medium",
+    "issue": "The `size/2` facts are labelled 'movement cost', but pathNext finds the shortest route by counting hops over linked/2 and never reads size. The data is dead, and the comment suggests weighted pathfinding that doesn't happen.",
+    "fix": "Delete the size facts. If cost matters, leave it to the engine, since planning happens at room level, not at the level of distances."
+   },
+   {
+    "rule": "Correctness",
+    "line": 40,
+    "severity": "medium",
+    "issue": "The 'should find shortest path' expectation is ambiguous. roomNW to roomSE has two routes of equal length, one through corridorN and one through corridorW, so the expected first hop isn't stated. The test queries are also plain comments, so nothing runs or checks them.",
+    "fix": "Write them in the doctest form `% ?: pathNext(roomNW, roomSE, ?next).` with `% => ?next = ...` lines, which pins down the tie-break, or assert them in a goals()/test harness."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "low",
+    "issue": "The header says this is a test for a built-in, yet it sits in a ruleset position. The ASCII map is fine, but nothing says what the file is for as a domain.",
+    "fix": "Keep the one-line header and the map. Once the navigate task exists, add one comment line per method (base case: already there; recursive case: take the first hop)."
+   }
+  ],
+  "summary": "This is a topology fixture: symmetric linked/2 facts and no tasks, so there is nothing wrong in its design, but there is also nothing to plan. The unused 'movement cost' sizes and the unchecked comment queries mislead the reader.",
+  "cost_usd": 0.2295692
+ },
+ "jam": {
+  "score": 2,
+  "findings": [
+   {
+    "rule": "R4",
+    "line": 61,
+    "severity": "high",
+    "issue": "do_ai is a one-step reactive priority list (walk to boss, else press 'button', else walk to the button). It is not a decomposition toward a goal. On this level it returns only o_move(player, a0, a1): the plan never presses the button or reaches the boss.",
+    "fix": "Start from the need. reachBoss(?a) :- if(enemy(?e), at(?e, ?r)), do(navigate(?a, ?r)). Then give navigate a second way through a closed door: if(linked(?x, ?y), door(?x, ?y, ?d), closed(?d), opens(?b, ?d)), do(openDoor(?b, ?d), navigate(?a, ?r)), where openDoor(?b, ?d) has one method for each way to open it."
+   },
+   {
+    "rule": "R3",
+    "line": 9,
+    "severity": "high",
+    "issue": "The file hand-rolls reachability with connected/3 (the door encoded as the third argument), connected_1, connected_2, free_connected and not_member over nested pairs. That is invented vocabulary, and the built-in pathNext over linked/2 already does this job.",
+    "fix": "Use linked(a0, a1)-style facts plus door(a2, a3, d0) and closed(d0), and navigate with the language.md pattern: a base case at(?who, ?to), then pathNext and opMoveTo per hop. Delete connected_1, connected_2, free_connected and not_member."
+   },
+   {
+    "rule": "R8",
+    "line": 62,
+    "severity": "high",
+    "issue": "The strategies name level objects: 'boss' on line 61 and 'button' on lines 62-63. The level facts (lines 1-31) sit in the same file as the domain, so nothing here can be reused.",
+    "fix": "Select by properties: enemy(?e), opens(?b, ?d). Move area, connected, location and button_connection into a level file that holds only facts and the goal."
+   },
+   {
+    "rule": "R5",
+    "line": 62,
+    "severity": "medium",
+    "issue": "The top task is an else-chain of single actions, not a menu of strategies. Line 62 has an empty if(), so it states nothing about when the strategy works. The else also only fires after 'go to boss' fails, and it hides why that failed (the door).",
+    "fix": "Make the goal plain alternatives, one per strategy (e.g. reach directly / open the door, then reach). Each if() states what makes the strategy possible."
+   },
+   {
+    "rule": "R1",
+    "line": 49,
+    "severity": "medium",
+    "issue": "trigger_button binds any connected(?loc1, ?loc2, ?d) for the door. The door is only a label on an edge, so 'this button opens a closed door between these rooms' is never stated as a condition. ?location is a singleton-looking join the linter flags.",
+    "fix": "Write openDoor(?a, ?d) :- if(opens(?b, ?d), closed(?d), at(?b, ?r)), do(navigate(?a, ?r), opPressButton(?a, ?b, ?d)), with opPressButton doing del(closed(?d)), add(open(?d))."
+   },
+   {
+    "rule": "R2",
+    "line": 61,
+    "severity": "medium",
+    "issue": "Cooperation is absent. The ruleset takes one ?actor, and the companion is never used, although the natural puzzle is one ally holding the button while another goes through.",
+    "fix": "Declare actors as ally(player) and ally(companion). Add a strategy whose if() picks two distinct allies (\\==(?a1, ?a2)): ?a1 opens the door, ?a2 reaches the enemy."
+   },
+   {
+    "rule": "R6",
+    "line": 34,
+    "severity": "low",
+    "issue": "The operators are named o_move and o_trigger_button instead of op.... o_move jumps across several rooms in one action, and o_trigger_button rewrites graph edges instead of changing door state.",
+    "fix": "Use opMoveTo(?who, ?from, ?to) for each linked hop, and opPressButton, which changes only closed(?d) to open(?d)."
+   },
+   {
+    "rule": "R9",
+    "line": 42,
+    "severity": "low",
+    "issue": "There is no header and no per-method comment, so the intent of each else case in do_ai has to be reverse-engineered.",
+    "fix": "Add a one-line file header and one line per method, e.g. '% Case 2: door closed - open it, then go through.'"
+   }
+  ],
+  "summary": "It compiles, but it is a one-step reactive policy, not a plan. It hard-codes 'boss' and 'button', hand-rolls reachability with invented connected_1/connected_2/not_member instead of pathNext over linked/2, and never uses the companion. It needs a top-down rewrite: a navigate verb, an openDoor verb chosen by opens/closed properties, and a menu of strategies for reaching the enemy.",
+  "cost_usd": 0.3013272
+ },
+ "old_primitives": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "Correctness",
+    "line": 37,
+    "severity": "high",
+    "issue": "moveTo is a navigation ladder. It has a pathThrough/3 recursion, but nothing defines pathThrough, so that method is always silently false. Below it are hard-coded 2-hop and 3-hop methods that stop at 3 rooms and can bounce back and forth (via2 = current). It also uses connected/2 rather than linked/2.",
+    "fix": "Use two methods: `moveTo(?e,?to) :- if(at(?e,?to)), do().` and `moveTo(?e,?to) :- else, if(at(?e,?here), pathNext(?here,?to,?next)), do(opMoveTo(?e,?here,?next), moveTo(?e,?to)).` Rename connected to linked, and delete the pathThrough, 2-hop and 3-hop methods, plus reachable/canReach/connectedBoth."
+   },
+   {
+    "rule": "Correctness",
+    "line": 66,
+    "severity": "high",
+    "issue": "enemyFollows ends with an `else, if(), do()` no-op. else is not a cut: when moveTo fails (the room can't be reached), the planner backtracks into that no-op. lureToRoom then returns a plan in which the enemy never reached the room.",
+    "fix": "Guard the no-op with the negation of its condition, `if(not(hasAggro(?enemy, ?target)))`, or drop it, so an enemy that can't follow makes the lure fail."
+   },
+   {
+    "rule": "Correctness",
+    "line": 51,
+    "severity": "high",
+    "issue": "The Case 3 fallback of applyTag is an unguarded `else, if()`. If Case 1 or Case 2 is re-entered by backtracking, the planner can add hasTag(?entity, ?tag) when the entity already has it, or apply the raw tag alongside a tag it should have combined with. Adding a fact that already exists is an error, and an error aborts the whole search. Case 1 also adds ?result without checking that the entity doesn't already have it.",
+    "fix": "Guard Case 3 with `if(not(hasTag(?entity, ?tag)), not(hasTag(?entity, ?x), tagCombines(?tag, ?x, ?r)))`. Add `not(hasTag(?entity, ?result))` to Case 1's if()."
+   },
+   {
+    "rule": "R8",
+    "line": 16,
+    "severity": "medium",
+    "issue": "The aggro primitive hard-codes the character `player`. opGetAggro/opLoseAggro only work for `player`, while enemyFollows takes a ?target. Companions are interchangeable, so a reusable component must not name an actor.",
+    "fix": "Parameterize by actor: `opGetAggro(?enemy, ?a) :- del(), add(hasAggro(?enemy, ?a)).`, `getAggro(?enemy, ?a)`, and `lureToRoom(?a, ?enemy, ?room)` with `ally(?a)` in its if()."
+   },
+   {
+    "rule": "Correctness",
+    "line": 33,
+    "severity": "medium",
+    "issue": "getAggro, loseAggro and removeTag use `else, if(), do()` base cases. They are mutually exclusive in intent but not guarded, so backtracking re-enters the no-op and a plan can skip the work.",
+    "fix": "Write each base case as the negated condition, e.g. `getAggro(?e) :- if(hasAggro(?e, player)), do().` and `removeTag(?e,?t) :- if(not(hasTag(?e,?t))), do().`"
+   },
+   {
+    "rule": "R1",
+    "line": 72,
+    "severity": "medium",
+    "issue": "lureToRoom's if() binds ?currentRoom and never uses it. It doesn't state what makes the lure possible: that the target is an enemy, that it can reach the room, or that it isn't already there.",
+    "fix": "`if(enemy(?enemy), ally(?a), at(?enemy, ?er), \\==(?er, ?room))`, then `do(moveTo(?a, ?room), getAggro(?enemy, ?a), enemyFollows(?enemy, ?a))`."
+   },
+   {
+    "rule": "R3",
+    "line": 80,
+    "severity": "low",
+    "issue": "The file has dead query helpers that add vocabulary: isAggressive, isFollowingPlayer, isVulnerableTo, which introduces `vulnerability` where the game word is `immune`, and hasAnyTag. The linter-only signature/2 facts add noise.",
+    "fix": "Delete the unused helpers. Use immune/2 when a strategy needs to check a weakness, and move the signature facts into the manifest or the linter config."
+   },
+   {
+    "rule": "R8",
+    "line": 32,
+    "severity": "low",
+    "issue": "The reaction table in a generic tags primitive includes specific pairs, `electronics`/`disabled`, that belong to a particular level's objects rather than to the core tag physics.",
+    "fix": "Keep only the core reactions (wet/burning/electrified/frozen) in the primitive. Put object-specific reactions in the level's facts."
+   }
+  ],
+  "summary": "The primitives have the right shape: small generic verbs, operators with one effect each, and tags instead of stats. But movement is a broken 2- and 3-hop ladder, several `else` no-ops let plans skip work, and the aggro component hard-codes `player`.",
+  "cost_usd": 0.3096512
+ },
+ "old_upper": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R8",
+    "line": 15,
+    "severity": "high",
+    "issue": "ruleset.htn:15 and part2.htn:25/35 and part4.htn:14/23/30 name specific characters: canApplyTag(player, burning), canApplyTag(arcanist, frozen). Companions are interchangeable, so a reusable strategy must not know who 'player' or 'arcanist' is. freezeCorridor/igniteRoom also have no actor, so nobody casts the freeze or the fire.",
+    "fix": "Bind the actor in if(): ally(?a), canApplyTag(?a, burning). Pass ?a into the verbs, e.g. lureToRoom(?a, ?enemy, ?oilRoom), applyTagToRoom(?a, ?corridor, frozen)."
+   },
+   {
+    "rule": "Correctness",
+    "line": 58,
+    "severity": "high",
+    "issue": "part2.htn:58 applyTagToRoom uses `else, if()` as the case that calls opApplyRoomTag. When the room already has the tag and a later task fails, the planner backtracks into this else and adds a fact that already exists. That is an error, and it aborts the whole search.",
+    "fix": "Guard the operator case with the negation: applyTagToRoom(?room, ?tag) :- if(not(roomHasTag(?room, ?tag))), do(opApplyRoomTag(?room, ?tag))."
+   },
+   {
+    "rule": "Correctness",
+    "line": 35,
+    "severity": "high",
+    "issue": "ruleset.htn:35 falls back to igniteRoom with `else`, which only consumes the oil. Else is not a cut, so if applyTag or a later step fails, theBurn still 'succeeds' by burning the oil with nobody in it. The enemy is never burned. part2.htn:73 (applyHazardEffect no-op) and ruleset.htn:51 (consumeHazard no-op) skip work the same way.",
+    "fix": "Remove the no-op else branches. igniteRoom should require the enemy in the room: if(roomHasHazard(?room, oil), at(?enemy, ?room)). consumeHazard's base case should be if(not(roomHasHazard(?room, ?h))), do()."
+   },
+   {
+    "rule": "R5",
+    "line": 19,
+    "severity": "medium",
+    "issue": "part4.htn:19 makes defeatEnemy an else chain instead of a menu, so FindAllPlans never returns theBurn and theSlipstream together. Strategy 3 (line 28) pushes the enemy into any hazard without checking it is vulnerable, so it is not a strategy. The goal also repeats each strategy's preconditions.",
+    "fix": "Use plain alternatives: defeatEnemy(?e) :- if(enemy(?e)), do(theBurn(?e)). and defeatEnemy(?e) :- if(enemy(?e)), do(theSlipstream(?e)). Drop strategy 3, and let each strategy's if() own its feasibility."
+   },
+   {
+    "rule": "R1",
+    "line": 21,
+    "severity": "medium",
+    "issue": "part2.htn:21 theSlipstream's if() never checks that the enemy is vulnerable to the hazard's tag (only defeatEnemy does), so the strategy alone doesn't say when it works. The 'simpler version' at line 31 is a second path shape hidden behind else, and ?enemyRoom in ruleset.htn:20 is bound but unused.",
+    "fix": "Put hazardAppliesTag(?hazard, ?tag), vulnerableTo(?enemy, ?tag) in theSlipstream's if(). Leave the route to a navigation verb rather than two else-ordered methods for 'corridor' and 'adjacent'."
+   },
+   {
+    "rule": "R2",
+    "line": 43,
+    "severity": "medium",
+    "issue": "part2.htn:43 freezeCorridor and :48 freezeRoom are identical one-off wrappers around applyTagToRoom. They are used only by theSlipstream, and they re-check canApplyTag(arcanist, frozen).",
+    "fix": "Delete both. Call the generic verb applyTagToRoom(?a, ?room, frozen) directly from theSlipstream."
+   },
+   {
+    "rule": "R7",
+    "line": 63,
+    "severity": "medium",
+    "issue": "part2.htn:63 pushIntoRoom moves the enemy straight to ?hazardRoom with opMoveTo, with no adjacency check and no pusher. In the corridor case it teleports two hops. The locomotion it depends on also uses hand-written 2- and 3-hop connected ladders instead of pathNext.",
+    "fix": "Have an ally push the enemy one hop at a time over linked/2 with pathNext, e.g. pushTo(?a, ?enemy, ?room) with a base case at(?enemy, ?room)."
+   },
+   {
+    "rule": "R3",
+    "line": 6,
+    "severity": "low",
+    "issue": "The signature/2 blocks (ruleset.htn:6-9, part2.htn:6-12, part3.htn:6, part4.htn:6) are linter scaffolding in the domain. The files also mix overlapping state words: roomHasHazard, roomHasTag, hazardConsumed, isEnemy vs enemy, and vulnerableTo vs immune.",
+    "fix": "Drop the signature facts. Use one room-state predicate (a tag on the location, as in hasTag) and the standard enemy/immune vocabulary."
+   }
+  ],
+  "summary": "The architecture is right: primitives, strategies and a goal layer, with theBurn as 'oil room + someone can burn \u2192 lure, ignite'. But the strategies name specific characters, defeatEnemy is an else chain rather than a menu, and several `else, if()` fallbacks either skip the actual damage or can add a duplicate fact and abort the search.",
+  "cost_usd": 0.36382139999999996
+ },
+ "taxi": {
+  "score": 5,
+  "findings": [
+   {
+    "rule": "R9",
+    "line": 9,
+    "severity": "low",
+    "issue": "Only the taxi method has a comment. The walk and bus methods of travel-to have none, and the file has no header saying what the domain is.",
+    "fix": "Add a one-line header, e.g. '% Taxi: get to a place by walking, taxi or bus, paying the fare.', and one short line above each travel-to method: '% Walk when it is close enough.', '% Bus on a route from here.'"
+   },
+   {
+    "rule": "R6",
+    "line": 15,
+    "severity": "low",
+    "issue": "The operators (hail, wait-for, ride, set-cash, walk) don't use the op prefix, so a reader can't tell at a glance which tasks are game actions and which are methods.",
+    "fix": "Rename them opHail, opWaitFor, opRide, opSetCash and opWalk (or op-hail and so on, to match the hyphenated style)."
+   },
+   {
+    "rule": "R3",
+    "line": 11,
+    "severity": "low",
+    "issue": "The taxi's 1.5 base fare is written in two places: in the have-taxi-fare rule (line 1) and as the pay-driver argument +(1.50, ?d). The feasibility check and the payment can drift apart.",
+    "fix": "Add a taxi-fare(?d, ?fare) rule. Use it in the if() as taxi-fare(?d, ?fare), have-cash(?m), >=(?m, ?fare), then call do(... pay-driver(?fare))."
+   }
+  ],
+  "summary": "Every travel-to method's if() states what makes that way of travelling possible, and its do() is a few game actions. The goal is a menu of strategies, and the operator effects are guarded. What's left is naming and comment polish: this could be a teaching example.",
+  "cost_usd": 0.2534706
+ },
+ "taxi2": {
+  "score": 5,
+  "findings": [
+   {
+    "rule": "R6",
+    "line": 15,
+    "severity": "low",
+    "issue": "The operators (`hail`, `wait-for`, `ride`, `set-cash`, `walk`) have no `op` prefix, so in `do()` they look the same as compound tasks like `pay-driver`.",
+    "fix": "Rename them `opHail`, `opWaitFor`, `opRide`, `opSetCash` and `opWalk`, so a reader can tell game actions from verbs."
+   },
+   {
+    "rule": "R1",
+    "line": 12,
+    "severity": "low",
+    "issue": "The bus strategy's `if()` does not say that the person can pay the fare. The cash check is hidden inside `pay-driver`, so the `if()` alone doesn't tell you when the bus is possible. The taxi strategy does state it (`have-taxi-fare`).",
+    "fix": "Add `have-cash(?m), >=(?m, 1.00)` or a `have-bus-fare` rule to the bus method's `if()`, next to `bus-route`."
+   },
+   {
+    "rule": "R3",
+    "line": 22,
+    "severity": "low",
+    "issue": "`distance/3` is one-way (downtown to X) and has no symmetric rule, so `travel-to(downtown)` from park, uptown or suburb only finds a plan if the person is already there.",
+    "fix": "Add `distance(?u, ?v, ?d) :- distance-fact(?v, ?u, ?d)` (or state both directions), so the world is symmetric and the strategies work from any location."
+   },
+   {
+    "rule": "R9",
+    "line": 7,
+    "severity": "low",
+    "issue": "The file has no header saying what it is, and only the taxi method has a comment. The walk and bus methods have none.",
+    "fix": "Add a one-line header and one short line per `travel-to` method, e.g. `% Walk if close enough`, `% Take a taxi if we can afford it`, `% Take the bus on a route`."
+   }
+  ],
+  "summary": "This is the gold Taxi example. The only change is that the person is now `at(person, ?x)`, which makes `at/2` the same for people and vehicles and is if anything clearer. `travel-to` is a clean menu of strategies whose `if()` states when each works; what remains are the small rough edges of the original.",
+  "cost_usd": 0.2578762
+ },
+ "puzzle1": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R8",
+    "line": 46,
+    "severity": "high",
+    "issue": "defeatAllGuards lists the level's rooms (clearRoom(storage), clearRoom(corridor)) when it should cover every enemy. A guard placed in main or generator is silently ignored, and the task name is written for this one level.",
+    "fix": "State the goal over the world: `defeatAll :- allOf, if(enemy(?e)), do(defeatEnemy(?e)).` The level then holds only facts plus `goals(...)`."
+   },
+   {
+    "rule": "R8",
+    "line": 84,
+    "severity": "high",
+    "issue": "The level must name its characters `player` and `arcanist` because the_burn requires canApplyTag(player, burning) and the_slipstream requires canApplyTag(arcanist, frozen). Components are hard-coded to specific characters, and companions are not interchangeable.",
+    "fix": "Give characters skills that carry properties: `ally(player). hasSkill(player, ignite). skillAppliesTag(ignite, burning).` Strategies then bind `ally(?a), hasSkill(?a, ?s), skillAppliesTag(?s, burning)` in if()."
+   },
+   {
+    "rule": "R3",
+    "line": 76,
+    "severity": "medium",
+    "issue": "The world uses coined predicates (isEnemy, roomHasHazard, canApplyTag, vulnerableTo) where the game vocabulary already has words. canApplyTag goes from character straight to tag and skips the skill.",
+    "fix": "Use the game words: enemy(guard1), terrain(storage, oil), hasSkill/skillAppliesTag, and not(immune(?t, ?tag)) instead of a separate vulnerableTo list."
+   },
+   {
+    "rule": "R8",
+    "line": 65,
+    "severity": "medium",
+    "issue": "The corridor-generator link was added only so slipstream finds a plan (the comment says so). The level's geometry is being bent to fit one strategy's hop rules. Also, arcanist has no at() fact and never moves, and warden has no ability, so the slipstream plan freezes rooms from nowhere and the second companion plays no part.",
+    "fix": "Place every ally with at(). Let the strategy's if() require the caster, e.g. `ally(?a), hasSkill(?a, ?s), skillAppliesTag(?s, frozen)`, and bring them there with a verb like `prepareToUseSkill(?a, ?s, ?room)`. Keep links that are true to the map."
+   },
+   {
+    "rule": "Correctness",
+    "line": 51,
+    "severity": "medium",
+    "issue": "Travel runs on locomotion's else-ladder: a direct link, then pathThrough (never defined, so always false), then fixed 2-hop and 3-hop methods. After theBurn the player is in storage, and reaching exit needs exactly the 3-hop case, so any longer route fails silently. slipstream's first method also relies on the undefined pathThrough, so it never fires.",
+    "fix": "Replace moveTo's ladder with the recursive `pathNext` navigate over `linked/2` facts (language.md section 6), and rename connected/2 to linked/2 in the level."
+   },
+   {
+    "rule": "R5",
+    "line": 39,
+    "severity": "medium",
+    "issue": "The goal reaches strategy choice through defeatEnemy, whose strategies are chained with `else`. Once theBurn works, slipstream is never offered, so there is one plan per enemy rather than a menu. The strategy 3 fallback also ignores vulnerability.",
+    "fix": "Make defeatEnemy's methods plain alternatives, each guarded by what makes it possible (not(immune(?e, burning)), terrain(?r, oil), ...). Drop the vulnerability-blind fallback."
+   },
+   {
+    "rule": "R1",
+    "line": 41,
+    "severity": "medium",
+    "issue": "Nothing in the plan ever makes a guard defeated. theBurn only adds hasTag(guard1, burning), and completePuzzle never checks that the enemies are down. vulnerableTo is used only to pick a strategy, so 'defeat' is never a state the plan achieves.",
+    "fix": "Have the strategy's do() end in the achieved state, e.g. applyTag(?e, ?weakness) where a weakness means defeated. Make the goal's if()/base case test not(enemy(?e), not(defeated(?e)))."
+   },
+   {
+    "rule": "R9",
+    "line": 5,
+    "severity": "low",
+    "issue": "About 30 lines of type(...) declarations exist only for a linter. They duplicate oil/electricity as both tag and hazard and declare hazards (fire, spikes, acid) and tags (wet) that the level never uses.",
+    "fix": "Delete the type block, or keep only the types the level uses. One header line is enough."
+   }
+  ],
+  "summary": "Most of the level is facts plus a goal, the right overall shape. But the goal is written around named rooms and named characters, the old components' character-bound, else-chained strategies force its vocabulary and even its map links, and nothing ever makes an enemy defeated.",
+  "cost_usd": 0.3501528
+ },
+ "ringout": {
+  "score": 2,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 145,
+    "severity": "high",
+    "issue": "'Beat the slam' and 'Take the slam' are scripts of seven operators each (opTaunt, opChase, opWindUp, opKnockOver, opMiss/opSlam). What makes each strategy work is only in the order of the steps, and none of the steps is a verb that other code uses. Strategy 2 even calls opKnockOver directly instead of going through knockOver.",
+    "fix": "Make each strategy's do() a list of states to reach: ringOut(?e) :- if(enemy(?e), verge(?r), ...), do(bringMobToLocation(?e, ?r), knockOver(?e, ?r)). Put the hook, the taunt and the slam timing inside the methods of those verbs."
+   },
+   {
+    "rule": "R2",
+    "line": 136,
+    "severity": "high",
+    "issue": "There is no reusable verb for 'get the enemy onto the brink'. The hook and the taunt are two ways to reach the same state, but they are written as separate top-level strategies, and strategies 2 and 3 repeat the navigate/taunt/chase/wind-up prefix.",
+    "fix": "Add bringMobToLocation(?e, ?r) with one method per way: one for a skill that pulls (hook), one for a skill that taunts, where the ogre follows the taunter. The strategies then differ only in which methods get chosen."
+   },
+   {
+    "rule": "R7",
+    "line": 100,
+    "severity": "high",
+    "issue": "The planner scripts the ogre's own AI, frame by frame: opChase, opWindUp, then opMiss or opSlam, with a groundSlam constant. This is an effect engine for telegraph timing, which is the game engine's job, not a planning decision.",
+    "fix": "Collapse this to the state the companions choose. For example, the taunt method of bringMobToLocation adds at(?e, ?r) and aggro(?e, ?t). Model 'the taunter is stunned' as a tag (hasTag(?t, stunned)) that one taunt method adds, not as a chain of wind-up, miss and slam operators."
+   },
+   {
+    "rule": "R8",
+    "line": 137,
+    "severity": "high",
+    "issue": "Skills are chosen by name (knows(?h, hook), knows(?t, taunt)), and the level's places are hard-coded in the methods: plinth and brink (lines 139, 146-157), brink/verge/yard in knockOver (lines 163-171), and ogre in win (line 133).",
+    "fix": "Choose skills by their properties, e.g. skillAppliesTag(?s, pull) and skillAppliesTag(?s, taunt). Bind places from facts in if(): at(?e, ?from), verge(?r), and a place next to it for stepping off. Write win as if(enemy(?e)), do(ringOut(?e))."
+   },
+   {
+    "rule": "R1",
+    "line": 137,
+    "severity": "medium",
+    "issue": "The if() does not say who the actors are or why a ring-out applies. companion/1 and enemy/1 are declared but never checked. Nothing states that the ogre can't be hurt, or which place has the verge: verge(brink, verge) is never used, and location/1 is dead data.",
+    "fix": "Add companion(?h), companion(?k), \\==(?h, ?k), enemy(?e) and verge(?r) to the if(), and use ?r everywhere brink is hard-coded now. Delete location/1 and the unused second argument of verge."
+   },
+   {
+    "rule": "R3",
+    "line": 73,
+    "severity": "medium",
+    "issue": "knockFrom/2 mixes skill range with this level's map: fireball is cast from the gate and shieldBash from the yard. first(knockFrom(...)) hides that the value comes from a lookup table. The terms push/sweep and the verge constant are coined words on top of this.",
+    "fix": "Give skills generic properties, such as skillAppliesTag(fireball, knockback) and skillHasTag(tidalWave, area). Derive where to cast from with a rule over linked/2 or a 'sees' fact, not a table keyed by skill name."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The file header is a 38-line essay: an ASCII map, a restatement of each strategy, the expected plan set per kit, and design history ('rewritten'). The comments on strategies 2 and 3 are also multi-line narration.",
+    "fix": "Use a one-line header, e.g. '% Ring-out: knock an unkillable enemy over a verge.', and one short line per method. Move the plan-set table into a test (assert_plan_set)."
+   },
+   {
+    "rule": "R4",
+    "line": 164,
+    "severity": "low",
+    "issue": "knockOver dispatches on push or sweep, which is good, but the sweep methods move the friend with navigateTo(?friend, yard) and knock the stunned friend over as a hard-coded second step. These are side effects, not states the method achieves.",
+    "fix": "Put 'the friend is off the verge' in a verb, e.g. clearArea(?r, ?friend), with a method for 'can walk away' and a method for 'stunned: it is lost'. The sweep method then becomes do(clearArea(?r, ?friend), useSkillOnTarget(?k, ?s, ?e))."
+   }
+  ],
+  "summary": "The knockOver dispatch and the navigation are sound, but the strategies are imperative scripts that also simulate the ogre's turn-by-turn behaviour. Skills are chosen by name and the level's places are hard-coded throughout, with no reusable bring-the-enemy-to-the-verge verb.",
+  "cost_usd": 0.29600479999999996
+ },
+ "reference_good": {
+  "score": 2,
+  "findings": [
+   {
+    "rule": "R4",
+    "line": 132,
+    "severity": "high",
+    "issue": "theQuietRun and theLoudRun (159) are imperative scripts: stash bag, cut power, slip in, open, haul / scout, set, blow, storm, smash, grab. They list actions to perform, not states to achieve. Each of the 11 helpers (prepBag, killLights, getInside, openUp, carryOut, scoutExit, placeCharge, detonate, stormBreach, crackVault, takeLoot) is used by exactly one strategy.",
+    "fix": "Write each route as the states it needs, using shared generic verbs: theQuietRun(?v) :- if(...), do(disable(power), enter(?a2, ?v), open(?v), take(?a1, loot)). theLoudRun reuses enter/open/take and only differs in how the vault gets opened (a second method of open(?v))."
+   },
+   {
+    "rule": "R1",
+    "line": 133,
+    "severity": "high",
+    "issue": "The if() does not say when the strategy works. It checks hasCutter(player) and cleared(alarm), but the other things it needs (a companion with a rope, an actor to carry the loot) are hidden in the helpers' conditions at lines 144-154. No actors are bound or kept distinct.",
+    "fix": "Move the feasibility into the strategy: if(cleared(alarm), ally(?a1), hasTool(?a1, cutter), ally(?a2), hasTool(?a2, rope), \\==(?a1, ?a2)), then pass ?a1 and ?a2 into generic verbs in do()."
+   },
+   {
+    "rule": "R8",
+    "line": 136,
+    "severity": "high",
+    "issue": "Every helper method hardcodes an actor (player, companionA, companionB), one method per character, and detonate (173) is fixed to the player. That is role(player) under another name. Companions are interchangeable, so these methods cannot be reused and do not scale with the cast.",
+    "fix": "Replace the per-character clauses with one clause per way to do it, and bind the actor by capability: placeCharge(?a, ?v) :- if(ally(?a), hasTool(?a, charge)), do(opSetCharge(?a))."
+   },
+   {
+    "rule": "R3",
+    "line": 52,
+    "severity": "high",
+    "issue": "A new predicate is invented for each item and each intermediate state: hasCutter, hasRope, hasCharge, hasHammer, bagReady, exitScouted, powerOff, breach, stormed, vaultOpen, doorOpen, usable, vaultSite, alarmed, blocker. The tools are dispatched by name, not by their properties.",
+    "fix": "Use one ownership predicate and one property predicate, for example hasTool(?a, ?tool) and toolDoes(?tool, cut/climb/blast/smash), mirroring hasSkill and skillAppliesTag. Express the states as tags on things, for example hasTag(vault, open) and hasTag(power, off)."
+   },
+   {
+    "rule": "R5",
+    "line": 174,
+    "severity": "medium",
+    "issue": "Some alternatives are fake. detonate's second clause does the same thing as its first, with an irrelevant extra condition, so it duplicates plans. killLights clause 2 (142) needs hasCutter(companionA), which is never true. carryOut clause 2 (152) checks companionA's bag but has the player haul. placeCharge clause 3 (169) sets the charge with a hammer. These exist to inflate the choice metrics, not to model distinct ways to do the job.",
+    "fix": "Delete the duplicate, dead and nonsensical clauses. Give a verb a second method only when it is a genuinely different way to reach the state."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The 28-line header essay and the inline comments (81-83, 91-94, 109-112, 116-119, 139-140, 171-172) explain fun metrics (F1-F6, insight_depth, fingerprint depth, the GDD) and design intent. They do not say what each method is for.",
+    "fix": "Cut the header to one line saying what the level is. Give each method or case a single line, such as '% Quiet run: disable the power, sneak in, open from inside.'"
+   },
+   {
+    "rule": "R6",
+    "line": 85,
+    "severity": "medium",
+    "issue": "The operators ignore their actor argument (opCutPower(?a) only adds powerOff, and opBlow, opSetCharge, opOpenFromWithin and opSmashVault do the same). No operator deletes anything, so nothing is used up and no actor's position changes, which makes 'inside' and 'stormed' meaningless flags. opStashBag and opScoutExit are setup moves that change nothing any rule needs except a later metric-bait check.",
+    "fix": "Have the operators change the real state: movement is del(at(?a, ?from)), add(at(?a, vault)), and opening is add(hasTag(vault, open)). Drop setup operators that exist only to delay a payoff, or make them a real precondition of a later step in its if()."
+   },
+   {
+    "rule": "R8",
+    "line": 120,
+    "severity": "low",
+    "issue": "In clear/1, usable/2 only reads carrying(player, ...), so only the player's kit counts. Then the else fallback (124) is a cut-like 'if there is no companion' that backtracking re-enters whenever a later route fails.",
+    "fix": "usable(?a, ?tool, ?b) :- ally(?a), carrying(?a, ?tool), defeats(?tool, ?b). Write clear(?b) as a single method that binds the actor in if(), and drop the else branch; if you keep two cases, guard the second with not(companion(?c))."
+   }
+  ],
+  "summary": "The top-level menu (runHeist) and the tool-versus-blocker clear/defeats check are reasonable. Both routes, though, are imperative scripts of single-use helpers with hardcoded characters, an invented predicate per item and state, and clauses padded to inflate the choice metrics, all under an essay header.",
+  "cost_usd": 0.30748519999999996
+ },
+ "trunkthumper": {
+  "score": 5,
+  "findings": [
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "medium",
+    "issue": "The header is a 50-line essay covering the port history, the chapter mapping, divergences and plan listings. The navigation block (223-231) and the doTrunkSlam block (267-279) are also design essays rather than one line per method.",
+    "fix": "Cut the header to one line saying what the file is, then give each method or case one short line, e.g. '% Case 2: trunk broken - fetch a fresh one, then attack.'"
+   },
+   {
+    "rule": "R7",
+    "line": 94,
+    "severity": "medium",
+    "issue": "trunkHealth, powerUp and stamina are counters with decrease/increase and threshold checks (>=(?s, 4), >=(?p, 3)). This is stat arithmetic, which is too fine-grained for this game's level of decision.",
+    "fix": "Replace the counters with tags such as hasTag(?t, charged), hasTag(?t, tired) and hasTag(?t, brokenTrunk). Operators add or remove the tag, and the if() tests it."
+   },
+   {
+    "rule": "R3",
+    "line": 103,
+    "severity": "low",
+    "issue": "The type/signature block adds a second vocabulary (type/2, signature/2) that the planner never reads. The reader has to learn it, and it is noise in a domain file.",
+    "fix": "Move the type hints to a separate linter file, or drop them."
+   },
+   {
+    "rule": "R1",
+    "line": 256,
+    "severity": "low",
+    "issue": "inMeleeRange(?t, ?e) is a static fact, yet the strategy navigates to the enemy afterwards. The feasibility condition does not match what do() achieves, because being in range is the state that navigateTo produces.",
+    "fix": "Drop inMeleeRange from if(); navigateTo(?t, ?loc) is the verb that achieves being in range."
+   },
+   {
+    "rule": "R1",
+    "line": 290,
+    "severity": "low",
+    "issue": "at(?e, ?loc) binds ?loc, but do() never uses it. It is a dead condition in the Boulder toss strategy.",
+    "fix": "Remove at(?e, ?loc), or use it for a real range requirement."
+   },
+   {
+    "rule": "R6",
+    "line": 211,
+    "severity": "low",
+    "issue": "opRecovery increases stamina with no cap. Chained plans can push stamina above its maximum, so the stamina gates in the strategies lose their meaning.",
+    "fix": "Model recovery as removing a tired tag, or guard the calling method with a cap."
+   }
+  ],
+  "summary": "This is a clear, idiomatic top-down domain: attackEnemy is a menu of plain strategies, doTrunkSlam uses a correct else ladder for variants, navigation uses pathNext recursion, and every operator is guarded. Its only weaknesses are essay-length comments and health/stamina arithmetic that is finer-grained than this game plans at.",
+  "cost_usd": 0.29556560000000004
+ },
+ "the_brink": {
+  "score": 2,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 115,
+    "severity": "high",
+    "issue": "This is an effect engine with its own ontology. The chain reacts(fire, rope, abyss) -> hazard(abyss, fallen) -> regionHas -> status(?e, fallen), with suffered/2 on top (part2.htn:12), skillElement, charge/3, unlimited and role/2, rebuilds 'chemistry' where the game's words would do. reacts/3 and hazard are named as slop in the rubric.",
+    "fix": "Use the game's words: enemy(ogre), ally(warden), terrain(bridge, rope), skillAppliesTag(ignite, fire), skillAppliesTag(gust, push), hasTag(?t, fallen). Delete the reacts/hazard/regionHas/suffered chain."
+   },
+   {
+    "rule": "R1",
+    "line": 10,
+    "severity": "high",
+    "issue": "cutTheFloor (part4.htn) finds its place only through the chemistry chain. Its if() never says who holds fire, who can bring the target, or that two distinct allies act, so the feasibility is hidden in bringTo and castElement. Its do() is made of one-off helpers (bringOthers, stepOff, castElement) that no other strategy uses.",
+    "fix": "Write if(enemy(?t), terrain(?r, rope), skillAppliesTag(?s, fire), hasSkill(?a1, ?s), ally(?a2), \\==(?a1, ?a2)), then do(bringMobToLocation(?t, ?r), prepareToUseSkill(?a1, ?s, ?r), useSkillOnLocation(?a1, ?s, ?r)). Use the generic verbs that other strategies share."
+   },
+   {
+    "rule": "R1",
+    "line": 12,
+    "severity": "high",
+    "issue": "bringAndPush (part3.htn) looks up the drop through hazard/regionHas/connected. It does not state who can push, or that the target is not immune. forceInto (part3.htn:21-22) has an empty if() and hides the immunity check in push. The lure method is a dead alternative: the comment itself says nothing is pulled into a drop.",
+    "fix": "Write if(enemy(?t), locationCanApplyTag(?l, fall), skillAppliesTag(?s, push), not(immune(?t, push)), hasSkill(?a, ?s)), then do(bringMobToLocation(?t, ?l), useSkillOnTarget(?a, ?s, ?t)). Remove the forceInto/lure layer."
+   },
+   {
+    "rule": "R7",
+    "line": 60,
+    "severity": "medium",
+    "issue": "The level encodes physics in the graph. The one-way connected(brink, void) and connected(ledge, void), the region() filter and 14 lineOfSight facts do this. It uses connected/2 instead of linked/2, so pathNext can't be used and navigation depends on a hand-written ladder in the deleted core.",
+    "fix": "Use linked/2 between regions only. Mark the edge as a location that applies the tag, e.g. locationCanApplyTag(brink, fall), and let the engine handle line of sight."
+   },
+   {
+    "rule": "R2",
+    "line": 13,
+    "severity": "medium",
+    "issue": "try(bringOthers(...)) inside the strategy for one enemy also moves the other enemies. That ties defeat(ogre) to defeat(bearer) through a side effect. allOf under try is all-or-nothing and commits once it succeeds, so the plan set depends on what order the search runs in.",
+    "fix": "Keep each strategy about its own ?t. Let the goal menu add a separate strategy that brings two targets onto the rope when that is the intended plan."
+   },
+   {
+    "rule": "R7",
+    "line": 98,
+    "severity": "medium",
+    "issue": "The charge/3 tokens (m1, d1, i1) and unlimited/1 are resource bookkeeping. skillElement(dash, dash) names a skill kind after the skill, although the comment says it is a taunt.",
+    "fix": "Use hasSkill plus skillAppliesTag(dash, taunt) and skillAppliesTag(magnetize, pull). If single use matters, model it as a tag the skill removes."
+   },
+   {
+    "rule": "R3",
+    "line": 85,
+    "severity": "medium",
+    "issue": "role(player, player) and role(warden, companion) set the player apart from the companions. Cooperation should come from the strategy's actor slots, not from roles.",
+    "fix": "Write ally(player). ally(warden). Have strategies bind distinct allies with \\==(?a1, ?a2) in if()."
+   },
+   {
+    "rule": "R9",
+    "line": 1,
+    "severity": "low",
+    "issue": "Every file opens with an essay. There are 36 lines of level narrative, plan counts per kit, 'F4 strips these' and 'See design.md for the iterations', plus multi-paragraph headers in part2-part4.",
+    "fix": "Keep one header line per file and one line per method, e.g. '% Cut the floor: bring the target onto the rope, then burn it.'"
+   }
+  ],
+  "summary": "The goal menu (defeat -> apply(?e, fall) with two plain alternatives) and the negated base case are the right shape. Everything below it is a chemistry/effect engine with coined vocabulary and one-off helpers, and the strategies' if() hides who acts and with what.",
+  "cost_usd": 0.34373000000000004
+ }
+}

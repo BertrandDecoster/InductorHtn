@@ -1,0 +1,104 @@
+{
+ "task": "open_damage",
+ "run": 3,
+ "commit": "8fc6e41",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "damage(gob).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "damage(slime).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "damage(golem).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "damage(orc).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "damage(rat).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 1.7554042000000003,
+ "turns": 19,
+ "duration_s": 474,
+ "is_error": false,
+ "final_message": "The domain is finished and in `task/domain.htn`. `damage(?e)` offers the brief's two strategies, and each is its own task:\n\n- **`wetThenElectrocute(?e)`**: puts the wet tag on the enemy, then electrocutes it, then damages it. It is ruled out if the enemy is immune to wet or electrocute.\n- **`stunAndSlow(?e)`**: picks two different allies, one with a skill that applies stun and one with a skill that has the slow property. Each gets their skill (learning it if needed), both reach the enemy, they synchronize, strike, and the enemy is damaged.\n\nBoth strategies are built from the same general actions:\n- **`applyTag`**: a tag comes either from someone casting a skill (an ally, who may learn it first, or a non-ally who already has it) or from a location (the enemy is lured there).\n- **`prepare`**: an ally gets a skill; learning replaces their current one.\n- **`meet`**: the ally walks to the enemy. If the ally is static, the enemy is lured to them instead; if the enemy is static too, a mobile caster is lured to it.\n- **`bring`**: lures an enemy to a location. Static enemies never move.\n\nThe operators record `at`, `hasTag`, `hasSkill` and `damaged`. A skill puts all its tags on the target except those it is immune to, so the fireball also leaves `fire` on the enemy.\n\n**Test results:**\n- **Sample level:** `damage(gob)` gives 7 different plans, with no duplicates. One is wet-then-electrocute: lure the goblin to the lake, then to the lightning tower. The other six are the possible stunner/slower pairs of allies. `damage(tower)` gives 6 plans, all stun+slow, because the tower is static and can't be taken to the lake. `damage(player)` gives no plan.\n- **Six extra levels I wrote:** an enemy immune to stun with no source of wet; one ally doing both halves; a static enemy with a mobile enemy caster; a static stunner; an enemy immune to slow; an enemy that is already damaged. Each gave the plans I expected, and \"no plan\" where no plan should exist.\n\n**Design choices you may want to change:**\n- **Who lures is fixed.** Any mobile ally can lure, and it never changes what's possible. So the domain uses an ally already standing with the enemy, else the first mobile ally. On the sample level this makes wet-then-electrocute one plan instead of nine that differ only in who lures. Who casts which skill is a real choice, so every workable pair is a separate plan. That includes two allies swapping skills, which is valid but odd.\n- **An enemy that is already damaged gets no plan.** Adding `damaged` a second time makes the engine abort the whole search (I confirmed this), so both strategies require the enemy not to be damaged yet.\n\nThe `htn-reviewer` agent scored the domain 4/5. I made its changes to the strategy tasks, the header and the already-damaged case. I left three suggestions alone:\n- **Tag bookkeeping steps:** it wanted each action to record only the one tag it needed. I kept a separate step per tag so every tag a skill applies shows up in the state.\n- **Rule for choosing the lurer:** kept.\n- **Helper that gathers the two allies:** it only exists so a static ally is handled correctly.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R6",
+    "line": 90,
+    "severity": "high",
+    "issue": "The skill's effect doesn't happen in its operator. opUseSkill (line 165) is an empty marker. The tags come from a small effect engine instead: landTags, which uses allOf over lands/applies with skill(?s) and place(?l) source wrappers (lines 94-95, 145-148) and adds each tag with its own opAddTag. The game action 'use a skill' is split into bookkeeping steps.",
+    "fix": "Let the operator carry the effect. Resolve the tag in the verb (applyTag already knows ?tag): useSkillOnTarget(?c, ?s, ?t, ?tag) :- del(), add(hasTag(?t, ?tag)), and useLocationToApplyTag(?l, ?tag, ?t) for the location case. Then delete landTags, lands, applies and the skill()/place() wrappers."
+   },
+   {
+    "rule": "R3",
+    "line": 138,
+    "severity": "medium",
+    "issue": "Too many coined predicates: caster (every ally 'casts' any skill, and a non-ally casts what it holds), lurer, walker, lurable, lands, applies. The reader has to learn them before reading the verbs. caster also hides the two different cases (an ally who learns versus a mob who holds the skill) inside a rule.",
+    "fix": "Write out the two ways in applyTag the way gh_tag_application does: one method with ally(?a), skillAppliesTag(?s, ?tag), and one with hasSkill(?m, ?s), not(ally(?m)), \\==(?m, ?t). Use not(static(?x)) inline instead of walker and lurable, and drop caster."
+   },
+   {
+    "rule": "R7",
+    "line": 113,
+    "severity": "medium",
+    "issue": "Positioning takes up a large share of the file. meet has four cases that decide who walks and who is lured, and gather (line 126) reorders the meets depending on which ally is static. This is movement mechanics, not a decision the plan needs. gather is also a helper that only stunAndSlow uses (R2).",
+    "fix": "Keep one generic verb, bringTogether(?x, ?t), with one method per way (walk to the target, or lure the target over). Have stunAndSlow call it for each ally. Drop gather's ordering logic, or state 'static ally' in the strategy's if() when the order matters."
+   },
+   {
+    "rule": "R2",
+    "line": 66,
+    "severity": "medium",
+    "issue": "applyTag has no case for a tag that is already there. If ?t already has wet, the plan still sends an ally to learn, walk and cast, and landTags then quietly adds nothing. The skill and location methods don't guard against the tag being present either.",
+    "fix": "Add applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(). and put not(hasTag(?t, ?tag)) in the if() of the other two methods (the applyTagNotPresent split)."
+   },
+   {
+    "rule": "R1",
+    "line": 108,
+    "severity": "medium",
+    "issue": "first(lurer(?a, ?from)) quietly picks one actor by fact order. Who does the luring is part of the plan, but it is neither a choice nor visible in any if(), and first() never revisits the other allies.",
+    "fix": "Let bring branch on ally(?a), not(static(?a)) so every lurer is a plan. If you want to prefer an ally who is already there, write that as a first method and mark the others as its else fallback."
+   },
+   {
+    "rule": "R1",
+    "line": 26,
+    "severity": "low",
+    "issue": "wetThenElectrocute's if() only rules out immunity. The strategy's other needs are missing: enemy(?e) and whether any skill or location can produce wet and electrocute. Its do() also mixes the tag verbs with a final opDamage.",
+    "fix": "Add enemy(?e) to the if(). Optionally add first(skillAppliesTag(?_, wet)) or a location check so the if() alone tells when the strategy works."
+   },
+   {
+    "rule": "R9",
+    "line": 5,
+    "severity": "low",
+    "issue": "The header explains a design decision (why the lurer is not a choice, and the preference order). That is design history, not a description of the file.",
+    "fix": "Shorten it to one line: '% Damage an enemy: wet then electrocute, or a synchronized stun and slow.'"
+   },
+   {
+    "rule": "R6",
+    "line": 83,
+    "severity": "low",
+    "issue": "learn binds hasSkill(?a, ?old) with no restriction. An ally that holds several skills produces one duplicate plan per skill it would replace, including skills a strategy step still needs.",
+    "fix": "If an ally holds one skill, say so with first(hasSkill(?a, ?old)), or make learning additive and drop opReplaceSkill."
+   }
+  ],
+  "summary": "The architecture is right. The goal is a menu, stunAndSlow states in if() what makes it possible, and applyTag and prepare are reusable verbs with one method per way. But the lower half turns into a tag effect engine (landTags, lands, applies), coined vocabulary (caster, lurer, walker) and fiddly meet/gather positioning.",
+  "cost_usd": 0.35286080000000003
+ },
+ "domain": "% =============================================================================\n% Damage the enemy - a cooperative HTN domain. Goal: damage(?e).\n% =============================================================================\n%\n% Plans: one per way to put wet then electrocute on ?e, and one per pair of\n% allies (stunner, slower) with the skills they hold or learn. The lurer is not\n% a choice (any mobile ally can lure): an ally already with the enemy, else the\n% first mobile ally.\n% =============================================================================\n\n\n% =============================================================================\n% GOAL\n% =============================================================================\n\ndamage(?e) :- if(enemy(?e), not(damaged(?e))), do(wetThenElectrocute(?e)).\ndamage(?e) :- if(enemy(?e), not(damaged(?e))), do(stunAndSlow(?e)).\n\n\n% =============================================================================\n% STRATEGIES\n% =============================================================================\n\n% Once ?e has the wet tag, electrocute it.\nwetThenElectrocute(?e) :-\n    if(\n        not(immune(?e, wet)),\n        not(immune(?e, electrocute))\n    ),\n    do(\n        applyTag(wet, ?e),\n        applyTag(electrocute, ?e),\n        opDamage(?e)\n    ).\n\n% Two different allies strike in sync: one applies stun, the other's skill\n% has the slow property.\nstunAndSlow(?e) :-\n    if(\n        not(immune(?e, stun)),\n        not(immune(?e, slow)),\n        skillAppliesTag(?stunSkill, stun),\n        skillHasTag(?slowSkill, slow),\n        ally(?stunner),\n        ally(?slower),\n        \\==(?stunner, ?slower)\n    ),\n    do(\n        prepare(?stunner, ?stunSkill),\n        prepare(?slower, ?slowSkill),\n        gather(?stunner, ?slower, ?e),\n        opSynchronize(?stunner, ?slower, ?e),\n        useSkill(?stunner, ?stunSkill, ?e),\n        useSkill(?slower, ?slowSkill, ?e),\n        opDamage(?e)\n    ).\n\n\n% =============================================================================\n% VERBS\n% =============================================================================\n\n% --- applyTag: put ?tag on ?t -------------------------------------------------\n\n% Someone casts a skill that applies the tag.\napplyTag(?tag, ?t) :-\n    if(skillAppliesTag(?s, ?tag), caster(?c, ?s), \\==(?c, ?t)),\n    do(prepare(?c, ?s), meet(?c, ?t), useSkill(?c, ?s, ?t)).\n\n% ?t stands at a location that applies the tag.\napplyTag(?tag, ?t) :-\n    if(locationCanApplyTag(?l, ?tag)),\n    do(bring(?t, ?l), landTags(place(?l), ?t)).\n\n% --- prepare: ?c holds skill ?s ----------------------------------------------\n\nprepare(?c, ?s) :- if(hasSkill(?c, ?s)), do().\nprepare(?a, ?s) :-\n    if(ally(?a), not(hasSkill(?a, ?s)), canGetSkillAtLocation(?l, ?s)),\n    do(goTo(?a, ?l), learn(?a, ?l, ?s)).\n\n% Learning replaces the current skill, if there is one.\nlearn(?a, ?l, ?s) :- if(hasSkill(?a, ?old)), do(opReplaceSkill(?a, ?l, ?old, ?s)).\nlearn(?a, ?l, ?s) :- if(not(hasSkill(?a, ?any))), do(opLearnSkill(?a, ?l, ?s)).\n\n% --- useSkill: ?c casts ?s on ?t from the same location ----------------------\n\nuseSkill(?c, ?s, ?t) :-\n    if(hasSkill(?c, ?s), at(?c, ?l), at(?t, ?l)),\n    do(opUseSkill(?c, ?s, ?t), landTags(skill(?s), ?t)).\n\n% --- landTags: ?t gets every tag of a source it is not immune to --------------\n\nlandTags(?source, ?t) :- allOf, if(lands(?source, ?t, ?tag)), do(opAddTag(?t, ?tag)).\nlandTags(?source, ?t) :- if(not(lands(?source, ?t, ?tag))), do().\n\n% --- moving -------------------------------------------------------------------\n\n% An ally walks to ?l.\ngoTo(?a, ?l) :- if(at(?a, ?l)), do().\ngoTo(?a, ?l) :-\n    if(walker(?a), at(?a, ?from), \\==(?from, ?l)),\n    do(opMoveTo(?a, ?from, ?l)).\n\n% An enemy is lured to ?l.\nbring(?e, ?l) :- if(at(?e, ?l)), do().\nbring(?e, ?l) :-\n    if(lurable(?e), at(?e, ?from), \\==(?from, ?l), first(lurer(?a, ?from))),\n    do(goTo(?a, ?from), opLure(?a, ?e, ?from, ?l)).\n\n% ?x and ?t end up at the same location: the ally walks if it can, otherwise\n% ?t is lured to ?x, otherwise ?x is lured to ?t.\nmeet(?x, ?t) :- if(at(?x, ?l), at(?t, ?l)), do().\nmeet(?x, ?t) :-\n    if(walker(?x), at(?x, ?lx), at(?t, ?lt), \\==(?lx, ?lt)),\n    do(goTo(?x, ?lt)).\nmeet(?x, ?t) :-\n    if(not(walker(?x)), lurable(?t), at(?x, ?lx), at(?t, ?lt), \\==(?lx, ?lt)),\n    do(bring(?t, ?lx)).\nmeet(?x, ?t) :-\n    if(not(walker(?x)), not(lurable(?t)), lurable(?x), at(?t, ?lt)),\n    do(bring(?x, ?lt)).\n\n% Two allies join ?t. A static ally goes first so ?t is lured to it before the\n% other walks over.\ngather(?a1, ?a2, ?t) :- if(not(static(?a2))), do(meet(?a1, ?t), meet(?a2, ?t)).\ngather(?a1, ?a2, ?t) :- if(static(?a2)), do(meet(?a2, ?t), meet(?a1, ?t)).\n\n\n% =============================================================================\n% RULES\n% =============================================================================\n\nwalker(?a) :- ally(?a), not(static(?a)).\nlurable(?e) :- enemy(?e), not(static(?e)).\n\n% Allies can cast any skill they hold or can learn; others only what they hold.\ncaster(?a, ?s) :- ally(?a).\ncaster(?m, ?s) :- hasSkill(?m, ?s), not(ally(?m)).\n\n% An ally already standing at ?l is preferred as the lurer.\nlurer(?a, ?l) :- walker(?a), at(?a, ?l).\nlurer(?a, ?l) :- walker(?a), not(at(?a, ?l)).\n\napplies(skill(?s), ?tag) :- skillAppliesTag(?s, ?tag).\napplies(place(?l), ?tag) :- locationCanApplyTag(?l, ?tag).\n\nlands(?source, ?t, ?tag) :- applies(?source, ?tag), not(immune(?t, ?tag)), not(hasTag(?t, ?tag)).\n\n\n% =============================================================================\n% OPERATORS\n% =============================================================================\n\nopMoveTo(?a, ?from, ?to) :- del(at(?a, ?from)), add(at(?a, ?to)).\n\n% ?a draws ?e's attention at ?from and walks to ?to; ?e follows.\nopLure(?a, ?e, ?from, ?to) :-\n    del(at(?a, ?from), at(?e, ?from)), add(at(?a, ?to), at(?e, ?to)).\n\nopLearnSkill(?a, ?l, ?s) :- del(), add(hasSkill(?a, ?s)).\nopReplaceSkill(?a, ?l, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).\n\n% Rendering markers: the cast itself and the synchronized strike.\nopUseSkill(?c, ?s, ?t) :- del(), add().\nopSynchronize(?a1, ?a2, ?e) :- del(), add().\n\nopAddTag(?t, ?tag) :- del(), add(hasTag(?t, ?tag)).\nopDamage(?e) :- del(), add(damaged(?e)).\n"
+}
