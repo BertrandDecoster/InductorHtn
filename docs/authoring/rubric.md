@@ -78,18 +78,11 @@ can't express.
 `suspension`, `ward`, `moment`. Each coined term is one more thing the reader and the planner
 must learn.
 
-## R4. No engine between the strategies and the world
+## R4. Top down, not bottom up
 
-Don't build a physics or chemistry interpreter that strategies route through: rule tables of
-effects and reactions, a generic `applyEffect` dispatching over 20 effect kinds, or "confirm
-the simulated world" steps. HTN is designer-authored recipes. The planner chooses between
-strategies; it doesn't simulate.
+Methods are actually "find a way to achieve state 1", "find a way to achieve state 2"...
 
-**Slop:** `ab_effects` (22 `effectOn` clauses, 48 no-op methods), and `core_chemistry` (reacts,
-blast, terrain, strike and mark tables).
-
-A small, direct consequence is fine. GreaseTrap's `applyTagEffect(burning, ?loc)` burns the
-oil and the enemies standing in it, with `try` and `allOf`, and nothing more.
+The wrong way is to state what to do : "scout the Area, deploy trap, hide in ambush..."
 
 ## R5. The goal is a menu of strategies
 
@@ -104,43 +97,22 @@ planToDamage(?t) :- if(enemy(?t)), do(wetAndElectrocute(?t)).
 ## R6. Operators are game actions with one clear effect
 
 Operators are named `op...`, change only what that action changes, and are what the game
-engine executes. An operator with no state effect is fine when it is a real action the engine
-performs (`opSynchronize(?a1, ?a2)`). It is not fine as bookkeeping or a log line
-(`opReact`, `opProvoked`, `opExploit` in the deleted abilities layer).
+engine executes. An operator with no state effect is fine if it helps the rendering engine
+perform (`opSynchronize(?a1, ?a2)`).
 
 ## R7. The right level of abstraction
 
-Plan at the level the game needs decisions at: rooms, not tiles; "stunned", not stamina
+Plan at the level the game needs decisions at: rooms, not tiles; character tags, not stamina
 arithmetic. The engine does low-level pathfinding and timing. TrunkThumper is good, but too
 fine-grained for this game (health and stamina bookkeeping).
 
 ## R8. Levels are facts; components hold no level specifics
 
 A level file is the world (facts) plus its goal. Reusable components don't name specific
-characters, areas or skills. `player` hard-coded in the old `aggro` primitive is a known WIP
-defect, not a model.
+characters, areas or skills. killGoblin() is too specific. Skills themselves are not 
+named, instead, they have properties, and when you plan, you use skills with said properties
 
 ## R9. Short comments that say what a method is for
 
 `% Case 2: Ally doesn't have skill - go learn it, then go to target.` One line per method or
-case, and a header that says what the file is. No essays, no design history, no
-philosophy in headers.
-
-## R10. Small
-
-A strategy fits in about ten lines. A component is tens of lines, not hundreds. A 300-line
-file needs a reason (TrunkThumper has one: a whole NPC behaviour).
-
-## R11. Correct by construction (see `docs/reference/language.md`)
-
-- Guard every operator: `del` only what exists, `add` only what doesn't.
-- `else` is not a cut: a do-nothing `else, if()` fallback can let a plan skip work. Use the
-  negated condition.
-- Navigate with `pathNext` recursion, not 1-, 2- and 3-hop ladders (a WIP defect in the old
-  `locomotion` and `challenges`).
-- No SWI-only built-ins (`\+`, `\=`, `member`).
-
-## R12. The plans can be predicted
-
-Before running anything, you can write down the plan set: one plan per strategy per valid
-assignment of actors and skills. A surprising plan count is a design bug, not a feature.
+case, and a header that says what the file is. No essays, no design history in the headers.
