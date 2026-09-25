@@ -24,6 +24,8 @@ npm run dev
 ```
 Runs on http://localhost:5173
 
+On Windows, double-click `start-ide.bat` at the repo root: it starts both servers in their own windows and opens the browser. Close the two windows to stop it.
+
 ## Usage
 
 1. Open http://localhost:5173
