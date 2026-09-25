@@ -1,0 +1,9 @@
+% Immune to stun and nothing electrocutes: no plan.
+ally(x). ally(y).
+enemy(golem).
+location(l1). location(l2).
+at(x, l1). at(y, l1). at(golem, l2).
+immune(golem, stun).
+hasSkill(x, bash). skillAppliesTag(bash, stun).
+hasSkill(y, cinder). skillAppliesTag(cinder, fire). skillHasTag(cinder, slow).
+locationCanApplyTag(l1, wet).

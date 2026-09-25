@@ -34,7 +34,7 @@ def _plans_in_process(domain_text, problem_text, goal):
         return {"error": "plan: " + error}
     solutions = json.loads(result)
     if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
-        return {"plans": []}
+        return {"plans": [], "finals": []}
     found = findAllPlansResultToPrologStringList(result)
     finals = []
     for i in range(min(len(found), 20)):

@@ -1,0 +1,6 @@
+% Only the burn works: one ally, a fire skill, an oily cellar; no wet source.
+ally(solo). enemy(rat).
+location(s1). location(s2). location(cellar).
+at(solo, s1). at(rat, s2).
+oily(cellar).
+hasSkill(solo, torch). skillAppliesTag(torch, fire).

@@ -1,0 +1,8 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "damage(gob)."},
+  {"problem": "i1.htn", "goal": "damage(rat)."},
+  {"problem": "i2.htn", "goal": "damage(statue)."},
+  {"problem": "i3.htn", "goal": "damage(bat)."},
+  {"problem": "i4.htn", "goal": "damage(salamander)."},
+  {"problem": "../../open_damage/hidden/i3.htn", "goal": "damage(orc)."}
+]}

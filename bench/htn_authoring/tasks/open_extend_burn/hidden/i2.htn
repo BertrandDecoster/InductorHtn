@@ -1,0 +1,6 @@
+% Oil but the enemy is static and elsewhere: no burn; nothing else works either.
+ally(a). ally(b). enemy(statue).
+location(p). location(q). location(r).
+at(a, p). at(b, p). at(statue, q). static(statue).
+oily(r).
+hasSkill(a, torch). skillAppliesTag(torch, fire).

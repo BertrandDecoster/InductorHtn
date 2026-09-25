@@ -20,6 +20,7 @@ import concurrent.futures
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,7 +31,9 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 TASKS_DIR = os.path.join(HERE, "tasks")
 RESULTS_DIR = os.path.join(REPO, "bench", "results")
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(REPO, "bench", "calibration"))
 import harness  # noqa: E402
+import calibrate  # noqa: E402
 
 PROMPT = ("Read task/brief.md and complete the task it describes. You are in a checkout of the "
           "InductorHTN repository; use its documentation, examples and tools as you see fit. "
@@ -84,6 +87,28 @@ def run_claude(wt, timeout_s, model):
         return {"is_error": True, "result": (proc.stdout + proc.stderr)[-2000:]}
 
 
+def review_domain(domain_path, workroot, name):
+    """Score the written domain with the htn-reviewer, from the main repo's rubric."""
+    if not os.path.exists(domain_path):
+        return {"score": None, "summary": "no domain written"}
+    d = os.path.join(workroot, "review", name)
+    os.makedirs(d, exist_ok=True)
+    shutil.copy2(domain_path, os.path.join(d, "ruleset.htn"))
+    prompt = (calibrate.agent_body() + "\n\nThe ruleset to review is this file:\n"
+              + os.path.join(d, "ruleset.htn"))
+    proc = subprocess.run(["claude", "-p", prompt, "--output-format", "json", "--allowedTools",
+                           "Read Grep Glob", "--add-dir", d, "--strict-mcp-config"], cwd=REPO,
+                          capture_output=True, text=True, encoding="utf-8", timeout=900)
+    try:
+        meta = json.loads(proc.stdout)
+        m = re.search(r"\{.*\}", meta.get("result", ""), flags=re.S)
+        verdict = json.loads(m.group(0))
+        verdict["cost_usd"] = meta.get("total_cost_usd")
+        return verdict
+    except Exception as exc:
+        return {"score": None, "summary": f"review failed: {exc!r}"}
+
+
 def one(commit, task, run, workroot, timeout_s, model, outdir):
     wt = prepare(commit, task, os.path.join(workroot, f"r{run}"))
     try:
@@ -91,12 +116,14 @@ def one(commit, task, run, workroot, timeout_s, model, outdir):
         meta = run_claude(wt, timeout_s, model)
         domain_path = os.path.join(wt, "task", "domain.htn")
         score = harness.check(os.path.join(TASKS_DIR, task), domain_path)
+        review = review_domain(domain_path, workroot, f"{task}.r{run}")
         record = {
             "task": task, "run": run, "commit": commit,
             "passed": score["passed"], "total": score["total"], "results": score["results"],
             "cost_usd": meta.get("total_cost_usd"), "turns": meta.get("num_turns"),
             "duration_s": round((datetime.datetime.now() - started).total_seconds()),
             "is_error": meta.get("is_error"), "final_message": meta.get("result"),
+            "review_score": review.get("score"), "review": review,
             "domain": harness.read(domain_path) if os.path.exists(domain_path) else None,
         }
         with open(os.path.join(outdir, f"{task}.r{run}.json"), "w", encoding="utf-8") as f:
@@ -110,15 +137,18 @@ def summarize(records, label, commit):
     rows = sorted(records, key=lambda r: (r["task"], r["run"]))
     tasks = sorted({r["task"] for r in rows})
     lines = [f"# Benchmark: {label}", "", f"Commit `{commit}`, {len(rows)} runs.", "",
-             "| task | run | instances passed | solved | cost $ | turns | minutes |",
-             "|---|---|---|---|---|---|---|"]
+             "| task | run | instances passed | solved | review /5 | cost $ | turns | minutes |",
+             "|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r['task']} | {r['run']} | {r['passed']}/{r['total']} | "
-                     f"{'yes' if r['passed'] == r['total'] else 'no'} | "
+                     f"{'yes' if r['passed'] == r['total'] else 'no'} | {r.get('review_score')} | "
                      f"{(r['cost_usd'] or 0):.2f} | {r['turns']} | {r['duration_s'] / 60:.1f} |")
     solved = sum(r["passed"] == r["total"] for r in rows)
     inst = sum(r["passed"] for r in rows), sum(r["total"] for r in rows)
-    lines += ["", f"**Tasks solved: {solved}/{len(rows)}. Instances passed: {inst[0]}/{inst[1]}.**",
+    reviewed = [r["review_score"] for r in rows if isinstance(r.get("review_score"), (int, float))]
+    mean_review = sum(reviewed) / len(reviewed) if reviewed else float("nan")
+    lines += ["", f"**Tasks solved: {solved}/{len(rows)}. Instances passed: {inst[0]}/{inst[1]}. "
+              f"Mean review score: {mean_review:.2f}/5.**",
               "", "Per task (solved runs / runs): " +
               ", ".join(f"{t} {sum(r['passed'] == r['total'] for r in rows if r['task'] == t)}/"
                         f"{sum(r['task'] == t for r in rows)}" for t in tasks)]

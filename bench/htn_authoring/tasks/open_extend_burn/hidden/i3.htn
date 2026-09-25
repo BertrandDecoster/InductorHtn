@@ -1,0 +1,6 @@
+% The enemy already stands in oil, next to a static fire imp: no ally needed.
+ally(z). enemy(bat). enemy(imp).
+location(o1). location(o2).
+at(z, o2). at(bat, o1). at(imp, o1). static(imp).
+oily(o1).
+hasSkill(imp, flame). skillAppliesTag(flame, fire).

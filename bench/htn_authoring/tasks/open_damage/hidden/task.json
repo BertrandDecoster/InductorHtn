@@ -1,0 +1,7 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "damage(gob)."},
+  {"problem": "i1.htn", "goal": "damage(slime)."},
+  {"problem": "i2.htn", "goal": "damage(golem)."},
+  {"problem": "i3.htn", "goal": "damage(orc)."},
+  {"problem": "i4.htn", "goal": "damage(rat)."}
+]}

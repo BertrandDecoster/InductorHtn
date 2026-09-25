@@ -1,0 +1,369 @@
+[
+ {
+  "id": "ab_effects",
+  "stars": 1,
+  "gold": "no",
+  "note": "slop",
+  "paths": [
+   "components/abilities/primitives/ab_effects/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "challenges",
+  "stars": 4,
+  "gold": "parts",
+  "note": "WIP",
+  "paths": [
+   "components/challenges/clear_area/src.htn",
+   "components/challenges/combo_sequence/src.htn",
+   "components/challenges/escort/src.htn",
+   "components/challenges/nav_obstacle/src.htn",
+   "components/challenges/pushable/src.htn",
+   "components/challenges/trigger_gate/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "combatlevel1_greasetrap",
+  "stars": 4,
+  "gold": "parts",
+  "note": "It has a good architecture, but it's still WIP",
+  "paths": [
+   "Examples/CombatLevel1_GreaseTrap.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "core_primitives",
+  "stars": 1,
+  "gold": "no",
+  "note": "slop",
+  "paths": [
+   "components/core/primitives/core_world/src.htn",
+   "components/core/primitives/core_aggro/src.htn",
+   "components/core/primitives/core_chemistry/src.htn",
+   "components/core/primitives/core_attunement/src.htn"
+  ],
+  "commit": "468e99b"
+ },
+ {
+  "id": "core_upper",
+  "stars": 1,
+  "gold": "no",
+  "note": "slop",
+  "paths": [
+   "components/core/strategies/the_burn/src.htn",
+   "components/core/strategies/the_slipstream/src.htn",
+   "components/core/goals/defeat_group/src.htn"
+  ],
+  "commit": "468e99b"
+ },
+ {
+  "id": "fsm_wraith",
+  "stars": 1,
+  "gold": "no",
+  "note": "slop",
+  "paths": [
+   "levels/fsm_wraith/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "game",
+  "stars": 5,
+  "gold": "yes",
+  "note": "Teaching tool",
+  "paths": [
+   "Examples/Game.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack",
+  "stars": 3,
+  "gold": "parts",
+  "note": "It has a good architecture, but it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack2",
+  "stars": 3,
+  "gold": "parts",
+  "note": "it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack2.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack3",
+  "stars": 3,
+  "gold": "parts",
+  "note": "it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack3.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack4",
+  "stars": 3,
+  "gold": "parts",
+  "note": "it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack4.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack5onlyplans",
+  "stars": 3,
+  "gold": "parts",
+  "note": "it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack5OnlyPlans.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack6swapskills",
+  "stars": 3,
+  "gold": "parts",
+  "note": "it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack6SwapSkills.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack7combined",
+  "stars": 3,
+  "gold": "parts",
+  "note": "it's still WIP. You can see me try different ways to achieve the same goal",
+  "paths": [
+   "Examples/GameHack7Combined.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack8agentattop",
+  "stars": 4,
+  "gold": "parts",
+  "note": "it's still WIP. ",
+  "paths": [
+   "Examples/GameHack8AgentAtTop.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack_gh4",
+  "stars": 3,
+  "gold": "no",
+  "note": "trivial",
+  "paths": [
+   "levels/gamehack_gh4/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack_gh7",
+  "stars": 3,
+  "gold": "no",
+  "note": "trivial",
+  "paths": [
+   "levels/gamehack_gh7/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack_multipath",
+  "stars": 3,
+  "gold": "no",
+  "note": "trivial",
+  "paths": [
+   "levels/gamehack_multipath/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gamehack_mvp",
+  "stars": 3,
+  "gold": "no",
+  "note": "trivial",
+  "paths": [
+   "levels/gamehack_mvp/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gh_primitives",
+  "stars": 3,
+  "gold": "parts",
+  "note": "WIP",
+  "paths": [
+   "components/gamehack/primitives/gh_aggro/src.htn",
+   "components/gamehack/primitives/gh_doors/src.htn",
+   "components/gamehack/primitives/gh_movement/src.htn",
+   "components/gamehack/primitives/gh_skills/src.htn",
+   "components/gamehack/primitives/gh_tags/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "gh_upper",
+  "stars": 3,
+  "gold": "parts",
+  "note": "WIP",
+  "paths": [
+   "components/gamehack/actions/gh_tag_application/src.htn",
+   "components/gamehack/strategies/stun_and_burn/src.htn",
+   "components/gamehack/strategies/stun_and_slow_skill/src.htn",
+   "components/gamehack/strategies/wet_and_electrocute/src.htn",
+   "components/gamehack/goals/complete_toy_level/src.htn",
+   "components/gamehack/goals/plan_to_damage/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "grease_trap",
+  "stars": 3,
+  "gold": "no",
+  "note": "trivial",
+  "paths": [
+   "levels/grease_trap/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "jam",
+  "stars": 5,
+  "gold": "no",
+  "note": "Too simple",
+  "paths": [
+   "Examples/Jam.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "movement_ringout",
+  "stars": 1,
+  "gold": "no",
+  "note": "slop",
+  "paths": [
+   "levels/movement_ringout/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "old_primitives",
+  "stars": 4,
+  "gold": "parts",
+  "note": "Decent WIP",
+  "paths": [
+   "components/primitives/aggro/src.htn",
+   "components/primitives/locomotion/src.htn",
+   "components/primitives/tags/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "old_upper",
+  "stars": 4,
+  "gold": "parts",
+  "note": "Decent WIP",
+  "paths": [
+   "components/strategies/the_burn/src.htn",
+   "components/strategies/the_slipstream/src.htn",
+   "components/goals/clear_room/src.htn",
+   "components/goals/defeat_enemy/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "pathtest",
+  "stars": 5,
+  "gold": "no",
+  "note": "A throwaway test",
+  "paths": [
+   "Examples/PathTest.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "puzzle1",
+  "stars": 3,
+  "gold": "no",
+  "note": "trivial",
+  "paths": [
+   "levels/puzzle1/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "reference_good",
+  "stars": 1,
+  "gold": "no",
+  "note": "slop",
+  "paths": [
+   "tests/fun_fixtures/reference_good/level.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "ringout",
+  "stars": 2,
+  "gold": "parts",
+  "note": "Rectified slop",
+  "paths": [
+   "Examples/RingOut.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "taxi",
+  "stars": 5,
+  "gold": "yes",
+  "note": "Perfect teaching tool",
+  "paths": [
+   "Examples/Taxi.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "taxi2",
+  "stars": 5,
+  "gold": "no",
+  "note": "It's a near copy of Taxi.htn don't use it",
+  "paths": [
+   "Examples/Taxi2.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "the_brink",
+  "stars": 2,
+  "gold": "parts",
+  "note": "WIP",
+  "paths": [
+   "levels/the_brink/level.htn",
+   "components/core/goals/exploit_weakness/src.htn",
+   "components/core/strategies/bring_and_push/src.htn",
+   "components/core/strategies/cut_the_floor/src.htn"
+  ],
+  "commit": "8fc6e41"
+ },
+ {
+  "id": "trunkthumper",
+  "stars": 5,
+  "gold": "yes",
+  "note": "It's good, but in a setting different from ours. It's too granular, notably with health/stamina",
+  "paths": [
+   "Examples/TrunkThumper.htn"
+  ],
+  "commit": "8fc6e41"
+ }
+]

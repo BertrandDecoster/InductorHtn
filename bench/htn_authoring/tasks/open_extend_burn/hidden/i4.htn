@@ -1,0 +1,8 @@
+% Fire immune: the burn is out, but wet+electrocute still works.
+ally(u). ally(v). enemy(salamander).
+location(t1). location(t2). location(pool).
+at(u, t1). at(v, t1). at(salamander, t2).
+oily(t1). immune(salamander, fire).
+hasSkill(u, torch). skillAppliesTag(torch, fire).
+hasSkill(v, zap). skillAppliesTag(zap, electrocute).
+locationCanApplyTag(pool, wet).

@@ -1,0 +1,59 @@
+% Reference for the open damage task, adapted from GameHack8.
+damage(?t) :- if(enemy(?t)), do(stunAndSlow(?t)).
+damage(?t) :- if(enemy(?t)), do(wetAndElectrocute(?t)).
+
+stunAndSlow(?t) :-
+    if(enemy(?t), not(immune(?t, stun)), not(immune(?t, slow)),
+       skillAppliesTag(?stun, stun), skillHasTag(?slow, slow),
+       ally(?a1), ally(?a2), \==(?a1, ?a2)),
+    do(prepareToUseSkill(?a1, ?stun, ?t), prepareToUseSkill(?a2, ?slow, ?t),
+       opSynchronize(?a1, ?a2), useSkillOnTarget(?a1, ?stun, ?t), useSkillOnTarget(?a2, ?slow, ?t),
+       opDamage(?t)).
+
+wetAndElectrocute(?t) :-
+    if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))),
+    do(applyTag(wet, ?t), applyTag(electrocute, ?t), opDamage(?t)).
+
+applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do().
+applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag))), do(applyTagNotPresent(?tag, ?t)).
+
+applyTagNotPresent(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag)),
+    do(bringMobToLocation(?t, ?l), opApplyTag(?tag, ?t)).
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?m, ?s), \==(?m, ?t), not(ally(?m)), skillAppliesTag(?s, ?tag)),
+    do(bringMobsTogether(?t, ?m), useSkillOnTarget(?m, ?s, ?t)).
+
+prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).
+prepareToUseSkill(?a, ?s, ?t) :- if(ally(?a), not(hasSkill(?a, ?s)), canGetSkillAtLocation(?l, ?s)),
+    do(goToLocation(?a, ?l), getSkill(?a, ?s), goToSameLocation(?a, ?t)).
+
+getSkill(?a, ?s) :- if(hasSkill(?a, ?old)), do(opSwapSkill(?a, ?old, ?s)).
+getSkill(?a, ?s) :- if(not(hasSkill(?a, ?old))), do(opGetSkill(?a, ?s)).
+
+useSkillOnTarget(?a, ?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).
+
+bringMobsTogether(?m1, ?m2) :- if(at(?m1, ?l), at(?m2, ?l)), do().
+bringMobsTogether(?m1, ?m2) :- if(not(static(?m1)), at(?m1, ?l1), at(?m2, ?l2), \==(?l1, ?l2)), do(bringMobToLocation(?m1, ?l2)).
+
+bringMobToLocation(?t, ?l) :- if(at(?t, ?l)), do().
+bringMobToLocation(?t, ?l) :- if(at(?t, ?from), \==(?l, ?from), not(static(?t)), ally(?a)),
+    do(goToLocation(?a, ?from), aggroTarget(?t, ?a), goToLocation(?a, ?l), opFollow(?t, ?from, ?l)).
+
+aggroTarget(?t, ?a) :- if(aggro(?t, ?a)), do().
+aggroTarget(?t, ?a) :- if(aggro(?t, ?old), \==(?old, ?a)), do(opRemoveAggro(?t, ?old), opAggro(?t, ?a)).
+aggroTarget(?t, ?a) :- if(not(aggro(?t, ?any))), do(opAggro(?t, ?a)).
+
+goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
+goToLocation(?a, ?l) :- if(at(?a, ?l)), do().
+goToLocation(?a, ?l) :- if(at(?a, ?from), \==(?l, ?from)), do(opMoveTo(?a, ?from, ?l)).
+
+opMoveTo(?a, ?from, ?to) :- del(at(?a, ?from)), add(at(?a, ?to)).
+opFollow(?t, ?from, ?to) :- del(at(?t, ?from)), add(at(?t, ?to)).
+opAggro(?t, ?a) :- del(), add(aggro(?t, ?a)).
+opRemoveAggro(?t, ?a) :- del(aggro(?t, ?a)), add().
+opSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).
+opGetSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).
+opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
+opSynchronize(?a1, ?a2) :- del(), add().
+opDamage(?t) :- del(), add(damaged(?t)).

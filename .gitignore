@@ -21,3 +21,4 @@ __pycache__/
 # GUI: persisted source-folder choice + its change log (runtime, machine-local).
 gui/backend/htn_folder.json
 gui/backend/htn_folder.log
+.claude/worktrees/

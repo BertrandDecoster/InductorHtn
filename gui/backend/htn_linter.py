@@ -10,59 +10,41 @@ from collections import defaultdict
 from htn_parser import parse_htn, Rule, Term, Diagnostic
 
 
-# Authoritative list of Prolog/HTN built-in predicates.
-# Used by the linter's undefined-predicate check and by the component-system
-# contract auto-inference. When adding a new built-in to InductorHTN, update
-# this set (there is no other source of truth in the Python tooling).
+# The built-in predicates the InductorHTN engine actually implements: the
+# AddCustomRule() list in src/FXPlatform/Prolog/HtnGoalResolver.cpp, plus the
+# comparisons HtnTerm evaluates and true/!. tests/test_builtins_sync.py keeps
+# this in step with the C++. Used by the undefined-predicate check and by the
+# component-system contract inference.
+_VARIADIC = ('and', 'count', 'custom', 'distinct', 'failureContext', 'first', 'max', 'min',
+             'not', 'print', 'showTraces', 'sum')
 BUILTIN_PREDICATES = {
-    # Control flow
-    'true/0', 'fail/0', 'false/0', '!/0',
+    'true/0', '!/0',
+    '=/2', '==/2', '\\==/2', '</2', '>/2', '=</2', '>=/2',
+    'is/2', 'findall/3', 'forall/2', 'sortBy/2', 'pathNext/3',
+    'atomic/1', 'atom_chars/2', 'atom_concat/3', 'downcase_atom/2',
+    'assert/1', 'retract/1', 'retractall/1',
+    'write/1', 'writeln/1', 'nl/0',
+} | {f'{name}/{n}' for name in _VARIADIC for n in range(0, 9)}
 
-    # Comparison operators
-    '=/2', '\\=/2', '==/2', '\\==/2',
-    '</2', '>/2', '=</2', '>=/2', '=:=/2', '=\\=/2',
-
-    # Arithmetic
-    'is/2', '+/2', '-/2', '*/2', '//2', 'mod/2',
-    '+/1', '-/1',  # unary
-
-    # Negation
-    'not/1', '\\+/1',
-
-    # Meta-predicates
-    'call/1', 'call/2', 'call/3',
-    'findall/3', 'bagof/3', 'setof/3',
-    'forall/2',
-
-    # Type checking
-    'atom/1', 'number/1', 'atomic/1', 'compound/1',
-    'var/1', 'nonvar/1', 'is_list/1', 'integer/1', 'float/1',
-
-    # Database (assert/retract)
-    'assert/1', 'retract/1', 'retractall/1', 'abolish/1',
-
-    # String manipulation
-    'atom_chars/2', 'atom_concat/3', 'downcase_atom/2',
-    'upcase_atom/2', 'atom_length/2', 'atom_string/2',
-    'char_code/2', 'number_chars/2', 'number_codes/2',
-
-    # HTN-specific built-ins from InductorHTN
-    'count/2',      # count(?count, goal) - count solutions
-    'distinct/3',   # distinct(_, term1, term2) - distinct pairs
-    'and/1', 'and/2', 'and/3', 'and/4', 'and/5',  # and(goals...) - conjunction as single term
-    'first/1', 'first/2', 'first/3', 'first/4', 'first/5',  # first(goals...) - get first solution only
-    'sortBy/3',     # sortBy(?sorted, ?key, term) - sort results
-
-    # List operations
-    'append/3', 'member/2', 'length/2', 'nth0/3', 'nth1/3',
-    'reverse/2', 'sort/2', 'msort/2', 'last/2',
-
-    # Printing (for debugging)
-    'write/1', 'writeln/1', 'print/1', 'nl/0',
-
-    # Misc
-    'copy_term/2', 'ground/1', 'functor/3', 'arg/3',
-    '=../2',  # univ
+# SWI-Prolog built-ins that do not exist here. The engine treats an unknown
+# predicate as false, so using one makes a condition silently never hold.
+SWI_ONLY_PREDICATES = {
+    '\\=': 'use not(=(?a, ?b)) or \\==(?a, ?b)',
+    '\\+': 'use not(goal)',
+    'member': 'use a fact per element, or a recursive rule over [?h | ?t]',
+    'append': 'not available', 'length': 'not available (count(?n, goal) counts solutions)',
+    'nth0': 'not available', 'nth1': 'not available', 'last': 'not available',
+    'reverse': 'not available', 'sort': 'use sortBy(?key, <(goal))', 'msort': 'use sortBy',
+    'call': 'not available', 'bagof': 'use findall', 'setof': 'use findall or distinct',
+    '=..': 'not available', 'functor': 'not available', 'arg': 'not available',
+    'copy_term': 'not available', 'var': 'not available', 'nonvar': 'not available',
+    'ground': 'not available', 'atom': 'use atomic', 'number': 'not available',
+    'integer': 'not available as a test', 'float': 'not available as a test',
+    'compound': 'not available', 'is_list': 'not available',
+    'fail': 'write not(true) or leave the method out', 'false': 'write not(true)',
+    '=:=': 'use ==', '=\\=': 'use \\==', '<=': 'write =<', '=>': 'write >=',
+    'upcase_atom': 'not available', 'atom_length': 'not available',
+    'atom_string': 'not available', 'abolish': 'not available',
 }
 
 
@@ -437,23 +419,33 @@ class HtnLinter:
         if pred.is_variable:
             return
 
-        # Skip comparison operators and arithmetic
-        if pred.name in ('=', '\\=', '==', '\\==', '<', '>', '=<', '>=', '=:=', '=\\=',
-                         'is', '+', '-', '*', '/', 'mod', 'not', '\\+'):
+        if pred.name in SWI_ONLY_PREDICATES:
+            self.diagnostics.append(Diagnostic(
+                pred.line, pred.col, len(pred.name), 'error',
+                f"{pred.name}/{len(pred.args)} is SWI-Prolog, not InductorHTN: it is silently false "
+                f"here ({SWI_ONLY_PREDICATES[pred.name]}). See docs/reference/language.md section 8.",
+                'SEM008'
+            ))
+            return
+
+        # Comparisons and logic wrappers: check the goals inside them
+        if pred.name in ('=', '==', '\\==', '<', '>', '=<', '>=', 'is', 'not', 'first', 'and',
+                         '+', '-', '*', '/'):
             for arg in pred.args:
                 self._check_predicate_defined(arg, defined, rule)
             return
 
         key = f"{pred.name}/{len(pred.args)}"
-        if key not in defined:
+        reported = self.__dict__.setdefault("_reported_undefined", set())
+        if key not in defined and key not in reported:
+            reported.add(key)
             self.diagnostics.append(Diagnostic(
                 pred.line, pred.col, len(pred.name), 'warning',
-                f"Undefined predicate: {pred.name}/{len(pred.args)}",
+                f"Undefined predicate: {pred.name}/{len(pred.args)} (no fact, rule or built-in "
+                f"defines it here; fine if the level provides it, a typo otherwise)",
                 'SEM002'
             ))
-
-        for arg in pred.args:
-            self._check_predicate_defined(arg, defined, rule)
+        # Arguments of an ordinary predicate are data, not goals: don't check them.
 
     def _check_arity_consistency(self):
         """Check for arity mismatches in predicate usage"""
@@ -584,15 +576,8 @@ class HtnLinter:
                         'SEM005'
                     ))
 
-            # Also check for methods never called by any other method
-            for key, infos in self.methods.items():
-                if key not in all_called and infos:
-                    info = infos[0]
-                    self.diagnostics.append(Diagnostic(
-                        info.line, 1, len(info.name), 'warning',
-                        f"Method '{info.name}' is never called (dead code)",
-                        'SEM004'
-                    ))
+            # Without goals() a file is a library: its entry tasks are called from
+            # elsewhere, so an uncalled method is not dead code.
 
     def _check_cycles(self):
         """Check for cycles in the call graph (potential infinite recursion)"""
@@ -687,7 +672,8 @@ class HtnLinter:
                    rule.add_clause and len(rule.add_clause.args) == 0:
                     self.diagnostics.append(Diagnostic(
                         rule.line, 1, 10, 'warning',
-                        f"Operator '{rule.head.name}' has empty del() and add() - does nothing",
+                        f"Operator '{rule.head.name}' changes no state: fine if the game engine "
+                        f"performs it (opSynchronize), otherwise it is bookkeeping - remove it (rubric R6)",
                         'HTN006'
                     ))
 
@@ -695,6 +681,11 @@ class HtnLinter:
         """Check for variables that appear only once (typo warning)"""
         for rule in self.rules:
             var_counts: Dict[str, int] = defaultdict(int)
+
+            # Operator parameters may exist only for the game engine
+            # (opSynchronize(?a1, ?a2)), so an operator head is not checked.
+            if rule.is_operator:
+                continue
 
             # Count in head
             for var in rule.head.get_variables():

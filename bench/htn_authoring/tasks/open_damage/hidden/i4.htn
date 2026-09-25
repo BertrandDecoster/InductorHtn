@@ -1,0 +1,8 @@
+% One ally only: stun+slow needs two; wet from a location and electrocute from the ally.
+ally(solo).
+enemy(rat).
+location(s1). location(s2). location(bog).
+at(solo, s1). at(rat, s2).
+hasSkill(solo, spark). skillAppliesTag(spark, electrocute).
+skillAppliesTag(daze, stun). skillHasTag(slowDart, slow). hasSkill(solo, daze).
+locationCanApplyTag(bog, wet).

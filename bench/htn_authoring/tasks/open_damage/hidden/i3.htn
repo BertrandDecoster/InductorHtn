@@ -1,0 +1,8 @@
+% Stun+slow works only after learning: the slow skill is taught at a shrine.
+ally(k). ally(m).
+enemy(orc).
+location(base). location(shrine). location(den).
+at(k, base). at(m, base). at(orc, den).
+hasSkill(k, quake). skillAppliesTag(quake, stun).
+skillAppliesTag(web, snare). skillHasTag(web, slow).
+canGetSkillAtLocation(shrine, web).

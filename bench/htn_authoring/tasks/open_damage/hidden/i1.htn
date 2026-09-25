@@ -1,0 +1,9 @@
+% Different names. Only wet+electrocute works: nobody can slow.
+ally(ana). ally(bo).
+enemy(slime). enemy(eel).
+location(a1). location(a2). location(pond).
+at(ana, a1). at(bo, a1). at(slime, a2). at(eel, pond).
+static(eel).
+hasSkill(eel, zap). skillAppliesTag(zap, electrocute).
+hasSkill(ana, splash). skillAppliesTag(splash, wet).
+skillAppliesTag(frostBite, stun).

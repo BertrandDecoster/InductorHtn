@@ -1,0 +1,14 @@
+% Sample level.
+ally(player). ally(frost). ally(pyro).
+enemy(gob). enemy(tower).
+location(camp). location(hut). location(lake). location(peak). location(forge). location(kitchen).
+at(player, camp). at(frost, camp). at(pyro, camp).
+at(gob, hut). at(tower, peak).
+static(tower).
+oily(kitchen).
+hasSkill(frost, iceBlast). hasSkill(pyro, fireball). hasSkill(tower, lightning).
+skillAppliesTag(iceBlast, stun).
+skillAppliesTag(fireball, fire). skillHasTag(fireball, slow).
+skillAppliesTag(lightning, electrocute).
+locationCanApplyTag(lake, wet).
+canGetSkillAtLocation(forge, fireball).

@@ -2764,12 +2764,18 @@ def cmd_combos(args) -> int:
     return 0 if not report.failures else 1
 
 
+def _cmd_check(args) -> int:
+    from .check import cmd_check
+    return cmd_check(args)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="HTN Component Management Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Commands:
+  check             Compile + lint a .htn file; --goal to plan it
   new               Create a new component from template
   test              Run tests for a component
   certify           Certify a component (all checks must pass)
@@ -2937,6 +2943,14 @@ Examples:
     )
     evaluate_parser.add_argument("level", help="Level path (e.g., puzzle1 or levels/puzzle1)")
     evaluate_parser.set_defaults(func=cmd_evaluate)
+
+    check_parser = subparsers.add_parser(
+        "check", help="Compile + lint a .htn file (with its manifest's dependencies); --goal plans it")
+    check_parser.add_argument("files", nargs="+", help=".htn files")
+    check_parser.add_argument("--goal", default=None, help='Task to plan, e.g. "travel(ann, park)."')
+    check_parser.add_argument("--plans", type=int, default=5, help="Plans to print")
+    check_parser.add_argument("--fast", action="store_true", help="Compile and lint only")
+    check_parser.set_defaults(func=_cmd_check)
 
     # library-coverage command
     combos_parser = subparsers.add_parser(
