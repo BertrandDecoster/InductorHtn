@@ -14,7 +14,7 @@ cd gui/backend
 pip install -r requirements.txt
 python app.py
 ```
-Runs on http://localhost:5000
+Runs on http://localhost:5001 (set `INDHTN_GUI_BACKEND_PORT` to change it; 5000 clashes with macOS AirPlay)
 
 ### Frontend
 ```bash
@@ -234,7 +234,7 @@ export default function NewComponent({ prop1, prop2 }) {
 
 `vite.config.js` sets up:
 - Dev server on port 5173
-- Proxy to backend (port 5000)
+- Proxy to backend (port 5001)
 - React plugin
 
 ## API Communication
