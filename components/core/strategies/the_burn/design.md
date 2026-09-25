@@ -25,7 +25,7 @@ strategy
 
 ### Example 1: Swarm in the corridor
 
-**Given:** oil in `corridor`, an iron `swarm` at `gallery`, warden with `magnetize`, player with one `ignite` charge and line of sight to `corridor`.
+**Given:** oil in `corridor`, a `swarm` at `gallery`, warden with `magnetize` (a pull) at `entry`, on the corridor's side of the gallery, player with one `ignite` charge and line of sight to `corridor`.
 
 **When:** `theBurn(swarm)`
 

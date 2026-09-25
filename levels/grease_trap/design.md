@@ -28,9 +28,9 @@ entry --- corridor (oil) --- exit (bearer, iron)
 
 Line of sight to the corridor from `entry` and `gallery`; the entry
 overlooks the gallery; the gallery and the corridor overlook the exit. The
-Warden carries Magnetize (moves iron only) and Shield; the Arcanist carries
+Warden carries Magnetize (a pull; the swarm resists it) and Shield; the Arcanist carries
 Freeze. The player has one Ignite charge, one Lightning charge, an unlimited
-Gust (moves flesh only), Dash (taunts an enemy into following, and lands the
+Gust (a push; the bearer's iron resists it), Dash (taunts an enemy into following, and lands the
 player beside it) and Flare (dazzles one enemy into taking a direct strike).
 
 ## Hypothesis
@@ -77,5 +77,5 @@ Measured by `python -m htn_components fun grease_trap --ablate --loadouts`:
 | ID | Property | Description |
 |----|----------|-------------|
 | P1 | No companion carries a plan alone | Every plan for `clearGreaseTrap` has operators by at least two companions, and the controlled companion (`player`) is one of them. |
-| P2 | A gust does not move iron | `push(bearer, corridor)` has no plan; the bearer is the Warden's problem. |
+| P2 | The bearer resists a push | `push(bearer, corridor)` has no plan; the bearer is the Warden's problem. |
 | P3 | Burned oil cannot be frozen | After `theBurn(swarm)`, `theSlipstream(bearer)` has no plan when no sludge exists. |

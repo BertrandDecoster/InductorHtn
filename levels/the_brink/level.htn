@@ -1,0 +1,146 @@
+% The Brink (core vocabulary)
+%
+% An ogre holds the keep; an iron-clad bearer holds the tower across a rope
+% bridge. Nothing hurts either of them: both are vulnerable to one thing,
+% falling. Two ways to make something fall (core/goals/exploit_weakness):
+%
+%   Bring and push   bring it on foot to the edge of the void, then force it
+%                    over: a push from the near side, or a pull from the far
+%   Cut the floor    bring it onto the rope bridge - the other one too, if it
+%                    can be brought - step off, and put fire on the bridge
+%
+% Movements, not skills: a push sends an NPC one region away from the
+% caster, a pull brings it one region toward the caster, a taunt makes it
+% follow the taunter one region. The bearer resists a push. Fire turns the
+% rope into the abyss, once.
+%
+%   ledge (far side) --- gate --- yard --- keep (ogre) --- bridge (rope) --- tower (bearer)
+%     :                            \        |                                 /
+%    void  . . . . . . . . . . . .  \------ brink (near side) ---------------/
+%
+% What each skill does: gust = push (unlimited), dash = taunt (one),
+% ignite = fire (one), lightning and flare = nothing here; the Warden's
+% magnetize = pull (one).
+%
+% The plan set, per kit (the player picks two of the five skills):
+%   push + fire     2 plans: the ogre pushed onto the brink and over, the
+%                   bearer pulled onto the bridge and burned; or both brought
+%                   onto the bridge (push, pull) and one fire
+%   push + taunt    1 plan: the ogre pushed onto the brink and over; the
+%                   bearer taunted onto the brink and pulled over from the ledge
+%   taunt + fire    1 plan: the ogre taunted onto the bridge, the bearer
+%                   pulled on, one fire
+%   anything else   no plan (3 of 10 kits win; no pick is mandatory)
+% No plan in any kit is carried by one companion.
+%
+% See design.md for the hypothesis and the iterations.
+
+% === Regions ===
+region(gate).
+region(yard).
+region(keep).
+region(brink).
+region(bridge).
+region(tower).
+region(ledge).
+connected(gate, yard).
+connected(yard, gate).
+connected(yard, keep).
+connected(keep, yard).
+connected(yard, brink).
+connected(brink, yard).
+connected(keep, brink).
+connected(brink, keep).
+connected(keep, bridge).
+connected(bridge, keep).
+connected(bridge, tower).
+connected(tower, bridge).
+connected(tower, brink).
+connected(brink, tower).
+% The void: reached one way from each side, and not a region anyone stands in.
+% The brink is its near side, the ledge (off the gate) its far side.
+connected(brink, void).
+connected(ledge, void).
+connected(gate, ledge).
+connected(ledge, gate).
+regionHas(void, abyss).
+regionHas(bridge, rope).
+
+lineOfSight(gate, yard).
+lineOfSight(gate, brink).
+lineOfSight(yard, keep).
+lineOfSight(yard, brink).
+lineOfSight(keep, brink).
+lineOfSight(keep, bridge).
+lineOfSight(keep, tower).
+lineOfSight(brink, keep).
+lineOfSight(bridge, keep).
+lineOfSight(bridge, tower).
+lineOfSight(tower, bridge).
+lineOfSight(brink, tower).
+lineOfSight(tower, brink).
+lineOfSight(ledge, brink).
+
+% === Cast ===
+role(player, player).
+role(warden, companion).
+role(ogre, enemy).
+role(bearer, enemy).
+at(player, gate).
+at(warden, gate).
+at(ogre, keep).
+at(bearer, tower).
+immune(bearer, push).
+vulnerable(ogre, fall).
+vulnerable(bearer, fall).
+
+% === Skills ===
+charge(warden, magnetize, m1).
+hasSkill(warden, magnetize).
+
+skillElement(magnetize, pull).
+skillElement(gust, push).
+skillElement(dash, dash).
+skillElement(ignite, fire).
+skillElement(lightning, lightning).
+skillElement(flare, light).
+
+unlimited(gust).
+unlimited(flare).
+charge(player, dash, d1).
+charge(player, ignite, i1).
+charge(player, lightning, l1).
+
+% === Chemistry ===
+reacts(fire, rope, abyss).
+hazard(abyss, fallen).
+
+% === Default kit (a winning pair; F4 strips these and re-adds each pick) ===
+hasSkill(player, gust).
+hasSkill(player, ignite).
+
+% === The encounter ===
+clearTheBrink :- if(), do(defeat(ogre), defeat(bearer)).
+
+% === Declared choice space: pick 2 of 5, blockers in play order ===
+funChoiceSpace(kit, 2).
+funChoice(kit, gust).
+funChoice(kit, dash).
+funChoice(kit, ignite).
+funChoice(kit, lightning).
+funChoice(kit, flare).
+funChoiceFact(gust, hasSkill(player, gust)).
+funChoiceFact(dash, hasSkill(player, dash)).
+funChoiceFact(ignite, hasSkill(player, ignite)).
+funChoiceFact(lightning, hasSkill(player, lightning)).
+funChoiceFact(flare, hasSkill(player, flare)).
+funBlocker(ogre).
+funBlocker(bearer).
+funBlockerGoal(ogre, defeat(ogre)).
+funBlockerGoal(bearer, defeat(bearer)).
+
+% === The hypothesis, kept as a regression test ===
+funExpect(strategy_classes, atLeast, 2).
+funExpect(single_actor_plans, atMost, 0).
+
+goals(clearTheBrink).

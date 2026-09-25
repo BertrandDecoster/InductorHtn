@@ -57,7 +57,7 @@ primitive
 | `skillElement(?skill, ?el)` | Which element a skill carries |
 | `reacts(?el, ?feat, ?new)` | Feature transformation |
 | `blast(?el, ?feat, ?status)` | Effect on enemies present at the reaction |
-| `terrain(?feat, ?status)` | Effect on whoever enters or stands in it |
+| `hazard(?feat, ?status)` | What the feature does to whoever enters or stands in it (the abyss: `fallen`; sludge: `snared`) |
 | `strike(?el, ?status)` | Effect of a direct cast on a vulnerable target |
 | `immune(?e, ?el)` | Optional |
 | `signature/2`, `unlimited/1`, `charge/3` | How casts are paid for |
@@ -102,5 +102,5 @@ primitive
 |----|----------|-------------|
 | P1 | No charge, no cast | Without a `charge` token or a free skill there is no `castElement` plan. |
 | P2 | Shields turn blasts | A `shielded` enemy in the region is not given the blast status. |
-| P3 | Terrain settles | After freezing oil to sludge with `terrain(sludge, snared)`, an enemy standing there is `snared`. |
+| P3 | Terrain settles | After freezing oil to sludge with `hazard(sludge, snared)`, an enemy standing there is `snared`. |
 | P4 | The holder is bound at the leaf | With two holders of an element, `castElement` has one plan per holder, and `castElement(?el, ?r, ?not)` has none by `?not`. |

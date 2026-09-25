@@ -43,6 +43,15 @@ class CoreWorldTest(HtnTestSuite):
         self.set_state(["at(player, a)"])
         self.assert_plan("takeVantage(player, c).", contains=["opNavigate(player, a, b)"])
 
+    def test_example_5_take_aim(self):
+        # a - b - c; nobody sees b from a, so a push of b's occupant into c
+        # is cast from b itself.
+        self.set_state(["at(player, a)"])
+        self.assert_plan("takeAim(player, push, b, c).", contains=["opNavigate(player, a, b)"])
+        self.setup()
+        self.set_state(["at(player, a)", "lineOfSight(a, b)"])
+        self.assert_plan("takeAim(player, push, b, c).", not_contains=["opNavigate"])
+
     # -------------------------------------------------------------- properties
 
     def test_property_p1_anchored_agents_hold(self):
@@ -52,6 +61,14 @@ class CoreWorldTest(HtnTestSuite):
     def test_property_p2_snared_agents_are_stuck(self):
         self.set_state(["at(player, a)", "status(player, snared)"])
         self.assert_no_plan("navigate(player, b).")
+
+    def test_property_p3_a_push_sends_away_a_pull_brings_closer(self):
+        # a - b - c: from a, a push sends b's occupant to c, a pull brings it to a.
+        self.assert_query("aims(push, a, b, c).")
+        self.assert_query("aims(push, a, b, a).", min_solutions=0, max_solutions=0)
+        self.assert_query("aims(pull, a, b, a).")
+        self.assert_query("aims(pull, a, b, c).", min_solutions=0, max_solutions=0)
+        self.assert_query("aims(pull, c, b, c).")
 
 
 def run_tests():

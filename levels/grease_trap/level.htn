@@ -11,7 +11,7 @@
 %                   dragged or taunted in, and the player finishes it while
 %                   it is stuck - or electrifies the sludge and takes the lot.
 %
-% Magnetize only moves iron and a gust cannot, so the Warden drags the
+% The bearer's iron resists a push and the swarm resists a pull, so the Warden drags the
 % bearer and the player has to move the swarm (gust or dash). The oil, once
 % burned, cannot be frozen; the sludge, once made, serves both fights. The
 % player has one Ignite and one Lightning charge for the skills they pick,
@@ -50,7 +50,9 @@ at(warden, entry).
 at(arcanist, entry).
 at(swarm, gallery).
 at(bearer, exit).
-metal(bearer).
+% The bearer's iron is too heavy to shove; a swarm has no one body to pull.
+immune(bearer, push).
+immune(swarm, pull).
 
 % === Skills ===
 signature(warden, magnetize).
@@ -82,7 +84,7 @@ reacts(lightning, sludge, scorched).
 blast(fire, oil, dead).
 blast(fire, sludge, dead).
 blast(lightning, sludge, dead).
-terrain(sludge, snared).
+hazard(sludge, snared).
 strike(fire, dead).
 strike(lightning, dead).
 mark(light, dazzled).

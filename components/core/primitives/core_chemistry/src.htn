@@ -8,7 +8,7 @@
 %   skillElement(?skill, ?element)      ignite -> fire, freeze -> freeze, ...
 %   reacts(?element, ?feature, ?new)    fire + oil -> scorched; freeze + oil -> sludge
 %   blast(?element, ?feature, ?status)  what the reaction does to enemies present
-%   terrain(?feature, ?status)          what a feature does to whoever enters it
+%   hazard(?feature, ?status)           what a feature does to whoever enters it
 %   strike(?element, ?status)           a direct cast on a vulnerable entity
 %   mark(?element, ?status)             a direct cast on any enemy (a flare dazzles)
 %   immune(?entity, ?element)
@@ -96,13 +96,13 @@ blastEntities(?a, ?el, ?feat, ?r) :-
     do(opStatus(?a, ?e, ?status)).
 
 settleTerrain(?a, ?r) :-
-    allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), at(?e, ?r),
+    allOf, if(regionHas(?r, ?feat), hazard(?feat, ?status), at(?e, ?r),
               not(status(?e, ?status))),
     do(opStatus(?a, ?e, ?status)).
 
 % Whoever arrives in a region takes what its terrain does.
 sufferTerrain(?a, ?e, ?r) :-
-    allOf, if(regionHas(?r, ?feat), terrain(?feat, ?status), not(status(?e, ?status))),
+    allOf, if(regionHas(?r, ?feat), hazard(?feat, ?status), not(status(?e, ?status))),
     do(opStatus(?a, ?e, ?status)).
 
 % The need: element ?el strikes entity ?e. Only a vulnerable target takes a

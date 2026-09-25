@@ -38,6 +38,18 @@ canTarget(?from, ?to) :- lineOfSight(?from, ?to).
 % Anchored (holding a shield) or snared: not going anywhere.
 canMove(?a) :- not(status(?a, anchored)), not(status(?a, snared)).
 
+% A forced movement of something from ?from into the next region ?to, cast
+% from ?c: a push sends it away from ?c, a pull brings it toward ?c - one
+% region nearer or farther, counted on the walkable links. Nothing is pulled
+% into ground nobody can stand beyond (a drop), and a push from the far side
+% goes the other way.
+awayFrom(?c, ?from, ?to) :- =(?c, ?from).
+awayFrom(?c, ?from, ?to) :- connected(?c, ?from), \==(?c, ?to), not(connected(?c, ?to)).
+toward(?c, ?from, ?to) :- =(?c, ?to).
+toward(?c, ?from, ?to) :- connected(?c, ?to), \==(?c, ?from), not(connected(?c, ?from)).
+aims(push, ?c, ?from, ?to) :- awayFrom(?c, ?from, ?to).
+aims(pull, ?c, ?from, ?to) :- toward(?c, ?from, ?to).
+
 % === Methods ===
 
 % Already there: nothing to do.
@@ -59,4 +71,14 @@ navigate(?a, ?to) :-
 takeVantage(?a, ?r) :- if(at(?a, ?from), canTarget(?from, ?r)), do().
 takeVantage(?a, ?r) :-
     else, if(first(and(region(?v), canTarget(?v, ?r)))),
+    do(navigate(?a, ?v)).
+
+% Get somewhere ?a can move what stands in ?from into ?to with a ?how (push
+% or pull): somewhere that can target ?from and lies on the right side of it.
+% Stay if the current region serves, else go to the first region that does.
+takeAim(?a, ?how, ?from, ?to) :-
+    if(at(?a, ?c), first(and(canTarget(?c, ?from), aims(?how, ?c, ?from, ?to)))), do().
+takeAim(?a, ?how, ?from, ?to) :-
+    if(at(?a, ?c), not(and(canTarget(?c, ?from), aims(?how, ?c, ?from, ?to))),
+       first(and(region(?v), canTarget(?v, ?from), aims(?how, ?v, ?from, ?to)))),
     do(navigate(?a, ?v)).

@@ -27,6 +27,7 @@ None (foundational component)
 |--------|-------------|
 | `navigate(?a, ?to)` | No-op if there; else one hop; else two hops via the first region that works. Fails when `?a` is anchored or snared. |
 | `takeVantage(?a, ?r)` | Stay if `?r` can be targeted from here, else move to the first region with line of sight to `?r`. |
+| `takeAim(?a, ?how, ?from, ?to)` | Stay if the current region can target `?from` and `aims` right, else go to the first region that does. |
 
 ## Rules
 
@@ -35,6 +36,7 @@ None (foundational component)
 | `canAct(?a)` | `?a` is the player or a companion. |
 | `canTarget(?from, ?to)` | Same region, or a declared `lineOfSight(?from, ?to)`. |
 | `canMove(?a)` | Not anchored, not snared. |
+| `aims(?how, ?c, ?from, ?to)` | Cast from `?c`, a `push` sends what stands in `?from` away into `?to` (`awayFrom`), a `pull` brings it toward `?c` (`toward`): one region nearer or farther on the walkable links. Nothing is pulled into ground nobody stands beyond. |
 
 ## Required Facts
 
@@ -81,9 +83,18 @@ None (foundational component)
 
 **Then:** plan contains `opNavigate(player, a, b)`.
 
+### Example 5: Take aim
+
+**Given:** `a - b - c`, player at `a`; first without, then with `lineOfSight(a, b)`.
+
+**When:** `takeAim(player, push, b, c)`
+
+**Then:** without sight the plan contains `opNavigate(player, a, b)` (a push from inside `b`); with it, no `opNavigate`.
+
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
 | P1 | Anchored agents hold | An agent with `status(?a, anchored)` has no `navigate` plan to another region. |
 | P2 | Snared agents are stuck | An agent with `status(?a, snared)` has no `navigate` plan to another region. |
+| P3 | A push sends away, a pull brings closer | On `a - b - c`: `aims(push, a, b, c)` and `aims(pull, a, b, a)` hold; `aims(push, a, b, a)` and `aims(pull, a, b, c)` do not. |

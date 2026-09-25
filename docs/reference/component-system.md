@@ -337,7 +337,7 @@ role(?entity, player | companion | enemy).
 entities, materials never change materials:
 ```prolog
 skillElement(ignite, fire).       reacts(fire, oil, scorched).    blast(fire, oil, dead).
-skillElement(freeze, freeze).     reacts(freeze, oil, sludge).    terrain(sludge, snared).
+skillElement(freeze, freeze).     reacts(freeze, oil, sludge).    hazard(sludge, snared).
 strike(lightning, dead).          mark(light, dazzled).           immune(?e, ?el).
 ```
 Reactions rewrite `regionHas`, so what one fight consumes is gone for the next.

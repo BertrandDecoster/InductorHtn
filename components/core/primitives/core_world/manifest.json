@@ -9,15 +9,19 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:41:26.347790"
+    "last_checked": "2026-09-25T01:10:55.384601"
   },
   "provides": [
+    "aims/4",
+    "awayFrom/3",
     "canAct/1",
     "canMove/1",
     "canTarget/2",
     "navigate/2",
     "opNavigate/3",
-    "takeVantage/2"
+    "takeAim/4",
+    "takeVantage/2",
+    "toward/3"
   ],
   "requires": []
 }

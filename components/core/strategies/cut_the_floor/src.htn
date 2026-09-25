@@ -1,0 +1,25 @@
+% cut_the_floor - bring them onto ground that is about to go
+%
+% The need is an enemy with status ?s. This way of meeting it: ground with a
+% feature that some element turns into a hazard doing ?s to whoever stands on
+% it (fire on a rope bridge leaves the abyss). Bring the enemy onto it, and
+% every other enemy that can be brought; the companions step off; then
+% whoever holds the element puts it down. The ground is spent: what burned
+% cannot burn again.
+
+cutTheFloor(?e, ?s) :-
+    if(role(?e, enemy), not(status(?e, ?s)),
+       hazard(?gone, ?s), reacts(?el, ?feat, ?gone), regionHas(?r, ?feat)),
+    do(bringTo(?e, ?r), try(bringOthers(?e, ?r, ?s)), stepOff(?r), castElement(?el, ?r)).
+
+% Every other enemy still standing that can be brought onto ?r, is.
+bringOthers(?e, ?r, ?s) :-
+    allOf, if(role(?o, enemy), \==(?o, ?e), not(status(?o, ?s)), not(at(?o, ?r))),
+    do(bringTo(?o, ?r)).
+
+% Nobody of ours is on ?r when it goes: each companion there steps to the
+% first region next to it.
+stepOff(?r) :- if(not(and(at(?a, ?r), canAct(?a)))), do().
+stepOff(?r) :-
+    allOf, if(at(?a, ?r), canAct(?a), first(and(connected(?r, ?off), region(?off)))),
+    do(navigate(?a, ?off)).

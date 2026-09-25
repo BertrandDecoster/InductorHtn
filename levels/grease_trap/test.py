@@ -62,7 +62,7 @@ class GreaseTrapTest(HtnTestSuite):
             assert "player" in allies, f"the controlled companion is idle: {plan}"
         self._record(True, "P1: no companion carries a plan alone")
 
-    def test_property_p2_a_gust_does_not_move_iron(self):
+    def test_property_p2_the_bearer_resists_a_push(self):
         """The bearer is the Warden's problem: no push plan for it."""
         self.assert_no_plan("push(bearer, corridor).")
 

@@ -1,11 +1,13 @@
 % core_aggro - moving enemies, holding ground
 %
-% lure:         whoever holds a pull skill drags a *metal* enemy one
-%               region over, from a vantage. Magnetize does not move flesh.
-% push:         whoever holds a push skill shoves a *flesh* enemy one region
-%               over from a vantage. A gust does not move iron.
-% taunt:        whoever holds a dash goes through an enemy and it follows -
+% Three movements, named for what they do to the enemy, never for a skill.
+% A skill is whatever movements and elements it declares (skillElement).
+% lure:         a pull - brings the enemy one region toward the puller.
+% push:         a push - sends the enemy one region away from the pusher.
+% taunt:        a dash - the dasher goes through the enemy and it follows;
 %               both end up in the next region, and both take its terrain.
+% What resists a movement says so: immune(?e, pull | push | dash). Iron too
+% heavy to shove is immune(?e, push); nothing is special about a skill.
 %
 % Any companion may do any of these; what they hold decides. The player
 % character is a companion like the others.
@@ -31,36 +33,39 @@ opRelease(?a) :- del(status(?a, anchored)), add().
 
 % === Rules ===
 
-canPull(?a) :- canAct(?a), hasSkill(?a, ?skill), skillElement(?skill, pull).
+% ?a holds a pull skill ?skill it can pay for.
+canPull(?a, ?skill) :-
+    canAct(?a), hasSkill(?a, ?skill), skillElement(?skill, pull), canPay(?a, ?skill).
 
 % === Methods ===
 
-% Lure with a free puller, from somewhere the enemy's region can be seen.
+% Lure with a free puller, from somewhere that can target the enemy's
+% region and lies on ?to's side of it.
 lure(?e, ?to) :-
-    if(metal(?e), at(?e, ?from), connected(?from, ?to),
-       first(and(canPull(?a), canMove(?a)))),
-    do(takeVantage(?a, ?from), opLure(?a, ?e, ?from, ?to),
+    if(not(immune(?e, pull)), at(?e, ?from), connected(?from, ?to),
+       first(and(canPull(?a, ?skill), canMove(?a)))),
+    do(takeAim(?a, pull, ?from, ?to), payFor(?a, ?skill), opLure(?a, ?e, ?from, ?to),
        try(sufferTerrain(?a, ?e, ?to))).
 
 % No free puller: release an anchored one first, at the cost of its cover.
 lure(?e, ?to) :-
-    else, if(metal(?e), at(?e, ?from), connected(?from, ?to),
-             first(and(canPull(?a), status(?a, anchored), not(status(?a, snared))))),
-    do(opRelease(?a), takeVantage(?a, ?from), opLure(?a, ?e, ?from, ?to),
+    else, if(not(immune(?e, pull)), at(?e, ?from), connected(?from, ?to),
+             first(and(canPull(?a, ?skill), status(?a, anchored), not(status(?a, snared))))),
+    do(opRelease(?a), takeAim(?a, pull, ?from, ?to), payFor(?a, ?skill), opLure(?a, ?e, ?from, ?to),
        try(sufferTerrain(?a, ?e, ?to))).
 
-% Push: whoever holds a push skill, from somewhere that can target the
-% enemy's region. Iron is too heavy for a gust; that is what Magnetize is for.
+% Push: whoever holds a push, from somewhere that can target the enemy's
+% region and lies on the far side of it from ?to.
 push(?e, ?to) :-
-    if(canAct(?a), canMove(?a), not(metal(?e)),
+    if(canAct(?a), canMove(?a), not(immune(?e, push)),
        first(and(hasSkill(?a, ?skill), skillElement(?skill, push), canPay(?a, ?skill))),
        at(?e, ?from), connected(?from, ?to)),
-    do(takeVantage(?a, ?from), payFor(?a, ?skill), opPush(?a, ?e, ?from, ?to),
+    do(takeAim(?a, push, ?from, ?to), payFor(?a, ?skill), opPush(?a, ?e, ?from, ?to),
        try(sufferTerrain(?a, ?e, ?to))).
 
 % Taunt: whoever holds a dash goes through the enemy and it follows.
 taunt(?e, ?to) :-
-    if(canAct(?a), canMove(?a),
+    if(canAct(?a), canMove(?a), not(immune(?e, dash)),
        first(and(hasSkill(?a, ?skill), skillElement(?skill, dash), canPay(?a, ?skill))),
        at(?e, ?from), connected(?from, ?to)),
     do(navigate(?a, ?from), payFor(?a, ?skill), opTaunt(?a, ?e, ?from, ?to),

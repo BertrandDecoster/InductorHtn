@@ -10,7 +10,7 @@
 % next; the shield commitment persists too.
 
 theSlipstream(?e) :-
-    if(role(?e, enemy), not(status(?e, dead)), terrain(?trap, snared),
+    if(role(?e, enemy), not(status(?e, dead)), hazard(?trap, snared),
        trapSite(?r, ?trap, ?p)),
     do(makeTrap(?r, ?trap, ?p), coverAt(?r), bringTo(?e, ?r), try(gatherIntoTrap(?e, ?r)),
        finishTrap(?e, ?r, ?p)).

@@ -20,7 +20,7 @@ WORLD = [
     "skillElement(magnetize, pull)", "skillElement(freeze, freeze)",
     "skillElement(gust, push)", "skillElement(lightning, lightning)",
     "reacts(freeze, oil, sludge)", "reacts(lightning, sludge, scorched)",
-    "terrain(sludge, snared)", "strike(lightning, dead)", "blast(lightning, sludge, dead)",
+    "hazard(sludge, snared)", "strike(lightning, dead)", "blast(lightning, sludge, dead)",
     "hasSkill(warden, magnetize)", "signature(warden, magnetize)", "signature(warden, shield)",
     "hasSkill(arcanist, freeze)", "signature(arcanist, freeze)",
     "hasSkill(player, lightning)", "charge(player, lightning, l1)",
@@ -45,7 +45,7 @@ class TheSlipstreamTest(HtnTestSuite):
         ])
 
     def test_example_2_drag_them_in(self):
-        self.set_state(["metal(swarm)"])
+        self.set_state(["immune(swarm, push)"])
         self.assert_plan("theSlipstream(swarm).", contains=[
             "opRelease(warden)",
             "opLure(warden, swarm, gallery, corridor)",
@@ -63,6 +63,8 @@ class TheSlipstreamTest(HtnTestSuite):
         self.assert_state_after("theSlipstream(swarm).", has=["status(swarm,dead)"])
 
     def test_property_p2_nothing_moves_an_unreachable_enemy(self):
+        # Nobody holds a push, and the swarm resists the only pull there is.
+        self.set_state(["immune(swarm, pull)"])
         self.assert_no_plan("theSlipstream(swarm).")
 
     def test_property_p3_the_primer_never_pays_off(self):

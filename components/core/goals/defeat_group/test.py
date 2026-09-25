@@ -20,7 +20,7 @@ WORLD = [
     "skillElement(magnetize, pull)", "skillElement(freeze, freeze)", "skillElement(ignite, fire)",
     "skillElement(gust, push)", "skillElement(lightning, lightning)",
     "reacts(fire, oil, scorched)", "reacts(freeze, oil, sludge)", "blast(fire, oil, dead)",
-    "terrain(sludge, snared)", "strike(fire, dead)", "strike(lightning, dead)",
+    "hazard(sludge, snared)", "strike(fire, dead)", "strike(lightning, dead)",
     "hasSkill(warden, magnetize)", "signature(warden, magnetize)", "signature(warden, shield)",
     "hasSkill(arcanist, freeze)", "signature(arcanist, freeze)",
     "hasSkill(player, ignite)", "charge(player, ignite, i1)",

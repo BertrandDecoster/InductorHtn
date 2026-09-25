@@ -20,7 +20,6 @@ WORLD = [
     "reacts(fire, oil, scorched)", "blast(fire, oil, dead)",
     "hasSkill(warden, magnetize)", "signature(warden, magnetize)",
     "hasSkill(player, ignite)", "charge(player, ignite, i1)",
-    "metal(swarm)",
 ]
 
 

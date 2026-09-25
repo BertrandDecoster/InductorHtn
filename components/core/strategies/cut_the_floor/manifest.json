@@ -1,26 +1,27 @@
 {
-  "name": "the_burn",
+  "name": "cut_the_floor",
   "version": "0.1.0",
   "layer": "strategy",
-  "description": "Lure onto the oil; the player ignites it",
+  "description": "Bring enemies onto ground an element turns into a drop, then cast it",
   "dependencies": [
     "core/primitives/core_aggro",
-    "core/primitives/core_attunement"
+    "core/primitives/core_chemistry"
   ],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T01:10:55.701572"
+    "last_checked": "2026-09-25T01:10:57.092878"
   },
   "provides": [
-    "gatherOthers/2",
-    "theBurn/1"
+    "bringOthers/3",
+    "cutTheFloor/2",
+    "stepOff/1"
   ],
   "requires": [
     "bringTo/2",
     "castElement/2",
-    "expose/1"
+    "navigate/2"
   ]
 }

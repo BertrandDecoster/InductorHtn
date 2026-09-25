@@ -43,7 +43,7 @@ strategy
 
 ### Example 2: Drag them in
 
-**Given:** as Example 1 but the swarm is iron and the player has no push.
+**Given:** as Example 1 but the swarm cannot be pushed (`immune(swarm, push)`) and the player has no push.
 
 **When:** `theSlipstream(swarm)`
 
@@ -62,5 +62,5 @@ strategy
 | ID | Property | Description |
 |----|----------|-------------|
 | P1 | The enemy ends dead | After `theSlipstream(?e)`, `status(?e, dead)`. |
-| P2 | Nothing moves an unreachable enemy | A flesh enemy with no push and no dash available cannot be brought in: no plan. |
+| P2 | Nothing moves an unreachable enemy | An enemy that resists the only pull there is (`immune(swarm, pull)`), with no push and no dash available, cannot be brought in: no plan. |
 | P3 | The primer never pays off | Whoever froze the trap is excluded from the finish and the blast, even when they hold a lethal element. |

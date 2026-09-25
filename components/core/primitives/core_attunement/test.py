@@ -16,7 +16,7 @@ WORLD = [
     "regionHas(pit, oil)",
     "skillElement(ignite, fire)", "skillElement(freeze, freeze)", "skillElement(lightning, lightning)",
     "reacts(fire, oil, scorched)", "reacts(freeze, oil, sludge)",
-    "blast(fire, oil, dead)", "terrain(sludge, snared)",
+    "blast(fire, oil, dead)", "hazard(sludge, snared)",
     "strike(fire, dead)", "strike(lightning, dead)",
     "hasSkill(arcanist, freeze)", "signature(arcanist, freeze)",
 ]

@@ -1,0 +1,174 @@
+% =============================================================================
+% Ring-Out  -  an HTN ruleset (the level levels/movement_ringout, rewritten)
+% =============================================================================
+%
+% An ogre stands on a plinth by the void. Nothing hurts it: the only way to
+% win is to ring it out - over the verge on the brink. Two companions, one
+% skill each. Neither can do it alone: one brings the ogre onto the brink,
+% the other knocks it over.
+%
+%   gate --- yard --- plinth (ogre)
+%              \        /
+%               brink (verge: the void)
+%
+% The designer's strategies are the methods of ringOut, as plain
+% alternatives. Every plan is one of them, step for step:
+%
+%   1 "Hook and knock"   the hooker walks onto the brink and hooks the ogre
+%                        over from the plinth; the knocker knocks it over.
+%   2 "Beat the slam"    the knocker takes position; the taunter taunts from
+%                        the brink; the ogre walks over and winds up a slam;
+%                        in the wind-up the knocker knocks it over (a push:
+%                        fireball or shield bash) and the slam misses.
+%   3 "Take the slam"    the taunter taunts from the brink and takes the slam
+%                        (stunned); then the knocker knocks the ogre over.
+%
+% The knock itself (knockOver) has one form per kind of knock:
+%   a push (fireball, shield bash) takes only the ogre;
+%   a sweep (tidal wave on the brink, vortex on the verge) takes everyone on
+%   the brink: a friend who can walk steps off first; a stunned taunter
+%   cannot, and goes over with the ogre (sacrifice is allowed).
+%
+% Expected plan set, per kit (player skill, mage skill - either way round):
+%   hook  + fireball / shieldBash / tidalWave / vortex   1 plan  (1)
+%   taunt + fireball / shieldBash                        2 plans (2, 3)
+%   taunt + tidalWave / vortex                           1 plan  (3)
+%   any other pair, or one skill held by both            no plan
+% 16 of the 36 assignments win, as in levels/movement_ringout/design.md.
+% =============================================================================
+
+
+% =============================================================================
+% WORLD STATE
+% =============================================================================
+
+% --- Map (linked/2, both ways, for pathNext) ---
+location(gate).
+location(yard).
+location(brink).
+location(plinth).
+linked(gate, yard).    linked(yard, gate).
+linked(yard, brink).   linked(brink, yard).
+linked(yard, plinth).  linked(plinth, yard).
+linked(brink, plinth). linked(plinth, brink).
+
+% The verge is on the brink: whatever is knocked over there falls.
+verge(brink, verge).
+
+% --- Companions (interchangeable: only what they know differs) ---
+companion(player).
+companion(mage).
+at(player, gate).
+at(mage, gate).
+
+% --- The ogre ---
+enemy(ogre).
+at(ogre, plinth).
+
+% --- Kit: one skill each (the default is a winning pair) ---
+knows(player, fireball).
+knows(mage, hook).
+
+% --- What each skill is for, in this level ---
+% A knock, and the first place it is cast from at the brink.
+knockFrom(fireball, gate).      % ranged push, the gate sees the brink
+knockFrom(shieldBash, yard).    % melee push, from next door
+knockFrom(tidalWave, brink).    % a wave around the caster
+knockFrom(vortex, gate).        % aimed at the verge, from sight of it
+% A push takes only its target; a sweep takes everyone on the brink.
+push(fireball).
+push(shieldBash).
+sweep(tidalWave).
+sweep(vortex).
+
+
+% =============================================================================
+% OPERATORS (one fixed effect each)
+% =============================================================================
+
+opMoveTo(?who, ?from, ?to) :-
+    del(at(?who, ?from)), add(at(?who, ?to)).
+
+% The hook drags ?e from ?from to the hooker's area ?to.
+opHook(?a, ?e, ?from, ?to) :-
+    del(at(?e, ?from)), add(at(?e, ?to)).
+
+opTaunt(?a, ?e) :-
+    del(), add(taunted(?e, ?a)).
+
+% The taunted ogre walks to its taunter.
+opChase(?e, ?from, ?to) :-
+    del(at(?e, ?from)), add(at(?e, ?to)).
+
+% The slam is telegraphed: it winds up, then misses or lands.
+opWindUp(?e, ?ab, ?r) :-
+    del(), add(windingUp(?e, ?ab, ?r)).
+
+opMiss(?e, ?ab, ?r) :-
+    del(windingUp(?e, ?ab, ?r)), add().
+
+opSlam(?e, ?ab, ?r, ?victim) :-
+    del(windingUp(?e, ?ab, ?r)), add(stunned(?victim)).
+
+% ?k knocks ?e from ?r over the verge ?f.
+opKnockOver(?k, ?ab, ?e, ?r, ?f) :-
+    del(at(?e, ?r)), add(fell(?e, ?f)).
+
+
+% =============================================================================
+% METHODS - Navigation
+% =============================================================================
+
+navigateTo(?who, ?dest) :-
+    if(at(?who, ?dest)), do().
+navigateTo(?who, ?dest) :-
+    else, if(at(?who, ?cur), pathNext(?cur, ?dest, ?next)),
+    do(opMoveTo(?who, ?cur, ?next), navigateTo(?who, ?dest)).
+
+
+% =============================================================================
+% METHODS - The strategies
+% =============================================================================
+
+win :- if(), do(ringOut(ogre)).
+
+% 1 - Hook and knock: onto the brink with a hook, then knock it over.
+ringOut(?e) :-
+    if(at(?e, plinth), knows(?h, hook), knows(?k, ?ab), \==(?h, ?k),
+       first(knockFrom(?ab, ?from))),
+    do(navigateTo(?h, brink), opHook(?h, ?e, plinth, brink),
+       knockOver(?k, ?ab, ?from, ?e, ?h)).
+
+% 2 - Beat the slam: the knocker is in place before the taunt, and knocks it
+% over in the wind-up, without moving. Only a push: a sweep would take the
+% taunter too.
+ringOut(?e) :-
+    if(at(?e, plinth), knows(?t, taunt), knows(?k, ?ab), \==(?t, ?k), push(?ab),
+       first(knockFrom(?ab, ?from))),
+    do(navigateTo(?k, ?from), navigateTo(?t, brink), opTaunt(?t, ?e),
+       opChase(?e, plinth, brink), opWindUp(?e, groundSlam, brink),
+       opKnockOver(?k, ?ab, ?e, brink, verge), opMiss(?e, groundSlam, brink)).
+
+% 3 - Take the slam: the taunter is stunned by it, then the ogre is knocked over.
+ringOut(?e) :-
+    if(at(?e, plinth), knows(?t, taunt), knows(?k, ?ab), \==(?t, ?k),
+       first(knockFrom(?ab, ?from))),
+    do(navigateTo(?t, brink), opTaunt(?t, ?e), opChase(?e, plinth, brink),
+       opWindUp(?e, groundSlam, brink), opSlam(?e, groundSlam, brink, ?t),
+       knockOver(?k, ?ab, ?from, ?e, ?t)).
+
+% The knock. ?friend is the bringer, still on the brink.
+knockOver(?k, ?ab, ?from, ?e, ?friend) :-
+    if(push(?ab)),
+    do(navigateTo(?k, ?from), opKnockOver(?k, ?ab, ?e, brink, verge)).
+knockOver(?k, ?ab, ?from, ?e, ?friend) :-
+    if(sweep(?ab), not(stunned(?friend))),
+    do(navigateTo(?friend, yard), navigateTo(?k, ?from),
+       opKnockOver(?k, ?ab, ?e, brink, verge)).
+knockOver(?k, ?ab, ?from, ?e, ?friend) :-
+    if(sweep(?ab), stunned(?friend)),
+    do(navigateTo(?k, ?from), opKnockOver(?k, ?ab, ?e, brink, verge),
+       opKnockOver(?k, ?ab, ?friend, brink, verge)).
+
+
+goals(win).

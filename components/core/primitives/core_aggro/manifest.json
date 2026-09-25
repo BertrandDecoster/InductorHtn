@@ -12,11 +12,11 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-10T15:41:27.494815"
+    "last_checked": "2026-09-25T01:10:54.746769"
   },
   "provides": [
     "bringTo/2",
-    "canPull/1",
+    "canPull/2",
     "holdPosition/2",
     "lure/2",
     "opAnchor/1",
@@ -31,6 +31,6 @@
     "navigate/2",
     "payFor/2",
     "sufferTerrain/3",
-    "takeVantage/2"
+    "takeAim/4"
   ]
 }
