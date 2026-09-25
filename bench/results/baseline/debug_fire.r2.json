@@ -1,0 +1,50 @@
+{
+ "task": "debug_fire",
+ "run": 2,
+ "commit": "8fc6e41",
+ "passed": 7,
+ "total": 7,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "clear.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.4268429999999999,
+ "turns": 13,
+ "duration_s": 86,
+ "is_error": false,
+ "final_message": "I found and fixed four bugs in `task/domain.htn`. The operators are unchanged, and I ran each fix against test levels through the Python bindings.\n\n1. **Skills with 0 charges were usable.** `usable` checked `>=(?n, 0)`, so it accepted 0. It is now `>(?n, 0)`.\n2. **Charges were never really counted down.** `use` passed `-(?n, 1)` straight to `opSpend`. Operators don't do arithmetic, so the fact stored was the unevaluated term `-(?n,1)` instead of a number, which let charges go wrong. `use` now works out the new value first with `is(?m, -(?n, 1))`, checks `>(?n, 0)`, and passes `?m` to `opSpend`.\n3. **An enemy that couldn't be burned still gave a plan.** The fallback `clear :- else, if(), do()` returned an empty plan whenever `burnOut` failed. In this engine `else` doesn't stop backtracking; it gets tried again when the first rule fails. The fallback now only applies when no unburned flammable enemy is left.\n4. **The lure strategy vanished when the lurer was far away.** `navigate` only went up to two links. It now takes one step at a time along the shortest route using the built-in `pathNext`, so there's no distance limit.\n\n**Test results:**\n- **Sample level:** `burnOut(gob1)` returns two plans, spill-and-ignite and lure-into-the-kitchen (the lurer walks yard \u2192 hall \u2192 kitchen). `clear` returns two plans as well.\n- **Lurer four links from the oil:** the lure plan appears, with the correct walk.\n- **One flammable enemy can't be burned:** no plan.\n- **A 0-charge fire skill next to a charged one:** only the charged skill is used.\n- **Non-flammable enemies:** ignored.\n- **Every enemy already burned:** returns the empty plan.",
+ "domain": "% Grease fire: burn flammable enemies by igniting oil under them.\nburned(?e) :- at(?e, ?a), ablaze(?a).\nusable(?c, ?s, ?el) :- companion(?c), knows(?c, ?s), skillElement(?s, ?el), charges(?c, ?s, ?n), >(?n, 0).\n\nclear :- if(first(enemy(?e), flammable(?e), not(burned(?e)))), do(burnOut(?e), clear).\nclear :- else, if(not(first(enemy(?e), flammable(?e), not(burned(?e))))), do().\n\n% 1 - it already stands in oil\nburnOut(?e) :- if(at(?e, ?a), oiled(?a)), do(igniteArea(?a)).\n% 2 - spill oil on it, then ignite\nburnOut(?e) :- if(at(?e, ?a), not(oiled(?a)), usable(?o, ?s, oil)), do(use(?o, ?s), opSpill(?o, ?s, ?a), igniteArea(?a)).\n% 3 - lure it into a neighbouring pool of oil, then ignite\nburnOut(?e) :-\n    if(at(?e, ?a), not(oiled(?a)), linked(?a, ?x), oiled(?x), not(ablaze(?x)), usable(?l, ?s, lure)),\n    do(navigate(?l, ?x), use(?l, ?s), opLure(?l, ?s, ?e), opChase(?e, ?a, ?x), igniteArea(?x)).\n\nigniteArea(?a) :- if(usable(?f, ?s, fire)), do(use(?f, ?s), opIgnite(?f, ?s, ?a)).\n\nuse(?c, ?s) :- if(charges(?c, ?s, ?n), >(?n, 0), is(?m, -(?n, 1))), do(opSpend(?c, ?s, ?n, ?m)).\n\nnavigate(?who, ?to) :- if(at(?who, ?to)), do().\nnavigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).\nopSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).\nopIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).\nopLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n"
+}

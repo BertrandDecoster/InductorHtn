@@ -1,0 +1,55 @@
+{
+ "task": "guard",
+ "run": 2,
+ "commit": "8fc6e41",
+ "passed": 8,
+ "total": 8,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i7.htn",
+   "goal": "think(g1).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.5756062000000001,
+ "turns": 13,
+ "duration_s": 104,
+ "is_error": false,
+ "final_message": "The domain is in `task/domain.htn`. I ran `think(g1)` on the sample and 17 other test states, and each returned exactly one plan (or no plan when nothing was possible), all matching the brief.\n\n**How it works:**\n- **Priority order:** `think(?g)` has four methods in brief order: heal, fight, investigate, patrol. Each later one is marked `else`, so it's only tried when every earlier one failed to produce a plan. A behaviour that applies but can't be carried out, such as one with an unreachable destination, therefore passes to the next.\n- **Fight:** a second ladder picks shoot or melee in the same area, shoots from where the guard stands if the enemy's area is directly linked and there is ammo, and otherwise walks over and melees.\n- **Exactly one plan:** every lookup that could match more than one fact is wrapped in `first(...)`: the first medkit, enemy, noise and link, and the guard's position, health and ammo. That's why only one plan ever comes back.\n- **Walking:** `walkTo` uses the engine's built-in shortest-path function (`pathNext`) over the `linked` facts and takes one step at a time. If the guard is already there, it adds no steps; if the destination can't be reached, it fails.\n- The six operators are copied from the brief unchanged. The domain has no state facts and doesn't name any areas or characters.\n\n**Results:**\n- **Sample:** the guard is wounded, so it walks gate \u2192 court \u2192 cellar and heals there.\n- **Heal falls through:** when the first medkit listed can't be reached, the guard fights instead. It does not fall back to a second medkit, since only the first counts.\n- **All four fight cases:** shoot in the same area, melee in the same area, shoot into a linked area, and walk over then melee.\n- **Enemy unreachable:** the guard investigates the noise instead.\n- **Patrol:** works both from a distance and when already at the waypoint.\n- **Nothing possible:** returns no plan.\n\n**Things you might trip over:**\n- **Tied routes:** when two shortest routes are equally long, `pathNext` always picks the same one, which may not be the one your grader expects.\n- **Patrol needs a next waypoint:** if the patrol target has no `nextWaypoint` fact, patrol can't be carried out and the guard gets no plan.\n- **No virtual environment:** the `.venv` that CLAUDE.md says to activate doesn't exist in this checkout, so I ran the tests with the system Python. I deleted the test script afterwards, so only `domain.htn` was added to `task/`.",
+ "domain": "% Guard behaviour: think(?g) picks the single highest-priority behaviour that\n% can actually be carried out. The think/fight ladders use else, so a later\n% method is only tried when every earlier one failed to produce a plan.\n\n% === Operators ===\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopHeal(?g, ?area) :- del(medkit(?area)), add(healed(?g)).\nopShoot(?g, ?e, ?old, ?new) :- del(ammo(?g, ?old)), add(ammo(?g, ?new), hit(?e)).\nopMelee(?g, ?e) :- del(), add(hit(?e)).\nopSearch(?g, ?area) :- del(noise(?area)), add(searched(?area)).\nopNextWaypoint(?g, ?w, ?next) :- del(patrolTarget(?g, ?w)), add(patrolTarget(?g, ?next)).\n\n% === Rules ===\nguardAt(?g, ?area) :- first(at(?g, ?area)).\nhasAmmo(?g, ?n) :- first(ammo(?g, ?n)), >(?n, 0).\nwounded(?g) :- first(health(?g, ?hp)), <(?hp, 30).\nfirstEnemy(?g, ?e, ?area) :- first(sees(?g, ?e)), first(at(?e, ?area)).\n\n% === Priority ladder ===\n% 1. Heal: only the first medkit listed is considered.\nthink(?g) :- if(wounded(?g), first(medkit(?area))),\n    do(walkTo(?g, ?area), opHeal(?g, ?area)).\n% 2. Fight the first enemy the guard sees.\nthink(?g) :- else, if(firstEnemy(?g, ?e, ?area)),\n    do(fight(?g, ?e, ?area)).\n% 3. Investigate the first noise listed.\nthink(?g) :- else, if(first(noise(?area))),\n    do(walkTo(?g, ?area), opSearch(?g, ?area)).\n% 4. Patrol to the target waypoint, then advance the target.\nthink(?g) :- else, if(first(patrolTarget(?g, ?w)), first(nextWaypoint(?w, ?next))),\n    do(walkTo(?g, ?w), opNextWaypoint(?g, ?w, ?next)).\n\n% === Fight ===\nfight(?g, ?e, ?area) :- if(guardAt(?g, ?area), hasAmmo(?g, ?n), is(?left, -(?n, 1))),\n    do(opShoot(?g, ?e, ?n, ?left)).\nfight(?g, ?e, ?area) :- else, if(guardAt(?g, ?area)),\n    do(opMelee(?g, ?e)).\nfight(?g, ?e, ?area) :- else, if(guardAt(?g, ?here), first(linked(?here, ?area)), hasAmmo(?g, ?n), is(?left, -(?n, 1))),\n    do(opShoot(?g, ?e, ?n, ?left)).\nfight(?g, ?e, ?area) :- else, if(),\n    do(walkTo(?g, ?area), opMelee(?g, ?e)).\n\n% === Walking: one link at a time along the shortest route ===\nwalkTo(?who, ?dest) :- if(guardAt(?who, ?dest)), do().\nwalkTo(?who, ?dest) :- else, if(guardAt(?who, ?here), pathNext(?here, ?dest, ?next)),\n    do(opMoveTo(?who, ?here, ?next), walkTo(?who, ?dest)).\n"
+}

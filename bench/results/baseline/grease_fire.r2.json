@@ -1,0 +1,45 @@
+{
+ "task": "grease_fire",
+ "run": 2,
+ "commit": "8fc6e41",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "burnOut(gob2).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "clear.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.5050912000000001,
+ "turns": 11,
+ "duration_s": 95,
+ "is_error": false,
+ "final_message": "The domain is finished and saved in `task/domain.htn`. On the sample level, `burnOut(gob1)` gives 2 plans: spill then ignite, and lure into the kitchen then ignite. `clear` also gives 2 plans. In the first, one fire in the hall burns both goblins, so gob2 is skipped. In the second, the lure pulls gob1 away, so gob2 still needs a spill and ignite afterwards.\n\n**How it works**\n- **Burned isn't stored.** It's a rule: a flammable enemy standing in an ablaze area. That's why one fire takes every flammable enemy in its area along.\n- **`burnOut(?e)`** has three alternatives, one per way in the brief: ignite, spill and ignite, and lure into oil. The lure only picks a linked oiled area that isn't ablaze yet.\n- **Every companion and skill counts.** Each step (ignite, spill, lure) makes a separate plan for each companion that knows a skill of the right element and has a charge left. Each use does `opSpend` and then the effect. Charges are read at the moment of each step, so one companion can do several steps.\n- **The lurer's walk** goes one link at a time along the shortest route. It uses the engine's built-in shortest-path step, `pathNext`, the same way `Examples/TrunkThumper.htn` walks its troll.\n- **`clear`** takes the first unburned flammable enemy in `enemy(?e)` order, burns it, then looks again. It stops with an empty plan only when no unburned flammable enemy is left. I wrote that last case as a real condition rather than an `else`, so an enemy that can't be burned gives no plan instead of an empty one.\n\nThe domain holds only rules, methods and the six operators from the brief, copied exactly. It names no area, companion, skill or enemy.\n\n**Other checks.** I ran four small throwaway levels and deleted them afterwards. They confirmed:\n- two companions who can both ignite give two plans;\n- non-flammable and already-burned enemies are skipped;\n- an oiled area that is already ablaze is never used as a lure target;\n- a flammable enemy that can't be burned makes `clear` fail;\n- a level with no flammable enemies gives one empty plan;\n- a lurer who already stands in the target area doesn't walk.\n\n**One judgement call.** Way 1 (ignite) doesn't check whether the enemy's area is already ablaze. So calling `burnOut` directly on an enemy that is already burning still gives an ignite plan. `clear` never does this, because it skips burned enemies. The brief doesn't cover this case.",
+ "domain": "% =============================================================================\n% Grease fire  -  companions burn flammable enemies by igniting oil under them\n% =============================================================================\n% Fire only matters on oil: igniting an oiled area makes it ablaze for good, and\n% every flammable enemy standing in an ablaze area is burned. Burned is derived,\n% never stored, so one fire takes every flammable enemy in its area along.\n%\n% burnOut(?e) enumerates every way to burn one enemy, for every companion and\n% skill that can do each step (plain alternatives, no else):\n%   1. ignite the oiled area the enemy stands in;\n%   2. spill oil under the enemy, then ignite it;\n%   3. lure the enemy into a linked oiled area that is not ablaze, then ignite it.\n% clear burns the flammable enemies one at a time, in enemy/1 order.\n\n% =============================================================================\n% OPERATORS\n% =============================================================================\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).\nopSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).\nopIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).\nopLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n\n% =============================================================================\n% RULES\n% =============================================================================\n\n% A flammable enemy in an ablaze area is burned.\nburned(?e) :- flammable(?e), at(?e, ?area), ablaze(?area).\n\n% The flammable enemies clear still has to burn, in enemy/1 order.\nunburned(?e) :- enemy(?e), flammable(?e), not(burned(?e)).\n\n% A companion able to use a skill of ?element right now: it knows the skill and\n% has a charge left. ?new is the charge count after one use.\ncanUse(?c, ?skill, ?element, ?old, ?new) :-\n    companion(?c), knows(?c, ?skill), skillElement(?skill, ?element),\n    charges(?c, ?skill, ?old), >(?old, 0), is(?new, -(?old, 1)).\n\n% =============================================================================\n% METHODS - clear\n% =============================================================================\n\n% Burn the first unburned flammable enemy, then look again: a fire may have\n% taken later enemies along.\nclear :-\n    if(first(unburned(?e))),\n    do(burnOut(?e), clear).\n\n% Nothing left to burn. Negated rather than else, so a failed burnOut above\n% cannot fall through to an empty plan.\nclear :-\n    if(not(unburned(?e))),\n    do().\n\n% =============================================================================\n% METHODS - burnOut\n% =============================================================================\n\n% 1. Ignite: the enemy already stands on oil.\nburnOut(?e) :-\n    if(at(?e, ?area), oiled(?area)),\n    do(ignite(?area)).\n\n% 2. Spill and ignite: oil the enemy's area, then set it on fire.\nburnOut(?e) :-\n    if(at(?e, ?area), not(oiled(?area))),\n    do(spill(?area), ignite(?area)).\n\n% 3. Lure into oil: draw the enemy into a linked oiled area that is not yet\n%    ablaze, then set that area on fire.\nburnOut(?e) :-\n    if(at(?e, ?area), not(oiled(?area)),\n       linked(?area, ?trap), oiled(?trap), not(ablaze(?trap))),\n    do(lure(?e, ?area, ?trap), ignite(?trap)).\n\n% =============================================================================\n% METHODS - steps (one plan per companion and skill able to do the step)\n% =============================================================================\n\nignite(?area) :-\n    if(canUse(?c, ?skill, fire, ?old, ?new)),\n    do(opSpend(?c, ?skill, ?old, ?new), opIgnite(?c, ?skill, ?area)).\n\nspill(?area) :-\n    if(canUse(?c, ?skill, oil, ?old, ?new)),\n    do(opSpend(?c, ?skill, ?old, ?new), opSpill(?c, ?skill, ?area)).\n\n% The lurer must stand in the trap area: walk there, then lure.\nlure(?e, ?from, ?trap) :-\n    if(canUse(?c, ?skill, lure, ?old, ?new)),\n    do(navigateTo(?c, ?trap),\n       opSpend(?c, ?skill, ?old, ?new), opLure(?c, ?skill, ?e),\n       opChase(?e, ?from, ?trap)).\n\n% Walk one link at a time along the shortest route (pathNext is native Dijkstra\n% over linked/2).\nnavigateTo(?who, ?dest) :-\n    if(at(?who, ?dest)),\n    do().\n\nnavigateTo(?who, ?dest) :-\n    else, if(at(?who, ?cur), pathNext(?cur, ?dest, ?next)),\n    do(opMoveTo(?who, ?cur, ?next), navigateTo(?who, ?dest)).\n"
+}

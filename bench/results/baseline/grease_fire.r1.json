@@ -1,0 +1,45 @@
+{
+ "task": "grease_fire",
+ "run": 1,
+ "commit": "8fc6e41",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "burnOut(gob2).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "clear.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.5678818000000001,
+ "turns": 18,
+ "duration_s": 128,
+ "is_error": false,
+ "final_message": "The domain is written to `task/domain.htn` and gives the right plans on the sample level and on four small test levels I made up.\n\n**What's in it:**\n- **Rules.** `burned(?e)` means a flammable enemy is standing in an ablaze area. `unburned(?e)` is a flammable enemy that isn't burned yet. `canCast` finds a companion who knows a skill of the needed element and still has a charge left.\n- **`burnOut(?e)`** has three separate methods, one for each way in the brief: ignite, spill then ignite, and lure into oil. `FindAllPlans` returns one plan for each way, times each companion and skill that can do each step. Every skill use is `opSpend` first, with the charge count read from the state at that point. So when one companion does several steps, the counts stay correct.\n- **Lure.** The lurer walks one link at a time along the shortest route, using the engine's built-in `pathNext`. Then come `opSpend`, `opLure`, `opChase` and the ignite. The target has to be a linked oiled area that isn't already ablaze.\n- **`clear`** takes the first unburned flammable enemy in `enemy/1` order, burns it with `burnOut`, and repeats. It stops with an empty plan when none are left. The stopping method checks \"no unburned flammable enemy\" directly rather than using `else`. That way, if one enemy can't be burned, the planner can't fall back to an empty ending, and there's no plan.\n- **Operators** are copied exactly from the brief. No level facts, areas, companions, skills or enemies are named anywhere.\n\n**Two choices of mine:**\n- `burnOut` returns no plan for an enemy that isn't flammable, because fire can't burn it. The brief doesn't say this outright.\n- Method 1 (\"ignite\") fires whenever the enemy's area is oiled, even if it's already ablaze. That follows the brief literally. `clear` never hits this case, because an enemy in an ablaze area is already burned and gets skipped.\n\n**Results:**\n- **Sample level:** `burnOut(gob1)` gives 2 plans: spill then ignite, and walk yard\u2192hall\u2192kitchen, lure, ignite. `clear` gives 2 plans; the fire in the hall burns both goblins at once.\n- **Test levels:** these covered each case that should give no plan: a lure with 0 charges, an oiled neighbour that's already ablaze, and a flammable enemy that can't be reached. They also covered a non-flammable enemy (ignored), an already-burned enemy (skipped), one fire burning two enemies, and a level with nothing to burn (empty plan). All came out as expected. I deleted the test script and the scratch levels afterwards.",
+ "domain": "% Grease fire: burn flammable enemies by setting fire to oil under them.\n% Domain only (methods, operators, rules). Level facts come from the problem file.\n\n% =============================================================================\n% RULES\n% =============================================================================\n\n% A flammable enemy standing in an ablaze area is burned.\nburned(?e) :- flammable(?e), at(?e, ?a), ablaze(?a).\n\n% A flammable enemy that still has to be burned.\nunburned(?e) :- enemy(?e), flammable(?e), not(burned(?e)).\n\n% A companion who can use a skill of the given element right now.\ncanCast(?c, ?skill, ?element, ?n) :-\n    companion(?c), knows(?c, ?skill), skillElement(?skill, ?element),\n    charges(?c, ?skill, ?n), >(?n, 0).\n\n% =============================================================================\n% METHODS\n% =============================================================================\n\n% clear: burn the first unburned flammable enemy (enemy/1 fact order), then the rest.\nclear :-\n    if(first(unburned(?e))),\n    do(burnOut(?e), clear).\n\n% Nothing left to burn: the rest of the plan is empty. Negated, not `else`, so a\n% failed burnOut cannot fall through to here.\nclear :-\n    if(not(unburned(?e))),\n    do().\n\n% 1. Ignite: the enemy already stands in oil.\nburnOut(?e) :-\n    if(flammable(?e), at(?e, ?a), oiled(?a)),\n    do(ignite(?a)).\n\n% 2. Spill and ignite: oil the enemy's area, then set it on fire.\nburnOut(?e) :-\n    if(flammable(?e), at(?e, ?a), not(oiled(?a))),\n    do(spill(?a), ignite(?a)).\n\n% 3. Lure into oil: draw the enemy into a linked oiled area that is not ablaze yet.\nburnOut(?e) :-\n    if(flammable(?e), at(?e, ?from), not(oiled(?from)),\n       linked(?from, ?to), oiled(?to), not(ablaze(?to))),\n    do(lure(?e, ?from, ?to), ignite(?to)).\n\n% A companion with an oil skill spills oil into an area (cast from anywhere).\nspill(?a) :-\n    if(canCast(?c, ?skill, oil, ?n), is(?m, -(?n, 1))),\n    do(opSpend(?c, ?skill, ?n, ?m), opSpill(?c, ?skill, ?a)).\n\n% A companion with a fire skill ignites an area (cast from anywhere).\nignite(?a) :-\n    if(canCast(?c, ?skill, fire, ?n), is(?m, -(?n, 1))),\n    do(opSpend(?c, ?skill, ?n, ?m), opIgnite(?c, ?skill, ?a)).\n\n% A companion with a lure skill walks to the lure area, lures, and the enemy follows.\nlure(?e, ?from, ?to) :-\n    if(canCast(?c, ?skill, lure, ?n), at(?c, ?start), reachable(?start, ?to)),\n    do(walkTo(?c, ?to), useLure(?c, ?skill, ?e), opChase(?e, ?from, ?to)).\n\n% Charges are read after the walk.\nuseLure(?c, ?skill, ?e) :-\n    if(charges(?c, ?skill, ?n), is(?m, -(?n, 1))),\n    do(opSpend(?c, ?skill, ?n, ?m), opLure(?c, ?skill, ?e)).\n\n% Walk one link at a time along the shortest route.\nwalkTo(?who, ?dest) :-\n    if(at(?who, ?dest)),\n    do().\nwalkTo(?who, ?dest) :-\n    if(at(?who, ?cur), pathNext(?cur, ?dest, ?next)),\n    do(opMoveTo(?who, ?cur, ?next), walkTo(?who, ?dest)).\n\nreachable(?a, ?a).\n% pathNext fails on a == b, so the two clauses never overlap.\nreachable(?a, ?b) :- first(pathNext(?a, ?b, ?next)).\n\n% =============================================================================\n% OPERATORS\n% =============================================================================\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).\nopSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).\nopIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).\nopLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n"
+}

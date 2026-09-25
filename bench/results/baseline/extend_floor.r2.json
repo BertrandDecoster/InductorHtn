@@ -1,0 +1,45 @@
+{
+ "task": "extend_floor",
+ "run": 2,
+ "commit": "8fc6e41",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "ringOut(ogre).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "ringOut(troll).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "ringOut(beast).",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "ringOut(orc).",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "ringOut(wisp).",
+   "ok": true
+  },
+  {
+   "instance": "i7.htn",
+   "goal": "ringOut(wisp).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.5493384,
+ "turns": 16,
+ "duration_s": 123,
+ "is_error": false,
+ "final_message": "I've added fragile floors to `task/domain.htn`. On the test levels I tried, `ringOut` returns the same plans as before, in the same order, followed by one extra plan for each break combination.\n\n**What I added:**\n- **Break on the spot:** if the enemy stands on a fragile area, any companion with a quake skill breaks the floor (`opBreak`) and the enemy falls into one of that area's drops (`opFall`). There's no walking. You get one plan for each companion, quake skill and drop.\n- **Bring, then break:** if the enemy isn't on a fragile area, a bringer brings it to a linked fragile area using the existing `bring` task (pull or taunt). Then a *different* companion breaks the floor, reusing the \"not me\" pattern from `knock`.\n- **Immunity:** an enemy with `immune(?e, quake)` gets no break plans.\n- **No duplicate plans:** a fragile area with several drops is picked only once (via `first(fragile(...))`, the same trick `edgeArea` uses), and the drop is chosen when the floor breaks. The \"a different breaker exists\" check is a yes/no test, so it doesn't create extra copies of the same plan.\n- **Operators:** `opBreak` and `opFall` are exactly as the brief gives them. The domain doesn't name any areas, companions or skills.\n\n**Checks I ran:**\n- **Sample level:** 1 plan, the same as before. The mage is the only one with a quake skill and also the only bringer, so bring-then-break has no second companion to break the floor.\n- **A richer test level** (fragile areas with several drops, an area that is both an edge and fragile, two quake users, a taunter, and a quake-immune enemy):\n  - An enemy two steps from anything gets 14 plans: 2 existing + 6 via bridge (two drops) + 3 via brink + 3 via ice.\n  - An enemy on a fragile area gets 4 plans: 2 companions \u00d7 2 drops.\n  - An enemy on an area that is both edge and fragile gets its push plan plus 2 break plans.\n  - The quake-immune enemy gets only its 2 existing plans.\n- **Unchanged behaviour:** on a level with no fragile or quake facts, the output is identical to the original domain's. On the fragile levels, the original plans come first and unchanged. I rebuilt the original domain for this comparison by stripping my additions back out, because `task/` isn't tracked in git.",
+ "domain": "% Ring-out domain. Enemies are defeated only by falling into a drop.\nedgeArea(?a) :- first(edge(?a, ?d)).\nbringer(?e, ?b, ?s) :- companion(?b), knows(?b, ?s), skillKind(?s, ?k), bringKind(?k), not(immune(?e, ?k)).\nbringKind(pull).\nbringKind(taunt).\nfragileArea(?a) :- first(fragile(?a, ?d)).\nbreaker(?e, ?k, ?s) :- not(immune(?e, quake)), companion(?k), knows(?k, ?s), skillKind(?s, quake).\notherBreaker(?e, ?b) :- breaker(?e, ?k, ?s), \\==(?k, ?b).\n\nringOut(?e) :- if(at(?e, ?a), edgeArea(?a)), do(knock(?e, ?a, nobody)).\nringOut(?e) :-\n    if(at(?e, ?a), not(edgeArea(?a)), linked(?a, ?x), edgeArea(?x), bringer(?e, ?b, ?s)),\n    do(bring(?b, ?s, ?e, ?a, ?x), knock(?e, ?x, ?b)).\nringOut(?e) :- if(at(?e, ?a), fragileArea(?a)), do(collapse(?e, ?a, nobody)).\nringOut(?e) :-\n    if(at(?e, ?a), not(fragileArea(?a)), linked(?a, ?x), fragileArea(?x), bringer(?e, ?b, ?s), first(otherBreaker(?e, ?b))),\n    do(bring(?b, ?s, ?e, ?a, ?x), collapse(?e, ?x, ?b)).\n\nbring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, pull)), do(navigate(?b, ?x), opPull(?b, ?s, ?e, ?a, ?x)).\nbring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, taunt)), do(navigate(?b, ?x), opTaunt(?b, ?s, ?e), opChase(?e, ?a, ?x)).\n\nknock(?e, ?area, ?notMe) :-\n    if(not(immune(?e, push)), companion(?k), \\==(?k, ?notMe), knows(?k, ?s), skillKind(?s, push), edge(?area, ?d)),\n    do(navigate(?k, ?area), opPush(?k, ?s, ?e, ?area, ?d)).\n\ncollapse(?e, ?area, ?notMe) :-\n    if(breaker(?e, ?k, ?s), \\==(?k, ?notMe), fragile(?area, ?d)),\n    do(opBreak(?k, ?s, ?area), opFall(?e, ?area, ?d)).\n\nnavigate(?who, ?to) :- if(at(?who, ?to)), do().\nnavigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopPush(?who, ?skill, ?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\nopPull(?who, ?skill, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopTaunt(?who, ?skill, ?e) :- del(), add(taunted(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopBreak(?who, ?skill, ?area) :- del(), add(broken(?area)).\nopFall(?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\n"
+}

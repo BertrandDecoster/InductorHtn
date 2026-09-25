@@ -1,0 +1,40 @@
+{
+ "task": "blocks",
+ "run": 1,
+ "commit": "8fc6e41",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "solve.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.565275,
+ "turns": 12,
+ "duration_s": 161,
+ "is_error": false,
+ "final_message": "The domain is in `task/domain.htn` and works on everything I tested, though a few problems end up one move longer than the shortest possible plan.\n\n**How it works:** it's the classic hierarchical blocks-world approach, a loop called `solve` that picks one move at a time:\n1. If a block is already in the hand, it goes onto its target if the target is ready; otherwise it goes on the table.\n2. If any clear block can go straight to its final place, it goes there. For a block with no goal that has to move, its final place is the table.\n3. Otherwise, a clear block that has to move anyway goes to the table.\n4. When no block needs to move, the plan ends.\n\nA block has to move if it isn't where its goal puts it, if something under it has to move, or if it's sitting on a block that another block's goal needs. The loop's four cases never overlap, and each choice takes only the first match, so there is always exactly one plan.\n\n**Testing:** I ran it through the planner's Python bindings on the sample problem and about 800 random problems with 1 to 6 blocks, several towers, some blocks with no goal, and some problems already solved. I also tried starting with a block in the hand. Every run returned exactly one plan, and replaying each plan with the four operators reached all the goals.\n\n**Plan length:** I compared each plan with the shortest possible one found by exhaustive search. Three of the random problems came out one move longer. That happens when no block can go home and the planner has to pick which block to set aside; a better tie-break would be needed to close that gap. Every plan still follows the brief's \"good enough\" rule: each block either goes straight to its final place or goes to the table first and then home. The test script was a scratch file and I deleted it, so only `brief.md`, `domain.htn` and `problem.htn` are left in `task/`.",
+ "domain": "% Blocks world, the Gupta-Nau way.\n% A block that can go straight to its final place goes there. When none can, a clear block\n% that must move anyway goes to the table. A block never moves twice more than it has to.\n% Every choice goes through first() and the solve methods exclude each other, so\n% FindAllPlans returns exactly one plan.\n\n% --- Top-level loop ---\nsolve() :- if(first(holding(?b))), do(placeHeld(?b), solve()).\nsolve() :- if(handEmpty, first(canGoHome(?b, ?dest))), do(moveBlock(?b, ?dest), solve()).\nsolve() :- if(handEmpty, not(anyCanGoHome), first(inTheWay(?b))), do(moveBlock(?b, table), solve()).\nsolve() :- if(handEmpty, not(anyNeedsMove)), do().\n\n% A block already in the hand goes home if it can, otherwise onto the table.\nplaceHeld(?b) :- if(goalOn(?b, ?c), clear(?c), not(needsMove(?c))), do(stack(?b, ?c)).\nplaceHeld(?b) :- if(not(canStackHeld(?b))), do(putdown(?b)).\n\n% Move a clear block, with an empty hand, to a block or to the table.\nmoveBlock(?b, table) :- if(on(?b, ?c)), do(unstack(?b, ?c), putdown(?b)).\nmoveBlock(?b, ?dest) :- if(not(==(?dest, table)), onTable(?b)), do(pickup(?b), stack(?b, ?dest)).\nmoveBlock(?b, ?dest) :- if(not(==(?dest, table)), on(?b, ?c)), do(unstack(?b, ?c), stack(?b, ?dest)).\n\n% --- Operators ---\npickup(?b) :- del(onTable(?b), clear(?b), handEmpty), add(holding(?b)).\nunstack(?b, ?c) :- del(on(?b, ?c), clear(?b), handEmpty), add(holding(?b), clear(?c)).\nputdown(?b) :- del(holding(?b)), add(onTable(?b), clear(?b), handEmpty).\nstack(?b, ?c) :- del(holding(?b), clear(?c)), add(on(?b, ?c), clear(?b), handEmpty).\n\n% --- Rules ---\n% A block must move if it is not where its goal puts it, if anything below it must move,\n% or if it sits on a block that another block's goal needs.\nneedsMove(?b) :- holding(?b).\nneedsMove(?b) :- goalOnTable(?b), not(onTable(?b)).\nneedsMove(?b) :- goalOn(?b, ?c), not(on(?b, ?c)).\nneedsMove(?b) :- on(?b, ?c), needsMove(?c).\nneedsMove(?b) :- on(?b, ?c), goalOn(?x, ?c), not(==(?x, ?b)).\n\nanyNeedsMove() :- block(?b), needsMove(?b).\n\n% A clear block that can go straight to its final place.\ncanGoHome(?b, table) :- clear(?b), goalOnTable(?b), not(onTable(?b)).\ncanGoHome(?b, ?c) :- clear(?b), goalOn(?b, ?c), not(on(?b, ?c)), clear(?c), not(needsMove(?c)).\n% A block with no goal that must move is finished once it is on the table.\ncanGoHome(?b, table) :- clear(?b), on(?b, ?c), not(hasGoal(?b)), needsMove(?b).\n\nhasGoal(?b) :- goalOnTable(?b).\nhasGoal(?b) :- goalOn(?b, ?c).\n\nanyCanGoHome() :- canGoHome(?b, ?d).\n\ncanStackHeld(?b) :- goalOn(?b, ?c), clear(?c), not(needsMove(?c)).\n\n% A clear block off the table that must move but cannot go home yet.\ninTheWay(?b) :- clear(?b), on(?b, ?c), needsMove(?b).\n"
+}

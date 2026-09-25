@@ -1,0 +1,50 @@
+{
+ "task": "debug_fire",
+ "run": 1,
+ "commit": "8fc6e41",
+ "passed": 7,
+ "total": 7,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "clear.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.4379876,
+ "turns": 9,
+ "duration_s": 95,
+ "is_error": false,
+ "final_message": "I fixed all three reported bugs in `task/domain.htn` and left the operators exactly as they were. I tested it on the sample level and on three small levels I wrote for the reported cases.\n\n**What was wrong and what I changed:**\n\n1. **Lure never shows up when the lurer is far away.** `navigate` only handled routes of 0, 1 or 2 links, so a lurer three or more links away could never reach the oil. It now walks one link at a time along a shortest route. The route search tries depth 0, then 1, and so on, and never steps straight back, so the first route it finds is a shortest one. The lure method also checks up front that the oiled area can be reached (`canReach`). There were two smaller problems in the same place: the old `else` clauses could produce duplicate walks, and the charge arithmetic was written straight into an operator argument. The new version evaluates it with `is` before calling `opSpend`.\n\n2. **A plan is returned when an enemy can't be burned.** The `clear :- else, if(), do()` stop clause is not a cut. When `burnOut` failed, the planner backtracked into it and returned a plan that just stopped early. That also added extra partial plans. The stop clause now only applies when no unburned flammable enemy is left (`not(unburned(?e))`), so if any flammable enemy can't be burned, there is no plan.\n\n3. **Skills used with 0 charges, charges going negative.** `usable` checked `>=(?n, 0)`; it is now `>(?n, 0)`. `use` checks the same thing again before spending.\n\n**Test results:**\n- **Sample level:** `burnOut(gob1)` gives the spill-and-ignite plan and the lure plan (walk yard \u2192 hall \u2192 kitchen). `clear` gives two plans:\n  - The first spills oil on the hall and ignites it, which burns both goblins, so `gob2` is skipped.\n  - The second lures `gob1` into the kitchen and burns it, then spills and ignites for `gob2`.\n- **Lurer four links from the oil:** the lure plan is found, and it takes the two-link shortcut rather than the four-link way round.\n- **One flammable enemy that can't be burned:** no plan. The non-flammable enemy is ignored.\n- **Oil skill with 0 charges:** no plan.\n\nThe route search stops at 19 links. It never repeats work when the oil can be reached, but if the oil can't be reached on a large, densely linked map, the reachability check could be slow.",
+ "domain": "% Grease fire: burn flammable enemies by igniting oil under them.\nburned(?e) :- at(?e, ?a), ablaze(?a).\nusable(?c, ?s, ?el) :- companion(?c), knows(?c, ?s), skillElement(?s, ?el), charges(?c, ?s, ?n), >(?n, 0).\nunburned(?e) :- enemy(?e), flammable(?e), not(burned(?e)).\n\n% else is not a cut: the stop clause must not fire while an unburned enemy remains.\nclear :- if(first(unburned(?e))), do(burnOut(?e), clear).\nclear :- if(not(unburned(?e))), do().\n\n% 1 - it already stands in oil\nburnOut(?e) :- if(at(?e, ?a), oiled(?a)), do(igniteArea(?a)).\n% 2 - spill oil on it, then ignite\nburnOut(?e) :- if(at(?e, ?a), not(oiled(?a)), usable(?o, ?s, oil)), do(use(?o, ?s), opSpill(?o, ?s, ?a), igniteArea(?a)).\n% 3 - lure it into a neighbouring pool of oil, then ignite\nburnOut(?e) :-\n    if(at(?e, ?a), not(oiled(?a)), linked(?a, ?x), oiled(?x), not(ablaze(?x)), usable(?l, ?s, lure), at(?l, ?from), canReach(?from, ?x)),\n    do(navigate(?l, ?x), use(?l, ?s), opLure(?l, ?s, ?e), opChase(?e, ?a, ?x), igniteArea(?x)).\n\nigniteArea(?a) :- if(usable(?f, ?s, fire)), do(use(?f, ?s), opIgnite(?f, ?s, ?a)).\n\nuse(?c, ?s) :- if(charges(?c, ?s, ?n), >(?n, 0), is(?m, -(?n, 1))), do(opSpend(?c, ?s, ?n, ?m)).\n\n% Routes: iterative deepening over links, never stepping straight back,\n% so the first answer is a shortest route.\nhop(0). hop(1). hop(2). hop(3). hop(4). hop(5). hop(6). hop(7). hop(8). hop(9).\nhop(10). hop(11). hop(12). hop(13). hop(14). hop(15). hop(16). hop(17). hop(18). hop(19).\nroute(?p, ?x, ?x, ?d).\nroute(?p, ?x, ?to, ?d) :- >(?d, 0), \\==(?x, ?to), linked(?x, ?m), \\==(?m, ?p), is(?d1, -(?d, 1)), route(?x, ?m, ?to, ?d1).\nnextStep(?from, ?to, ?n) :- first(hop(?d), linked(?from, ?n), route(?from, ?n, ?to, ?d)).\ncanReach(?from, ?to) :- ==(?from, ?to).\ncanReach(?from, ?to) :- \\==(?from, ?to), first(nextStep(?from, ?to, ?n)).\n\n% Walk one link at a time along a shortest route.\nnavigate(?who, ?to) :- if(at(?who, ?to)), do().\nnavigate(?who, ?to) :- if(at(?who, ?here), \\==(?here, ?to), nextStep(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).\nopSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).\nopIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).\nopLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n"
+}

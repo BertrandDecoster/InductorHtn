@@ -1,0 +1,45 @@
+{
+ "task": "extend_floor",
+ "run": 1,
+ "commit": "8fc6e41",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "ringOut(ogre).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "ringOut(troll).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "ringOut(beast).",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "ringOut(orc).",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "ringOut(wisp).",
+   "ok": true
+  },
+  {
+   "instance": "i7.htn",
+   "goal": "ringOut(wisp).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.335928,
+ "turns": 8,
+ "duration_s": 77,
+ "is_error": false,
+ "final_message": "I added fragile floors to `task/domain.htn`, and all the existing rules are unchanged. `ringOut` now finds break plans after the existing ones.\n\n**What I added:**\n- **Two new `ringOut` methods, placed after the existing two:**\n  - **Break:** the enemy stands on a fragile area, so a companion breaks the floor under it.\n  - **Bring, then break:** the enemy is not on a fragile area but is linked to one. A bringer pulls or taunts it there using the existing `bring`, then a *different* companion breaks the floor.\n- **`fragileArea(?a) :- first(fragile(?a, ?d)).`** This matches how `edgeArea` works: an area with several drops is counted once when choosing where to bring the enemy, and each drop is still listed separately in the break step.\n- **A `collapse(?e, ?area, ?notMe)` task.** It works like `knock`: the enemy must not be `immune(?e, quake)`, and any companion other than `?notMe` who knows a quake-kind skill can do it. There is no navigation step. It produces one plan per companion, quake skill and drop, as `opBreak` then `opFall`.\n- **The two new operators,** copied exactly from the brief.\n\nThe domain names no areas, companions or skills.\n\n**Results:** I ran it through the Python bindings (the REPL isn't built in this checkout).\n- **Sample level:** it returns only the existing pull-to-brink-and-push plan. That's correct under the rules: the mage is the only companion who can bring and also the only one who knows quake, so no second companion can break the floor.\n- **Enemy on a fragile edge with two drops and two quake users:** one push plan plus 4 break plans (2 companions \u00d7 2 drops).\n- **Enemy immune to quake:** no break plans.\n- **One companion who would have to both bring and break:** no plans.\n- **Two fragile neighbours, one with two drops, and a bringer with both pull and taunt:** 6 plans, one for each combination, in the order: bringing steps, `opBreak`, `opFall`.\n\nWhen an enemy stands on a fragile area, the domain doesn't also try bringing it to a neighbouring fragile area, because the brief limits bring-then-break to enemies that aren't on one.",
+ "domain": "% Ring-out domain. Enemies are defeated only by falling into a drop.\nedgeArea(?a) :- first(edge(?a, ?d)).\nfragileArea(?a) :- first(fragile(?a, ?d)).\nbringer(?e, ?b, ?s) :- companion(?b), knows(?b, ?s), skillKind(?s, ?k), bringKind(?k), not(immune(?e, ?k)).\nbringKind(pull).\nbringKind(taunt).\n\nringOut(?e) :- if(at(?e, ?a), edgeArea(?a)), do(knock(?e, ?a, nobody)).\nringOut(?e) :-\n    if(at(?e, ?a), not(edgeArea(?a)), linked(?a, ?x), edgeArea(?x), bringer(?e, ?b, ?s)),\n    do(bring(?b, ?s, ?e, ?a, ?x), knock(?e, ?x, ?b)).\nringOut(?e) :- if(at(?e, ?a), fragileArea(?a)), do(collapse(?e, ?a, nobody)).\nringOut(?e) :-\n    if(at(?e, ?a), not(fragileArea(?a)), linked(?a, ?x), fragileArea(?x), bringer(?e, ?b, ?s)),\n    do(bring(?b, ?s, ?e, ?a, ?x), collapse(?e, ?x, ?b)).\n\nbring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, pull)), do(navigate(?b, ?x), opPull(?b, ?s, ?e, ?a, ?x)).\nbring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, taunt)), do(navigate(?b, ?x), opTaunt(?b, ?s, ?e), opChase(?e, ?a, ?x)).\n\nknock(?e, ?area, ?notMe) :-\n    if(not(immune(?e, push)), companion(?k), \\==(?k, ?notMe), knows(?k, ?s), skillKind(?s, push), edge(?area, ?d)),\n    do(navigate(?k, ?area), opPush(?k, ?s, ?e, ?area, ?d)).\n\ncollapse(?e, ?area, ?notMe) :-\n    if(not(immune(?e, quake)), companion(?k), \\==(?k, ?notMe), knows(?k, ?s), skillKind(?s, quake), fragile(?area, ?d)),\n    do(opBreak(?k, ?s, ?area), opFall(?e, ?area, ?d)).\n\nnavigate(?who, ?to) :- if(at(?who, ?to)), do().\nnavigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopPush(?who, ?skill, ?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\nopPull(?who, ?skill, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopTaunt(?who, ?skill, ?e) :- del(), add(taunted(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopBreak(?who, ?skill, ?area) :- del(), add(broken(?area)).\nopFall(?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\n"
+}

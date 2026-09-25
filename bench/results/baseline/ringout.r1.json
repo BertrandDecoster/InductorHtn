@@ -1,0 +1,40 @@
+{
+ "task": "ringout",
+ "run": 1,
+ "commit": "8fc6e41",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "ringOut(ogre).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "ringOut(troll).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "ringOut(golem).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "ringOut(wall).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "ringOut(beast).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.5503402000000001,
+ "turns": 14,
+ "duration_s": 118,
+ "is_error": false,
+ "final_message": "The domain is written to `task/domain.htn` and gives exactly the expected plans on every level I tried.\n\n**Structure:**\n- **`ringOut(?e)`** has one method per designer strategy:\n  1. **Knock** applies when the enemy's area has at least one drop. Any companion can be tried as the knocker.\n  2. **Bring, then knock** applies when the enemy's area has no drop. It picks a linked edge area, a bringer and a different knocker, then does `bring` and `knock`.\n- **`bring`** has two methods. **Pull** is the walk then `opPull`; **taunt** is the walk, then `opTaunt`, then `opChase`. Each checks that the enemy isn't immune to that kind of skill.\n- **`knock`** tries every push skill the knocker knows and every drop of that area. It checks push immunity, then walks and does `opPush`.\n- **`navigateTo`** walks one link at a time along the shortest route, using the engine's built-in shortest-path step (`pathNext`). A companion already in the area doesn't move.\n- An area counts as an edge area once, however many drops it has. This way a second drop doesn't create a duplicate plan; each drop still gets its own plan at the push step.\n- The five operators are exactly as given in the brief. The domain has no level facts and names no specific area, companion or skill.\n\n**Tests:**\n- **Sample level:** 1 plan. The mage walks to the brink and hooks the ogre over, then the player walks there and fireballs it into the void.\n- **Sample with more skills** (the mage also knows taunt and fireball, the player also knows shield bash): 4 plans, from 2 ways to bring \u00d7 2 push skills. Adding pull immunity leaves the 2 taunt plans.\n- **Sample with push immunity, or with pull immunity alone:** no plan, as expected.\n- **A level I built** with three companions, two edge areas (one with two drops), a longer route, and one companion cut off from the map: 6 plans, as expected. The cut-off companion is correctly left out.\n- **Same level with the enemy starting in the two-drop area:** 4 knock-only plans, from 2 knockers \u00d7 2 drops. No bring plans, as the brief requires.\n\nI deleted my test script and scratch levels, so `task/` holds only the brief, the problem and the domain.",
+ "domain": "% =============================================================================\n% Ring-out - a cooperative domain\n% =============================================================================\n%\n% Nothing hurts the enemy: the only way to win is to knock it off an edge\n% into a drop. The designer's strategies are the methods of ringOut:\n%\n%   1 Knock            the enemy stands in an edge area: any companion who\n%                      knows a push walks there and pushes it into a drop.\n%   2 Bring, then knock the enemy is not in an edge area: a bringer brings it\n%                      into a linked edge area (pull, or taunt and chase),\n%                      then a different companion walks there and knocks it.\n%\n% Every combination is its own plan: companion, skill, edge area and drop.\n% An edge area is an area with at least one edge/2 fact (first/1 keeps one\n% edge area from counting once per drop).\n% =============================================================================\n\n\n% =============================================================================\n% OPERATORS\n% =============================================================================\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopPush(?who, ?skill, ?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\nopPull(?who, ?skill, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopTaunt(?who, ?skill, ?e) :- del(), add(taunted(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n\n\n% =============================================================================\n% METHODS - Navigation (one link at a time, shortest route)\n% =============================================================================\n\nnavigateTo(?who, ?dest) :-\n    if(at(?who, ?dest)), do().\nnavigateTo(?who, ?dest) :-\n    else, if(at(?who, ?cur), pathNext(?cur, ?dest, ?next)),\n    do(opMoveTo(?who, ?cur, ?next), navigateTo(?who, ?dest)).\n\n\n% =============================================================================\n% METHODS - The strategies\n% =============================================================================\n\n% 1 - Knock: the enemy already stands in an edge area.\nringOut(?e) :-\n    if(at(?e, ?area), first(edge(?area, ?anyDrop)), companion(?k)),\n    do(knock(?k, ?e, ?area)).\n\n% 2 - Bring, then knock: bring it into a linked edge area, and a different\n% companion knocks it there.\nringOut(?e) :-\n    if(at(?e, ?from), not(edge(?from, ?noDrop)),\n       linked(?from, ?to), first(edge(?to, ?anyDrop)),\n       companion(?bringer), companion(?k), \\==(?bringer, ?k)),\n    do(bring(?bringer, ?e, ?from, ?to), knock(?k, ?e, ?to)).\n\n\n% =============================================================================\n% METHODS - The steps\n% =============================================================================\n\n% Bring by pull: the bringer walks to the edge area and pulls the enemy there.\nbring(?c, ?e, ?from, ?to) :-\n    if(knows(?c, ?skill), skillKind(?skill, pull), not(immune(?e, pull))),\n    do(navigateTo(?c, ?to), opPull(?c, ?skill, ?e, ?from, ?to)).\n\n% Bring by taunt: the bringer walks to the edge area and taunts; the enemy\n% chases into the bringer's area.\nbring(?c, ?e, ?from, ?to) :-\n    if(knows(?c, ?skill), skillKind(?skill, taunt), not(immune(?e, taunt))),\n    do(navigateTo(?c, ?to), opTaunt(?c, ?skill, ?e), opChase(?e, ?from, ?to)).\n\n% Knock: the knocker walks to the enemy's edge area and pushes it into one of\n% that area's drops.\nknock(?k, ?e, ?area) :-\n    if(knows(?k, ?skill), skillKind(?skill, push), not(immune(?e, push)),\n       edge(?area, ?drop)),\n    do(navigateTo(?k, ?area), opPush(?k, ?skill, ?e, ?area, ?drop)).\n"
+}

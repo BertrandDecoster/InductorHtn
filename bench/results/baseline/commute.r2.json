@@ -1,0 +1,65 @@
+{
+ "task": "commute",
+ "run": 2,
+ "commit": "8fc6e41",
+ "passed": 10,
+ "total": 10,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, park).",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, office).",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, beach).",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, home).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "travel(bo, museum).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "travel(bo, harbour).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "travel(cy, mill).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "travel(cy, town).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "travel(di, lab2).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "travel(di, moon).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.4373692,
+ "turns": 13,
+ "duration_s": 84,
+ "is_error": false,
+ "final_message": "The domain is written to `task/domain.htn`, and it gives the right plans on the sample problem and on several variations I made of it.\n\n**How it works:** each way of travelling (already there, walk, bike, taxi, bus) is its own `travel(?who, ?to)` method, so `FindAllPlans` returns every one that applies. The six operators are copied exactly from the brief, and the file contains no problem facts.\n- **Already there:** returns only the empty plan. Every other method checks that the start and destination differ, so nothing else can match.\n- **Walk:** the two rules (good weather and at most 3, or any weather and at most 0.5) are wrapped in `first(...)`, so you get one walking plan even when both hold.\n- **Bike:** owns a bike, good weather, distance at most 10.\n- **Taxi:** takes the first taxi at a stand where the person is. The fare is 2 + distance; it checks the person has at least that much cash and works out the change, e.g. `pay(ann, 12, 8)`.\n- **Bus:** one plan per `busRoute` from here to the destination, costing 1.\n\n**What I tested,** loading the domain with the sample problem through the Python bindings:\n- **Sample problem:** park gives walk, bike and taxi; office gives bike, taxi and bus7; beach gives bus9 only, because the taxi costs 16 and Ann has 12. Asking for home gives the empty plan, and an unknown destination gives no plan.\n- **Bad weather, park at 0.5:** walk and taxi.\n- **Cash 0:** office gives bike only.\n- **Good weather, park at 0.5, two bus routes:** one walk plan, plus bike, taxi and a separate plan for each bus.\n\nWhen a distance isn't a whole number, the engine prints the change with trailing zeros, e.g. `pay(ann, 12, 9.500000000)`. I didn't change that. I deleted my temporary test script, so `task/` now holds only `brief.md`, `domain.htn` and `problem.htn`.",
+ "domain": "% Commute domain: travel(?who, ?to) yields one plan per working way of getting there.\n% Every mode is its own method, so FindAllPlans returns each mode that applies.\n\n% --- Rules ---\n\n% Walking: good weather and at most 3, or any weather and at most 0.5.\ncanWalk(?from, ?to) :- weather(good), distance(?from, ?to, ?d), =<(?d, 3).\ncanWalk(?from, ?to) :- distance(?from, ?to, ?d), =<(?d, 0.5).\n\ncanCycle(?who, ?from, ?to) :- ownsBike(?who), weather(good), distance(?from, ?to, ?d), =<(?d, 10).\n\n% --- Methods ---\n\n% Already there: the empty plan, and only that.\ntravel(?who, ?to) :- if(at(?who, ?to)), do().\n\n% Walk: one plan even when both walking rules hold.\ntravel(?who, ?to) :- if(at(?who, ?from), not(==(?from, ?to)), first(canWalk(?from, ?to))),\n    do(walk(?who, ?from, ?to)).\n\n% Bike.\ntravel(?who, ?to) :- if(at(?who, ?from), not(==(?from, ?to)), first(canCycle(?who, ?from, ?to))),\n    do(cycle(?who, ?from, ?to)).\n\n% Taxi: the first taxi waiting at a stand here; fare is 2 + distance.\ntravel(?who, ?to) :- if(at(?who, ?from), not(==(?from, ?to)), first(taxiStand(?taxi, ?from)),\n        first(distance(?from, ?to, ?d)), is(?fare, +(2, ?d)),\n        cash(?who, ?cash), >=(?cash, ?fare), is(?rest, -(?cash, ?fare))),\n    do(hail(?who, ?taxi, ?from), ride(?who, ?taxi, ?from, ?to), pay(?who, ?cash, ?rest)).\n\n% Bus: every route from here to the destination; fare is 1.\ntravel(?who, ?to) :- if(at(?who, ?from), not(==(?from, ?to)), busRoute(?bus, ?from, ?to),\n        cash(?who, ?cash), >=(?cash, 1), is(?rest, -(?cash, 1))),\n    do(waitFor(?who, ?bus, ?from), ride(?who, ?bus, ?from, ?to), pay(?who, ?cash, ?rest)).\n\n% --- Operators ---\n\nwalk(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\ncycle(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nhail(?who, ?taxi, ?place) :- del(), add(hailed(?who, ?taxi)).\nwaitFor(?who, ?bus, ?place) :- del(), add(boarded(?who, ?bus)).\nride(?who, ?vehicle, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\npay(?who, ?old, ?new) :- del(cash(?who, ?old)), add(cash(?who, ?new)).\n"
+}

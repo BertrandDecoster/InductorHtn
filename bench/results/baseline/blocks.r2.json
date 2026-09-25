@@ -1,0 +1,40 @@
+{
+ "task": "blocks",
+ "run": 2,
+ "commit": "8fc6e41",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "solve.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.47863659999999997,
+ "turns": 11,
+ "duration_s": 134,
+ "is_error": false,
+ "final_message": "The domain is in `task/domain.htn`. It passed every test I ran: for each problem, `FindAllPlans` returned exactly one plan, and that plan reaches every goal.\n\n**How it plans:** it uses the standard HTN blocks strategy. `solve` repeats three steps:\n1. If a clear block that isn't in its final place can go there now, move it there. A block's final place is ready when its target is on the table, or is a block that is settled and clear.\n2. Otherwise, if a misplaced block is clear and sitting on another block, put it on the table.\n3. Stop when neither step applies.\n\nA block counts as settled if nothing will ever need to move it or anything under it. A block with no goal stays put, unless it sits on a block that has to move or on a block another block needs to be stacked on.\n\nThe `solve` methods can't both apply at once, and each picks its block with `first()`. That's how it ends up with exactly one plan. It also handles a problem that starts with a block in hand: it stacks the block on its target if the target is ready, and otherwise puts it down. The four operators are exactly the ones in the brief, and the domain contains no problem facts.\n\n**Testing:**\n- **Sample problem:** loaded as written, it gives the 3-move plan: `unstack(c,a), putdown(c), pickup(b), stack(b,c), pickup(a), stack(a,b)`.\n- **Random problems:** 900 of them, with 1\u20136 blocks and several towers. Some blocks had no goal and about 10% were already solved. I replayed every plan in a simulator to check each move was legal and every goal held at the end. Already-solved problems gave empty plans.\n- **Plan length:** I compared each plan with the shortest possible, found by exhaustive search. Only 10 of 900 plans were longer, and none by more than double. That's expected from this strategy, and the brief says it's good enough.\n- **Block in hand:** four hand-written cases also worked.\n\nI used a scratch test script for this and deleted it afterwards, so `task/` now holds only the brief, the sample problem and the domain.",
+ "domain": "% Blocks world, the classic HTN way (Gupta & Nau near-optimal strategy):\n%   1. if some clear block can go straight to its final place, move it there;\n%   2. otherwise move some clear block that is in the way onto the table;\n%   3. stop when every block is in its final place.\n% Method conditions are mutually exclusive and bindings use first(), so\n% FindAllPlans yields exactly one plan.\n\n% --- Rules -------------------------------------------------------------------\n\nhasGoal(?b) :- goalOn(?b, ?c).\nhasGoal(?b) :- goalOnTable(?b).\n\n% good(?b): ?b and everything below it will never have to move again.\ngood(?b) :- onTable(?b), not(goalOn(?b, ?c)).\ngood(?b) :- on(?b, ?c), goalOn(?b, ?c), good(?c).\n% A block with no goal may stay on a good block nobody else wants.\ngood(?b) :- on(?b, ?c), not(hasGoal(?b)), good(?c), not(goalOn(?z, ?c)).\n\n% A clear misplaced block whose final place is ready.\ncanPlace(?b) :- clear(?b), not(good(?b)), goalOnTable(?b).\ncanPlace(?b) :- clear(?b), not(good(?b)), goalOn(?b, ?c), clear(?c), good(?c).\n\n% A clear misplaced block sitting on another block: it is in the way.\ninTheWay(?b) :- clear(?b), on(?b, ?c), not(good(?b)).\n\n% --- Methods -----------------------------------------------------------------\n\n% Finish a block already in hand first.\nsolve() :- if(first(holding(?b))), do(placeHeld(?b), solve()).\nsolve() :- if(handEmpty, first(canPlace(?b))),\n           do(getBlock(?b), putFinal(?b), solve()).\nsolve() :- if(handEmpty, not(canPlace(?x)), first(inTheWay(?b))),\n           do(getBlock(?b), putdown(?b), solve()).\nsolve() :- if(handEmpty, not(canPlace(?x)), not(inTheWay(?y))), do().\n\nplaceHeld(?b) :- if(goalOnTable(?b)), do(putdown(?b)).\nplaceHeld(?b) :- if(goalOn(?b, ?c), clear(?c), good(?c)), do(stack(?b, ?c)).\nplaceHeld(?b) :- if(not(goalOnTable(?b)), not(and(goalOn(?b, ?c), clear(?c), good(?c)))),\n                 do(putdown(?b)).\n\ngetBlock(?b) :- if(onTable(?b)), do(pickup(?b)).\ngetBlock(?b) :- if(on(?b, ?c)), do(unstack(?b, ?c)).\n\nputFinal(?b) :- if(goalOnTable(?b)), do(putdown(?b)).\nputFinal(?b) :- if(goalOn(?b, ?c)), do(stack(?b, ?c)).\n\n% --- Operators ---------------------------------------------------------------\n\npickup(?b) :- del(onTable(?b), clear(?b), handEmpty), add(holding(?b)).\nunstack(?b, ?c) :- del(on(?b, ?c), clear(?b), handEmpty), add(holding(?b), clear(?c)).\nputdown(?b) :- del(holding(?b)), add(onTable(?b), clear(?b), handEmpty).\nstack(?b, ?c) :- del(holding(?b), clear(?c)), add(on(?b, ?c), clear(?b), handEmpty).\n"
+}

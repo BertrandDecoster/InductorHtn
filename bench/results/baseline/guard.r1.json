@@ -1,0 +1,55 @@
+{
+ "task": "guard",
+ "run": 1,
+ "commit": "8fc6e41",
+ "passed": 8,
+ "total": 8,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "think(g1).",
+   "ok": true
+  },
+  {
+   "instance": "i7.htn",
+   "goal": "think(g1).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.5577065999999999,
+ "turns": 14,
+ "duration_s": 93,
+ "is_error": false,
+ "final_message": "I've written the guard domain in `task/domain.htn`. I ran it on the sample state and 15 states of my own, and each one gave exactly one plan with the result the brief asks for.\n\n**How it's built:**\n- **Priority order.** `think(?g)` has four methods: heal, fight, investigate, patrol. Each later one is marked `else`, so it is only tried if every earlier one failed to produce a plan. That's how a behaviour that applies but can't be carried out gives way to the next one, for example when the guard needs a medkit it can't reach.\n- **\"First listed\".** The first medkit, first enemy seen, first noise and the patrol target are each picked with `first(...)`, so only that one is considered.\n- **Fight.** A separate `fight` task tries the brief's four cases in order: shoot in the same area, melee in the same area, shoot at an enemy one link away, otherwise walk over and melee. A guard with no `ammo` fact counts as having no ammo.\n- **Walking.** `walkTo` moves one link at a time using the engine's built-in shortest-path helper, `pathNext`. It takes no steps if the guard is already there and fails if the destination can't be reached.\n- The domain contains only the six given operators, the methods and one helper rule, `hasAmmo`. It has no state facts and names no specific areas or characters.\n\n**What the checks covered:** the sample, where the guard walks gate \u2192 court \u2192 cellar and heals. The rest were: shooting into a linked area, walking over to melee with no ammo, the first enemy of two being chosen, an unreachable medkit falling back to fighting, an unreachable enemy falling back to investigating, and health of exactly 30 not triggering heal. I also checked patrolling when already at the waypoint, a map with a loop to confirm the shortest route is taken, and an unreachable patrol target. That last one returns no plan, since patrol is the final fallback. I deleted the test script afterwards, so `task/` holds only the brief, the sample and the domain.\n\n**Two readings of the brief you should know about:**\n- **\"Directly linked\" means a link from the guard's area to the enemy's area.** Links are one-way facts, so a link only in the other direction doesn't let the guard shoot. This makes no difference when links are listed both ways, as in the sample.\n- **Walking cost could change if a state has `size/2` facts.** `pathNext` would then use them as area costs, so routes would no longer be counted purely in links. The brief's world facts don't include `size`, so this shouldn't come up.",
+ "domain": "% Guard behaviour. think(?g) picks the single highest-priority behaviour that\n% can actually be carried out: heal > fight > investigate > patrol.\n% Each rung is an `else` of the one before, so it is only tried when every\n% earlier rung failed to produce a plan (e.g. its destination is unreachable).\n\n% === OPERATORS ===\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopHeal(?g, ?area) :- del(medkit(?area)), add(healed(?g)).\nopShoot(?g, ?e, ?old, ?new) :- del(ammo(?g, ?old)), add(ammo(?g, ?new), hit(?e)).\nopMelee(?g, ?e) :- del(), add(hit(?e)).\nopSearch(?g, ?area) :- del(noise(?area)), add(searched(?area)).\nopNextWaypoint(?g, ?w, ?next) :- del(patrolTarget(?g, ?w)), add(patrolTarget(?g, ?next)).\n\n% === RULES ===\nhasAmmo(?g, ?n) :- first(ammo(?g, ?n)), >(?n, 0).\n\n% === PRIORITY LADDER ===\n% 1. Heal: wounded, walk to the first medkit listed.\nthink(?g) :- if(first(health(?g, ?hp)), <(?hp, 30), first(medkit(?area))),\n    do(walkTo(?g, ?area), opHeal(?g, ?area)).\n% 2. Fight the first enemy the guard sees.\nthink(?g) :- else, if(first(sees(?g, ?e))),\n    do(fight(?g, ?e)).\n% 3. Investigate the first noise listed.\nthink(?g) :- else, if(first(noise(?area))),\n    do(walkTo(?g, ?area), opSearch(?g, ?area)).\n% 4. Patrol to the current target, then advance it.\nthink(?g) :- else, if(first(patrolTarget(?g, ?w)), first(nextWaypoint(?w, ?next))),\n    do(walkTo(?g, ?w), opNextWaypoint(?g, ?w, ?next)).\n\n% === FIGHT ===\n% Same area, ammo left: shoot.\nfight(?g, ?e) :- if(first(at(?g, ?here)), first(at(?e, ?here)), hasAmmo(?g, ?n), is(?left, -(?n, 1))),\n    do(opShoot(?g, ?e, ?n, ?left)).\n% Same area, no ammo: melee.\nfight(?g, ?e) :- else, if(first(at(?g, ?here)), first(at(?e, ?here))),\n    do(opMelee(?g, ?e)).\n% Enemy one link away, ammo left: shoot from here.\nfight(?g, ?e) :- else, if(first(at(?g, ?here)), first(at(?e, ?there)), first(linked(?here, ?there)), hasAmmo(?g, ?n), is(?left, -(?n, 1))),\n    do(opShoot(?g, ?e, ?n, ?left)).\n% Otherwise: walk over and melee.\nfight(?g, ?e) :- else, if(first(at(?e, ?there))),\n    do(walkTo(?g, ?there), opMelee(?g, ?e)).\n\n% === WALKING ===\n% One link at a time along the shortest route (pathNext is a native Dijkstra\n% over linked/2 facts). No steps when already there; fails when unreachable.\nwalkTo(?who, ?dest) :- if(at(?who, ?dest)), do().\nwalkTo(?who, ?dest) :- else, if(first(at(?who, ?cur)), pathNext(?cur, ?dest, ?next)),\n    do(opMoveTo(?who, ?cur, ?next), walkTo(?who, ?dest)).\n"
+}
