@@ -27,7 +27,7 @@ for _p in (os.path.join(_PROJECT, "src", "Python"), os.path.join(_PROJECT, "mcp-
 from indhtn_mcp.level_tools import LevelSession, fun_profile  # noqa: E402
 
 REFERENCE_GOOD = os.path.join(_PROJECT, "tests", "fun_fixtures", "reference_good")
-GREASE_TRAP = os.path.join(_PROJECT, "levels", "grease_trap")
+SHARED_CONSUMABLE = os.path.join(_PROJECT, "tests", "fun_fixtures", "shared_consumable")
 
 
 def _play_to_the_end(session, pick=0):
@@ -104,17 +104,17 @@ def test_explain_names_what_was_reached_and_what_was_missed(tmp_path):
 
 
 def test_forcing_an_off_plan_action_replans_from_the_new_world(tmp_path):
-    """Wasting the only ignite charge before the fight: no plan survives,
+    """Spending the only bomb on the wall before the gate: no plan survives,
     and the session says so instead of pretending."""
-    session = LevelSession(GREASE_TRAP, playthrough_dir=str(tmp_path))
+    session = LevelSession(SHARED_CONSUMABLE, playthrough_dir=str(tmp_path))
     assert session.plans_remaining > 0
-    refused = session.act("opSpendCharge(player, ignite, i1)")
+    refused = session.act("opBomb(player, wall, c1)")
     assert refused["accepted"] is False
-    forced = session.act("opSpendCharge(player, ignite, i1)", force=True)
+    forced = session.act("opBomb(player, wall, c1)", force=True)
     assert forced["accepted"] is True and forced["forced"] is True
     assert session.plans_remaining == 0
     assert session.done
-    files = list((tmp_path / "grease_trap").glob("*.json"))
+    files = list((tmp_path / "shared_consumable").glob("*.json"))
     data = json.loads(files[0].read_text(encoding="utf-8"))
     assert data["steps"][0]["forced"] is True
 

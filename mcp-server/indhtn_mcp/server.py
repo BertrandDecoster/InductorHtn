@@ -539,7 +539,7 @@ class IndHTNMCPServer:
             Tool(
                 name="indhtn_load_level",
                 description=(
-                    "Start a playtest of a level directory (e.g. 'grease_trap', 'levels/grease_trap', "
+                    "Start a playtest of a level directory (e.g. 'puzzle1', 'levels/puzzle1', "
                     "or an absolute path). Plans the whole level once, then lets you play it from the "
                     "player's point of view. Returns a levelSessionId, the first observation and the "
                     "player's first legal actions. Companion-only steps are advanced automatically."

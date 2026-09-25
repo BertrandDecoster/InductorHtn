@@ -1,9 +1,0 @@
-% ignite - oil it, then set it alight
-%
-% The recipe: ?e carries oiled (it is slicked, or pushed into an oil pool),
-% then someone else lands burning on it. Note the trap the physics sets: if
-% ?e is also wet, the first reaction that applies may be steam, not blaze.
-
-% === Methods ===
-
-ignite(?e) :- if(), do(combo(oiled, burning, ?e)).
