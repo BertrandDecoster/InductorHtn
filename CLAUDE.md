@@ -1,17 +1,41 @@
 # CLAUDE.md
 
-InductorHTN: Lightweight HTN planner for C++/Python. SHOP model, memory-constrained, stackless execution.
+InductorHTN: a lightweight HTN planner for C++ and Python. SHOP model, memory-constrained,
+stackless execution. This fork is used to write game-AI rulesets for a cooperative puzzle game.
 
-Always enter the python venv first. On Windows: `source .venv/Scripts/activate`.
+Always enter the Python venv first. On Windows: `source .venv/Scripts/activate`.
+
+## Writing HTN rulesets (.htn)
+
+**Use the `htn-author` skill** for any `.htn` work. The short version:
+
+- **The language:** `docs/reference/language.md`. It is test-backed (`python scripts/htn_doctest.py
+  docs/reference/language.md`). This is not SWI-Prolog: `\+`, `\=` and `member` are silently
+  false; `del`/`add` must be guarded; `else` is not a cut.
+- **Quality:** `docs/authoring/rubric.md`, the owner's rules. A strategy's `if()` states what
+  makes it possible, and its `do()` lists the states to achieve with generic verbs. Imperative
+  scripts, effect engines and invented jargon are slop.
+- **Examples, by pattern:** `docs/authoring/patterns.md`. The gold examples are
+  `Examples/Taxi.htn`, `Examples/Game.htn` and `Examples/TrunkThumper.htn`. Good architecture:
+  `Examples/GameHack8AgentAtTop.htn`, `Examples/CombatLevel1_GreaseTrap.htn` and
+  `components/gamehack/`.
+- **Checks:** a PostToolUse hook runs `python -m htn_components check --fast` on every `.htn`
+  edit. `check <file> --goal "task."` prints the plans. The `htn-reviewer` agent scores a
+  ruleset against the rubric.
+
+Levels, fun metrics and MCP playtesting: the `htn-level` skill.
 
 ## Build & Test
 
 See `BUILD.md` for full commands.
 
 ```bash
-cmake --build ./build --config Release   # build
-./build/Release/runtests.exe             # test
-./build/Release/indhtn.exe Examples/Taxi.htn   # interactive REPL
+cmake --build ./build --config Release        # build
+./build/Release/runtests.exe                  # C++ tests
+./build/Release/indhtn.exe Examples/Taxi.htn  # interactive REPL
+python -m pytest tests                        # Python: metrics, parity, built-ins sync
+python -m pytest src/Python/tests             # Python: bindings, linter, components CLI
+PYTHONPATH=src/Python python -m htn_components test-all   # every component and level
 ```
 
 ## Directory Structure
@@ -20,135 +44,45 @@ cmake --build ./build --config Release   # build
 src/FXPlatform/Htn/      # HTN engine (HtnPlanner, HtnMethod, HtnOperator)
 src/FXPlatform/Prolog/   # Prolog engine (HtnGoalResolver, HtnRuleSet, HtnTerm)
 src/FXPlatform/Parser/   # Lexer and parser framework
-src/Python/              # Python bindings (indhtnpy)
-gui/                     # Web IDE (Flask backend, React frontend)
+src/Python/              # Python bindings (indhtnpy), htn_components CLI, htn_metrics
+gui/                     # Web IDE (Flask backend with the linter, React frontend)
 mcp-server/              # MCP server for AI assistants
-Examples/                # .htn example files
-components/              # Reusable HTN component library
-levels/                  # Puzzle level definitions
-docs/                    # All documentation (see map below)
+Examples/                # .htn examples (the gold ones are listed above)
+components/              # Reusable HTN components (primitives, strategies, goals, gamehack)
+levels/                  # Puzzle levels
+bench/                   # Authoring benchmark and reviewer calibration (hidden answers inside)
+docs/                    # All documentation; start at docs/README.md
 ```
 
 ## Documentation Map
 
-All docs live under `docs/`. Start at `docs/README.md`.
-
-- **Authoring rulesets** → `docs/reference/authoring-rulesets.md` (worked example: `Examples/TrunkThumper.htn`)
-- **Language reference (test-backed, start here)** → `docs/reference/language.md`
+- **Language** → `docs/reference/language.md`; **quality** → `docs/authoring/rubric.md`,
+  `docs/authoring/patterns.md`
 - **Planner internals** → `docs/reference/planner-internals.md`
-- **Component system** → `docs/reference/component-system.md`
-- **Level design loop** → `docs/reference/level-design-loop.md`
-- **Fun metrics** → `docs/FUN_METRICS.md`
+- **Component system** (layers, manifests, CLI) → `docs/reference/component-system.md`
+- **Level design loop** → `docs/reference/level-design-loop.md`; **fun metrics** → `docs/FUN_METRICS.md`
 - **Tools** (REPL, tests, Python, GUI, MCP, components CLI) → `docs/TOOLS.md`
-- **Design decisions** (legacy engine, language, HDDL, online rulesets) → `docs/DESIGN.md`
-- **Fork upgrades** (new keywords, query tracing, failure tracking) → `docs/upgrades/`
-- **Legacy upstream docs** → `docs/legacy/`
+- **Design decisions** → `docs/DESIGN.md`; **fork upgrades** → `docs/upgrades/`; **upstream** → `docs/legacy/`
 
 ## Component System
 
-Reusable building blocks for puzzle game HTN rulesets. See `docs/reference/component-system.md`.
+Layers: Primitives → Strategies → Goals → Levels. `PYTHONPATH=src/Python python -m
+htn_components <command>`: `check`, `status`, `test <path>`, `test-all`, `certify <path>`,
+`trace <level>`, `play <level>`, `verify <level>`, plus the `fun*` commands (`htn-level` skill).
 
-**Layers:** Primitives → Strategies → Goals → Levels
+Certified components: the original tree (primitives `locomotion`, `tags`, `aggro`; strategies
+`the_burn`, `the_slipstream`; goals `defeat_enemy`, `clear_room`; level `puzzle1`) and
+GameHack (`components/gamehack/`: primitives `gh_movement`, `gh_tags`, `gh_aggro`,
+`gh_skills`; action `gh_tag_application`; strategies `wet_and_electrocute`,
+`stun_and_slow_skill`, `stun_and_burn`; goal `plan_to_damage`; levels `gamehack_*`).
 
-**CLI:**
-```bash
-PYTHONPATH=src/Python python -m htn_components <command>
+## C++ Engine Rules
 
-status                           # List all components with certification
-certify <path> [--dry-run]       # Full certification (linter + tests + design)
-test <path>                      # Run component tests
-test-all [--layer <layer>]       # Batch test all components
-play <level> [--solution N | --class LABEL] [-i]   # Plan narrative (grounded effects)
-trace <level> [--goal GOAL]      # Decomposition tree visualization
-verify <level>                   # deps + tests + plan + fun scorecard (non-gating)
-
-fun <level> [--ablate] [--loadouts] [--json] [--md FILE]   # Fun scorecard
-fun-all [--range X Y]            # Comparison table; --range = expressive-range grid
-fun-compare <a> <b>              # Side-by-side profile diff
-fun-rate <level> --rating 1..5   # Held-out human rating -> levels/fun_ratings.jsonl
-fun-calibrate                    # Which metrics track the ratings (Spearman)
-```
-
-## Fun Metrics
-
-`fun` scores the *shape of a level's solution space* — how many genuinely different
-ways exist, how deep they are, whether any one companion can carry a plan alone (the
-human's seat being idle is only a warning), and which of the declared X-of-Y choices
-work. It never claims a level is fun.
-
-Full definition, bands, and known blind spots: **`docs/FUN_METRICS.md`**. The literature
-behind them (design theory, planning, generation workflows): `docs/research/fun-cross-reference.md`.
-Calibration fixtures: `tests/fun_fixtures/`; tests: `python -m pytest tests/test_fun_metrics.py`.
-
-Bands and weights are data, in `src/Python/htn_metrics/metrics.json` — calibrate there, not in code.
-
-A level opts into the choice-space family (F4) by declaring facts in `level.htn`:
-```prolog
-funChoiceSpace(kit, 2).                       % pick 2 ...
-funChoice(kit, emp).                          % ... from these
-funChoiceFact(emp, carrying(player, emp)).    % how a pick alters the world
-funBlocker(door).                             % must be solved
-funBlockerGoal(door, clear(door)).            % optional; else derived from goals()
-```
-A level can also declare its intent and keep its hypothesis as a regression test. `verify` fails
-on either one; nothing else in the scorecard gates:
-```prolog
-funIntended(combo, opCastRegion).             % F7: every plan uses a member of `combo`
-funForbidden(opBribe).                        % F7: no plan uses this
-funExpect(player_decision_points, atLeast, 2). % checked by fun and verify
-```
-`--ablate` and `--loadouts` re-plan many times; results are disk-cached in
-`.htn_metrics_cache/`, so a second run over an unchanged level is fast.
-
-## Level Design Loop & MCP Play
-
-Iterate a level as: one hypothesis → one rule change → certify → play it through the
-MCP level tools as the player → `explain`/`fun` afterwards → compare → a human tries it.
-Rules: `docs/reference/level-design-loop.md`. Tools: `docs/tools/mcp-server.md`
-(`indhtn_load_level`, `indhtn_observe`, `indhtn_actions`, `indhtn_act`, `indhtn_undo`,
-`indhtn_explain`, `indhtn_fun`). `.mcp.json` starts the server via `mcp-server/launch.py`;
-`python mcp-server/launch.py --check` verifies the setup. Playthroughs land in
-`.playthroughs/` (gitignored).
-
-**Current certified components:**
-- Original tree: primitives `locomotion`, `tags`, `aggro`; strategies `the_burn`,
-  `the_slipstream`; goals `defeat_enemy`, `clear_room`; level `puzzle1`
-- GameHack (`components/gamehack/`): primitives `gh_movement`, `gh_tags`, `gh_aggro`,
-  `gh_skills`; action `gh_tag_application`; strategies `wet_and_electrocute`,
-  `stun_and_slow_skill`, `stun_and_burn`; goal `plan_to_damage`; levels `gamehack_gh4`,
-  `gamehack_gh7`, `gamehack_mvp`, `gamehack_multipath` (`gh_doors`, `complete_toy_level`
-  are not certified)
-
-
-## Critical Rules
-
-### Variable Syntax
-Variables use `?` prefix: `?varname` (not Prolog capitalization).
-```prolog
-travel(?from, ?to) :- if(at(?from)), do(walk(?from, ?to)).
-```
-
-### HTN Syntax
-- **Methods**: `task() :- if(conditions), do(subtasks).`
-- **Operators**: `action() :- del(remove), add(insert).`
-- **Numeric effects**: `increase(pred(args), delta)` / `decrease(pred(args), delta)` — see `docs/reference/htn-syntax.md`
-- **Modifiers**: `else`, `anyOf`, `allOf`, `hidden`
-- **Parallel**: `parallel(taskA, taskB, ...)` marks tasks for parallel execution — see `docs/upgrades/ruleset-keywords.md`
-
-### Factory Pattern
-All terms must come from the same `HtnTermFactory` for unification to work.
-
-### Test Initialization
-Always clear state before tests: `compiler->ClearWithNewRuleSet();`
-
-### Expected Test Formats
-- Success with operators: `"[ { operator1(args) } ]"`
-- Empty plan: `"[ { () } ]"`
-- Failure: `"null"`
-- Variable bindings: `"((?X = value))"`
-
-## Code Style
-
-- C++11 standard
-- Platform-specific code in `Win/`, `iOS/`, `Posix/` directories
-- Use existing patterns for new components
+- All terms must come from the same `HtnTermFactory` for unification to work.
+- Clear state before each test: `compiler->ClearWithNewRuleSet();`
+- Expected test formats:
+  - success: `"[ { operator1(args) } ]"`
+  - empty plan: `"[ { () } ]"`
+  - failure: `"null"`
+  - bindings: `"((?X = value))"`
+- C++11. Platform code goes in `Win/`, `iOS/` and `Posix/`.

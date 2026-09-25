@@ -2,7 +2,7 @@
 Tests for Prolog/HTN optimization patterns by measuring resolution steps.
 
 These tests validate the optimization patterns documented in:
-docs/reference/authoring-rulesets.md
+the old docs/reference/authoring-rulesets.md (see git history before 6ffa1e9)
 
 Resolution step tracking must be enabled (INDHTN_TRACK_RESOLUTION_STEPS=ON, default).
 Patterns marked [VALIDATED] show >20% improvement.

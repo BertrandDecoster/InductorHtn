@@ -212,63 +212,9 @@ def test_property_p2_no_double_tags(self):        # Matches Property P2
 - Enemies follow their aggro target
 - Used for luring enemies into hazards
 
-## HTN Patterns
+## How to write the rules
 
-### Strategy Pattern
-```prolog
-% Named strategy with clear preconditions
-theStrategyName(?target) :-
-    if(precondition1, precondition2, ...),
-    do(step1, step2, step3).
-```
-
-### Goal with Strategy Selection
-```prolog
-% Try strategies in priority order
-achieveGoal(?target) :-
-    if(conditionsForStrategy1),
-    do(strategy1(?target)).
-
-achieveGoal(?target) :-
-    else, if(conditionsForStrategy2),
-    do(strategy2(?target)).
-```
-
-### AllOf for Multiple Targets
-```prolog
-% Apply to all matching entities
-clearRoom(?room) :-
-    allOf, if(at(?enemy, ?room), isEnemy(?enemy)),
-    do(defeatEnemy(?enemy)).
-```
-
-### Idempotent Operations
-```prolog
-% Check before applying to avoid "already exists" errors
-applyTagToRoom(?room, ?tag) :-
-    if(roomHasTag(?room, ?tag)),
-    do().  % Skip if already tagged
-
-applyTagToRoom(?room, ?tag) :-
-    else, if(),
-    do(opApplyRoomTag(?room, ?tag)).
-```
-
-### Multi-hop Navigation
-```prolog
-% 1-hop (direct)
-moveTo(?e, ?dest) :-
-    if(at(?e, ?cur), connected(?cur, ?dest)),
-    do(opMoveTo(?e, ?cur, ?dest)).
-
-% 2-hop (through intermediate)
-moveTo(?e, ?dest) :-
-    else, if(at(?e, ?cur),
-             connected(?cur, ?via),
-             connected(?via, ?dest)),
-    do(opMoveTo(?e, ?cur, ?via),
-       opMoveTo(?e, ?via, ?dest)).
-```
+The rules themselves follow [`../authoring/rubric.md`](../authoring/rubric.md) and [`../authoring/patterns.md`](../authoring/patterns.md); the language is [`language.md`](language.md).
 
 ## Testing Philosophy
 
@@ -319,110 +265,6 @@ suite.assert_plan_matches_any("goal.", [
 suite.assert_plan_complexity("goal.", min_operators=2, max_operators=10)
 ```
 
-## Core Vocabulary (`components/core/*`)
-
-The unified vocabulary for new levels. The older `components/primitives|strategies|goals`
-and `components/gamehack/*` trees stay as they are until migrated.
-
-**World** (`core_world`)
-```prolog
-region(?r).  connected(?a, ?b).          % declared per direction
-lineOfSight(?from, ?to).                 % ranged skills reach ?to from ?from
-regionHas(?r, ?feature).                 % oil | sludge | scorched | water | ...
-at(?entity, ?r).  status(?entity, ?s).   % anchored | snared | dazzled | shielded | dead
-role(?entity, player | companion | enemy).
-```
-
-**Chemistry as facts** (`core_chemistry`) - elements change materials, elements change
-entities, materials never change materials:
-```prolog
-skillElement(ignite, fire).       reacts(fire, oil, scorched).    blast(fire, oil, dead).
-skillElement(freeze, freeze).     reacts(freeze, oil, sludge).    hazard(sludge, snared).
-strike(lightning, dead).          mark(light, dazzled).           immune(?e, ?el).
-```
-Reactions rewrite `regionHas`, so what one fight consumes is gone for the next.
-
-**Paying for casts.** `signature(?a, ?skill)` is unswappable and unlimited; `unlimited(?skill)`
-is free for anyone; everything else is a **token**: `charge(?a, ?skill, ?tok)`, chosen with
-`first(charge(...))` in `if()` and deleted by `opSpendCharge`. No counters.
-
-**Companions are interchangeable.** `role(?e, player)` and `role(?e, companion)` are both
-companions; they differ only by who controls them. Abilities live on the character (`hasSkill`,
-`signature`, `charge`). **Never gate an ability on `role(?a, player)`.** Cooperation comes from
-**task roles**: `core_attunement` declares primer and pay-off, and the pay-off may not be the
-primer (`detonate(?el, ?r, ?not)`, `finish(?e, ?not)`, `detonateLethal(?r, ?not)`); anyone may
-fill either role. The rule is that **no single companion can carry a plan alone**; two companions
-finishing the fight while the human's companion stands idle is acceptable, and how busy the human's
-seat is stays a per-level design knob (F6 in `docs/FUN_METRICS.md`).
-
-**Chemistry as needs** (`core_chemistry`): `castElement(?el, ?r[, ?not])` (element on region:
-who holds it is bound at the leaf), `castElementAs(?a, ?el, ?r)`, `obtainFeature(?r, ?feat)`
-(already there, or made by a reaction), `strikeElement(?el, ?e[, ?not])`, `markElement(?el, ?e)`,
-rule `holder(?el, ?a)`.
-
-**Attunement** (`core_attunement`): the fight's needs - `blastDeadAt(?r[, ?not])` (some element
-reacts lethally with the feature there), `strikeDead(?e[, ?not])`, `expose(?e)`; `prime(?el, ?r[, ?a])`
-and rule `primer(?el, ?a)` for the primer role.
-
-**Aggro** (`core_aggro`): `lure` (iron only, from range - Magnetize), `push` (flesh only - Gust),
-`taunt` (dash; the player lands in the terrain too), `holdPosition` (`opAnchor`/`opRelease`:
-an anchored Warden neither moves nor pulls until released), `bringTo`.
-
-**Leaf operators - the actor is always the first argument:**
-`opNavigate(?a, ?from, ?to)`, `opSpendCharge(?a, ?skill, ?tok)`,
-`opCastRegion(?a, ?skill, ?r, ?old, ?new)`, `opCastEntity(?a, ?skill, ?e, ?status)`,
-`opStatus(?a, ?e, ?status)`, `opLure/opPush/opTaunt(?a, ?e, ?from, ?to)`, `opAnchor(?a)`,
-`opRelease(?a)`.
-
-### Rulesets are top-down
-
-A ruleset decomposes from the **need**, never from an actor and its inventory. The goal asks
-for a neutralized enemy; a method for that asks for a lethal blast; that asks for an element
-on a feature; only then does the planner ask *who holds the element* and *which region has
-the feature*. Name methods after the need they satisfy (`neutralize`, `blastDead`,
-`obtainFeature`, `castElement`, `haveElement`); put the "what would work" lookup
-(`blast(?el, ?feat, dead)`, `reacts(?el2, ?old, ?feat)`) in the `if()`; acquire each
-ingredient as a subtask. A method shaped "I am `?a`, I hold `?el`, there is `?r`, let us see
-what happens" is a bottom-up simulation, not a plan - see `docs/reference/authoring-rulesets.md`.
-
-### Operator rules (engine facts, learned the hard way)
-
-1. **No `is()` in operators.** The compiler drops `is()` after `add()`. Counters use
-   `increase`/`decrease` (see `htn-syntax.md`); core charges stay tokens, one fact per use.
-2. **Every `del`/`add` variable must appear in the head.** Substitution uses the head MGU only.
-3. **A fact added twice is a planner error.** Every `allOf` or status-adding method needs a
-   `not(status(...))` guard, and rules used inside `allOf` conditions must be single-clause
-   (see `exposed`, `vulnerable` in `core_chemistry`).
-4. **No `hidden` operators.** They vanish from the plan and desync state replay from
-   `GetSolutionFacts`.
-5. **A failed search that decomposed locks the rule set.** After `FindAllPlans` returns no
-   solution for a goal whose method *did* decompose into subtasks, `HtnCompile` of further
-   facts fails with `Internal Error ... HtnRuleSet.cpp line 16` (`m_isLocked`). A goal that
-   fails at its own `if()` does not lock. In tests, set all facts first, or query the leaf
-   arity directly for the no-plan case; in tools, use a fresh planner per world.
-6. **Actor first.** The metrics (`actor_position: 0`) and the MCP play tools read the actor
-   from the first argument. A level can override per operator with `funActor(opName, index)`
-   and mark bookkeeping with `funNoop(opName)`.
-7. **`else` is not a cut.** Backtracking re-enters an `else` branch when a later task fails,
-   so an `else, if(), do()` no-op lets a plan skip an effect or a cost. Mandatory effects need
-   explicitly negated alternatives (`if(not(cond)), do()`); see `abilities/primitives/ab_effects`.
-
-## Ability Layer (`components/abilities/*`)
-
-A layer parallel to the core vocabulary for abilities that apply tags and effects. The physics
-is data at the bottom: `tag/2` with one-level `bundles/2` composites, abilities as `effect/3`
-bundles, `reaction/3` combos, `onEnter/2` zones. Fixed-depth acts sit in the middle, and
-specialized recipes at the top. Full spec: [`ability-system.md`](ability-system.md).
-
-- Primitives: `ab_tags`, `ab_effects`, `ab_casting`, `ab_acts`, `ab_catalog` (16 atomic tags,
-  8 composites, 3 outcomes, 47 skills; see [`ability-catalog.md`](ability-catalog.md))
-- Strategies: `exploit`, `into_the_pit`, `conduct`, `shatter`, `ignite`, `passage` (movement)
-- Goal: `neutralize`
-- Levels: `sinkhole` - a heavy golem at a pit's rim, two mooks in water and oil, pick 2 of 6;
-  `crossing` - three enemies, each with its own weakness, on the catalogue; pick 2 of 8;
-  `gauntlet` - pure movement: a guarded choke, a latching gate, a chasm; escape or rout;
-  `two_hands` - one skill each from eight: no single skill wins, exactly ten pairs do
-
 ## Naming Conventions
 
 | Layer | Prefix | Examples |
@@ -450,19 +292,6 @@ specialized recipes at the top. Full spec: [`ability-system.md`](ability-system.
 
 ### Levels
 - **puzzle1**: "The Grease Trap" (old vocabulary) - two guards, theBurn + theSlipstream
-
-### Core Components (`core/`) - the unified vocabulary
-
-- **Primitives:** `core_world` (regions, `navigate`, `takeVantage`), `core_chemistry`
-  (`castElement`, `obtainFeature`, `strikeElement`, `markElement`, `payFor`), `core_attunement`
-  (`blastDeadAt`, `strikeDead`, `expose`, `prime`), `core_aggro` (`lure`, `push`, `taunt`,
-  `holdPosition`, `bringTo`)
-- **Strategies:** `the_burn` (ground that burns: bring the enemy there, someone lights it),
-  `the_slipstream` (ground that snares, made if needed by the primer; cover; bring them in;
-  someone other than the primer strikes or blasts)
-- **Goals:** `defeat_group` (burn or slipstream, both enumerable)
-- **Levels:** `grease_trap` - swarm in the gallery, iron bearer at the exit, pick 2 of 5
-  skills; declares `funChoiceSpace` so F4 is measured
 
 ### GameHack Components (`gamehack/`)
 
