@@ -1,0 +1,90 @@
+{
+ "task": "open_damage",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "damage(gob).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "damage(slime).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "damage(golem).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "damage(orc).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "damage(rat).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 1.5596996000000003,
+ "turns": 16,
+ "duration_s": 384,
+ "is_error": false,
+ "final_message": "The domain is written to `task/domain.htn`. It contains only methods, operators and rules, and never names a character, place or skill. On the sample level, `damage(gob)` returns 7 plans and `damage(tower)` returns 6.\n\n**How it's built**\n- **`damage(?e)`** offers two strategies, and every plan ends with `opDamage(?e)`, which records `damaged(?e)`:\n  - **`stunAndSlow`**: two different allies. One has or learns a skill that applies stun, the other a skill with the slow property. They sync, then both use their skills. The enemy must not be immune to stun or slow.\n  - **`wetAndElectrocute`**: the enemy gets wet, then electrocuted. It must not be immune to either tag.\n- **`applyTag(?tag, ?t)`** has one method for each way a character gets a tag:\n  - it already has the tag;\n  - an ally uses a skill that applies it, learning the skill first if needed;\n  - the target is lured to a location that applies it;\n  - another non-ally character with a skill that applies it is brought together with the target. The target is lured to that character, or that character is lured to a static target.\n- **Shared actions**: learning a skill (it replaces the current one), one-step movement, and luring. A lure is an ally going to the enemy, drawing its attention and walking; the enemy follows. Static enemies are never lured.\n- **Recorded state**: `at`, `hasSkill`, `hasTag` (a skill gives all its tags except the ones the target is immune to) and `damaged`.\n\n**Checked results**\n- **Sample, gob**: 6 stun+slow pairs, covering every combination of having or learning the skills, plus 1 wet+electrocute plan. That plan lures gob to the lake, then to the lightning tower.\n- **Sample, tower**: stun+slow only. The tower is static, so it can't be taken to the lake to get wet.\n- **Immune to stun, and to wet or electrocute**: no plan.\n- **Wet skill taught somewhere**: extra plans where an ally learns it.\n- **Static target**: the other character is lured to the target instead.\n- **Target is not an enemy**: no plan.\n\n**Review**: the `htn-reviewer` agent scored it 4/5. I applied two of its findings: each strategy's `if()` now states `enemy(?e)`, and `opDamage` is recorded once in the goal. I didn't apply the other three:\n- **Hiding `opGainTag`**: it stays visible in plans. When a location applies the tag, it's the only visible step.\n- **Luring any non-ally**: the brief only says enemies can be lured.\n- **The `gainSkillTags` helper**: the reviewer rated it low severity and said it could stay, as long as only `useSkillOnTarget` calls it, which is already the case.\n\nJudgment calls you might disagree with:\n- **One lurer**: the first ally does all the luring, so the choice of lurer doesn't multiply the plans.\n- **One teaching location**: a skill is learned at the first location that teaches it.\n- **Enemy immune to slow**: `immune(?e, slow)` is treated as blocking stun+slow, even though slow is a skill property rather than a tag.\n- **Allies can always move**: allies marked static aren't handled.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R3",
+    "line": 14,
+    "severity": "medium",
+    "issue": "Two predicates describe skills: `skillHasTag(?slowSkill, slow)` for a property of the skill, and `skillAppliesTag` for a tag the skill puts on the target. `gainSkillTags` (line 51) reads only `skillAppliesTag`. So the enemy never gets a `slow` tag, but line 13 still checks `not(immune(?e, slow))` as if the skill applied one.",
+    "fix": "Choose one meaning. If slow is a tag the skill applies, use `skillAppliesTag(?slowSkill, slow)`, as the stun skill does. If slow is a property of the skill (a slow cast), remove `not(immune(?e, slow))`, because the enemy never receives that tag."
+   },
+   {
+    "rule": "R2",
+    "line": 80,
+    "severity": "medium",
+    "issue": "The lure requires `enemy(?e)`. `bringMobsTogether` line 89 lures `?m`, the non-ally skill holder, which may be neutral. That case of `applyTag` then fails silently. The lure also always uses `first(ally(?a))`, so the planner never considers another ally as the lure.",
+    "fix": "Replace `enemy(?e)` with `not(ally(?e))`, and bind the lure with plain `ally(?a)`. The lure is then a verb that works for any mob and any ally."
+   },
+   {
+    "rule": "R1",
+    "line": 12,
+    "severity": "low",
+    "issue": "The `if()` of `stunAndSlow` does not say whether each ally can have its skill, either by holding it already or by learning it at a location. That check is hidden in `prepareToUseSkill`, so the `if()` alone does not show when the strategy works.",
+    "fix": "Add a small rule, `canUseSkill(?a, ?s) :- hasSkill(?a, ?s).` and `canUseSkill(?a, ?s) :- canGetSkillAtLocation(?l, ?s).`, and require `canUseSkill(?a1, ?stunSkill), canUseSkill(?a2, ?slowSkill)` in the `if()`."
+   },
+   {
+    "rule": "R5",
+    "line": 6,
+    "severity": "low",
+    "issue": "Every goal method repeats `not(damaged(?e))` and the `opDamage` step. Each added strategy must copy the pair, and a copy that leaves it out would skip the damage.",
+    "fix": "Keep the goal as a menu, one line per strategy, e.g. `damage(?e) :- if(enemy(?e), not(damaged(?e))), do(stunAndSlow(?e), opDamage(?e)).`. Or put the damage in a single verb, `dealDamage(?e)`, that each menu entry calls last."
+   },
+   {
+    "rule": "R7",
+    "line": 75,
+    "severity": "low",
+    "issue": "`goToLocation` moves in one step to any location and never checks `linked`. Rooms with no connection are reachable, so a level with a closed area gets a plan the game cannot carry out.",
+    "fix": "Guard the move with reachability over `linked`. Either recurse with `pathNext`, or add an `if()` condition that the destination is reachable and leave the route to the engine."
+   },
+   {
+    "rule": "R1",
+    "line": 24,
+    "severity": "low",
+    "issue": "`wetAndElectrocute` repeats the immunity checks that `applyTag` already makes (line 33). The goal checks `enemy(?e)` again as well. This is redundant feasibility and not a statement of what the strategy needs.",
+    "fix": "Keep `if(enemy(?e))` and let `applyTag` decide whether each tag can be applied, as the gamehack `wetAndElectrocute` does. Otherwise, keep the immunity checks and remove them from the goal."
+   }
+  ],
+  "summary": "This is the GameHack architecture done cleanly. The goal is a menu of strategies, `applyTag` is a reusable verb with one method per way, the operators are guarded and the comments are short. What holds it back is a mix-up between skill properties and applied tags (`skillHasTag`/`skillAppliesTag`), a lure that works only on enemies and uses a single fixed ally, and movement that ignores connectivity.",
+  "cost_usd": 0.3541636
+ },
+ "domain": "% Damage an enemy: the allies' strategies, the ways a character gets a tag,\n% and the skill, movement and lure actions they share.\n\n% === Goal: every strategy that damages the enemy, then the damage ===\ndamage(?e) :- if(damaged(?e)), do().\ndamage(?e) :- if(enemy(?e), not(damaged(?e))), do(stunAndSlow(?e), opDamage(?e)).\ndamage(?e) :- if(enemy(?e), not(damaged(?e))), do(wetAndElectrocute(?e), opDamage(?e)).\n\n% === Strategies ===\n\n% Two allies strike in sync: one with a skill that stuns, the other with a skill that slows.\nstunAndSlow(?e) :-\n    if(enemy(?e), not(immune(?e, stun)), not(immune(?e, slow)),\n       skillAppliesTag(?stunSkill, stun), skillHasTag(?slowSkill, slow),\n       ally(?a1), ally(?a2), \\==(?a1, ?a2)),\n    do(prepareToUseSkill(?a1, ?stunSkill, ?e),\n       prepareToUseSkill(?a2, ?slowSkill, ?e),\n       opSynchronize(?a1, ?a2),\n       useSkillOnTarget(?a1, ?stunSkill, ?e),\n       useSkillOnTarget(?a2, ?slowSkill, ?e)).\n\n% Wet the enemy, then electrocute it.\nwetAndElectrocute(?e) :-\n    if(enemy(?e), not(immune(?e, wet)), not(immune(?e, electrocute))),\n    do(applyTag(wet, ?e), applyTag(electrocute, ?e)).\n\n% === Tags: the ways a character gets a tag ===\n\n% Already has it.\napplyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do().\n% An ally uses a skill that applies it, learning the skill first if needed.\napplyTag(?tag, ?t) :-\n    if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), skillAppliesTag(?s, ?tag), ally(?a)),\n    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).\n% The target stands at a location that applies it.\napplyTag(?tag, ?t) :-\n    if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), locationCanApplyTag(?l, ?tag)),\n    do(bringMobToLocation(?t, ?l), opGainTag(?t, ?tag)).\n% Another non-ally character uses a skill that applies it, once the two are together.\napplyTag(?tag, ?t) :-\n    if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), skillAppliesTag(?s, ?tag),\n       hasSkill(?m, ?s), not(ally(?m)), \\==(?m, ?t)),\n    do(bringMobsTogether(?t, ?m), useSkillOnTarget(?m, ?s, ?t)).\n\n% Using a skill on a target standing with the user gives it the skill's tags.\nuseSkillOnTarget(?user, ?s, ?t) :- if(at(?user, ?l), at(?t, ?l)),\n    do(opUseSkill(?user, ?s, ?t), gainSkillTags(?s, ?t)).\n\n% The target gains each tag of the skill it isn't immune to and doesn't have yet.\ngainSkillTags(?s, ?t) :- anyOf,\n    if(skillAppliesTag(?s, ?tag), not(immune(?t, ?tag)), not(hasTag(?t, ?tag))),\n    do(opGainTag(?t, ?tag)).\ngainSkillTags(?s, ?t) :-\n    if(not(skillAppliesTag(?s, ?tag), not(immune(?t, ?tag)), not(hasTag(?t, ?tag)))),\n    do().\n\n% === Skills ===\n\n% Case 1: the ally has the skill - go to the target.\nprepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?t, ?l)),\n    do(goToLocation(?a, ?l)).\n% Case 2: the ally doesn't have it - go learn it, then go to the target.\nprepareToUseSkill(?a, ?s, ?t) :-\n    if(not(hasSkill(?a, ?s)), first(canGetSkillAtLocation(?l, ?s)), at(?t, ?tl)),\n    do(goToLocation(?a, ?l), learnSkill(?a, ?s), goToLocation(?a, ?tl)).\n\n% Learning replaces the current skill, if there is one.\nlearnSkill(?a, ?s) :- if(first(hasSkill(?a, ?old))), do(opReplaceSkill(?a, ?old, ?s)).\nlearnSkill(?a, ?s) :- if(not(hasSkill(?a, ?old))), do(opLearnSkill(?a, ?s)).\n\n% === Movement ===\n\n% An ally walks to a location in one step; the engine finds the path.\ngoToLocation(?a, ?l) :- if(at(?a, ?l)), do().\ngoToLocation(?a, ?l) :- if(at(?a, ?from), \\==(?from, ?l)), do(opMoveTo(?a, ?from, ?l)).\n\n% Lure: an ally goes to the enemy, draws its attention and walks it to the location.\nbringMobToLocation(?e, ?l) :- if(at(?e, ?l)), do().\nbringMobToLocation(?e, ?l) :-\n    if(at(?e, ?from), \\==(?from, ?l), enemy(?e), not(static(?e)), first(ally(?a))),\n    do(goToLocation(?a, ?from), opDrawAttention(?a, ?e),\n       goToLocation(?a, ?l), opFollow(?e, ?from, ?l)).\n\n% Bring two characters together: lure the first to the second, or the second to a static first.\nbringMobsTogether(?t, ?m) :- if(at(?t, ?l), at(?m, ?l)), do().\nbringMobsTogether(?t, ?m) :- if(at(?t, ?lt), at(?m, ?lm), \\==(?lt, ?lm), not(static(?t))),\n    do(bringMobToLocation(?t, ?lm)).\nbringMobsTogether(?t, ?m) :- if(at(?t, ?lt), at(?m, ?lm), \\==(?lt, ?lm), static(?t)),\n    do(bringMobToLocation(?m, ?lt)).\n\n% === Operators ===\nopMoveTo(?a, ?from, ?to) :- del(at(?a, ?from)), add(at(?a, ?to)).\nopDrawAttention(?a, ?e) :- del(), add().\nopFollow(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopLearnSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).\nopReplaceSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).\nopUseSkill(?user, ?s, ?t) :- del(), add().\nopSynchronize(?a1, ?a2) :- del(), add().\nopGainTag(?t, ?tag) :- del(), add(hasTag(?t, ?tag)).\nopDamage(?e) :- del(), add(damaged(?e)).\n"
+}

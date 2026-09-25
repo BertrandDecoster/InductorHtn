@@ -1,0 +1,107 @@
+{
+ "task": "debug_fire",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 7,
+ "total": 7,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "clear.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.3657768,
+ "turns": 9,
+ "duration_s": 116,
+ "is_error": false,
+ "final_message": "I found and fixed three bugs in `task/domain.htn`, one for each reported problem. The operators are unchanged.\n\n1. **Lure never shows up when the lurer is far away.** `navigate` only had methods for walks of 0, 1 or 2 links, so a lurer three or more links from the oil could never get there. I replaced them with the repo's usual navigation pattern: step to the next area on the shortest route using the built-in `pathNext`, then call `navigate` again. It now works for any distance.\n2. **A plan is returned even when an enemy can't be burned.** `clear`'s \"nothing left to burn\" method used `else`, and in this language `else` doesn't stop other methods from being tried. So when `burnOut` failed on an enemy, the planner fell back to the empty method and returned a plan anyway. That method now checks directly that no unburned flammable enemy is left.\n3. **Skills with no charges get used and charges go negative.** `usable` checked `>=(?n, 0)`, which accepts a skill with 0 charges. It now checks `>(?n, 0)`.\n\n**Tests:**\n- **Sample level:** `burnOut(gob1)` gives 2 plans (spill then ignite, and lure then ignite). `clear` gives 2 plans; in one, a single fire burns both goblins.\n- **Level I made up:** the lurer is 4 links from the oil, one fire skill has 0 charges, one enemy can't be burned by any method, and one enemy isn't flammable.\n  - The lure strategy appears, with a 4-step walk.\n  - The 0-charge skill is never used.\n  - `clear` returns no plan.\n- **File check:** `htn_components check` shows no errors, only warnings.\n\nI didn't run the `htn-reviewer` agent, since the job was fixing bugs rather than redesigning the ruleset.",
+ "review_score": 3,
+ "review": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R4",
+    "line": 15,
+    "severity": "high",
+    "issue": "Case 3 is a script of actions (navigate, use, opLure, opChase, igniteArea), not a list of states to achieve. The 'enemy stands in oil' state is solved again in each of the three burnOut methods, and igniteArea is repeated in each one.",
+    "fix": "Split it into states: burnOut(?e) :- if(enemy(?e), flammable(?e)), do(putInOil(?e, ?a), ignite(?a)). Give putInOil one method per way: already there, spill oil where it stands, or bring the enemy to an oiled linked area (bringMobToLocation)."
+   },
+   {
+    "rule": "R3",
+    "line": 3,
+    "severity": "medium",
+    "issue": "The file coins its own words: oiled, ablaze, burned, usable, and skillElement with 'lure' as an element. Lure is a behaviour, not an element, so one predicate mixes two kinds of property.",
+    "fix": "Use the game vocabulary instead: hasTag(?a, oil), hasTag(?a, burning), skillAppliesTag(?s, oil/burning), hasSkill(?c, ?s). Model lure as its own skill property, such as skillHasTag(?s, taunt), and not as an element."
+   },
+   {
+    "rule": "R7",
+    "line": 19,
+    "severity": "medium",
+    "issue": "Charge counting (charges/3, >(?n,0), opSpend with -(?n,1)) is stat bookkeeping, like TrunkThumper's stamina. Every skill use becomes two steps: use followed by an op.",
+    "fix": "Drop the charge counting and plan with hasSkill. If a limit is truly needed, make it a tag like exhausted(?c, ?s) that the skill's own operator adds."
+   },
+   {
+    "rule": "R6",
+    "line": 11,
+    "severity": "medium",
+    "issue": "One game action is split across two tasks: use(?o,?s) spends the charge and opSpill applies the effect. The same happens with opIgnite and opLure. The plan shows opSpend steps that are not game actions.",
+    "fix": "Make one operator per action, useSkillOnTarget(?c, ?s, ?a), that applies the effect. Resolve which skill to use in the method's if()."
+   },
+   {
+    "rule": "correctness",
+    "line": 14,
+    "severity": "medium",
+    "issue": "The lurer navigates into ?x and stays there, and then ?x is ignited. So the plan sets fire to the area where the ally is standing. The lure also has to be cast from inside the pool, while spill and ignite have unlimited range, which is inconsistent.",
+    "fix": "Lure from a neighbouring area, or have the lurer leave before igniting. Either way, add not(at(?ally, ?x)) as a guard before ignite, and apply the same range rule to every skill."
+   },
+   {
+    "rule": "R6",
+    "line": 29,
+    "severity": "low",
+    "issue": "opLure adds lured(?e, ?who), but nothing ever reads that fact. The effect that matters, the enemy moving, is a separate opChase step.",
+    "fix": "Have a single operator for the lure move the enemy (del at(?e,?a), add at(?e,?x)), or keep the aggro tag and let a generic bringMobToLocation verb use it."
+   },
+   {
+    "rule": "R5",
+    "line": 5,
+    "severity": "low",
+    "issue": "The goal is a loop that clears every flammable enemy through one strategy family. It is not a menu of strategies. The first() also commits to one enemy order.",
+    "fix": "Keep clear as the loop over enemies, but make it call a defeat verb whose methods are strategies (burnOut, and others). Write the base case as not(enemy(?e), flammable(?e), not(burned(?e))) without the redundant first()."
+   }
+  ],
+  "summary": "The feasibility checks are sound, skills are chosen by their properties, and the operators are correctly guarded. However, the three burnOut cases are action chains that each repeat the 'in oil, then ignite' state, not a reusable putInOil verb. The file also uses coined vocabulary and charge arithmetic, and the lure case sets fire to the ally's own area.",
+  "cost_usd": 0.2767938
+ },
+ "domain": "% Grease fire: burn flammable enemies by igniting oil under them.\nburned(?e) :- at(?e, ?a), ablaze(?a).\nusable(?c, ?s, ?el) :- companion(?c), knows(?c, ?s), skillElement(?s, ?el), charges(?c, ?s, ?n), >(?n, 0).\n\nclear :- if(first(enemy(?e), flammable(?e), not(burned(?e)))), do(burnOut(?e), clear).\nclear :- if(not(first(enemy(?e), flammable(?e), not(burned(?e))))), do().\n\n% 1 - it already stands in oil\nburnOut(?e) :- if(at(?e, ?a), oiled(?a)), do(igniteArea(?a)).\n% 2 - spill oil on it, then ignite\nburnOut(?e) :- if(at(?e, ?a), not(oiled(?a)), usable(?o, ?s, oil)), do(use(?o, ?s), opSpill(?o, ?s, ?a), igniteArea(?a)).\n% 3 - lure it into a neighbouring pool of oil, then ignite\nburnOut(?e) :-\n    if(at(?e, ?a), not(oiled(?a)), linked(?a, ?x), oiled(?x), not(ablaze(?x)), usable(?l, ?s, lure)),\n    do(navigate(?l, ?x), use(?l, ?s), opLure(?l, ?s, ?e), opChase(?e, ?a, ?x), igniteArea(?x)).\n\nigniteArea(?a) :- if(usable(?f, ?s, fire)), do(use(?f, ?s), opIgnite(?f, ?s, ?a)).\n\nuse(?c, ?s) :- if(charges(?c, ?s, ?n)), do(opSpend(?c, ?s, ?n, -(?n, 1))).\n\n% walk one link at a time along the shortest route\nnavigate(?who, ?to) :- if(at(?who, ?to)), do().\nnavigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).\nopSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).\nopIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).\nopLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n"
+}

@@ -1,0 +1,102 @@
+{
+ "task": "grease_fire",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "burnOut(gob2).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "clear.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "clear.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.856427,
+ "turns": 14,
+ "duration_s": 201,
+ "is_error": false,
+ "final_message": "The domain is written to `task/domain.htn`. On the sample level it returns exactly the plans the brief calls for, and nothing more.\n\n**How it's built**\n- **`burnOut(?e)`** has one method for each of the three ways: ignite, spill then ignite, and lure into oil then ignite. Each method's `if()` states the conditions on the areas that make that way possible.\n- **Shared steps:** the methods use `ignite`, `spillOil`, `lureTo`, `walkTo` and `spendCharge`. Skills are chosen by element through one rule, `canCast(?c, ?element, ?skill)`, which also requires a charge left. So each companion and skill that can do a step gives its own plan. The walk goes one link at a time along a shortest route, using the built-in `pathNext`.\n- **`clear`** picks the first unburned flammable enemy in `enemy` order, burns it, and repeats. The empty plan only applies when no unburned flammable enemy is left, so an enemy that can't be burned means no plan. \"Burned\" is a rule: a flammable enemy in an ablaze area.\n- Every operator is guarded, so none can add a fact that already exists. The domain names no areas, companions, skills or enemies.\n\n**Results on the sample level**\n- `burnOut(gob1)` gives 2 plans: the cook spills and the player ignites the hall; or the player walks yard \u2192 hall \u2192 kitchen, lures gob1 into the kitchen and ignites it.\n- `clear` gives 2 plans. In the first, one fire in the hall burns both goblins. In the second, gob1 is lured into the kitchen and burned there, then gob2 is burned by spilling oil in the hall and igniting it.\n\n**Edge cases,** in a second test world of my own:\n- An enemy already standing in oil gives one plan per companion with a fire skill.\n- A non-flammable enemy is ignored.\n- An enemy already standing in an ablaze area is skipped.\n- Lure is only offered when the lure skill has a charge.\n- `clear` has no plan when an enemy's only oiled neighbours are already ablaze.\n\n**Review:** the `htn-reviewer` agent scored it 4/5 with no high-severity findings.\n- I took its advice to put the guards inside `ignite` and `spillOil` themselves, and reran the sample: same plans.\n- I didn't take its other suggestion, to also check in each way's `if()` that a companion with the right skill exists. Written as a plain condition, that check adds one duplicate plan per matching companion. It would also be only half right, because earlier steps can spend the charges. The steps already check it when they run.\n\nThe linter only reports warnings, mostly world facts that the level defines. Only `task/` is changed.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 25,
+    "severity": "medium",
+    "issue": "The strategies' if() states only where the enemy and oil are. It never says what else the plan needs: a companion who can cast an oil skill and one who can cast a fire skill (line 28 also needs a lure caster). Those conditions sit inside the ignite, spillOil and lureTo verbs, so reading the strategy's if() alone does not tell you when it works.",
+    "fix": "Lift the skill requirements into each strategy's if(), e.g. `canCast(?c1, oil, ?oilSkill), canCast(?c2, fire, ?fireSkill)`. Then pass the caster and skill to generic verbs: `do(spillOil(?c1, ?oilSkill, ?area), ignite(?c2, ?fireSkill, ?area))`."
+   },
+   {
+    "rule": "R6",
+    "line": 44,
+    "severity": "medium",
+    "issue": "One game action, the lure, is split into two operators, opLure and opChase. opLure's only effect is the bookkeeping fact `lured(?e, ?c)`, which is never read except as its own add-guard on line 43. That guard also stops a companion from luring the same enemy twice.",
+    "fix": "Make a single `opLure(?c, ?s, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).` Drop the `lured/2` fact and the `not(lured(...))` guard."
+   },
+   {
+    "rule": "R3",
+    "line": 43,
+    "severity": "medium",
+    "issue": "`skillElement(?s, lure)` treats 'lure' as an element beside fire and oil. The property predicate is being stretched to cover a behaviour, so the vocabulary is muddled.",
+    "fix": "Use one plain property predicate that covers all three, e.g. `skillAppliesTag(?s, oiled)`, `skillAppliesTag(?s, ablaze)` and `skillHasTag(?s, lure)`, and have canCast query it."
+   },
+   {
+    "rule": "R7",
+    "line": 47,
+    "severity": "low",
+    "issue": "Per-skill charge counting (`charges/3`, opSpend with -(?n,1)) is stat arithmetic. It adds a spendCharge step to every verb and an extra operator to every plan, but none of the strategies decide anything based on it.",
+    "fix": "Drop charges and let `hasSkill(?c, ?s)` gate casting. If the level really needs a limit, use a tag such as `exhausted(?c, ?s)` that is added once."
+   },
+   {
+    "rule": "Correctness",
+    "line": 44,
+    "severity": "medium",
+    "issue": "The lurer walks into the oiled area, and then ignite sets that same area ablaze while the lurer is still standing in it. The plan burns a companion, or the model ignores it. Spilling and igniting (lines 35, 39) need no position at all, while luring requires walking there. The range model is inconsistent.",
+    "fix": "Give casting one rule: either every cast requires `at(?c, ?area)` or `linked` adjacency (use walkTo in the verb), or none does. Have the lurer stand on a linked tile next to ?oil, not on it."
+   },
+   {
+    "rule": "R2",
+    "line": 22,
+    "severity": "low",
+    "issue": "All three burnOut methods repeat `flammable(?e), at(?e, ?area)`. The 'Ignite' and 'Spill and ignite' methods are the same strategy ('get oil under the enemy, then ignite'), split by whether oil is already there.",
+    "fix": "Write a reusable verb `oilUnder(?e, ?area)` with cases for 'already oiled' (empty do), 'spill here' and 'lure to a linked oiled area'. Then there is one strategy, `burnOut(?e) :- if(flammable(?e)), do(oilUnder(?e, ?area), ignite(?area))`, or the area can be bound in if()."
+   },
+   {
+    "rule": "R5",
+    "line": 16,
+    "severity": "low",
+    "issue": "The top task is a loop over enemies, so the strategy menu is hidden one level down in burnOut. With several enemies, FindAllPlans returns the cross-product of per-enemy choices instead of one plan per strategy.",
+    "fix": "Keep `clear` as the loop, but also expose `burnOut(?e)` as the goal that tests and levels query, so each plan maps to exactly one strategy."
+   }
+  ],
+  "summary": "The architecture is right: a goal loop over enemies, one method per way to burn an enemy, verbs that pick skills by property, guarded operators, and short comments. The rough edges are feasibility hidden in the verbs rather than in the strategies' if(), a split lure operator with a bookkeeping fact, charge arithmetic, and an inconsistent range model that leaves the lurer standing in the fire.",
+  "cost_usd": 0.3055166
+ },
+ "domain": "% Grease fire: companions burn flammable enemies by setting fire to oil under them.\n\n% === RULES ===\n\n% A companion can cast a skill of this element: they know it and it has a charge left.\ncanCast(?c, ?element, ?skill) :-\n    companion(?c), knows(?c, ?skill), skillElement(?skill, ?element),\n    charges(?c, ?skill, ?n), >(?n, 0).\n\n% A flammable enemy standing in an ablaze area is burned.\nburned(?e) :- flammable(?e), at(?e, ?area), ablaze(?area).\n\n% === GOALS ===\n\n% Burn every flammable enemy, first unburned one first.\nclear :- if(first(enemy(?e), flammable(?e), not(burned(?e)))), do(burnOut(?e), clear).\nclear :- if(not(enemy(?e), flammable(?e), not(burned(?e)))), do().\n\n% === STRATEGIES: the ways to burn one enemy ===\n\n% Ignite: the enemy already stands in oil.\nburnOut(?e) :- if(flammable(?e), at(?e, ?area), oiled(?area), not(ablaze(?area))),\n    do(ignite(?area)).\n% Spill and ignite: oil the enemy's area, then set it ablaze.\nburnOut(?e) :- if(flammable(?e), at(?e, ?area), not(oiled(?area))),\n    do(spillOil(?area), ignite(?area)).\n% Lure into oil: bring the enemy into a linked oiled area, then set it ablaze.\nburnOut(?e) :- if(flammable(?e), at(?e, ?area), not(oiled(?area)),\n                  linked(?area, ?oil), oiled(?oil), not(ablaze(?oil))),\n    do(lureTo(?e, ?oil), ignite(?oil)).\n\n% === VERBS ===\n\n% Set an oiled area ablaze with any fire skill.\nignite(?area) :- if(oiled(?area), not(ablaze(?area)), canCast(?c, fire, ?s)),\n    do(spendCharge(?c, ?s), opIgnite(?c, ?s, ?area)).\n\n% Oil an area with any oil skill.\nspillOil(?area) :- if(not(oiled(?area)), canCast(?c, oil, ?s)),\n    do(spendCharge(?c, ?s), opSpill(?c, ?s, ?area)).\n\n% Lure an enemy: the lurer stands in the area, and the enemy follows.\nlureTo(?e, ?area) :- if(canCast(?c, lure, ?s), not(lured(?e, ?c)), at(?e, ?from)),\n    do(walkTo(?c, ?area), spendCharge(?c, ?s), opLure(?c, ?s, ?e), opChase(?e, ?from, ?area)).\n\n% Use up one charge of a skill.\nspendCharge(?c, ?s) :- if(charges(?c, ?s, ?n), >(?n, 0)),\n    do(opSpend(?c, ?s, ?n, -(?n, 1))).\n\n% Walk one link at a time along a shortest route.\nwalkTo(?who, ?to) :- if(at(?who, ?to)), do().\nwalkTo(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)),\n    do(opMoveTo(?who, ?here, ?next), walkTo(?who, ?to)).\n\n% === OPERATORS ===\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).\nopSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).\nopIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).\nopLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n"
+}

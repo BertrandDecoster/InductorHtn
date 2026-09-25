@@ -1,0 +1,109 @@
+{
+ "task": "extend_floor",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 6,
+ "total": 6,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "ringOut(ogre).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "ringOut(troll).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "ringOut(beast).",
+   "ok": true
+  },
+  {
+   "instance": "i5.htn",
+   "goal": "ringOut(orc).",
+   "ok": true
+  },
+  {
+   "instance": "i6.htn",
+   "goal": "ringOut(wisp).",
+   "ok": true
+  },
+  {
+   "instance": "i7.htn",
+   "goal": "ringOut(wisp).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.7090942,
+ "turns": 11,
+ "duration_s": 170,
+ "is_error": false,
+ "final_message": "I've added fragile floors to `task/domain.htn`, and the ring-out plans the domain already made are unchanged.\n\n**What I added:**\n- `fragileArea(?a)`: true when an area can collapse. It is built the same way as the existing `edgeArea`.\n- **Break:** if the enemy stands on a fragile area, a new `ringOut` method has it fall through the floor.\n- **Bring, then break:** if the enemy is not on a fragile area but one is linked to its area, a second new method brings the enemy there with the existing `bring` (pull or taunt), then breaks the floor.\n- `breakFloor(?e, ?area, ?notMe)`: works like `knock`. Any companion who isn't the bringer and has a quake skill breaks the floor from where they stand (no walking), with `opBreak` then `opFall`. It gives one plan per breaker, quake skill and drop. It won't plan a break on an enemy immune to quake, or on an area that's already broken. That second check matters: adding `broken` twice would be an error that stops the whole search.\n- `opBreak` and `opFall` are written exactly as the brief gives them.\n\n**Checks:**\n- **Sample level:** `ringOut(ogre)` still gives the one existing pull-then-push plan. There is no break plan because the mage is both the only puller and the only quaker, and the breaker must be someone else.\n- **A larger test world:** this one has two drops under one fragile area, an area that is both an edge and fragile, a second quake user and an enemy immune to quake. It gave the plans I worked out by hand:\n  - the ogre gets 2 existing edge plans plus 6 break plans;\n  - an enemy already on the fragile area gets 4 plans (2 breakers \u00d7 2 drops);\n  - an enemy immune to quake gets only its 2 edge plans.\n\n**Review:** the `htn-reviewer` agent scored it 4/5 with no high-severity findings. Its one suggestion was to merge `knock` and `breakFloor` into a single \"make it fall\" verb. I didn't, because the brief's rules need the two kept apart. The bring-then-break case applies whenever the enemy isn't on a fragile area, even if it stands on an edge. A merged \"bring it to an area it can fall from\" method would lose those plans.",
+ "review_score": 3,
+ "review": {
+  "score": 3,
+  "findings": [
+   {
+    "rule": "R4",
+    "line": 10,
+    "severity": "high",
+    "issue": "Each drop gets two hand-written cases: the enemy is already on it (line 8/13), or it is exactly one hop away (line 10/16). This is a 1-hop ladder. An enemy two areas from an edge or a fragile floor gets no plan, and each pair of methods repeats the same strategy.",
+    "fix": "Write one strategy per drop, e.g. `ringOut(?e) :- if(edge(?x, ?d), ...), do(bringTo(?e, ?x), pushOff(?e, ?x))`. Make `bringTo` a recursive verb: its base case is `at(?e, ?x)` \u2192 `do()`, and its other method pulls or taunts one hop at a time, using `pathNext` the way `navigate` does."
+   },
+   {
+    "rule": "R1",
+    "line": 8,
+    "severity": "high",
+    "issue": "The strategies' if() don't say what makes them possible. The pusher or quaker, `not(immune(?e, push))` / `not(immune(?e, quake))` and the drop are all found inside `knock`/`breakFloor` (lines 23, 28). You can't tell from ringOut's if() when a ring-out works.",
+    "fix": "Move the needs up: `if(edge(?x, ?d), not(immune(?e, push)), knows(?k, ?s), skillKind(?s, push), knows(?b, ?p), skillKind(?p, pull), \\==(?k, ?b))`, then pass ?k/?s into the verbs."
+   },
+   {
+    "rule": "R1",
+    "line": 22,
+    "severity": "medium",
+    "issue": "Distinct actors are enforced with a sentinel constant: `nobody` is passed as `?notMe` and checked with `\\==(?k, ?notMe)` inside the helpers. That is control plumbing, not a world property.",
+    "fix": "Bind both actors in the strategy's if() with `\\==(?b, ?k)` and pass the chosen actor to `pushOff(?k, ?s, ?e, ?x)` / `breakFloor(?k, ?s, ?x)`. Then drop the `?notMe` parameter and `nobody`."
+   },
+   {
+    "rule": "R3",
+    "line": 4,
+    "severity": "medium",
+    "issue": "Coined vocabulary: `bringer/3`, `bringKind/1`, `edgeArea/1` and `fragileArea/1` are wrappers or new terms. `edgeArea` only restates `edge(?a, ?d)`, and `bringer` hides the pull-or-taunt choice, which belongs in the methods of `bring`.",
+    "fix": "Use `edge/2`, `fragile/2`, `knows/2`, `skillKind/2` and `immune/2` directly in if(). Let `bring`'s methods be the ways to move an enemy, one method per skill kind, each checking its own `knows`/`skillKind`/`not(immune)`."
+   },
+   {
+    "rule": "R2",
+    "line": 19,
+    "severity": "low",
+    "issue": "`bring` passes both ?a and ?x and picks the method with `if(skillKind(?s, pull))`. The verb is tied to adjacent areas, and the caller has already chosen the skill, so the verb's methods aren't really alternative ways.",
+    "fix": "Make it `bringTo(?e, ?to)` with methods like `if(at(?e, ?a), pathNext(?a, ?to, ?n), knows(?b, ?s), skillKind(?s, pull), not(immune(?e, pull)))`, one for pull and one for taunt, and have each method recurse."
+   },
+   {
+    "rule": "correctness",
+    "line": 17,
+    "severity": "medium",
+    "issue": "In the adjacent-fragile case, the bringer navigates onto the fragile area ?x (line 19/20) to pull or taunt the enemy there. Then that floor is broken while they stand on it. The quaker's position is never checked either (line 29), so they could be on the floor too.",
+    "fix": "Pull from an area next to ?x rather than from ?x itself. Or require `not(at(?k, ?area))` for everyone on the floor, and state where the quaker must stand (navigate to a linked area)."
+   },
+   {
+    "rule": "correctness",
+    "line": 37,
+    "severity": "low",
+    "issue": "`opTaunt` adds `taunted(?e, ?who)` without a guard. If the enemy is already taunted by that companion, the add is an error that aborts the whole search. The fact is also never read.",
+    "fix": "Guard it with `not(taunted(?e, ?b))` in the taunt method, or drop the effect and keep `opTaunt` as a pure rendering action (`del(), add()`) followed by `opChase`."
+   },
+   {
+    "rule": "R9",
+    "line": 8,
+    "severity": "low",
+    "issue": "Methods 3 and 4 have one-line comments. The edge methods (lines 8-11), `bring` and `knock` have none.",
+    "fix": "Add one line per method: `% Enemy is on an edge: push it off.` / `% Case: pull the enemy onto the edge area.`"
+   }
+  ],
+  "summary": "A menu of ring-out strategies with a reusable bring verb, and skills chosen by kind, but each drop is written as a hand-made 1-hop ladder (already there / one area away). The feasibility and the actor-distinctness are hidden in helpers behind a `nobody` sentinel, and the vocabulary adds wrappers like `bringer` and `edgeArea`.",
+  "cost_usd": 0.3084658
+ },
+ "domain": "% Ring-out domain. Enemies are defeated only by falling into a drop: off an edge, or through a broken floor.\nedgeArea(?a) :- first(edge(?a, ?d)).\nfragileArea(?a) :- first(fragile(?a, ?d)).\nbringer(?e, ?b, ?s) :- companion(?b), knows(?b, ?s), skillKind(?s, ?k), bringKind(?k), not(immune(?e, ?k)).\nbringKind(pull).\nbringKind(taunt).\n\nringOut(?e) :- if(at(?e, ?a), edgeArea(?a)), do(knock(?e, ?a, nobody)).\nringOut(?e) :-\n    if(at(?e, ?a), not(edgeArea(?a)), linked(?a, ?x), edgeArea(?x), bringer(?e, ?b, ?s)),\n    do(bring(?b, ?s, ?e, ?a, ?x), knock(?e, ?x, ?b)).\n% The enemy stands on a fragile floor: break it.\nringOut(?e) :- if(at(?e, ?a), fragileArea(?a)), do(breakFloor(?e, ?a, nobody)).\n% A fragile floor is next to the enemy: bring it there, then another companion breaks the floor.\nringOut(?e) :-\n    if(at(?e, ?a), not(fragileArea(?a)), linked(?a, ?x), fragileArea(?x), bringer(?e, ?b, ?s)),\n    do(bring(?b, ?s, ?e, ?a, ?x), breakFloor(?e, ?x, ?b)).\n\nbring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, pull)), do(navigate(?b, ?x), opPull(?b, ?s, ?e, ?a, ?x)).\nbring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, taunt)), do(navigate(?b, ?x), opTaunt(?b, ?s, ?e), opChase(?e, ?a, ?x)).\n\nknock(?e, ?area, ?notMe) :-\n    if(not(immune(?e, push)), companion(?k), \\==(?k, ?notMe), knows(?k, ?s), skillKind(?s, push), edge(?area, ?d)),\n    do(navigate(?k, ?area), opPush(?k, ?s, ?e, ?area, ?d)).\n\n% Any companion but ?notMe quakes the floor from where they stand; the enemy falls into a drop below.\nbreakFloor(?e, ?area, ?notMe) :-\n    if(not(immune(?e, quake)), not(broken(?area)), companion(?k), \\==(?k, ?notMe), knows(?k, ?s), skillKind(?s, quake), fragile(?area, ?d)),\n    do(opBreak(?k, ?s, ?area), opFall(?e, ?area, ?d)).\n\nnavigate(?who, ?to) :- if(at(?who, ?to)), do().\nnavigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopPush(?who, ?skill, ?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\nopPull(?who, ?skill, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopTaunt(?who, ?skill, ?e) :- del(), add(taunted(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopBreak(?who, ?skill, ?area) :- del(), add(broken(?area)).\nopFall(?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\n"
+}

@@ -1,0 +1,97 @@
+{
+ "task": "ringout",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "ringOut(ogre).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "ringOut(troll).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "ringOut(golem).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "ringOut(wall).",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "ringOut(beast).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.8518258000000001,
+ "turns": 13,
+ "duration_s": 198,
+ "is_error": false,
+ "final_message": "The domain is finished and saved in `task/domain.htn`. On every world I tried, `FindAllPlans` for `ringOut(?e)` returned the plan set I counted by hand from the brief.\n\n**How it's built:**\n- **Two strategies for `ringOut(?e)`.**\n  - **Knock:** the enemy is already in an edge area, it isn't immune to push, and some companion knows a push skill.\n  - **Bring, then knock:** the enemy is not in an edge area, a directly linked area is an edge area, and there are two *different* companions, one to bring it and one who knows a push skill to knock it.\n- **Shared verbs:**\n  - `bringTo` has one method for each way to bring: pull or taunt. Each checks that the bringer knows a skill of that kind and that the enemy isn't immune to it.\n  - `knockOff` walks the knocker to wherever the enemy is now and pushes it, making one plan per drop of that area.\n  - `navigateTo` walks one link at a time along the shortest route (the `pathNext` built-in); a companion already there doesn't move.\n- **One rule, `edgeArea`:** it counts an area once however many drops it borders, so extra drops don't create duplicate plans.\n- Skills are chosen by `skillKind` only. No areas, companions or skills are named, and the operators are exactly the brief's.\n\n**Checks:**\n- **Sample level:** one plan, as expected. The mage walks to brink and pulls the ogre there, then the player walks to brink and pushes it into the void.\n- **A harder world I wrote** (edge areas with several drops, two usable edge areas, companions with several skills, immunities):\n\n| Enemy | Situation | Plans |\n|---|---|---|\n| orc | brought in, all ways open | 12 |\n| imp | already on an edge | 3 |\n| bat | immune to pull | 6 (taunt only) |\n| elf | immune to push | 0 |\n\n- **Linter:** no errors. It gives warnings for world facts the level supplies and for the normal recursion in `navigateTo`. Three of its \"singleton variable\" warnings look like false alarms: `?area` is used twice in both strategies. The one on `?drop` in the `edgeArea` rule is correct: that variable is used once on purpose, as \"any drop\".\n\n**Review:** the `htn-reviewer` agent scored it **5/5** with three low-severity notes. I fixed one: the \"not an edge area\" test now also uses `edgeArea`. I left the other two:\n- `knockOff` expects the strategy to choose the push skill, while `bringTo` chooses its own skill.\n- Whether the bringer can bring at all is checked inside `bringTo` rather than in the strategy's `if()`.\n\nThe reviewer said both are acceptable either way.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R1",
+    "line": 7,
+    "severity": "medium",
+    "issue": "Neither ringOut method checks that the target is an enemy. Nothing in if() stops ringOut(?e) from knocking a companion off an edge. The rubric says a strategy's if() states the target.",
+    "fix": "Start both if() clauses with enemy(?e)."
+   },
+   {
+    "rule": "R1",
+    "line": 13,
+    "severity": "medium",
+    "issue": "The bring-then-knock strategy names ?bringer but never says what lets the bringer bring. Knowing pull or taunt, and the enemy not being immune to it, are checked only inside bringTo. You can't tell from this if() alone when the strategy works.",
+    "fix": "Pick one of two shapes. Either let bringTo choose its own companion, the way applyTagNotPresent chooses ?a, and pass it the knocker to exclude. Or state the bring property in the strategy, e.g. knows(?bringer, ?s), skillKind(?s, ?how), with a bringTo method per ?how."
+   },
+   {
+    "rule": "R2",
+    "line": 28,
+    "severity": "medium",
+    "issue": "bringTo is meant to be reusable, but the pull method has no range condition. opPull moves the enemy from any ?from to ?to, however far apart. opChase also jumps the enemy across several links. The one-link limit exists only in the strategy (linked(?area, ?edgeArea)). Other callers get teleports.",
+    "fix": "Put the condition that makes a pull possible in the pull method's if(): linked(?from, ?to). Move the taunted enemy with the same navigation verb instead of a single opChase jump. Then drop the linked() restriction from the strategy, and let bringTo's methods decide what is reachable."
+   },
+   {
+    "rule": "R3",
+    "line": 8,
+    "severity": "low",
+    "issue": "The vocabulary drifts from the game's words: knows/2 instead of hasSkill, companion instead of ally, skillKind instead of skillHasTag. edgeArea/1 is a new predicate that adds nothing over edge/2.",
+    "fix": "Use hasSkill(?c, ?s), skillHasTag(?s, push) and ally(?c). Replace edgeArea(?a) with first(edge(?a, ?d)) inline, or keep it only if several files share it."
+   },
+   {
+    "rule": "R5",
+    "line": 23,
+    "severity": "low",
+    "issue": "knockOff binds edge(?area, ?drop) with no first(). An area with two drops gives two ring-out plans that differ only in the drop. edgeArea uses first() to avoid exactly this, so the file is inconsistent.",
+    "fix": "If the drop is not a decision the player makes, use first(edge(?area, ?drop)) in knockOff. Otherwise document that each drop is its own plan."
+   },
+   {
+    "rule": "R1",
+    "line": 15,
+    "severity": "low",
+    "issue": "\\==(?bringer, ?knocker) rules out the one-companion plan, where a single companion who has both pull and push does both jobs. The strategy's cooperation comes from this hard constraint rather than from the roles.",
+    "fix": "Keep it only if forcing two actors is the level's design point. If so, say it in the method's one-line comment. Otherwise remove it."
+   },
+   {
+    "rule": "R2",
+    "line": 27,
+    "severity": "low",
+    "issue": "bringTo has no 'already there' case. As a reusable verb it breaks if a caller passes the area the enemy is already in, so it depends on the strategy's not(edgeArea(?area)) guard.",
+    "fix": "Add bringTo(?c, ?e, ?to) :- if(at(?e, ?to)), do(). as the first method, and give the other methods not(at(?e, ?to))."
+   }
+  ],
+  "summary": "The architecture is right: a two-strategy menu over the reusable verbs knockOff and bringTo, where each bringTo method is a way to move the enemy, and operators are guarded game actions. The rough edges: there is no enemy(?e) check, the bring feasibility is hidden in the verb, the pull and chase moves ignore range, and a few words drift from the game vocabulary.",
+  "cost_usd": 0.2930264
+ },
+ "domain": "% Ring-out: companions defeat an enemy by knocking it off an edge into a drop.\n\n% === GOAL: the strategies ===\n\n% Knock: the enemy already stands at an edge; a companion who can push knocks it off.\nringOut(?e) :-\n    if(at(?e, ?area), edgeArea(?area), not(immune(?e, push)),\n       companion(?knocker), knows(?knocker, ?push), skillKind(?push, push)),\n    do(knockOff(?knocker, ?push, ?e)).\n\n% Bring, then knock: one companion brings the enemy to a neighbouring edge, another knocks it off.\nringOut(?e) :-\n    if(at(?e, ?area), not(edgeArea(?area)), not(immune(?e, push)),\n       linked(?area, ?edgeArea), edgeArea(?edgeArea),\n       companion(?bringer), companion(?knocker), \\==(?bringer, ?knocker),\n       knows(?knocker, ?push), skillKind(?push, push)),\n    do(bringTo(?bringer, ?e, ?edgeArea), knockOff(?knocker, ?push, ?e)).\n\n% === VERBS ===\n\n% Push the enemy off its area into one of that area's drops.\nknockOff(?c, ?push, ?e) :-\n    if(at(?e, ?area), edge(?area, ?drop)),\n    do(navigateTo(?c, ?area), opPush(?c, ?push, ?e, ?area, ?drop)).\n\n% Pull: walk to the destination and drag the enemy over.\nbringTo(?c, ?e, ?to) :-\n    if(at(?e, ?from), not(immune(?e, pull)), knows(?c, ?pull), skillKind(?pull, pull)),\n    do(navigateTo(?c, ?to), opPull(?c, ?pull, ?e, ?from, ?to)).\n\n% Taunt: walk to the destination and taunt; the enemy chases the taunter there.\nbringTo(?c, ?e, ?to) :-\n    if(at(?e, ?from), not(immune(?e, taunt)), not(taunted(?e, ?c)),\n       knows(?c, ?taunt), skillKind(?taunt, taunt)),\n    do(navigateTo(?c, ?to), opTaunt(?c, ?taunt, ?e), opChase(?e, ?from, ?to)).\n\n% Walk one link at a time along the shortest route; already there means no move.\nnavigateTo(?who, ?dest) :- if(at(?who, ?dest)), do().\nnavigateTo(?who, ?dest) :- else, if(at(?who, ?cur), pathNext(?cur, ?dest, ?next)),\n    do(opMoveTo(?who, ?cur, ?next), navigateTo(?who, ?dest)).\n\n% === RULES ===\n\n% An area that borders at least one drop (once, however many drops).\nedgeArea(?area) :- first(edge(?area, ?drop)).\n\n% === OPERATORS ===\n\nopMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nopPush(?who, ?skill, ?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).\nopPull(?who, ?skill, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\nopTaunt(?who, ?skill, ?e) :- del(), add(taunted(?e, ?who)).\nopChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).\n"
+}

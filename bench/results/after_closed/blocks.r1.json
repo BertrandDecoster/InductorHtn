@@ -1,0 +1,90 @@
+{
+ "task": "blocks",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 5,
+ "total": 5,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "solve.",
+   "ok": true
+  },
+  {
+   "instance": "i4.htn",
+   "goal": "solve.",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.9711464000000001,
+ "turns": 15,
+ "duration_s": 267,
+ "is_error": false,
+ "final_message": "The blocks-world domain is finished and in `task/domain.htn`. It returns exactly one plan every time, and every plan meets all the goals.\n\n**How it works.** `solve` repeats one choice until the puzzle is solved:\n- **Solved:** if every block is where it should stay, stop. This check is a negated condition, so a plan can't stop early with work left undone.\n- **Straight to its place:** a free block that isn't placed yet goes straight to where it belongs. That is its goal block (if that block is placed and free), the table if its goal is the table, or the table if it has no goal.\n- **Else out of the way:** if no block can do that, a free block sitting on the wrong block goes onto the table.\n\nA block counts as placed only if everything under it is placed too. A block with no goal can stay where it is, unless another block has to go on the block under it.\n\nMoving a block is one verb, `move`. It picks it up (`pickup` or `unstack`) and puts it down (`putdown` or `stack`), using the four operators exactly as the brief gives them. Each operator only runs when its facts hold, so none can fail.\n\n**Testing:**\n- **Sample problem:** it gives `unstack(c, a), putdown(c), pickup(b), stack(b, c), pickup(a), stack(a, b)`.\n- **Random problems:** I ran 900 of them with 1 to 6 blocks. They included several towers, blocks with no goal, and problems that were already solved. Every one gave exactly one plan, and the final state met every goal.\n- **Number of moves:** I compared each plan with the shortest possible solution, found by brute-force search. The worst case was one extra block move. That is expected for this \"straight to its place, else onto the table\" approach, and the brief says it is good enough.\n\n**Review:** the `htn-reviewer` agent scored it **5/5** with no serious findings. I applied its two small fixes: I renamed `ready` to `canPlaceOn` and corrected one comment. I left its optional suggestion alone, which was to limit the \"out of the way\" move to blocks that are actually blocking something, because the brief's rule doesn't need it.\n\nThe test script and a sample file I used are deleted; nothing else in the repo changed.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R6",
+    "line": 45,
+    "severity": "medium",
+    "issue": "The operators are named pickup, unstack, putdown and stack, not op.... A reader can't tell leaves from tasks, and move, take and place sit right next to them as methods.",
+    "fix": "Rename them opPickup, opUnstack, opPutdown and opStack, and update the calls in take and place."
+   },
+   {
+    "rule": "R2",
+    "line": 21,
+    "severity": "low",
+    "issue": "What makes a place usable is stated twice. canPlaceOn checks block(?c) and clear(?c), and place/2 (line 42) checks block(?c) and clear(?c) again, so the two can drift apart.",
+    "fix": "Keep the feasibility in solve's if() through canPlaceOn, and make place's block case a plain dispatch on the head, if(), or check only what canPlaceOn doesn't."
+   },
+   {
+    "rule": "R3",
+    "line": 6,
+    "severity": "low",
+    "issue": "noGoal is a coined helper that exists only to add a default case to inPlace and finalPlace. That is 3 extra clauses of vocabulary.",
+    "fix": "Derive the default once, e.g. finalPlace(?b, table) :- block(?b), not(goalOn(?b, ?c)). Then write inPlace in terms of finalPlace: on the table when the final place is the table, or on the final block when that block is in place. That removes noGoal and 2 inPlace clauses."
+   },
+   {
+    "rule": "R5",
+    "line": 27,
+    "severity": "low",
+    "issue": "first() in both recursive methods commits to one block per step, so FindAllPlans returns exactly one plan. That is fine for greedy blocks-world, but the domain can't show alternative orderings to the caller.",
+    "fix": "If alternatives matter, drop first() from the move-to-final-place method, so that each ready block is its own branch. Otherwise add a one-line comment saying the greedy order is intended."
+   },
+   {
+    "rule": "R4",
+    "line": 28,
+    "severity": "low",
+    "issue": "solve's do() names an action, move(?b, ?d), not the state to reach. The idea is 'get ?b into place', but it is written as a step.",
+    "fix": "Name the verb after the state, e.g. putInPlace(?b), with move as its single method body. solve then reads as 'achieve in-place for the next ready block'."
+   },
+   {
+    "rule": "R9",
+    "line": 30,
+    "severity": "low",
+    "issue": "?c is bound only to test that the block is not on the table (the linter flags it as a singleton). The intent is hidden behind an unused variable.",
+    "fix": "Write not(onTable(?b)) instead of on(?b, ?c)."
+   }
+  ],
+  "summary": "A clean, correct blocks-world domain: solve's if() states when a block can go straight to its final place, the base case is guarded by negation, not else, and take and place are reusable verbs with one method per way. On a 4-block test it returns the optimal 8-step plan. The rough edges are that the operators lack the op prefix, the feasibility check is duplicated between canPlaceOn and place, and the coined noGoal helper adds vocabulary.",
+  "cost_usd": 0.32799480000000003
+ },
+ "domain": "% Blocks world: move each block straight to its final place when it can go there,\n% otherwise move it out of the way onto the table, until every block is in place.\n\n/* Rules */\n% A block with no goalOn or goalOnTable fact.\nnoGoal(?b) :- block(?b), not(goalOnTable(?b)), not(goalOn(?b, ?c)).\n\n% A block is in place when it and everything under it never has to move.\ninPlace(?b) :- goalOnTable(?b), onTable(?b).\ninPlace(?b) :- goalOn(?b, ?c), on(?b, ?c), inPlace(?c).\ninPlace(?b) :- noGoal(?b), onTable(?b).\ninPlace(?b) :- noGoal(?b), on(?b, ?c), inPlace(?c), not(goalOn(?x, ?c)).\n\n% Where a block ends up: its goal, or the table when it has none.\nfinalPlace(?b, table) :- goalOnTable(?b).\nfinalPlace(?b, ?c) :- goalOn(?b, ?c).\nfinalPlace(?b, table) :- noGoal(?b).\n\n% A place a block can be put on now.\ncanPlaceOn(table).\ncanPlaceOn(?c) :- block(?c), clear(?c), inPlace(?c).\n\n/* Methods */\n% Solved: every block is in place.\nsolve :- if(not(block(?b), not(inPlace(?b)))), do().\n% A free block can go straight to its final place.\nsolve :- if(first(clear(?b), not(inPlace(?b)), finalPlace(?b, ?d), canPlaceOn(?d))),\n    do(move(?b, ?d), solve).\n% Else move a free block that is not in place out of the way.\nsolve :- else, if(first(clear(?b), not(inPlace(?b)), on(?b, ?c))),\n    do(move(?b, table), solve).\n\n% Move a free block onto a place.\nmove(?b, ?d) :- if(handEmpty, clear(?b)), do(take(?b), place(?b, ?d)).\n\n% Take a block from the table, or from the block under it.\ntake(?b) :- if(onTable(?b)), do(pickup(?b)).\ntake(?b) :- if(on(?b, ?c)), do(unstack(?b, ?c)).\n\n% Put the held block on the table, or on a clear block.\nplace(?b, table) :- if(), do(putdown(?b)).\nplace(?b, ?c) :- if(block(?c), clear(?c)), do(stack(?b, ?c)).\n\n/* Operators */\npickup(?b) :- del(onTable(?b), clear(?b), handEmpty), add(holding(?b)).\nunstack(?b, ?c) :- del(on(?b, ?c), clear(?b), handEmpty), add(holding(?b), clear(?c)).\nputdown(?b) :- del(holding(?b)), add(onTable(?b), clear(?b), handEmpty).\nstack(?b, ?c) :- del(holding(?b), clear(?c)), add(on(?b, ?c), clear(?b), handEmpty).\n"
+}

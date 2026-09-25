@@ -1,0 +1,122 @@
+{
+ "task": "commute",
+ "run": 1,
+ "commit": "cad4f04",
+ "passed": 10,
+ "total": 10,
+ "results": [
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, park).",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, office).",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, beach).",
+   "ok": true
+  },
+  {
+   "instance": "../problem.htn",
+   "goal": "travel(ann, home).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "travel(bo, museum).",
+   "ok": true
+  },
+  {
+   "instance": "i1.htn",
+   "goal": "travel(bo, harbour).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "travel(cy, mill).",
+   "ok": true
+  },
+  {
+   "instance": "i2.htn",
+   "goal": "travel(cy, town).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "travel(di, lab2).",
+   "ok": true
+  },
+  {
+   "instance": "i3.htn",
+   "goal": "travel(di, moon).",
+   "ok": true
+  }
+ ],
+ "cost_usd": 0.7411728,
+ "turns": 13,
+ "duration_s": 156,
+ "is_error": false,
+ "final_message": "The domain is finished and saved in `task/domain.htn`. It holds only rules, methods and operators, with no problem facts, and on every world I tried it returns exactly the plans the brief asks for.\n\n`travel(?who, ?to)` has one method per way of getting there, so you get one plan for each way that works:\n- **Already there:** the empty plan. Every other method requires the person to be somewhere other than `?to`, so this is the only plan.\n- **Walk:** allowed in good weather up to 3, or in any weather up to 0.5. It picks just the first condition that holds, so it gives one plan even when both hold.\n- **Bike:** the person owns a bike, the weather is good and the distance is at most 10.\n- **Taxi:** the first taxi at a stand where the person is, and the fare (2 + distance) must be affordable. The steps are `hail`, `ride`, `pay`.\n- **Bus:** one plan per `busRoute` from here to there, with a fare of 1. The steps are `waitFor`, `ride`, `pay`.\n\nPaying goes through one shared task, `payFare`, which calls `pay(?who, ?old, ?new)` with the cash before and after. The six operators are exactly as the brief gives them.\n\n**Results on the sample problem:**\n\n| Goal | Plans |\n|---|---|\n| `travel(ann, park)` | walk, bike, taxi1 (pays 12 \u2192 8) |\n| `travel(ann, office)` | bike, taxi1 (12 \u2192 2), bus7 (12 \u2192 11) |\n| `travel(ann, beach)` | bus9 only |\n| `travel(ann, home)` | the empty plan |\n\nI also made a second problem to test edge cases: bad weather with a 0.4 walk, decimal distances and cash, two bus routes to one place, a fare exactly equal to the person's cash, a taxi stand somewhere else, and a person with too little money for the bus. All of them gave the plans the brief calls for.\n\nThe `htn-reviewer` agent scored it **5/5** with no high-severity findings. I took one of its low-severity suggestions: the taxi and bus methods now also check that the person hasn't already hailed that taxi or boarded that bus. Without that check, a problem that already contained such a fact would make `hail` or `waitFor` add a duplicate, which aborts the whole search. After the change I re-ran the checks and got the same plans.",
+ "review_score": 4,
+ "review": {
+  "score": 4,
+  "findings": [
+   {
+    "rule": "R6",
+    "line": 36,
+    "severity": "medium",
+    "issue": "`hail` and `waitFor` only add the flags `hailed/2` and `boarded/2`, and nothing ever removes them. They exist to keep the `add` from erroring. They say nothing about where the vehicle is, and they stop the same person from using that taxi or bus again in a longer plan.",
+    "fix": "Track the vehicle's position with `at`, as Taxi.htn does. `hail(?who, ?taxi, ?place)` should add `at(?taxi, ?place)`, and `ride` should move both the person and the vehicle: `del(at(?who, ?from), at(?vehicle, ?from)), add(at(?who, ?to), at(?vehicle, ?to))`. Guard the calls with `not(at(?taxi, ?from))` and drop `hailed` and `boarded`."
+   },
+   {
+    "rule": "R6",
+    "line": 38,
+    "severity": "medium",
+    "issue": "`ride` moves the person but leaves the vehicle behind. After a taxi ride, `taxiStand(?taxi, ?from)` is still true, so the state says the taxi is at the start while its passenger has arrived.",
+    "fix": "Make `ride` move the vehicle along with the rider, as in the fix above. Keep `taxiStand` as a fixed fact about where taxis wait, separate from where a taxi is now (`at(?taxi, ?place)`)."
+   },
+   {
+    "rule": "R3",
+    "line": 37,
+    "severity": "low",
+    "issue": "The operator is named `waitFor`, but its only effect is `boarded`. The name and the effect disagree.",
+    "fix": "Name the operator after its effect (`board(?who, ?bus, ?place)`), or give `waitFor` the effect its name promises (the bus arrives at `?place`)."
+   },
+   {
+    "rule": "R1",
+    "line": 23,
+    "severity": "low",
+    "issue": "`first(taxiStand(?taxi, ?from))` comes before `not(hailed(?who, ?taxi))`. If the first taxi has been used, the method fails even when another taxi waits at the same stand.",
+    "fix": "Put the whole condition inside `first`: `first(taxiStand(?taxi, ?from), not(at(?taxi, ?from)))`. Taxi.htn wraps its whole conjunction in `first` the same way."
+   },
+   {
+    "rule": "R2",
+    "line": 16,
+    "severity": "low",
+    "issue": "All four travel methods repeat `at(?who, ?from), \\==(?from, ?to)`, and `payFare` checks `>=` again after `canAfford` has already done it. The feasibility check is spread across the file.",
+    "fix": "Split `travel` into the base case `at(?who, ?to)` and one method that binds `?from` and calls `travelBy(?who, ?from, ?to)`. The ways of travelling become the methods of `travelBy`. Also let `payFare` use `canAfford` instead of repeating its test."
+   },
+   {
+    "rule": "R7",
+    "line": 5,
+    "severity": "low",
+    "issue": "`distance(?from, ?to, ?d)` is only looked up in one direction. A trip back home finds no walking, cycling or taxi plan unless the level lists every pair twice.",
+    "fix": "Add a symmetric rule, for example `dist(?a, ?b, ?d) :- distance(?a, ?b, ?d).` and `dist(?a, ?b, ?d) :- distance(?b, ?a, ?d).`, and use `dist` in `walkable`, `cyclable` and `taxiFare`."
+   },
+   {
+    "rule": "R8",
+    "line": 10,
+    "severity": "low",
+    "issue": "`busFare(1)` is a world value, but it sits in the domain's rules section.",
+    "fix": "Move `busFare(1)` into the level or state facts, next to `busRoute` and `cash`."
+   }
+  ],
+  "summary": "This is a clean and idiomatic menu of travel strategies. Each `if()` states when a strategy works, and there are no dialect traps. It is essentially Taxi.htn with a `?who` parameter, a bike option and guarded adds. It loses a point for its state model: vehicles never move, and the `hailed` and `boarded` flags, which are never cleared, exist only to satisfy the `add` rule.",
+  "cost_usd": 0.30976180000000003
+ },
+ "domain": "% Commute: get a person to a destination. One plan per way that works (walk, bike, taxi, bus).\n\n/* Rules */\n% Walking is fine for short trips in good weather, and for very short trips in any weather.\nwalkable(?from, ?to) :- weather(good), distance(?from, ?to, ?d), =<(?d, 3).\nwalkable(?from, ?to) :- distance(?from, ?to, ?d), =<(?d, 0.5).\ncyclable(?who, ?from, ?to) :- ownsBike(?who), weather(good), distance(?from, ?to, ?d), =<(?d, 10).\ncanAfford(?who, ?fare) :- cash(?who, ?m), >=(?m, ?fare).\ntaxiFare(?from, ?to, ?fare) :- distance(?from, ?to, ?d), is(?fare, +(2, ?d)).\nbusFare(1).\n\n/* Methods */\n% Already there: nothing to do.\ntravel(?who, ?to) :- if(at(?who, ?to)), do().\n% Walk: one plan, even when both walking conditions hold.\ntravel(?who, ?to) :- if(at(?who, ?from), \\==(?from, ?to), first(walkable(?from, ?to))),\n    do(walk(?who, ?from, ?to)).\n% Bike: owns one, good weather, not too far.\ntravel(?who, ?to) :- if(at(?who, ?from), \\==(?from, ?to), cyclable(?who, ?from, ?to)),\n    do(cycle(?who, ?from, ?to)).\n% Taxi: the first taxi at a stand here, if the person can afford the fare.\ntravel(?who, ?to) :- if(at(?who, ?from), \\==(?from, ?to), taxiFare(?from, ?to, ?fare),\n        canAfford(?who, ?fare), first(taxiStand(?taxi, ?from)), not(hailed(?who, ?taxi))),\n    do(hail(?who, ?taxi, ?from), ride(?who, ?taxi, ?from, ?to), payFare(?who, ?fare)).\n% Bus: every route from here to there, if the person can afford the fare.\ntravel(?who, ?to) :- if(at(?who, ?from), \\==(?from, ?to), busRoute(?bus, ?from, ?to),\n        busFare(?fare), canAfford(?who, ?fare), not(boarded(?who, ?bus))),\n    do(waitFor(?who, ?bus, ?from), ride(?who, ?bus, ?from, ?to), payFare(?who, ?fare)).\n\n% Pay a fare from the cash the person has.\npayFare(?who, ?fare) :- if(cash(?who, ?m), >=(?m, ?fare)), do(pay(?who, ?m, -(?m, ?fare))).\n\n/* Operators */\nwalk(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\ncycle(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\nhail(?who, ?taxi, ?place) :- del(), add(hailed(?who, ?taxi)).\nwaitFor(?who, ?bus, ?place) :- del(), add(boarded(?who, ?bus)).\nride(?who, ?vehicle, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).\npay(?who, ?old, ?new) :- del(cash(?who, ?old)), add(cash(?who, ?new)).\n"
+}
