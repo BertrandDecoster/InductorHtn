@@ -1,0 +1,11 @@
+% Two edge areas next to the enemy; it resists pulls; a taunter, a puller, a pusher.
+linked(hall, pit). linked(pit, hall).
+linked(hall, ledge). linked(ledge, hall).
+linked(hall, door). linked(door, hall).
+edge(pit, abyss). edge(ledge, drop).
+companion(p1). companion(p2). companion(p3).
+at(p1, door). at(p2, door). at(p3, door).
+knows(p1, jeer). knows(p2, grapple). knows(p3, kick).
+skillKind(jeer, taunt). skillKind(grapple, pull). skillKind(kick, push).
+immune(golem, pull).
+at(golem, hall).

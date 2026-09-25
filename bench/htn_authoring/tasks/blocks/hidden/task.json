@@ -1,0 +1,7 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "solve.", "goal_facts": ["on(a,b)", "on(b,c)", "onTable(c)"]},
+  {"problem": "i1.htn", "goal": "solve.", "goal_facts": ["on(d,c)", "on(c,b)", "on(b,a)", "onTable(a)"]},
+  {"problem": "i2.htn", "goal": "solve.", "goal_facts": ["on(w,x)", "onTable(x)"]},
+  {"problem": "i3.htn", "goal": "solve.", "goal_facts": ["on(p,q)", "onTable(q)"]},
+  {"problem": "i4.htn", "goal": "solve.", "goal_facts": ["on(a,b)", "on(b,c)", "onTable(c)", "on(f,e)", "on(e,d)", "onTable(d)"]}
+]}

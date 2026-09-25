@@ -1,0 +1,4 @@
+% healthy, sees an intruder in the next area, has ammo
+linked(gate, court). linked(court, gate). linked(court, tower). linked(tower, court). linked(court, cellar). linked(cellar, court). linked(tower, roof). linked(roof, tower).
+nextWaypoint(gate, tower). nextWaypoint(tower, roof). nextWaypoint(roof, gate).
+at(g1, gate). health(g1, 80). ammo(g1, 2). patrolTarget(g1, tower). at(thief, court). sees(g1, thief).

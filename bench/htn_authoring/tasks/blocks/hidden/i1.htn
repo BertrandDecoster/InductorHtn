@@ -1,0 +1,4 @@
+% Reverse a tower of four.
+block(a). block(b). block(c). block(d).
+on(a, b). on(b, c). on(c, d). onTable(d). clear(a). handEmpty.
+goalOn(d, c). goalOn(c, b). goalOn(b, a). goalOnTable(a).

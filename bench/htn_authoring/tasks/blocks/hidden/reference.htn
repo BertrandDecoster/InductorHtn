@@ -1,0 +1,26 @@
+% Reference: blocks world, GTPyhop blocks_htn strategy.
+done(?b) :- goalOnTable(?b), onTable(?b).
+done(?b) :- goalOn(?b, ?c), on(?b, ?c), done(?c).
+done(?b) :- noGoal(?b), onTable(?b).
+done(?b) :- noGoal(?b), on(?b, ?c), done(?c).
+noGoal(?b) :- block(?b), not(goalOnTable(?b)), not(goalOn(?b, ?x)).
+
+readyForGoal(?b) :- block(?b), clear(?b), not(done(?b)), goalOnTable(?b).
+readyForGoal(?b) :- block(?b), clear(?b), not(done(?b)), goalOn(?b, ?c), clear(?c), done(?c).
+inTheWay(?b) :- block(?b), clear(?b), not(done(?b)), on(?b, ?c).
+allDone :- not(block(?b), not(done(?b))).
+
+solve :- if(first(readyForGoal(?b))), do(moveToGoal(?b), solve).
+solve :- else, if(first(inTheWay(?b))), do(get(?b), putdown(?b), solve).
+solve :- else, if(allDone), do().
+
+moveToGoal(?b) :- if(goalOnTable(?b)), do(get(?b), putdown(?b)).
+moveToGoal(?b) :- if(goalOn(?b, ?c)), do(get(?b), stack(?b, ?c)).
+
+get(?b) :- if(onTable(?b)), do(pickup(?b)).
+get(?b) :- if(on(?b, ?c)), do(unstack(?b, ?c)).
+
+pickup(?b) :- del(onTable(?b), clear(?b), handEmpty), add(holding(?b)).
+unstack(?b, ?c) :- del(on(?b, ?c), clear(?b), handEmpty), add(holding(?b), clear(?c)).
+putdown(?b) :- del(holding(?b)), add(onTable(?b), clear(?b), handEmpty).
+stack(?b, ?c) :- del(holding(?b), clear(?c)), add(on(?b, ?c), clear(?b), handEmpty).

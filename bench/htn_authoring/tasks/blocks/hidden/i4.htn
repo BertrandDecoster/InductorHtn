@@ -1,0 +1,5 @@
+% Six blocks, Sussman-style interleaving.
+block(a). block(b). block(c). block(d). block(e). block(f).
+on(c, a). onTable(a). onTable(b). on(e, d). on(d, f). onTable(f).
+clear(c). clear(b). clear(e). handEmpty.
+goalOn(a, b). goalOn(b, c). goalOnTable(c). goalOn(f, e). goalOn(e, d). goalOnTable(d).

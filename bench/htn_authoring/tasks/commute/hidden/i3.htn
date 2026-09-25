@@ -1,0 +1,4 @@
+at(di, lab). weather(good). cash(di, 0).
+distance(lab, lab2, 0.2). distance(lab2, lab, 0.2).
+taxiStand(t9, lab).
+busRoute(b1, lab, lab2).

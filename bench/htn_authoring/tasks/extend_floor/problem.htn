@@ -1,0 +1,13 @@
+% Sample.  gate --- hall (ogre) --- bridge (fragile: river)
+%                     \
+%                      brink (edge: void)
+linked(gate, hall). linked(hall, gate).
+linked(hall, bridge). linked(bridge, hall).
+linked(hall, brink). linked(brink, hall).
+edge(brink, void).
+fragile(bridge, river).
+companion(player). companion(mage).
+at(player, gate). at(mage, gate).
+knows(player, gust). knows(mage, hook). knows(mage, quake).
+skillKind(gust, push). skillKind(hook, pull). skillKind(quake, quake). skillKind(jeer, taunt).
+at(ogre, hall).

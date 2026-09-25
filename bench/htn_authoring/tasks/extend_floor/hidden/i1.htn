@@ -1,0 +1,8 @@
+% Enemy already on an edge with two drops; two pushers; a puller who is not needed.
+linked(camp, cliff). linked(cliff, camp).
+edge(cliff, chasm). edge(cliff, river).
+companion(ana). companion(bo). companion(cy).
+at(ana, camp). at(bo, cliff). at(cy, camp).
+knows(ana, bash). knows(bo, gust). knows(cy, lasso).
+skillKind(bash, push). skillKind(gust, push). skillKind(lasso, pull).
+at(troll, cliff).

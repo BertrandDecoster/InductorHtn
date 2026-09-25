@@ -1,0 +1,11 @@
+% A stone golem is not flammable and is ignored; the rat is already in oil; a lurer far away.
+linked(p1, p2). linked(p2, p1). linked(p2, p3). linked(p3, p2). linked(p3, p4). linked(p4, p3).
+oiled(p4). oiled(p2).
+companion(m). companion(n).
+at(m, p1). at(n, p1).
+knows(m, ember). knows(n, flute). knows(n, ember).
+skillElement(ember, fire). skillElement(flute, lure).
+charges(m, ember, 1). charges(n, ember, 1). charges(n, flute, 1).
+enemy(golem). enemy(rat). enemy(bat).
+flammable(rat). flammable(bat).
+at(golem, p1). at(rat, p4). at(bat, p3).

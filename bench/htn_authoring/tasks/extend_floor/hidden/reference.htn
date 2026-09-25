@@ -1,0 +1,41 @@
+% Ring-out domain. Enemies are defeated only by falling into a drop.
+edgeArea(?a) :- first(edge(?a, ?d)).
+bringer(?e, ?b, ?s) :- companion(?b), knows(?b, ?s), skillKind(?s, ?k), bringKind(?k), not(immune(?e, ?k)).
+bringKind(pull).
+bringKind(taunt).
+
+ringOut(?e) :- if(at(?e, ?a), edgeArea(?a)), do(knock(?e, ?a, nobody)).
+ringOut(?e) :-
+    if(at(?e, ?a), not(edgeArea(?a)), linked(?a, ?x), edgeArea(?x), bringer(?e, ?b, ?s)),
+    do(bring(?b, ?s, ?e, ?a, ?x), knock(?e, ?x, ?b)).
+
+bring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, pull)), do(navigate(?b, ?x), opPull(?b, ?s, ?e, ?a, ?x)).
+bring(?b, ?s, ?e, ?a, ?x) :- if(skillKind(?s, taunt)), do(navigate(?b, ?x), opTaunt(?b, ?s, ?e), opChase(?e, ?a, ?x)).
+
+knock(?e, ?area, ?notMe) :-
+    if(not(immune(?e, push)), companion(?k), \==(?k, ?notMe), knows(?k, ?s), skillKind(?s, push), edge(?area, ?d)),
+    do(navigate(?k, ?area), opPush(?k, ?s, ?e, ?area, ?d)).
+
+navigate(?who, ?to) :- if(at(?who, ?to)), do().
+navigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).
+
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opPush(?who, ?skill, ?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).
+opPull(?who, ?skill, ?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
+opTaunt(?who, ?skill, ?e) :- del(), add(taunted(?e, ?who)).
+opChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
+
+% --- extension: breaking fragile floors ---
+fragileArea(?a) :- first(fragile(?a, ?d)).
+
+ringOut(?e) :- if(at(?e, ?a), fragileArea(?a)), do(collapse(?e, ?a, nobody)).
+ringOut(?e) :-
+    if(at(?e, ?a), not(fragileArea(?a)), linked(?a, ?x), fragileArea(?x), bringer(?e, ?b, ?s)),
+    do(bring(?b, ?s, ?e, ?a, ?x), collapse(?e, ?x, ?b)).
+
+collapse(?e, ?area, ?notMe) :-
+    if(not(immune(?e, quake)), companion(?k), \==(?k, ?notMe), knows(?k, ?s), skillKind(?s, quake), fragile(?area, ?d)),
+    do(opBreak(?k, ?s, ?area), opFall(?e, ?area, ?d)).
+
+opBreak(?who, ?skill, ?area) :- del(), add(broken(?area)).
+opFall(?e, ?area, ?drop) :- del(at(?e, ?area)), add(fell(?e, ?drop)).

@@ -1,0 +1,12 @@
+% Sample.   kitchen (oiled) --- hall (two goblins) --- yard
+linked(kitchen, hall). linked(hall, kitchen).
+linked(hall, yard).    linked(yard, hall).
+oiled(kitchen).
+companion(player). companion(cook).
+at(player, yard). at(cook, kitchen).
+knows(player, torch). knows(player, whistle). knows(cook, lardPot).
+skillElement(torch, fire). skillElement(whistle, lure). skillElement(lardPot, oil).
+charges(player, torch, 2). charges(player, whistle, 1). charges(cook, lardPot, 1).
+enemy(gob1). enemy(gob2).
+flammable(gob1). flammable(gob2).
+at(gob1, hall). at(gob2, hall).

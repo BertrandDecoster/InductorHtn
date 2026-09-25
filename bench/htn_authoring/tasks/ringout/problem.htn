@@ -1,0 +1,13 @@
+% Sample.   gate --- yard --- plinth (ogre)
+%                       \      /
+%                        brink (edge: void)
+linked(gate, yard).   linked(yard, gate).
+linked(yard, brink).  linked(brink, yard).
+linked(yard, plinth). linked(plinth, yard).
+linked(brink, plinth). linked(plinth, brink).
+edge(brink, void).
+companion(player). companion(mage).
+at(player, gate). at(mage, gate).
+knows(player, fireball). knows(mage, hook).
+skillKind(fireball, push). skillKind(shieldBash, push). skillKind(hook, pull). skillKind(taunt, taunt).
+at(ogre, plinth).

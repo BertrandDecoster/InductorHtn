@@ -1,0 +1,8 @@
+% Enemy on a floor that is both an edge and fragile; a pusher and a quaker.
+linked(x1, x2). linked(x2, x1).
+edge(x1, void). fragile(x1, sewer). fragile(x1, pit).
+companion(a). companion(b).
+at(a, x2). at(b, x2).
+knows(a, shove). knows(b, stomp).
+skillKind(shove, push). skillKind(stomp, quake).
+at(orc, x1).

@@ -1,0 +1,7 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "ringOut(ogre)."},
+  {"problem": "i1.htn", "goal": "ringOut(troll)."},
+  {"problem": "i2.htn", "goal": "ringOut(golem)."},
+  {"problem": "i3.htn", "goal": "ringOut(wall)."},
+  {"problem": "i4.htn", "goal": "ringOut(beast)."}
+]}

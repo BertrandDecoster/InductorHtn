@@ -1,0 +1,5 @@
+% Sample: c is on a, b is alone; build the tower a on b on c.
+block(a). block(b). block(c).
+on(c, a). onTable(a). onTable(b).
+clear(c). clear(b). handEmpty.
+goalOn(a, b). goalOn(b, c). goalOnTable(c).

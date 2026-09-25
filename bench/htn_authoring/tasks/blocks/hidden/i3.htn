@@ -1,0 +1,3 @@
+% Already solved.
+block(p). block(q). onTable(q). on(p, q). clear(p). handEmpty.
+goalOn(p, q). goalOnTable(q).

@@ -1,0 +1,20 @@
+% Reference: guard behaviour, one plan per state (priority by else).
+think(?g) :- if(health(?g, ?h), <(?h, 30), first(medkit(?a))), do(navigate(?g, ?a), opHeal(?g, ?a)).
+think(?g) :- else, if(first(sees(?g, ?e))), do(fight(?g, ?e)).
+think(?g) :- else, if(first(noise(?n))), do(navigate(?g, ?n), opSearch(?g, ?n)).
+think(?g) :- else, if(patrolTarget(?g, ?w), nextWaypoint(?w, ?next)), do(navigate(?g, ?w), opNextWaypoint(?g, ?w, ?next)).
+
+fight(?g, ?e) :- if(at(?g, ?a), at(?e, ?a), ammo(?g, ?n), >(?n, 0)), do(opShoot(?g, ?e, ?n, -(?n, 1))).
+fight(?g, ?e) :- else, if(at(?g, ?a), at(?e, ?a)), do(opMelee(?g, ?e)).
+fight(?g, ?e) :- else, if(at(?g, ?a), at(?e, ?b), linked(?a, ?b), ammo(?g, ?n), >(?n, 0)), do(opShoot(?g, ?e, ?n, -(?n, 1))).
+fight(?g, ?e) :- else, if(at(?e, ?b)), do(navigate(?g, ?b), opMelee(?g, ?e)).
+
+navigate(?who, ?to) :- if(at(?who, ?to)), do().
+navigate(?who, ?to) :- else, if(at(?who, ?here), pathNext(?here, ?to, ?next)), do(opMoveTo(?who, ?here, ?next), navigate(?who, ?to)).
+
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opHeal(?g, ?area) :- del(medkit(?area)), add(healed(?g)).
+opShoot(?g, ?e, ?old, ?new) :- del(ammo(?g, ?old)), add(ammo(?g, ?new), hit(?e)).
+opMelee(?g, ?e) :- del(), add(hit(?e)).
+opSearch(?g, ?area) :- del(noise(?area)), add(searched(?area)).
+opNextWaypoint(?g, ?w, ?next) :- del(patrolTarget(?g, ?w)), add(patrolTarget(?g, ?next)).

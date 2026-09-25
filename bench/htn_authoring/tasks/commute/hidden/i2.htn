@@ -1,0 +1,5 @@
+at(cy, farm). weather(good). cash(cy, 5). ownsBike(cy).
+distance(farm, mill, 3). distance(mill, farm, 3).
+distance(farm, town, 9). distance(town, farm, 9).
+taxiStand(t1, farm). taxiStand(t2, town).
+busRoute(b4, farm, town).

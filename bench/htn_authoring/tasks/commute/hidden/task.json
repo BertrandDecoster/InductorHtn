@@ -1,0 +1,12 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "travel(ann, park)."},
+  {"problem": "../problem.htn", "goal": "travel(ann, office)."},
+  {"problem": "../problem.htn", "goal": "travel(ann, beach)."},
+  {"problem": "../problem.htn", "goal": "travel(ann, home)."},
+  {"problem": "i1.htn", "goal": "travel(bo, museum)."},
+  {"problem": "i1.htn", "goal": "travel(bo, harbour)."},
+  {"problem": "i2.htn", "goal": "travel(cy, mill)."},
+  {"problem": "i2.htn", "goal": "travel(cy, town)."},
+  {"problem": "i3.htn", "goal": "travel(di, lab2)."},
+  {"problem": "i3.htn", "goal": "travel(di, moon)."}
+]}

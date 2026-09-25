@@ -1,0 +1,9 @@
+% The enemy cannot be pushed: no plan.
+linked(a1, a2). linked(a2, a1).
+edge(a2, void).
+companion(k). companion(m).
+at(k, a1). at(m, a1).
+knows(k, shove). knows(m, yank).
+skillKind(shove, push). skillKind(yank, pull).
+immune(wall, push).
+at(wall, a1).

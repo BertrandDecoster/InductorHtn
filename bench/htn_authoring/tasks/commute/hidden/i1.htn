@@ -1,0 +1,5 @@
+at(bo, station). weather(bad). cash(bo, 20).
+distance(station, museum, 0.4). distance(museum, station, 0.4).
+distance(station, harbour, 6). distance(harbour, station, 6).
+taxiStand(cab3, station).
+busRoute(bus1, station, harbour). busRoute(bus2, station, harbour).

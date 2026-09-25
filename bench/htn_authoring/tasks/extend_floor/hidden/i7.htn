@@ -1,0 +1,9 @@
+% Same map as i6 but the enemy resists quakes.
+linked(y1, y2). linked(y2, y1). linked(y1, y3). linked(y3, y1).
+fragile(y2, chasm). edge(y3, void).
+companion(c). companion(d).
+at(c, y1). at(d, y3).
+knows(c, jeer). knows(c, stomp). knows(d, kick). knows(d, stomp).
+skillKind(jeer, taunt). skillKind(stomp, quake). skillKind(kick, push).
+immune(wisp, quake).
+at(wisp, y1).

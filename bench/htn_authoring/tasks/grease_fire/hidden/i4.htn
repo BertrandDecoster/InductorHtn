@@ -1,0 +1,3 @@
+% Nothing flammable: the empty plan.
+companion(z). at(z, s1).
+enemy(stone). at(stone, s1).

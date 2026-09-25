@@ -1,0 +1,10 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "think(g1)."},
+  {"problem": "i1.htn", "goal": "think(g1)."},
+  {"problem": "i2.htn", "goal": "think(g1)."},
+  {"problem": "i3.htn", "goal": "think(g1)."},
+  {"problem": "i4.htn", "goal": "think(g1)."},
+  {"problem": "i5.htn", "goal": "think(g1)."},
+  {"problem": "i6.htn", "goal": "think(g1)."},
+  {"problem": "i7.htn", "goal": "think(g1)."}
+]}

@@ -1,0 +1,9 @@
+{"instances": [
+  {"problem": "../problem.htn", "goal": "clear."},
+  {"problem": "i1.htn", "goal": "clear."},
+  {"problem": "i2.htn", "goal": "clear."},
+  {"problem": "i3.htn", "goal": "clear."},
+  {"problem": "i4.htn", "goal": "clear."},
+  {"problem": "i5.htn", "goal": "clear."},
+  {"problem": "i6.htn", "goal": "clear."}
+]}

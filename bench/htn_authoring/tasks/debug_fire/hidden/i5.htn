@@ -1,0 +1,9 @@
+% The lurer is four links away from the oil.
+linked(r0, r1). linked(r1, r0). linked(r1, r2). linked(r2, r1). linked(r2, r3). linked(r3, r2).
+linked(r3, pool). linked(pool, r3). linked(pool, den). linked(den, pool).
+oiled(pool).
+companion(u). at(u, r0).
+knows(u, bell). knows(u, spark).
+skillElement(bell, lure). skillElement(spark, fire).
+charges(u, bell, 1). charges(u, spark, 1).
+enemy(boar). flammable(boar). at(boar, den).

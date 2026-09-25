@@ -1,0 +1,11 @@
+% A long corridor: the knocker walks four hops. One companion knows both pull and push
+% but cannot do both jobs; the other only pushes.
+linked(r0, r1). linked(r1, r0). linked(r1, r2). linked(r2, r1).
+linked(r2, r3). linked(r3, r2). linked(r3, r4). linked(r4, r3).
+linked(r4, rim). linked(rim, r4).
+edge(rim, void).
+companion(hero). companion(sage).
+at(hero, r4). at(sage, r0).
+knows(hero, whip). knows(hero, punch). knows(sage, blast).
+skillKind(whip, pull). skillKind(punch, push). skillKind(blast, push).
+at(beast, r4).

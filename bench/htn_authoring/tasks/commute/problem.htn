@@ -1,0 +1,12 @@
+% Sample problem (the hidden problems use other places, people and numbers).
+at(ann, home).
+weather(good).
+cash(ann, 12).
+ownsBike(ann).
+distance(home, park, 2).    distance(park, home, 2).
+distance(home, office, 8).  distance(office, home, 8).
+distance(home, beach, 14).  distance(beach, home, 14).
+taxiStand(taxi1, home).
+taxiStand(taxi2, home).
+busRoute(bus7, home, office).
+busRoute(bus9, home, beach).

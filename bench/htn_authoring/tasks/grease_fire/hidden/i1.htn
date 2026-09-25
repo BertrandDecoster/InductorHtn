@@ -1,0 +1,10 @@
+% One fire charge for two enemies: only plans that burn both at once survive.
+linked(a, b). linked(b, a). linked(b, c). linked(c, b).
+oiled(a).
+companion(x). companion(y).
+at(x, c). at(y, c).
+knows(x, flare). knows(y, oilJar). knows(y, horn).
+skillElement(flare, fire). skillElement(oilJar, oil). skillElement(horn, lure).
+charges(x, flare, 1). charges(y, oilJar, 1). charges(y, horn, 2).
+enemy(e1). enemy(e2). flammable(e1). flammable(e2).
+at(e1, b). at(e2, b).

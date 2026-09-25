@@ -1,0 +1,30 @@
+% Grease fire: burn flammable enemies by igniting oil under them.
+burned(?e) :- at(?e, ?a), ablaze(?a).
+usable(?c, ?s, ?el) :- companion(?c), knows(?c, ?s), skillElement(?s, ?el), charges(?c, ?s, ?n), >=(?n, 0).
+
+clear :- if(first(enemy(?e), flammable(?e), not(burned(?e)))), do(burnOut(?e), clear).
+clear :- else, if(), do().
+
+% 1 - it already stands in oil
+burnOut(?e) :- if(at(?e, ?a), oiled(?a)), do(igniteArea(?a)).
+% 2 - spill oil on it, then ignite
+burnOut(?e) :- if(at(?e, ?a), not(oiled(?a)), usable(?o, ?s, oil)), do(use(?o, ?s), opSpill(?o, ?s, ?a), igniteArea(?a)).
+% 3 - lure it into a neighbouring pool of oil, then ignite
+burnOut(?e) :-
+    if(at(?e, ?a), not(oiled(?a)), linked(?a, ?x), oiled(?x), not(ablaze(?x)), usable(?l, ?s, lure)),
+    do(navigate(?l, ?x), use(?l, ?s), opLure(?l, ?s, ?e), opChase(?e, ?a, ?x), igniteArea(?x)).
+
+igniteArea(?a) :- if(usable(?f, ?s, fire)), do(use(?f, ?s), opIgnite(?f, ?s, ?a)).
+
+use(?c, ?s) :- if(charges(?c, ?s, ?n)), do(opSpend(?c, ?s, ?n, -(?n, 1))).
+
+navigate(?who, ?to) :- if(at(?who, ?to)), do().
+navigate(?who, ?to) :- else, if(at(?who, ?here), linked(?here, ?to)), do(opMoveTo(?who, ?here, ?to)).
+navigate(?who, ?to) :- else, if(at(?who, ?here), linked(?here, ?mid), linked(?mid, ?to)), do(opMoveTo(?who, ?here, ?mid), opMoveTo(?who, ?mid, ?to)).
+
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opSpend(?who, ?skill, ?old, ?new) :- del(charges(?who, ?skill, ?old)), add(charges(?who, ?skill, ?new)).
+opSpill(?who, ?skill, ?area) :- del(), add(oiled(?area)).
+opIgnite(?who, ?skill, ?area) :- del(), add(ablaze(?area)).
+opLure(?who, ?skill, ?e) :- del(), add(lured(?e, ?who)).
+opChase(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).

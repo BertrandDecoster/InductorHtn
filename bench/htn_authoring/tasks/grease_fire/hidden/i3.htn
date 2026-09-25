@@ -1,0 +1,6 @@
+% No fire at all: no plan.
+linked(q1, q2). linked(q2, q1).
+oiled(q1).
+companion(z). at(z, q2).
+knows(z, jug). skillElement(jug, oil). charges(z, jug, 3).
+enemy(imp). flammable(imp). at(imp, q2).

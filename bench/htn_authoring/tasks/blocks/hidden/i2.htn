@@ -1,0 +1,4 @@
+% Two towers, partial goal: only x and w matter; y and z have no goal.
+block(x). block(y). block(z). block(w).
+on(x, y). onTable(y). on(z, w). onTable(w). clear(x). clear(z). handEmpty.
+goalOn(w, x). goalOnTable(x).

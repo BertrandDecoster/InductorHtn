@@ -1,0 +1,7 @@
+% The only oil skill is spent.
+linked(k1, k2). linked(k2, k1).
+companion(v). at(v, k1).
+knows(v, pot). knows(v, spark).
+skillElement(pot, oil). skillElement(spark, fire).
+charges(v, pot, 0). charges(v, spark, 2).
+enemy(slug). flammable(slug). at(slug, k2).

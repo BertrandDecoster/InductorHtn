@@ -1,0 +1,4 @@
+% quiet, standing on the target waypoint
+linked(gate, court). linked(court, gate). linked(court, tower). linked(tower, court). linked(court, cellar). linked(cellar, court). linked(tower, roof). linked(roof, tower).
+nextWaypoint(gate, tower). nextWaypoint(tower, roof). nextWaypoint(roof, gate).
+at(g1, tower). health(g1, 50). ammo(g1, 1). patrolTarget(g1, tower).

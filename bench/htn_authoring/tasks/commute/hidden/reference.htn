@@ -1,0 +1,25 @@
+% Reference: commute. Every working mode is its own plan.
+travel(?who, ?to) :- if(at(?who, ?to)), do().
+travel(?who, ?to) :-
+    if(at(?who, ?from), first(walkable(?from, ?to))),
+    do(walk(?who, ?from, ?to)).
+travel(?who, ?to) :-
+    if(at(?who, ?from), ownsBike(?who), weather(good), distance(?from, ?to, ?d), =<(?d, 10)),
+    do(cycle(?who, ?from, ?to)).
+travel(?who, ?to) :-
+    if(at(?who, ?from), first(taxiStand(?taxi, ?from)), distance(?from, ?to, ?d),
+       is(?fare, +(2, ?d)), cash(?who, ?m), >=(?m, ?fare)),
+    do(hail(?who, ?taxi, ?from), ride(?who, ?taxi, ?from, ?to), pay(?who, ?m, -(?m, ?fare))).
+travel(?who, ?to) :-
+    if(at(?who, ?from), busRoute(?bus, ?from, ?to), cash(?who, ?m), >=(?m, 1)),
+    do(waitFor(?who, ?bus, ?from), ride(?who, ?bus, ?from, ?to), pay(?who, ?m, -(?m, 1))).
+
+walkable(?a, ?b) :- weather(good), distance(?a, ?b, ?d), =<(?d, 3).
+walkable(?a, ?b) :- distance(?a, ?b, ?d), =<(?d, 0.5).
+
+walk(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+cycle(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+hail(?who, ?taxi, ?place) :- del(), add(hailed(?who, ?taxi)).
+waitFor(?who, ?bus, ?place) :- del(), add(boarded(?who, ?bus)).
+ride(?who, ?vehicle, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+pay(?who, ?old, ?new) :- del(cash(?who, ?old)), add(cash(?who, ?new)).
