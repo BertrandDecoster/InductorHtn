@@ -168,10 +168,27 @@ class LevelSpec:
         return "\n".join(parts) + "\n"
 
 
+def _resolve_ruleset_file(level_path: str) -> Optional[str]:
+    """A standalone ruleset (`Examples/Combos.htn`) can be played like a level: one file
+    holding its rules, its world and its goals(), with no manifest."""
+    if not level_path.endswith(".htn"):
+        return None
+    for candidate in (level_path, os.path.join(PROJECT_ROOT, level_path)):
+        if os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+    return None
+
+
 def load_level_spec(level_path: str) -> LevelSpec:
-    """Parse a level directory's `level.htn` and `manifest.json`."""
-    full_path = _resolve_level_dir(level_path)
-    level_htn = os.path.join(full_path, "level.htn")
+    """Parse a level directory's `level.htn` and `manifest.json`, or a standalone
+    `.htn` ruleset file."""
+    ruleset_file = _resolve_ruleset_file(level_path)
+    if ruleset_file:
+        full_path = os.path.dirname(ruleset_file)
+        level_htn = ruleset_file
+    else:
+        full_path = _resolve_level_dir(level_path)
+        level_htn = os.path.join(full_path, "level.htn")
     if not os.path.exists(level_htn):
         raise ExtractError(f"No level.htn in {full_path}")
 
@@ -201,12 +218,13 @@ def load_level_spec(level_path: str) -> LevelSpec:
 
     dependencies: List[str] = []
     manifest_path = os.path.join(full_path, "manifest.json")
-    if os.path.exists(manifest_path):
+    if not ruleset_file and os.path.exists(manifest_path):
         with open(manifest_path, "r", encoding="utf-8") as f:
             dependencies = json.load(f).get("dependencies", [])
 
     return LevelSpec(
-        level_id=os.path.basename(os.path.normpath(full_path)),
+        level_id=(os.path.splitext(os.path.basename(ruleset_file))[0] if ruleset_file
+                  else os.path.basename(os.path.normpath(full_path))),
         path=full_path,
         facts=facts,
         other_source="\n".join(other),

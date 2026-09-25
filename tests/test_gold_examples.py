@@ -8,31 +8,31 @@ sys.path.insert(0, os.path.join(ROOT, "src", "Python"))
 
 from htn_test_framework import HtnTestSuite  # noqa: E402
 
-LURE_FROST = "opMoveTo(frost, camp, hut), opAggro(gob, frost), "
+LURE_FROST = "opMoveTo(player, camp, hut), opAggro(gob, player), "
 LURE_PYRO = "opMoveTo(pyro, camp, hut), opAggro(gob, pyro), "
 FIRE = "opApplyTag(fire, gob), opApplyTag(dead, gob)"
 
 WET_AND_ELECTROCUTE = [
     # lured to the lake (wet), then to the static tower (electrocuted); gob follows its lurer
-    LURE_FROST + "opMoveTo(frost, hut, lake), opMoveTo(gob, hut, lake), opApplyTag(wet, gob), "
-    "opMoveTo(frost, lake, peak), opMoveTo(gob, lake, peak), opUseSkill(tower, lightning, gob), opApplyTag(electrocute, gob), opApplyTag(dead, gob)",
+    LURE_FROST + "opMoveTo(player, hut, lake), opMoveTo(gob, hut, lake), opApplyTag(wet, gob), "
+    "opMoveTo(player, lake, peak), opMoveTo(gob, lake, peak), opUseSkill(tower, lightning, gob), opApplyTag(electrocute, gob), opApplyTag(dead, gob)",
     LURE_PYRO + "opMoveTo(pyro, hut, lake), opMoveTo(gob, hut, lake), opApplyTag(wet, gob), "
     "opMoveTo(pyro, lake, peak), opMoveTo(gob, lake, peak), opUseSkill(tower, lightning, gob), opApplyTag(electrocute, gob), opApplyTag(dead, gob)",
 ]
 STUN_AND_SLOW = [
-    "opMoveTo(frost, camp, hut), opMoveTo(pyro, camp, hut), opSynchronize(frost, pyro), "
-    "opUseSkill(frost, iceBlast, gob), opApplyTag(stun, gob), opUseSkill(pyro, fireball, gob), " + FIRE,
+    "opMoveTo(player, camp, hut), opMoveTo(pyro, camp, hut), opSynchronize(player, pyro), "
+    "opUseSkill(player, iceBlast, gob), opApplyTag(stun, gob), opUseSkill(pyro, fireball, gob), " + FIRE,
 ]
 OIL_AND_FIRE = [
     # lured onto the kitchen's oil (oily), then set on fire: lurer x who brings the fire
-    LURE_FROST + "opMoveTo(frost, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
-    "opMoveTo(frost, kitchen, forge), opMoveTo(gob, kitchen, forge), opSwapSkill(frost, iceBlast, fireball), "
-    "opUseSkill(frost, fireball, gob), " + FIRE,
-    LURE_FROST + "opMoveTo(frost, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
+    LURE_FROST + "opMoveTo(player, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
+    "opMoveTo(player, kitchen, forge), opMoveTo(gob, kitchen, forge), opSwapSkill(player, iceBlast, fireball), "
+    "opUseSkill(player, fireball, gob), " + FIRE,
+    LURE_FROST + "opMoveTo(player, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
     "opMoveTo(pyro, camp, kitchen), opUseSkill(pyro, fireball, gob), " + FIRE,
     LURE_PYRO + "opMoveTo(pyro, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
-    "opMoveTo(frost, camp, forge), opSwapSkill(frost, iceBlast, fireball), opMoveTo(frost, forge, kitchen), "
-    "opUseSkill(frost, fireball, gob), " + FIRE,
+    "opMoveTo(player, camp, forge), opSwapSkill(player, iceBlast, fireball), opMoveTo(player, forge, kitchen), "
+    "opUseSkill(player, fireball, gob), " + FIRE,
     LURE_PYRO + "opMoveTo(pyro, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
     "opUseSkill(pyro, fireball, gob), " + FIRE,
 ]

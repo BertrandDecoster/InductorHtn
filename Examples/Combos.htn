@@ -105,18 +105,18 @@ opSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).
 % Sample world
 % =============================================================================
 
-ally(frost). ally(pyro).
+ally(player). ally(pyro).
 enemy(gob). enemy(tower).
 static(tower).
 
 location(camp). location(hut). location(lake). location(peak). location(kitchen). location(forge).
-at(frost, camp). at(pyro, camp).
+at(player, camp). at(pyro, camp).
 at(gob, hut). at(tower, peak).
 
 locationCanApplyTag(lake, wet).
 locationCanApplyTag(kitchen, oily).
 
-hasSkill(frost, iceBlast). skillAppliesTag(iceBlast, stun).
+hasSkill(player, iceBlast). skillAppliesTag(iceBlast, stun).
 hasSkill(pyro, fireball). skillAppliesTag(fireball, fire). skillHasTag(fireball, slow).
 hasSkill(tower, lightning). skillAppliesTag(lightning, electrocute).
 canGetSkillAtLocation(forge, fireball).
