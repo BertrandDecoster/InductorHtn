@@ -1,0 +1,8 @@
+% defeat - Goal: an enemy is out of the fight. A menu of strategies, one plan per strategy that works.
+% Depends on: wet_and_freeze, oil_and_burn. The location combo each one lands defeats the enemy.
+
+% === Signatures (for the TYP001 linter) ===
+signature(defeat, [agent]).
+
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndFreeze(?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndBurn(?t)).

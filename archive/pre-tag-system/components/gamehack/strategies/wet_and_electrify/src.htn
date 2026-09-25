@@ -1,0 +1,10 @@
+% wet_and_electrify - wet, then electrified.
+% Depends on: gh_tags (applyTag)
+
+% === Signatures (for TYP001 linter) ===
+signature(wetAndElectrify, [agent]).
+
+% Wet, then electrified.
+wetAndElectrify(?t) :-
+    if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrified))),
+    do(applyTag(wet, ?t), applyTag(electrified, ?t)).

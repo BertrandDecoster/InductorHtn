@@ -1,0 +1,26 @@
+{
+  "name": "stun_and_slow",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Two companions: stunned while a slow skill lands",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_skills"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:29:59.880175"
+  },
+  "provides": [
+    "opSynchronize/2",
+    "stunAndSlow/1"
+  ],
+  "requires": [
+    "prepareToUseSkill/3",
+    "useSkillOnTarget/3"
+  ]
+}

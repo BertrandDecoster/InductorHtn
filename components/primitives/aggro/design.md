@@ -2,7 +2,9 @@
 
 ## Purpose
 
-Manage enemy threat (aggro) targeting and following behavior. When an enemy has aggro on a target, they will follow that target. This enables tactics like luring enemies to specific locations.
+An enemy with `hasAggro(?e, ?a)` is after `?a` and follows it (locomotion's
+`enemiesFollow`). A lurer takes an enemy's aggro and walks it somewhere. The caller chooses the
+lurer: any companion, bound in the caller's `if()`.
 
 ## Layer
 
@@ -10,129 +12,59 @@ primitive
 
 ## Dependencies
 
-- `primitives/locomotion` - For enemy movement when following targets
-
-## Operators
-
-| Operator | Description |
-|----------|-------------|
-| `opGetAggro(?enemy)` | Enemy gains aggro on player |
-| `opLoseAggro(?enemy)` | Enemy loses aggro |
+- `primitives/locomotion`
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `getAggro(?enemy)` | Gain aggro if not already have it |
-| `loseAggro(?enemy)` | Lose aggro if currently have it |
-| `enemyFollows(?enemy, ?target)` | Enemy moves to target's location |
-| `lureToRoom(?enemy, ?targetRoom)` | Composite: player moves, gets aggro, enemy follows |
+| `getAggro(?e, ?a)` | `?e` is after `?a`: already (`opTargetAlreadyAggroed`), switched from another target, or for the first time |
+| `bringEnemyTo(?lurer, ?e, ?l)` | the lurer walks to `?e`, takes its aggro and walks to `?l`; `?e` follows. `opEnemyAlreadyAtLocation` if it is there |
+
+## Operators
+
+| Operator | Effect |
+|----------|--------|
+| `opAggro(?e, ?a)` | adds `hasAggro(?e, ?a)` |
+| `opRemoveAggro(?e, ?a)` | removes it |
+| `opTargetAlreadyAggroed`, `opEnemyAlreadyAtLocation` | already true (no state change) |
 
 ## Required Facts
 
-| Fact | Description |
-|------|-------------|
-| `hasAggro(?enemy, ?target)` | Enemy is targeting this entity |
-| `at(?entity, ?room)` | Entity location (from locomotion) |
-| `connected(?from, ?to)` | Room connections (from locomotion) |
-
-## Parameters
-
-No configurable parameters.
+`enemy(?e)`, `location(?l)`, `at(?x, ?l)`, optionally `hasAggro(?e, ?a)`, `static(?x)`.
 
 ## Examples
 
-### Example 1: Gain aggro
+### Example 1: First aggro
 
-**Given:**
-- Enemy has no aggro
+**When:** `getAggro(orc, hero)` with no aggro
+**Then:** `opAggro(orc, hero)`
 
-**When:**
-- `getAggro(enemy1)`
+### Example 2: Already after that target
 
-**Then:**
-- Plan contains: `opGetAggro(enemy1)`
-- Final state has: `hasAggro(enemy1, player)`
+**Given:** `hasAggro(orc, hero)`
+**Then:** `getAggro(orc, hero)` is `opTargetAlreadyAggroed(orc, hero)`
 
-### Example 2: Already has aggro (no-op)
+### Example 3: Switching target
 
-**Given:**
-- `hasAggro(enemy1, player)`
+**Given:** `hasAggro(orc, other)`
+**Then:** `getAggro(orc, hero)` is `opRemoveAggro(orc, other), opAggro(orc, hero)`
 
-**When:**
-- `getAggro(enemy1)`
+### Example 4: Lure an enemy to a location
 
-**Then:**
-- Plan contains: empty (no operators)
-- Final state has: `hasAggro(enemy1, player)`
+**Given:** `at(hero, a)`, `at(orc, b)`
+**When:** `bringEnemyTo(hero, orc, c)`
+**Then:** `opMoveTo(hero, a, b), opAggro(orc, hero), opMoveTo(hero, b, c), opAggroMoveTo(orc, b, c)`
 
-### Example 3: Enemy follows to different room
+### Example 5: Already there, or can't move
 
-**Given:**
-- `hasAggro(enemy1, player)`
-- `at(player, roomB)`
-- `at(enemy1, roomA)`
-- `connected(roomA, roomB)`
-
-**When:**
-- `enemyFollows(enemy1, player)`
-
-**Then:**
-- Plan contains: `opMoveTo(enemy1, roomA, roomB)`
-- Final state has: `at(enemy1, roomB)`
-
-### Example 4: Lure enemy to room
-
-**Given:**
-- `at(player, roomA)`
-- `at(enemy1, roomA)`
-- `connected(roomA, roomB)`
-
-**When:**
-- `lureToRoom(enemy1, roomB)`
-
-**Then:**
-- Plan contains player and enemy movement plus aggro
-- Final state has: `at(player, roomB)`, `at(enemy1, roomB)`, `hasAggro(enemy1, player)`
-
-### Example 5: Lose aggro
-
-**Given:**
-- `hasAggro(enemy1, player)`
-
-**When:**
-- `loseAggro(enemy1)`
-
-**Then:**
-- Plan contains: `opLoseAggro(enemy1)`
-- Final state does not have: `hasAggro(enemy1, player)`
-
-### Example 6: Lose aggro when none (no-op)
-
-**Given:**
-- Enemy has no aggro
-
-**When:**
-- `loseAggro(enemy1)`
-
-**Then:**
-- Plan contains: empty (no operators)
-
-### Example 7: Enemy already in same room as player
-
-**Given:**
-- `hasAggro(enemy1, player)`, `at(player, roomA)`, `at(enemy1, roomA)`
-
-**When:**
-- `enemyFollows(enemy1, player)`
-
-**Then:**
-- Plan contains: empty (no movement needed)
+**Then:** `bringEnemyTo(hero, orc, b)` is `opEnemyAlreadyAtLocation(orc, b)`; a static enemy
+elsewhere has no plan.
 
 ## Properties
 
-| ID | Property | Description |
-|----|----------|-------------|
-| P1 | Single target | An enemy can only have aggro on one target at a time |
-| P2 | Following requires aggro | enemyFollows only moves if hasAggro exists |
-| P3 | Lure is composite | lureToRoom combines player move + aggro + enemy follow |
+### P1: The lured enemy ends at the destination, with the lurer
+
+### P2: One target at a time
+
+After `getAggro(orc, hero)`, `orc` has aggro on `hero` only.

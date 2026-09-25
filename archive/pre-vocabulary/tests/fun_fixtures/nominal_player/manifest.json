@@ -1,0 +1,10 @@
+{
+  "name": "fixture_nominal_player",
+  "version": "1.0.0",
+  "layer": "level",
+  "description": "Calibration fixture: the player is mentioned by every plan but acts in none - a no-op and being someone else's target are not agency. See docs/FUN_METRICS.md section 7.",
+  "dependencies": [],
+  "certified": false,
+  "provides": [],
+  "requires": []
+}

@@ -1,0 +1,23 @@
+{
+  "name": "gh_movement",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "One-step movement for GameHack domains; enemies after the mover follow",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:29:57.229935"
+  },
+  "provides": [
+    "enemiesFollow/3",
+    "goToLocation/2",
+    "goToSameLocation/2",
+    "opAggroMoveTo/3",
+    "opMoveTo/3",
+    "opStayInLocation/1"
+  ],
+  "requires": []
+}

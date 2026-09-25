@@ -1,0 +1,25 @@
+{
+  "name": "locomotion",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "One-step movement: agents walk, enemies follow, agents get pushed",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T19:00:38.386734"
+  },
+  "provides": [
+    "goToLocation/2",
+    "goToSameLocation/2",
+    "enemiesFollow/3",
+    "forceMove/2",
+    "opMoveTo/3",
+    "opAggroMoveTo/3",
+    "opForceMove/3",
+    "opStayInLocation/1"
+  ],
+  "requires": []
+}

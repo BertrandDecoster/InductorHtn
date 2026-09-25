@@ -1,0 +1,97 @@
+% GameHack GH7 Level: GH7-style world state
+% Two allies with combat skills (companionI: iceBlast, companionF: fireball)
+% Both stunAndSlowSkill and wetAndElectrocute strategies viable
+
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (characters: player, allies, enemies)
+type(agent, player).
+type(agent, companionI).
+type(agent, companionF).
+type(agent, gob).
+type(agent, mimic).
+type(agent, electricityElemental).
+type(agent, teslaTower).
+
+% Locations (named positions in the world)
+type(location, room).
+type(location, inn).
+type(location, hut).
+type(location, mountain).
+type(location, lake).
+type(location, sea).
+type(location, volcano).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrocute).
+type(tag, clean).
+type(tag, ice).
+type(tag, fire).
+type(tag, stun).
+type(tag, slow).
+
+% Skills (abilities)
+type(skill, iceBlastSkill).
+type(skill, fireballSkill).
+type(skill, lightningSkill).
+type(skill, waterSkill).
+
+% === Agents ===
+agent(player).
+agent(companionI).
+agent(companionF).
+agent(gob).
+
+ally(player).
+ally(companionI).
+ally(companionF).
+enemy(gob).
+enemy(mimic).
+enemy(electricityElemental).
+enemy(teslaTower).
+
+% === Positions ===
+at(player, room).
+at(companionI, inn).
+at(companionF, inn).
+at(mimic, room).
+at(gob, hut).
+at(electricityElemental, mountain).
+at(teslaTower, lake).
+
+% === Locations ===
+location(room).
+location(inn).
+location(hut).
+location(mountain).
+location(lake).
+location(sea).
+location(volcano).
+
+% === Environment ===
+locationCanApplyTag(lake, wet).
+
+immune(electricityElemental, electrocute).
+
+static(teslaTower).
+
+% === Skills ===
+hasSkill(companionI, iceBlastSkill).
+hasSkill(companionF, fireballSkill).
+hasSkill(teslaTower, lightningSkill).
+
+skillHasTag(fireballSkill, slow).
+
+skillAppliesTag(iceBlastSkill, stun).
+skillAppliesTag(fireballSkill, fire).
+skillAppliesTag(lightningSkill, electrocute).
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(waterSkill, clean).
+
+canGetSkillAtLocation(sea, waterSkill).
+canGetSkillAtLocation(mountain, iceBlastSkill).
+canGetSkillAtLocation(volcano, fireballSkill).
+
+% === Level Goal ===
+goals(planToDamage(gob)).

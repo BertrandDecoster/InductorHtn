@@ -2,16 +2,17 @@
   "name": "gh_movement",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "Direct location-to-location movement for GameHack domains",
+  "description": "One-step movement for GameHack domains; enemies after the mover follow",
   "dependencies": [],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-04-20T23:34:13.508180"
+    "last_checked": "2026-09-25T20:53:29.546174"
   },
   "provides": [
+    "enemiesFollow/3",
     "goToLocation/2",
     "goToSameLocation/2",
     "opAggroMoveTo/3",

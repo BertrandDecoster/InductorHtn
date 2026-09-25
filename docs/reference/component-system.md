@@ -14,7 +14,7 @@ Reusable component library for building puzzle game HTN rulesets.
 │  - Multiple strategies per goal                 │
 │  - HTN methods with if() selecting strategy     │
 ├─────────────────────────────────────────────────┤
-│  STRATEGIES (the_burn, the_slipstream, ...)    │
+│  STRATEGIES (oil_and_burn, wet_and_freeze, ...)│
 │  - Named tactical patterns                      │
 │  - Compose primitive operations                 │
 ├─────────────────────────────────────────────────┤
@@ -37,11 +37,14 @@ components/
     tags/
     aggro/
   strategies/
-    the_burn/
-    the_slipstream/
+    oil_and_burn/
+    wet_and_freeze/
   goals/
-    defeat_enemy/
-    clear_room/
+    defeat/
+    clear_location/
+  challenges/
+    door/
+  gamehack/          # a second tree: primitives, actions, strategies, goals
 
 levels/
   puzzle1/
@@ -161,11 +164,10 @@ constants.
 
 The puzzle1 path (`components/primitives/`, `components/strategies/`,
 `components/goals/`) and the gamehack path (`components/gamehack/`) are
-**separate type namespaces** by design. Both declare `signature(opMoveTo,
-...)` with different argument types (`entity`/`room` vs `agent`/`location`)
-to match their respective domain shapes. They are not meant to co-assemble
-into a single level; if a future level depends on both, rename the
-gamehack operator first to avoid the duplicate-signature collision.
+**separate trees**. Both use the words of `docs/authoring/vocabulary.md` and
+define some of the same verbs (`goToLocation`, `bringEnemyTo`, `opMoveTo`), so
+they are not meant to co-assemble into a single level: a level depends on one
+tree.
 
 Example fixtures live under `Examples/ErrorTests/typed_arg_swapped.htn` and
 `Examples/ErrorTests/typed_arg_untyped_constant.htn`. Example annotations
@@ -194,7 +196,7 @@ def test_property_p2_no_double_tags(self):        # Matches Property P2
 ### Composition Pattern
 - Components loaded via `HtnCompile()` calls (incremental). The planner accumulates rules from each call.
 - `load_component` reads `manifest.json` dependencies and recursively loads them first, then compiles the component's own `src.htn`. Order matters: higher layers reference methods/operators defined in lower layers.
-- Higher-layer files are very thin (often 2-5 lines of HTN). A strategy might just be `if(enemy(?t)), do(applyTag(wet, ?t), applyTag(electrocute, ?t)).` — all the actual logic lives in the primitives it composes. Goals are even thinner: just method alternatives selecting between strategies.
+- Higher-layer files are very thin (often 2-5 lines of HTN). A strategy might just be `if(enemy(?t)), do(applyTag(wet, ?t), applyTag(electrified, ?t)).` — all the actual logic lives in the primitives it composes. Goals are even thinner: just method alternatives selecting between strategies.
 - No preprocessor - parameters are facts
 
 ### Parameter System
@@ -202,15 +204,11 @@ def test_property_p2_no_double_tags(self):        # Matches Property P2
 - Example: `dashDistance(3).` instead of `#define DASH_DISTANCE 3`
 - Works with Unreal Engine (C++ only, no Python runtime)
 
-### Tag System
-- Tags represent status effects: `hasTag(?entity, burning)`
-- Explicit combination rules: `tagCombines(burning, wet, steam)`
-- Room tags: `roomHasTag(?room, frozen)`
-
-### Aggro System
-- Binary: `hasAggro(?enemy, player)` or not
-- Enemies follow their aggro target
-- Used for luring enemies into hazards
+### Words
+The facts, verbs and operators are the ones in
+[`../authoring/vocabulary.md`](../authoring/vocabulary.md): `hasTag(?agent, burning)`,
+`locationCanApplyTag(?l, oily)`, `hasAggro(?enemy, ?target)` (enemies follow their target;
+`bringEnemyTo` lures them), `tagCombines(wet, electrified, stunned)`.
 
 ## How to write the rules
 
@@ -224,8 +222,8 @@ Replay scenarios from design.md:
 def test_example_1_slide_through_corridor(self):
     """From design.md Example 1"""
     self.set_state([...])
-    self.assert_plan("theSlipstream(enemy1).", contains=["opMoveTo"])
-    self.assert_state_after("theSlipstream(enemy1).", has=["hasTag(enemy1,burning)"])
+    self.assert_plan("wetAndFreeze(enemy1).", contains=["opMoveTo"])
+    self.assert_state_after("wetAndFreeze(enemy1).", has=["hasTag(enemy1,stunned)"])
 ```
 
 ### Property Tests
@@ -233,7 +231,7 @@ Verify invariants hold:
 ```python
 def test_property_p1_enemy_relocated(self):
     """P1: Enemy ends up in hazard room."""
-    self.run_goal("theSlipstream(enemy1)")
+    self.run_goal("wetAndFreeze(enemy1)")
     state = self.get_state()
     assert any("at(enemy1,roomB)" in f for f in state)
 ```
@@ -257,8 +255,8 @@ suite.restore_state()    # Restore from snapshot
 
 # Design alternative testing
 suite.assert_plan_matches_any("goal.", [
-    {"contains": ["theBurn"], "not_contains": ["theSlipstream"]},  # Plan A
-    {"contains": ["theSlipstream"]},                                # Plan B
+    {"contains": ["oilAndBurn"], "not_contains": ["wetAndFreeze"]},  # Plan A
+    {"contains": ["wetAndFreeze"]},                                # Plan B
 ])
 
 # Plan complexity bounds
@@ -269,51 +267,55 @@ suite.assert_plan_complexity("goal.", min_operators=2, max_operators=10)
 
 | Layer | Prefix | Examples |
 |-------|--------|----------|
-| Goals | (none) | `defeatEnemy`, `clearRoom` |
-| Strategies | (none) | `theBurn`, `theSlipstream` |
-| Actions | (none) | `applyTag`, `lureToRoom` |
-| Triggers | `trigger` | `triggerBurnOil` |
-| Operators | `op` | `opMoveTo`, `opApplyTag` |
+| Goals | (none) | `defeat`, `clearLocation` |
+| Strategies | (none) | `wetAndFreeze`, `oilAndBurn` |
+| Verbs | (none) | `applyTag`, `bringEnemyTo` |
+| Operators | `op` | `opMoveTo`, `opApplyTag`; "already true" no-ops `opStayInLocation`, `opTagAlreadyOnTarget` |
 
 ## Current Components
 
+Both trees use the words and the tag system of `docs/authoring/vocabulary.md`: four location
+tags, three location combos, `vulnerableToLocationCombo`. The earlier versions are in
+`archive/pre-vocabulary/` and `archive/pre-tag-system/`.
+
 ### Primitives
-- **locomotion**: `opMoveTo`, `moveTo` (1-3 hop), `canReach`
-- **tags**: `opApplyTag`, `opRemoveTag`, `applyTag` (with combinations)
-- **aggro**: `opGetAggro`, `opLoseAggro`, `lureToRoom`, `enemyFollows`
+- **locomotion**: `goToLocation`, `goToSameLocation` (one step), `enemiesFollow`
+- **tags**: `landSkillTag` (the location combos), `landTag`, `tagEveryoneAt`, `defeatVulnerable`, `defeatVulnerableAt`; the `locationCombo` facts
+- **aggro**: `getAggro`, `bringEnemyTo`
+- **skills**: `prepareToUseSkill`, `getSkillFrom` (skills granted by objects), `useSkillOnTarget`, `applySkillTags`
 
 ### Strategies
-- **the_burn**: Lure to oil room, ignite → burning tag
-- **the_slipstream**: Freeze path, push into hazard → hazard's tag
+- **oil_and_burn**: a lurer brings the enemy onto oil, a second companion burns it there
+- **wet_and_freeze**: a lurer brings the enemy into water or onto ice, a second companion chills it there
 
 ### Goals
-- **defeat_enemy**: Select strategy based on vulnerability + available hazards
-- **clear_room**: Defeat all enemies in room (allOf)
+- **defeat**: a menu of wetAndFreeze and oilAndBurn
+- **clear_location**: every enemy at a location is defeated (`allOf`)
+
+### Challenges
+- **door**: `unlockDoor` with one companion on the single plate that opens it
 
 ### Levels
-- **puzzle1**: "The Grease Trap" (old vocabulary) - two guards, theBurn + theSlipstream
+- **puzzle1**: "The Grease Trap" - two guards, one burnt on oil, one frozen in water
 
 ### GameHack Components (`gamehack/`)
 
-Separate namespace for combat game domains (direct location movement, skill-based tags, multi-agent aggro).
-
 #### Primitives
-- **gh_movement**: `opMoveTo`, `goToLocation`, `goToSameLocation` (direct, no room connections)
-- **gh_tags**: `opApplyTag`, `applyTag`, `useSkillOnTarget`, `applySkillTags_L_ApplyTag` (skill→tag mapping, anyOf for multi-tag)
-- **gh_aggro**: `opAggro`, `aggroTarget`, `bringMobToLocation`, `bringMobsTogether` (lure via aggro chain)
-- **gh_skills**: `opSwapSkill`, `prepareToUseSkill`, `getSkillFromLocation` (skill acquisition at locations)
-
-#### Actions
-- **gh_tag_application**: 3-path `applyTagNotPresent` dispatcher (ally skill, location, mob skill)
+- **gh_movement**: `goToLocation`, `goToSameLocation`, `enemiesFollow` (one step)
+- **gh_tags**: `useSkillOnTarget`, `applySkillTags`, `landSkillTag` and the landing verbs (as in `tags`)
+- **gh_aggro**: `getAggro`, `bringEnemyTo`
+- **gh_skills**: `prepareToUseSkill`, `getSkillFrom` (skills granted by objects)
+- **gh_doors**: `unlockDoor` with two companions on two plates (`opSynchronizeOnPlates`)
 
 #### Strategies
-- **wet_and_electrocute**: Sequential wet+electrocute combo
-- **stun_and_slow_skill**: Simultaneous two-ally stun+slow with `opSynchronize`
-- **stun_and_burn**: Sequential ice+fire (documented failure without skills)
+- **wet_and_freeze**, **oil_and_burn**: as above
+- **stun_and_slow**: two companions, a stun and a slow skill together, with `opSynchronize`
 
 #### Goals
-- **plan_to_damage**: Select between stunAndSlowSkill and wetAndElectrocute
+- **defeat**: a menu of wetAndFreeze, oilAndBurn and stunAndSlow
+- **complete_toy_level**: unlock a door, then defeat an enemy
 
 #### Levels
-- **gamehack_gh4**: GH4-style world, only wetAndElectrocute viable
-- **gamehack_gh7**: GH7-style world, both strategies viable
+- **gamehack_gh4**: GH4-style world, only wetAndFreeze viable
+- **gamehack_gh7**: GH7-style world, all three strategies viable
+- **gamehack_multipath**, **gamehack_mvp**: a larger world, and the smallest one

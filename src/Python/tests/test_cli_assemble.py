@@ -152,9 +152,9 @@ class TestDependencyResolution:
         assert len(headers) > 0, f"No component sections found in {level}"
 
     def test_gamehack_mvp_transitively_includes_gh_aggro(self, tmp_path):
-        """gamehack_mvp's manifest does NOT declare gh_aggro directly, but its
-        plan_to_damage goal declares stun_and_burn as a fallback strategy,
-        which depends on gh_aggro. Transitive resolution must pull it in."""
+        """gamehack_mvp's manifest declares only the defeat goal, whose
+        strategies (wet_and_freeze, oil_and_burn) depend on gh_aggro.
+        Transitive resolution must pull it in."""
         # Confirm gamehack_mvp's manifest doesn't list gh_aggro itself.
         import json
         manifest_path = os.path.join(

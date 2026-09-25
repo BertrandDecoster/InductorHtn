@@ -1,85 +1,87 @@
 """Tests for gamehack_mvp level."""
 
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src/Python")))
 
 from htn_test_framework import HtnTestSuite
+from indhtnpy import findAllPlansResultToPrologStringList
+
+COMPANIONS = ("player", "frost")
+PLAN = ("opStayInLocation(player), opAggro(gob, player), opMoveTo(player, room, pool), opAggroMoveTo(gob, room, pool), "
+        "opMoveTo(frost, room, pool), opUseSkill(frost, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)")
 
 
 class GamehackMvpTest(HtnTestSuite):
     """Test suite for gamehack_mvp level."""
 
     def setup(self):
-        """Load MVP components and level."""
-        self.load_component("gamehack/primitives/gh_movement", reset_first=True)
-        self.load_component("gamehack/primitives/gh_tags", reset_first=False)
-        self.load_component("gamehack/primitives/gh_skills", reset_first=False)
-        self.load_component("gamehack/actions/gh_tag_application", reset_first=False)
-        self.load_component("gamehack/strategies/stun_and_slow_skill", reset_first=False)
-        self.load_component("gamehack/strategies/wet_and_electrocute", reset_first=False)
-        self.load_component("gamehack/goals/plan_to_damage", reset_first=False)
-        self.verify_contracts()
+        """Load the defeat goal (and every component it depends on), then the level."""
+        self.load_component("gamehack/goals/defeat")
         self.load_level("levels/gamehack_mvp")
 
     def load_level(self, level_path):
         """Load a level's HTN file."""
-        base_path = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), "../.."
-        ))
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
         level_file = os.path.join(base_path, level_path, "level.htn")
-
-        with open(level_file, "r") as f:
+        with open(level_file, "r", encoding="utf-8") as f:
             content = f.read()
-
         error = self._planner.HtnCompileCustomVariables(content)
         if error:
             raise RuntimeError(f"Failed to compile level: {error}")
+
+    def _plans(self, goal):
+        """Every plan for the goal, as strings (empty if none)."""
+        self._reload_file()
+        error, result = self._planner.FindAllPlansCustomVariables(goal)
+        assert error is None, f"Planning error: {error}"
+        solutions = json.loads(result)
+        if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+            return []
+        return findAllPlansResultToPrologStringList(result)
+
+    def _assert_count(self, goal, n):
+        plans = self._plans(goal)
+        assert len(plans) == n, f"{goal}: expected {n} plans, got {len(plans)}"
+        assert len(plans) == len(set(plans)), f"{goal}: duplicate plans"
+        return plans
+
+    def test_property_p3_two_companions(self):
+        """Every plan ends with gob dead, and two different companions act in it."""
+        plans = self._plans("defeat(gob).")
+        assert plans, "expected plans"
+        for p in plans:
+            assert p.endswith("opApplyTag(dead, gob)"), p
+            actors = {c for c in COMPANIONS
+                      if f"opMoveTo({c}," in p or f"opUseSkill({c}," in p or f"opAggro(gob, {c})" in p
+                      or f"opStayInLocation({c})" in p}
+            assert len(actors) >= 2, f"one companion only: {p}"
 
     # =========================================================================
     # Example Tests
     # =========================================================================
 
-    def test_example_1_plan_to_damage_succeeds(self):
-        """Example 1: planToDamage(gob) emits both opApplyTag operators."""
-        self.assert_plan("planToDamage(gob).",
-            contains=["opApplyTag(wet, gob)", "opApplyTag(electrocute, gob)"])
-
-    def test_example_2_wet_via_water_skill(self):
-        """Example 2: applyTag(wet, gob) uses player's waterSkill."""
-        self.assert_plan("applyTag(wet, gob).",
-            contains=["opApplyTag(wet, gob)"])
-
-    def test_example_3_electrocute_via_lightning_skill(self):
-        """Example 3: applyTag(electrocute, gob) uses player's lightningSkill."""
-        self.assert_plan("applyTag(electrocute, gob).",
-            contains=["opApplyTag(electrocute, gob)"])
+    def test_example_1_defeat_has_one_plan(self):
+        """Example 1: one plan: the player lures gob into the pool, frost chills it there."""
+        self.assert_plan_set("defeat(gob).", [PLAN])
 
     # =========================================================================
     # Property Tests
     # =========================================================================
 
-    def test_property_p1_no_stun_and_slow(self):
-        """P1: stunAndSlowSkill precondition fails -> no opSynchronize in plan."""
-        self.assert_plan("planToDamage(gob).",
-            not_contains=["opSynchronize"])
+    def test_property_p1_only_wet_and_freeze(self):
+        """P1: no oil and no stun skill: only wetAndFreeze."""
+        self._assert_count("oilAndBurn(gob).", 0)
+        self._assert_count("stunAndSlow(gob).", 0)
 
-    def test_property_p2_both_tags_applied(self):
-        """P2: After planToDamage(gob), gob has both wet and electrocute tags."""
-        self.run_goal("planToDamage(gob)")
+    def test_property_p2_tags_applied(self):
+        """P2: After defeat(gob), gob is stunned and dead."""
+        self.run_goal("defeat(gob)")
         state = self.get_state()
-
-        has_wet = any("hasTag(gob,wet)" in f for f in state)
-        has_electrocute = any("hasTag(gob,electrocute)" in f for f in state)
-
-        assert has_wet, "P2 violated: gob should have wet tag"
-        assert has_electrocute, "P2 violated: gob should have electrocute tag"
-
-    def test_property_p3_no_movement(self):
-        """P3: Ally and target co-located -> no opMoveTo operators in plan."""
-        self.assert_plan("planToDamage(gob).",
-            not_contains=["opMoveTo", "opAggroMoveTo"])
+        for tag in ("stunned", "dead"):
+            assert any(f"hasTag(gob,{tag})" in f for f in state), f"P2 violated: gob should have {tag}"
 
 
 def run_tests():

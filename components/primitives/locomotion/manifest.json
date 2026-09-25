@@ -2,13 +2,22 @@
   "name": "locomotion",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "High-level room-to-room movement for HTN planning",
+  "description": "One-step movement: agents walk, enemies after them follow",
   "dependencies": [],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2025-12-25T23:24:45.879563"
-  }
+    "last_checked": "2026-09-25T20:49:36.078666"
+  },
+  "provides": [
+    "goToLocation/2",
+    "goToSameLocation/2",
+    "enemiesFollow/3",
+    "opMoveTo/3",
+    "opAggroMoveTo/3",
+    "opStayInLocation/1"
+  ],
+  "requires": []
 }

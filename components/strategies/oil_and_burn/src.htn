@@ -1,0 +1,18 @@
+% oil_and_burn - Strategy: a lurer brings an enemy onto oil; a second companion sets it burning there.
+% Depends on: aggro (bringEnemyTo), skills (prepareToUseSkill, useSkillOnTarget).
+
+% === Signatures (for the TYP001 linter) ===
+signature(oilAndBurn, [agent]).
+
+% A lurer brings ?t onto oil; a second companion sets it burning there.
+oilAndBurn(?t) :-
+    if(enemy(?t), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning), not(at(?t, ?l)),
+       skillAppliesTag(?fire, burning),
+       companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
+    do(bringEnemyTo(?lurer, ?t, ?l),
+       prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
+% Already standing on the oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
+oilAndBurn(?t) :-
+    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning),
+       skillAppliesTag(?fire, burning), companion(?caster)),
+    do(prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).

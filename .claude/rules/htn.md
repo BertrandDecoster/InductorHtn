@@ -16,9 +16,9 @@ the rubric, the patterns and the checks.
 - An effect or reaction engine that the strategies go through is slop.
 - Invented jargon is slop. Use plain game words, and few of them.
 
-**Vocabulary** (`docs/authoring/vocabulary.md`): one word per concept (`ally`, `enemy`, `at`,
-`hasSkill`, `skillAppliesTag`, `hasTag`, `immune`, `locationCanApplyTag`, `aggro`). Never coin a
-synonym; a concept that isn't listed is a question for the owner. The reference game ruleset is
+**Vocabulary** (`docs/authoring/vocabulary.md`): one word per concept (`companion`, `enemy`,
+`at`, `hasSkill`, `skillAppliesTag`, `hasTag`, `immune`, `locationCanApplyTag`, `hasAggro`). Never
+coin a synonym; a concept that isn't listed is a question for the owner. The reference game ruleset is
 `Examples/Combos.htn`.
 
 **Dialect traps** (`docs/reference/language.md` explains and tests each one):

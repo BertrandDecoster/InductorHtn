@@ -1,124 +1,180 @@
-% Combos: every way the allies can take an enemy out of the fight.
+% Combos: every way two companions can take an enemy out of the fight.
 
 % =============================================================================
 % Goal: a menu of strategies, one plan per strategy that works
 % =============================================================================
 
-defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndElectrocute(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndFreeze(?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndBurn(?t)).
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), opApplyTag(dead, ?t)).
-defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndFire(?t), opApplyTag(dead, ?t)).
 
 % =============================================================================
 % Strategies: if() says what makes it possible, do() lists the states to reach
 % =============================================================================
 
-% Wet, then electrocuted.
-wetAndElectrocute(?t) :-
-    if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrocute))),
-    do(applyTag(wet, ?t), applyTag(electrocute, ?t)).
+% A lurer brings ?t into water or onto ice; a second companion chills it there.
+wetAndFreeze(?t) :-
+    if(enemy(?t), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled), not(at(?t, ?l)),
+       skillAppliesTag(?cold, chilled),
+       companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
+    do(bringEnemyTo(?lurer, ?t, ?l),
+       prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
+% Already standing there: the caster alone chills it (fine: winning a level takes more than one combo).
+wetAndFreeze(?t) :-
+    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled),
+       skillAppliesTag(?cold, chilled), companion(?caster)),
+    do(prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
 
-% Stunned and, at the same moment, hit by a second ally's slow skill.
+% A lurer brings ?t onto oil; a second companion sets it burning there.
+oilAndBurn(?t) :-
+    if(enemy(?t), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning), not(at(?t, ?l)),
+       skillAppliesTag(?fire, burning),
+       companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
+    do(bringEnemyTo(?lurer, ?t, ?l),
+       prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
+% Already standing on the oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
+oilAndBurn(?t) :-
+    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning),
+       skillAppliesTag(?fire, burning), companion(?caster)),
+    do(prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
+
+% Stunned and, at the same moment, hit by a second companion's slow skill.
 stunAndSlow(?t) :-
-    if(enemy(?t), not(immune(?t, stun)),
-       skillAppliesTag(?stun, stun), skillHasTag(?slow, slow),
-       ally(?a1), ally(?a2), \==(?a1, ?a2)),
+    if(enemy(?t), not(immune(?t, stunned)),
+       skillAppliesTag(?stun, stunned), skillHasTag(?slow, slow), \==(?stun, ?slow),
+       companion(?a1), companion(?a2), \==(?a1, ?a2)),
     do(prepareToUseSkill(?a1, ?stun, ?t), prepareToUseSkill(?a2, ?slow, ?t),
        opSynchronize(?a1, ?a2),
        useSkillOnTarget(?a1, ?stun, ?t), useSkillOnTarget(?a2, ?slow, ?t)).
-
-% Oily, then set on fire.
-oilAndFire(?t) :-
-    if(enemy(?t), not(immune(?t, oily)), not(immune(?t, fire))),
-    do(applyTag(oily, ?t), applyTag(fire, ?t)).
 
 % =============================================================================
 % Verbs: each method is one way to reach the state
 % =============================================================================
 
-% ?t has ?tag.
-applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do().
-applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(applyTagNotPresent(?tag, ?t)).
-
-% Way 1: an ally uses a skill that applies it.
-applyTagNotPresent(?tag, ?t) :- if(ally(?a), skillAppliesTag(?s, ?tag)),
-    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
-% Way 2: ?t is brought to a location that applies it.
-applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag)),
-    do(bringMobToLocation(?t, ?l), opApplyTag(?tag, ?t)).
-% Way 3: another non-ally that holds such a skill hits ?t when they meet.
-applyTagNotPresent(?tag, ?t) :- if(hasSkill(?m, ?s), skillAppliesTag(?s, ?tag), not(ally(?m)), \==(?m, ?t)),
-    do(bringMobsTogether(?t, ?m), useSkillOnTarget(?m, ?s, ?t)).
-
-% ?a holds ?s and stands with ?t: already has it, or learns it first.
+% ?a holds ?s and stands with ?t: already has it, or gets it from an object first.
 prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).
-prepareToUseSkill(?a, ?s, ?t) :- if(ally(?a), not(hasSkill(?a, ?s)), canGetSkillAtLocation(?l, ?s)),
-    do(goToLocation(?a, ?l), learnSkill(?a, ?s), goToSameLocation(?a, ?t)).
+prepareToUseSkill(?a, ?s, ?t) :- if(companion(?a), not(hasSkill(?a, ?s)), object(?o), canGetSkillFrom(?o, ?s)),
+    do(goToSameLocation(?a, ?o), getSkillFrom(?a, ?o, ?s), goToSameLocation(?a, ?t)).
 
-% Learning replaces the current skill, if any.
-learnSkill(?a, ?s) :- if(hasSkill(?a, ?old)), do(opSwapSkill(?a, ?old, ?s)).
-learnSkill(?a, ?s) :- if(not(hasSkill(?a, ?any))), do(opGetSkill(?a, ?s)).
+% ?a, standing at object ?o, learns ?s; it replaces their current skill, if any.
+getSkillFrom(?a, ?o, ?s) :- if(at(?o, ?l), at(?a, ?l), hasSkill(?a, ?old)), do(opSwapSkill(?a, ?old, ?s)).
+getSkillFrom(?a, ?o, ?s) :- if(at(?o, ?l), at(?a, ?l), not(hasSkill(?a, ?any))), do(opGetSkill(?a, ?s)).
 
-% The skill is used; its tags land on ?t.
-useSkillOnTarget(?a, ?s, ?t) :- if(), do(opUseSkill(?a, ?s, ?t), applySkillTags(?s, ?t)).
+% ?a, holding ?s and standing with ?t, uses it; each of its tags lands on ?t.
+useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do(opUseSkill(?a, ?s, ?t), applySkillTags(?s, ?t)).
 
-applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))),
-    do(opApplyTag(?tag, ?t)).
-applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag)))),
-    do().
+applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag)), do(landSkillTag(?tag, ?t)).
+applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))), do().
+
+% A skill's tag lands on ?t, and combines with the tag of the location ?t stands on.
+% Electrified in water: everyone there is electrified; the vulnerable are defeated.
+landSkillTag(electrified, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, wet)),
+    do(tagEveryoneAt(electrified, ?l), defeatVulnerableAt(wet, electrified, ?l)).
+% Burning on oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
+landSkillTag(burning, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, oil)),
+    do(opRemoveLocationTag(oil, ?l), opAddLocationTag(burning, ?l),
+       tagEveryoneAt(burning, ?l), defeatVulnerableAt(oil, burning, ?l)).
+% Chilled in water or on ice: ?t alone is stunned; if vulnerable, defeated.
+landSkillTag(chilled, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?base), locationCombo(?base, chilled)),
+    do(landTag(stunned, ?t), defeatVulnerable(?t, ?base, chilled)).
+% No combo where ?t stands: the tag just lands.
+landSkillTag(?tag, ?t) :- if(at(?t, ?l), not(locationCanApplyTag(?l, ?base), locationCombo(?base, ?tag))),
+    do(landTag(?tag, ?t)).
+
+% ?t has ?tag, unless it is immune.
+landTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).
+landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), immune(?t, ?tag)), do().
+
+% Every agent at ?l gets ?tag: companions, neutrals and enemies alike.
+tagEveryoneAt(?tag, ?l) :- allOf, if(agent(?a), at(?a, ?l)), do(landTag(?tag, ?a)).
+tagEveryoneAt(?tag, ?l) :- if(not(agent(?a), at(?a, ?l))), do().
+
+% An enemy vulnerable to this location combo is out of the fight.
+defeatVulnerable(?e, ?base, ?tag) :- if(vulnerableToLocationCombo(?e, ?base, ?tag), not(hasTag(?e, dead))), do(opApplyTag(dead, ?e)).
+defeatVulnerable(?e, ?base, ?tag) :- if(not(vulnerableToLocationCombo(?e, ?base, ?tag), not(hasTag(?e, dead)))), do().
+
+defeatVulnerableAt(?base, ?tag, ?l) :- allOf, if(enemy(?e), at(?e, ?l)), do(defeatVulnerable(?e, ?base, ?tag)).
+defeatVulnerableAt(?base, ?tag, ?l) :- if(not(enemy(?e), at(?e, ?l))), do().
 
 % ?a stands where ?t is.
 goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
 
-% ?a is at ?l; the engine finds the path. Enemies after ?a follow.
-goToLocation(?a, ?l) :- if(at(?a, ?l)), do().
+% ?a is at ?l; the engine finds the path. Living enemies after ?a follow.
+goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
 goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
     do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
 
-enemiesFollow(?a, ?from, ?l) :- allOf, if(aggro(?e, ?a), at(?e, ?from), not(static(?e))), do(opMoveTo(?e, ?from, ?l)).
-enemiesFollow(?a, ?from, ?l) :- if(not(aggro(?e, ?a), at(?e, ?from), not(static(?e)))), do().
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().
 
-% Enemy ?t is at ?l: an ally it already follows, or a new lurer, walks there.
-bringMobToLocation(?t, ?l) :- if(at(?t, ?l)), do().
-bringMobToLocation(?t, ?l) :- if(not(at(?t, ?l)), not(static(?t)), aggro(?t, ?a)),
-    do(goToSameLocation(?a, ?t), goToLocation(?a, ?l)).
-bringMobToLocation(?t, ?l) :- if(not(at(?t, ?l)), not(static(?t)), not(aggro(?t, ?any)), ally(?a)),
-    do(goToSameLocation(?a, ?t), opAggro(?t, ?a), goToLocation(?a, ?l)).
+% ?e is after ?a: already, instead of another target, or for the first time.
+getAggro(?e, ?a) :- if(hasAggro(?e, ?a)), do(opTargetAlreadyAggroed(?e, ?a)).
+getAggro(?e, ?a) :- if(hasAggro(?e, ?old), \==(?old, ?a)), do(opRemoveAggro(?e, ?old), opAggro(?e, ?a)).
+getAggro(?e, ?a) :- if(not(hasAggro(?e, ?any))), do(opAggro(?e, ?a)).
 
-% ?m1 and ?m2 share a location: whichever can move comes to the other.
-bringMobsTogether(?m1, ?m2) :- if(at(?m1, ?l), at(?m2, ?l)), do().
-bringMobsTogether(?m1, ?m2) :- if(not(static(?m1)), at(?m2, ?l), not(at(?m1, ?l))), do(bringMobToLocation(?m1, ?l)).
-bringMobsTogether(?m1, ?m2) :- if(static(?m1), at(?m1, ?l), not(at(?m2, ?l))), do(bringMobToLocation(?m2, ?l)).
+% Enemy ?e is at ?l: the lurer walks to it, takes its aggro, and walks to ?l.
+bringEnemyTo(?lurer, ?e, ?l) :- if(at(?e, ?l)), do(opEnemyAlreadyAtLocation(?e, ?l)).
+bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
+    do(goToSameLocation(?lurer, ?e), getAggro(?e, ?lurer), goToLocation(?lurer, ?l)).
 
 % =============================================================================
 % Operators: game actions
 % =============================================================================
 
 opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
 opUseSkill(?a, ?s, ?t) :- del(), add().
 opSynchronize(?a1, ?a2) :- del(), add().
 opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
-opAggro(?t, ?a) :- del(), add(aggro(?t, ?a)).
+opAddLocationTag(?tag, ?l) :- del(), add(locationCanApplyTag(?l, ?tag)).
+opRemoveLocationTag(?tag, ?l) :- del(locationCanApplyTag(?l, ?tag)), add().
+opAggro(?e, ?a) :- del(), add(hasAggro(?e, ?a)).
+opRemoveAggro(?e, ?a) :- del(hasAggro(?e, ?a)), add().
 opGetSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).
 opSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).
+
+% Already true: no state change, the plan shows it.
+opStayInLocation(?a) :- del(), add().
+opTagAlreadyOnTarget(?tag, ?t) :- del(), add().
+opTargetAlreadyAggroed(?e, ?a) :- del(), add().
+opEnemyAlreadyAtLocation(?e, ?l) :- del(), add().
+
+% =============================================================================
+% The physics: which location tag combines with which skill tag
+% =============================================================================
+
+agent(?x) :- companion(?x).
+agent(?x) :- neutral(?x).
+agent(?x) :- enemy(?x).
+
+locationCombo(wet, electrified).
+locationCombo(oil, burning).
+locationCombo(wet, chilled).
+locationCombo(ice, chilled).
 
 % =============================================================================
 % Sample world
 % =============================================================================
 
-ally(player). ally(pyro).
-enemy(gob). enemy(tower).
-static(tower).
+companion(player). companion(pyro). companion(frost).
+enemy(gob).
+object(shrine).
 
-location(camp). location(hut). location(lake). location(peak). location(kitchen). location(forge).
-at(player, camp). at(pyro, camp).
-at(gob, hut). at(tower, peak).
+location(camp). location(hut). location(lake). location(kitchen). location(forge).
+at(player, camp). at(pyro, camp). at(frost, camp).
+at(gob, hut).
+at(shrine, forge).
 
 locationCanApplyTag(lake, wet).
-locationCanApplyTag(kitchen, oily).
+locationCanApplyTag(kitchen, oil).
 
-hasSkill(player, iceBlast). skillAppliesTag(iceBlast, stun).
-hasSkill(pyro, fireball). skillAppliesTag(fireball, fire). skillHasTag(fireball, slow).
-hasSkill(tower, lightning). skillAppliesTag(lightning, electrocute).
-canGetSkillAtLocation(forge, fireball).
+hasSkill(player, iceBlastSkill). skillAppliesTag(iceBlastSkill, stunned).
+hasSkill(pyro, fireballSkill). skillAppliesTag(fireballSkill, burning). skillHasTag(fireballSkill, slow).
+hasSkill(frost, frostSkill). skillAppliesTag(frostSkill, chilled).
+canGetSkillFrom(shrine, fireballSkill).
+
+vulnerableToLocationCombo(gob, wet, chilled).
+vulnerableToLocationCombo(gob, oil, burning).
 
 goals(defeat(gob)).

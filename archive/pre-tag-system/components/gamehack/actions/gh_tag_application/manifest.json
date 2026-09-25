@@ -1,0 +1,30 @@
+{
+  "name": "gh_tag_application",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "The ways to apply a tag that isn't there yet (companion skill, location, non-companion skill)",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro",
+    "gamehack/primitives/gh_skills"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:29:59.431673"
+  },
+  "provides": [
+    "applyTagNotPresent/2"
+  ],
+  "requires": [
+    "bringAgentsTogether/3",
+    "bringEnemyTo/3",
+    "prepareToUseSkill/3",
+    "useAgentSkillToApplyTag/3",
+    "useLocationToApplyTag/3",
+    "useSkillOnTarget/3"
+  ]
+}

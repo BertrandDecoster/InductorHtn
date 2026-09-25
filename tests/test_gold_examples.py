@@ -8,38 +8,60 @@ sys.path.insert(0, os.path.join(ROOT, "src", "Python"))
 
 from htn_test_framework import HtnTestSuite  # noqa: E402
 
-LURE_FROST = "opMoveTo(player, camp, hut), opAggro(gob, player), "
-LURE_PYRO = "opMoveTo(pyro, camp, hut), opAggro(gob, pyro), "
-FIRE = "opApplyTag(fire, gob), opApplyTag(dead, gob)"
+KILL = "opApplyTag(dead, gob)"
 
-WET_AND_ELECTROCUTE = [
-    # lured to the lake (wet), then to the static tower (electrocuted); gob follows its lurer
-    LURE_FROST + "opMoveTo(player, hut, lake), opMoveTo(gob, hut, lake), opApplyTag(wet, gob), "
-    "opMoveTo(player, lake, peak), opMoveTo(gob, lake, peak), opUseSkill(tower, lightning, gob), opApplyTag(electrocute, gob), opApplyTag(dead, gob)",
-    LURE_PYRO + "opMoveTo(pyro, hut, lake), opMoveTo(gob, hut, lake), opApplyTag(wet, gob), "
-    "opMoveTo(pyro, lake, peak), opMoveTo(gob, lake, peak), opUseSkill(tower, lightning, gob), opApplyTag(electrocute, gob), opApplyTag(dead, gob)",
+
+def _lure(lurer, to):
+    return (f"opMoveTo({lurer}, camp, hut), opAggro(gob, {lurer}), "
+            f"opMoveTo({lurer}, hut, {to}), opAggroMoveTo(gob, hut, {to}), ")
+
+
+def _learn_fireball(who, old, to):
+    return (f"opMoveTo({who}, camp, forge), opSwapSkill({who}, {old}, fireballSkill), "
+            f"opMoveTo({who}, forge, {to}), ")
+
+
+def _ignite(caster, burned):
+    burns = "".join(f"opApplyTag(burning, {a}), " for a in burned)
+    return (f"opUseSkill({caster}, fireballSkill, gob), opRemoveLocationTag(oil, kitchen), "
+            f"opAddLocationTag(burning, kitchen), {burns}{KILL}")
+
+
+WET_AND_FREEZE = [
+    # a lurer brings gob into the lake; frost, a second companion, chills it there
+    _lure(lurer, "lake") + "opMoveTo(frost, camp, lake), opUseSkill(frost, frostSkill, gob), "
+    "opApplyTag(stunned, gob), " + KILL
+    for lurer in ("player", "pyro")
+]
+OIL_AND_BURN = [
+    # a lurer brings gob onto the oil; a second companion ignites it, and everyone there burns
+    _lure("player", "kitchen") + "opMoveTo(pyro, camp, kitchen), " + _ignite("pyro", ["player", "pyro", "gob"]),
+    _lure("player", "kitchen") + _learn_fireball("frost", "frostSkill", "kitchen") + _ignite("frost", ["player", "frost", "gob"]),
+    _lure("pyro", "kitchen") + _learn_fireball("player", "iceBlastSkill", "kitchen") + _ignite("player", ["player", "pyro", "gob"]),
+    _lure("pyro", "kitchen") + _learn_fireball("frost", "frostSkill", "kitchen") + _ignite("frost", ["pyro", "frost", "gob"]),
+    _lure("frost", "kitchen") + _learn_fireball("player", "iceBlastSkill", "kitchen") + _ignite("player", ["player", "frost", "gob"]),
+    _lure("frost", "kitchen") + "opMoveTo(pyro, camp, kitchen), " + _ignite("pyro", ["pyro", "frost", "gob"]),
 ]
 STUN_AND_SLOW = [
     "opMoveTo(player, camp, hut), opMoveTo(pyro, camp, hut), opSynchronize(player, pyro), "
-    "opUseSkill(player, iceBlast, gob), opApplyTag(stun, gob), opUseSkill(pyro, fireball, gob), " + FIRE,
-]
-OIL_AND_FIRE = [
-    # lured onto the kitchen's oil (oily), then set on fire: lurer x who brings the fire
-    LURE_FROST + "opMoveTo(player, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
-    "opMoveTo(player, kitchen, forge), opMoveTo(gob, kitchen, forge), opSwapSkill(player, iceBlast, fireball), "
-    "opUseSkill(player, fireball, gob), " + FIRE,
-    LURE_FROST + "opMoveTo(player, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
-    "opMoveTo(pyro, camp, kitchen), opUseSkill(pyro, fireball, gob), " + FIRE,
-    LURE_PYRO + "opMoveTo(pyro, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
-    "opMoveTo(player, camp, forge), opSwapSkill(player, iceBlast, fireball), opMoveTo(player, forge, kitchen), "
-    "opUseSkill(player, fireball, gob), " + FIRE,
-    LURE_PYRO + "opMoveTo(pyro, hut, kitchen), opMoveTo(gob, hut, kitchen), opApplyTag(oily, gob), "
-    "opUseSkill(pyro, fireball, gob), " + FIRE,
+    "opUseSkill(player, iceBlastSkill, gob), opApplyTag(stunned, gob), "
+    "opUseSkill(pyro, fireballSkill, gob), opApplyTag(burning, gob), " + KILL,
+    "opMoveTo(player, camp, hut), " + _learn_fireball("frost", "frostSkill", "hut") + "opSynchronize(player, frost), "
+    "opUseSkill(player, iceBlastSkill, gob), opApplyTag(stunned, gob), "
+    "opUseSkill(frost, fireballSkill, gob), opApplyTag(burning, gob), " + KILL,
 ]
 
 
-def _suite(extra_facts=""):
-    suite = HtnTestSuite("Examples/Combos.htn")
+def _suite(extra_facts="", drop=(), tmp_path=None):
+    path = "Examples/Combos.htn"
+    if drop:
+        source = open(os.path.join(ROOT, path), encoding="utf-8").read()
+        for fact in drop:
+            assert fact in source, fact
+            source = source.replace(fact, "")
+        path = str(tmp_path / "Combos.htn")
+        open(path, "w", encoding="utf-8").write(source)
+    suite = HtnTestSuite(path)
     if extra_facts:
         suite._planner.HtnCompileCustomVariables(extra_facts)
         suite._reload_file = lambda: None
@@ -48,16 +70,32 @@ def _suite(extra_facts=""):
 
 def test_combos_plans_for_the_sample_world():
     suite = _suite()
-    assert suite.assert_plan_set("defeat(gob).", WET_AND_ELECTROCUTE + STUN_AND_SLOW + OIL_AND_FIRE), \
+    assert suite.assert_plan_set("defeat(gob).", WET_AND_FREEZE + OIL_AND_BURN + STUN_AND_SLOW), \
         suite.results[-1].details
 
 
-def test_combos_a_fire_immune_enemy_is_not_burned():
-    # stun+slow still works: the slow skill's fire tag just doesn't land
-    stun = [p.replace("opUseSkill(pyro, fireball, gob), opApplyTag(fire, gob), ",
-                      "opUseSkill(pyro, fireball, gob), ") for p in STUN_AND_SLOW]
-    suite = _suite("immune(gob, fire).")
-    assert suite.assert_plan_set("defeat(gob).", WET_AND_ELECTROCUTE + stun), suite.results[-1].details
+def test_combos_every_plan_needs_two_companions():
+    for plan in WET_AND_FREEZE + OIL_AND_BURN + STUN_AND_SLOW:
+        actors = {c for c in ("player", "pyro", "frost") if f"opMoveTo({c}," in plan}
+        assert len(actors) >= 2, plan
+
+
+def test_combos_a_location_combo_defeats_only_the_vulnerable(tmp_path):
+    # without its vulnerabilities, gob is only defeated by the synchronized stun and slow
+    suite = _suite(drop=("vulnerableToLocationCombo(gob, wet, chilled).",
+                         "vulnerableToLocationCombo(gob, oil, burning)."), tmp_path=tmp_path)
+    assert suite.assert_plan_set("defeat(gob).", STUN_AND_SLOW), suite.results[-1].details
+
+
+def test_combos_electrified_water_hits_everyone_there():
+    # the electricity combo: every agent in the lake is electrified, the vulnerable defeated
+    suite = _suite("enemy(imp). at(imp, lake). at(gob, lake). hasSkill(zap, lightningSkill). "
+                   "skillAppliesTag(lightningSkill, electrified). companion(zap). at(zap, lake). "
+                   "vulnerableToLocationCombo(imp, wet, electrified).")
+    assert suite.assert_state_after("useSkillOnTarget(zap, lightningSkill, gob).",
+                                    has=["hasTag(gob,electrified)", "hasTag(imp,electrified)",
+                                         "hasTag(zap,electrified)", "hasTag(imp,dead)"],
+                                    not_has=["hasTag(gob,dead)"]), suite.results[-1].details
 
 
 def test_combos_a_dead_enemy_needs_no_plan():

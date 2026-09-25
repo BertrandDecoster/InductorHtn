@@ -1,9 +1,4 @@
-"""Tests for gamehack_multipath level.
-
-Proves the decomposed gamehack stack supports multiple concurrent strategies
-and all three dispatcher paths of `applyTagNotPresent`, producing many distinct
-plans for a single top-level goal.
-"""
+"""Tests for gamehack_multipath level."""
 
 import json
 import os
@@ -14,122 +9,100 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from htn_test_framework import HtnTestSuite
 from indhtnpy import findAllPlansResultToPrologStringList
 
+COMPANIONS = ("player", "companionA", "companionB", "companionC")
+
 
 class GamehackMultipathTest(HtnTestSuite):
     """Test suite for gamehack_multipath level."""
 
     def setup(self):
-        """Load all multipath components + level."""
-        self.load_component("gamehack/primitives/gh_movement", reset_first=True)
-        self.load_component("gamehack/primitives/gh_tags", reset_first=False)
-        self.load_component("gamehack/primitives/gh_aggro", reset_first=False)
-        self.load_component("gamehack/primitives/gh_skills", reset_first=False)
-        self.load_component("gamehack/actions/gh_tag_application", reset_first=False)
-        self.load_component("gamehack/strategies/wet_and_electrocute", reset_first=False)
-        self.load_component("gamehack/strategies/stun_and_slow_skill", reset_first=False)
-        self.load_component("gamehack/strategies/stun_and_burn", reset_first=False)
-        self.load_component("gamehack/goals/plan_to_damage", reset_first=False)
-        self.verify_contracts()
+        """Load the defeat goal (and every component it depends on), then the level."""
+        self.load_component("gamehack/goals/defeat")
         self.load_level("levels/gamehack_multipath")
 
     def load_level(self, level_path):
-        """Compile the level.htn into the running planner."""
+        """Load a level's HTN file."""
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
         level_file = os.path.join(base_path, level_path, "level.htn")
-        with open(level_file, "r") as f:
+        with open(level_file, "r", encoding="utf-8") as f:
             content = f.read()
         error = self._planner.HtnCompileCustomVariables(content)
         if error:
             raise RuntimeError(f"Failed to compile level: {error}")
 
+    def _plans(self, goal):
+        """Every plan for the goal, as strings (empty if none)."""
+        self._reload_file()
+        error, result = self._planner.FindAllPlansCustomVariables(goal)
+        assert error is None, f"Planning error: {error}"
+        solutions = json.loads(result)
+        if not solutions or (isinstance(solutions[0], dict) and "false" in solutions[0]):
+            return []
+        return findAllPlansResultToPrologStringList(result)
+
+    def _assert_count(self, goal, n):
+        plans = self._plans(goal)
+        assert len(plans) == n, f"{goal}: expected {n} plans, got {len(plans)}"
+        assert len(plans) == len(set(plans)), f"{goal}: duplicate plans"
+        return plans
+
+    def test_property_p5_two_companions(self):
+        """Every plan ends with gob dead, and two different companions act in it."""
+        plans = self._plans("defeat(gob).")
+        assert plans, "expected plans"
+        for p in plans:
+            assert p.endswith("opApplyTag(dead, gob)"), p
+            actors = {c for c in COMPANIONS
+                      if f"opMoveTo({c}," in p or f"opUseSkill({c}," in p or f"opAggro(gob, {c})" in p
+                      or f"opStayInLocation({c})" in p}
+            assert len(actors) >= 2, f"one companion only: {p}"
+
     # =========================================================================
     # Example Tests
     # =========================================================================
 
-    def test_example_1_wet_and_electrocute_viable(self):
-        """Example 1: at least one plan applies wet + electrocute to gob."""
-        self.assert_plan("planToDamage(gob).",
-            contains=["opApplyTag(wet, gob)", "opApplyTag(electrocute, gob)"])
+    def test_example_1_wet_and_freeze(self):
+        """Example 1: 36 wetAndFreeze plans (the lake shore, the sea or the glacier; a lurer and a chilled caster)."""
+        self._assert_count("wetAndFreeze(gob).", 36)
 
-    def test_example_2_stun_and_slow_viable(self):
-        """Example 2: at least one plan uses the synchronized two-ally strategy."""
-        self.assert_plan("planToDamage(gob).", contains=["opSynchronize"])
+    def test_example_2_stun_and_slow(self):
+        """Example 2: 12 stunAndSlow plans (two companions synchronize)."""
+        self._assert_count("stunAndSlow(gob).", 12)
 
-    def test_example_3_stun_and_burn_viable(self):
-        """Example 3: at least one plan applies ice + fire to gob."""
-        self.assert_plan("planToDamage(gob).",
-            contains=["opApplyTag(ice, gob)", "opApplyTag(fire, gob)"])
+    def test_example_3_oil_and_burn(self):
+        """Example 3: 12 oilAndBurn plans (gob lured into the refinery)."""
+        self._assert_count("oilAndBurn(gob).", 12)
 
-    def test_example_4_multiple_plans(self):
-        """Example 4: FindAllPlans returns many distinct plans (>= 10)."""
-        error, result = self._planner.FindAllPlansCustomVariables("planToDamage(gob).")
-        assert error is None, f"Planning error: {error}"
-        plans = json.loads(result)
-        # Filter out the {"false": ...} failure marker if present
-        real_plans = [p for p in plans if not (isinstance(p, dict) and "false" in p)]
-        assert len(real_plans) >= 10, f"Expected >= 10 plans, got {len(real_plans)}"
-        self._record(True, f"Example 4: found {len(real_plans)} plans")
+    def test_example_4_many_distinct_plans(self):
+        """Example 4: defeat(gob) returns 60 distinct plans (36 + 12 + 12)."""
+        self._assert_count("defeat(gob).", 60)
 
     # =========================================================================
     # Property Tests
     # =========================================================================
 
-    def test_property_p1_ally_skill_path_for_wet(self):
-        """P1: at least one plan applies wet via ally waterSkill.
+    def test_property_p1_water_and_ice(self):
+        """P1: gob is frozen in water (the lake shore, the sea) and on ice (the glacier)."""
+        self.assert_plan("wetAndFreeze(gob).", contains=[
+            "opAggroMoveTo(gob, arena, lakeShore)", "opAggroMoveTo(gob, arena, sea)", "opAggroMoveTo(gob, arena, glacier)"])
 
-        Discriminator: `opApplyTag(clean, gob)` only appears when `waterSkill`
-        is fired by an ally (it carries both `wet` and `clean`); the location
-        and mob-skill dispatcher paths for `wet` don't produce it.
-        """
-        self.assert_plan_matches_any("planToDamage(gob).", [
-            {"contains": ["opApplyTag(clean, gob)"]},
-        ])
+    def test_property_p2_held_skill(self):
+        """P2: companionA, who holds frostSkill, chills gob while another companion lures it."""
+        self.assert_plan("wetAndFreeze(gob).", contains=["opUseSkill(companionA, frostSkill, gob), opApplyTag(stunned, gob)"])
 
-    def test_property_p2_location_path_for_wet(self):
-        """P2: at least one plan applies wet by luring gob to lakeShore or sea."""
-        self.assert_plan_matches_any("planToDamage(gob).", [
-            {"contains": ["opAggroMoveTo(gob, arena, lakeShore), opApplyTag(wet, gob)"]},
-            {"contains": ["opAggroMoveTo(gob, arena, sea), opApplyTag(wet, gob)"]},
-        ])
-
-    def test_property_p3_mob_skill_path_for_electrocute(self):
-        """P3: at least one plan electrocutes gob by luring it to teslaTower's location."""
-        self.assert_plan_matches_any("planToDamage(gob).", [
-            {"contains": ["opAggroMoveTo(gob, arena, lakeShore), opApplyTag(electrocute, gob)"]},
-        ])
-
-    def test_property_p4_mob_skill_path_for_ice(self):
-        """P4: at least one plan applies ice by luring gob to glacier."""
-        self.assert_plan_matches_any("planToDamage(gob).", [
-            {"contains": ["opAggroMoveTo(gob, arena, glacier), opApplyTag(ice, gob)"]},
-        ])
-
-    def test_property_p5_state_after_wet_and_electrocute(self):
-        """P5: running wetAndElectrocute(gob) tags gob with wet and electrocute."""
-        self.run_goal("wetAndElectrocute(gob)")
-        state = self.get_state()
-        has_wet = any("hasTag(gob,wet)" in f for f in state)
-        has_elec = any("hasTag(gob,electrocute)" in f for f in state)
-        assert has_wet, f"P5 violated: gob should have wet. State: {state}"
-        assert has_elec, f"P5 violated: gob should have electrocute. State: {state}"
-        self._record(True, "P5: gob has wet and electrocute after wetAndElectrocute")
-
-    def test_property_p6_state_after_stun_and_burn(self):
-        """P6: running stunAndBurn(gob) tags gob with ice and fire."""
-        self.run_goal("stunAndBurn(gob)")
-        state = self.get_state()
-        has_ice = any("hasTag(gob,ice)" in f for f in state)
-        has_fire = any("hasTag(gob,fire)" in f for f in state)
-        assert has_ice, f"P6 violated: gob should have ice. State: {state}"
-        assert has_fire, f"P6 violated: gob should have fire. State: {state}"
-        self._record(True, "P6: gob has ice and fire after stunAndBurn")
-
-    def test_property_p7_skill_learning_in_stun_and_slow(self):
-        """P7: at least one stunAndSlowSkill plan requires learning a skill."""
-        self.assert_plan_matches_any("stunAndSlowSkill(gob).", [
+    def test_property_p3_skill_from_a_shrine(self):
+        """P3: some stunAndSlow plan gets a skill from a shrine."""
+        self.assert_plan_matches_any("stunAndSlow(gob).", [
             {"contains": ["opSwapSkill", "opSynchronize"]},
             {"contains": ["opGetSkill", "opSynchronize"]},
         ])
+
+    def test_property_p4_state_after_oil_and_burn(self):
+        """P4: oilAndBurn leaves the refinery burning and gob dead."""
+        self.run_goal("oilAndBurn(gob)")
+        state = self.get_state()
+        assert any("locationCanApplyTag(refinery,burning)" in f for f in state), f"P4 violated. State: {state}"
+        assert any("hasTag(gob,dead)" in f for f in state), f"P4 violated: gob should be dead. State: {state}"
 
 
 def run_tests():

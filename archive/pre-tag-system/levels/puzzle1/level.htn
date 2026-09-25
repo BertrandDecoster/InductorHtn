@@ -1,0 +1,51 @@
+% Puzzle 1: The Grease Trap
+% An introductory puzzle for theBurn and theSlipstream: clear the storage and the corridor,
+% then every companion reaches the exit.
+% Depends on: locomotion, tags, aggro, the_burn, the_slipstream, defeat, clear_location
+
+% === Goal ===
+
+completePuzzle :- if(), do(clearLocation(storage), clearLocation(corridor), reachExit).
+
+% Every companion reaches the exit.
+reachExit :- allOf, if(companion(?c)), do(goToLocation(?c, exit)).
+
+% === World ===
+
+%    [storage]     [generator]
+%         \           /  |
+%           [main]      |
+%             |         |
+%        [corridor]-----+
+%             |
+%          [exit]
+location(main). location(storage). location(generator). location(corridor). location(exit).
+
+linked(main, storage). linked(storage, main).
+linked(main, generator). linked(generator, main).
+linked(main, corridor). linked(corridor, main).
+linked(corridor, exit). linked(exit, corridor).
+linked(corridor, generator). linked(generator, corridor).
+
+companion(player). companion(warden). companion(arcanist).
+at(player, main). at(warden, main). at(arcanist, main).
+
+enemy(guard1). enemy(guard2).
+at(guard1, storage). at(guard2, corridor).
+vulnerableTo(guard1, burning).
+vulnerableTo(guard2, electrified).
+
+% An oil pool in the storage, a leak in the corridor, live wires in the generator room.
+locationCanApplyTag(storage, oily).
+locationCanApplyTag(corridor, wet).
+locationCanApplyTag(generator, electrified).
+
+hasSkill(player, igniteSkill). skillAppliesTag(igniteSkill, burning).
+hasSkill(arcanist, freezeSkill). skillAppliesTag(freezeSkill, frozen).
+
+% === Type Declarations (for the TYP001 linter) ===
+type(agent, player). type(agent, warden). type(agent, arcanist). type(agent, guard1). type(agent, guard2).
+type(location, main). type(location, storage). type(location, generator). type(location, corridor). type(location, exit).
+type(skill, igniteSkill). type(skill, freezeSkill).
+
+goals(completePuzzle).

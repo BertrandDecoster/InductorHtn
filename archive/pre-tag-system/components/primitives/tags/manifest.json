@@ -1,0 +1,30 @@
+{
+  "name": "tags",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Tags on agents and locations: combining, a location's tag reacting, everyone there getting it",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T19:00:39.138981"
+  },
+  "provides": [
+    "agent/1",
+    "useLocationToApplyTag/3",
+    "useSkillOnLocation/3",
+    "applySkillTagsToLocation/2",
+    "applyTagToLocation/2",
+    "applyLocationTagsToAgents/1",
+    "combineTags/1",
+    "opApplyTag/2",
+    "opRemoveTag/2",
+    "opUseSkill/3",
+    "opAddLocationTag/2",
+    "opRemoveLocationTag/2",
+    "opTagAlreadyOnTarget/2"
+  ],
+  "requires": []
+}

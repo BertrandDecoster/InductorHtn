@@ -2,13 +2,27 @@
   "name": "tags",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "Status effects system with tag combinations",
+  "description": "A skill's tag lands on an agent, with the combo of the location it stands on",
   "dependencies": [],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2025-12-26T10:17:28.774858"
-  }
+    "last_checked": "2026-09-25T20:49:36.647168"
+  },
+  "provides": [
+    "landSkillTag/2",
+    "landTag/2",
+    "tagEveryoneAt/2",
+    "defeatVulnerable/3",
+    "defeatVulnerableAt/3",
+    "agent/1",
+    "locationCombo/2",
+    "opApplyTag/2",
+    "opAddLocationTag/2",
+    "opRemoveLocationTag/2",
+    "opTagAlreadyOnTarget/2"
+  ],
+  "requires": []
 }

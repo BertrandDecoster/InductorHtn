@@ -10,14 +10,14 @@
 
 % === World ===
 enemy(golem).
-ally(player).
-ally(companionA).
-place(garden).
-place(cellar).
+companion(player).
+companion(companionA).
+location(garden).
+location(cellar).
 
 % === Operators ===
-opSoak(?a, ?t) :- del(), add(wet(?t)).
-opShock(?a, ?t) :- del(), add(dead(?t)).
+opSoak(?a, ?t) :- del(), add(hasTag(?t, wet)).
+opShock(?a, ?t) :- del(), add(hasTag(?t, dead)).
 opWander(?a, ?p) :- del(), add(visited(?a, ?p)).
 opLoiter(?a, ?p) :- del(), add(lingered(?a, ?p)).
 
@@ -27,8 +27,8 @@ defeat(?t) :- if(enemy(?t)), do(stroll(garden), soak(?t), shock(?t)).
 defeat(?t) :- if(enemy(?t)), do(linger(cellar), soak(?t), shock(?t)).
 
 soak(?t) :- if(enemy(?t)), do(opSoak(companionA, ?t)).
-shock(?t) :- if(wet(?t)), do(opShock(player, ?t)).
-stroll(?p) :- if(place(?p)), do(opWander(player, ?p)).
-linger(?p) :- if(place(?p)), do(opLoiter(player, ?p)).
+shock(?t) :- if(hasTag(?t, wet)), do(opShock(player, ?t)).
+stroll(?p) :- if(location(?p)), do(opWander(player, ?p)).
+linger(?p) :- if(location(?p)), do(opLoiter(player, ?p)).
 
 goals(defeat(golem)).

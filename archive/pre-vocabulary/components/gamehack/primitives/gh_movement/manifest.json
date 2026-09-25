@@ -1,0 +1,22 @@
+{
+  "name": "gh_movement",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Direct location-to-location movement for GameHack domains",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-04-20T23:34:13.508180"
+  },
+  "provides": [
+    "goToLocation/2",
+    "goToSameLocation/2",
+    "opAggroMoveTo/3",
+    "opMoveTo/3",
+    "opStayInLocation/1"
+  ],
+  "requires": []
+}

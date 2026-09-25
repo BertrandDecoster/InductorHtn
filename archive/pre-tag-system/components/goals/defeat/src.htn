@@ -1,0 +1,14 @@
+% defeat - Goal: an enemy is out of the fight. A menu of strategies, one plan per strategy that works.
+% Depends on: the_burn, the_slipstream. An enemy holding a tag it is weak to is out.
+
+% === Signatures (for the TYP001 linter) ===
+signature(defeat, [agent]).
+
+% It already holds a tag it is weak to (an area effect reached it).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead)), first(vulnerableTo(?t, ?tag), hasTag(?t, ?tag))),
+    do(opApplyTag(dead, ?t)).
+% Otherwise, one strategy lands a tag it is weak to.
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead)), not(vulnerableTo(?t, ?tag), hasTag(?t, ?tag))),
+    do(theBurn(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead)), not(vulnerableTo(?t, ?tag), hasTag(?t, ?tag))),
+    do(theSlipstream(?t), opApplyTag(dead, ?t)).

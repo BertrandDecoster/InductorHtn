@@ -1,0 +1,35 @@
+% locomotion - Primitive: agents walk, enemies follow, agents get pushed.
+% One step per move: the game engine finds the path (docs/authoring/vocabulary.md).
+
+% === Signatures (for the TYP001 linter) ===
+signature(goToLocation, [agent, location]).
+signature(goToSameLocation, [agent, agent]).
+signature(enemiesFollow, [agent, location, location]).
+signature(forceMove, [agent, location]).
+signature(opMoveTo, [agent, location, location]).
+signature(opAggroMoveTo, [agent, location, location]).
+signature(opForceMove, [agent, location, location]).
+signature(opStayInLocation, [agent]).
+
+% ?a is at ?l. Enemies after ?a follow.
+goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
+goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
+    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
+
+% ?a stands where ?t is.
+goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
+
+% The enemies after ?a move with it.
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)))), do().
+
+% ?x is pushed into ?l.
+forceMove(?x, ?l) :- if(location(?l), at(?x, ?from), \==(?from, ?l), not(static(?x))), do(opForceMove(?x, ?from, ?l)).
+
+% === Operators ===
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
+opForceMove(?x, ?from, ?to) :- del(at(?x, ?from)), add(at(?x, ?to)).
+
+% Already true: no state change, the plan shows it.
+opStayInLocation(?a) :- del(), add().

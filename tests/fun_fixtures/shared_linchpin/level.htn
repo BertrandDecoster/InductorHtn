@@ -15,7 +15,7 @@
 % === World ===
 enemy(gob).
 at(gob, hall).
-ally(player).
+companion(player).
 at(player, hall).
 
 % The single point of failure, laundered through a rule so it does not look
@@ -38,7 +38,7 @@ opChill(?a, ?t) :- del(), add(hasTag(?t, frozen)).
 
 opCharge(?a) :- del(), add(charged(?a)).
 opAimArc(?a, ?t) :- del(), add(aimed(?t, arc)).
-opDischarge(?a, ?t) :- del(), add(hasTag(?t, shocked)).
+opDischarge(?a, ?t) :- del(), add(hasTag(?t, electrified)).
 
 % === Three routes, one dependency ===
 defeat(?t) :- if(enemy(?t)), do(theBurn(?t)).

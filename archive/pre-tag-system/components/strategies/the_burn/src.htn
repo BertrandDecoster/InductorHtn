@@ -1,0 +1,22 @@
+% the_burn - Strategy: an enemy weak to burning stands on a floor that catches fire (oil), and a companion ignites it.
+% Depends on: locomotion, tags, aggro.
+
+% === Signatures (for the TYP001 linter) ===
+signature(theBurn, [agent]).
+
+% The enemy already stands on a floor that catches fire: a companion ignites it from where it is.
+theBurn(?e) :-
+    if(enemy(?e), vulnerableTo(?e, burning), not(immune(?e, burning)),
+       not(hasTag(?e, ?held), tagCombines(?held, burning, ?other)), not(hasTag(?e, ?held2), tagCombines(burning, ?held2, ?other2)),
+       at(?e, ?l), locationCanApplyTag(?l, ?floor), tagCombines(?floor, burning, burning),
+       companion(?igniter), hasSkill(?igniter, ?s), skillAppliesTag(?s, burning)),
+    do(useSkillOnLocation(?igniter, ?s, ?l)).
+
+% A lurer brings the enemy onto that floor, then a second companion ignites it.
+theBurn(?e) :-
+    if(enemy(?e), vulnerableTo(?e, burning), not(immune(?e, burning)),
+       not(hasTag(?e, ?held), tagCombines(?held, burning, ?other)), not(hasTag(?e, ?held2), tagCombines(burning, ?held2, ?other2)),
+       locationCanApplyTag(?l, ?floor), tagCombines(?floor, burning, burning), not(at(?e, ?l)),
+       companion(?igniter), hasSkill(?igniter, ?s), skillAppliesTag(?s, burning),
+       companion(?lurer), \==(?lurer, ?igniter)),
+    do(bringEnemyTo(?lurer, ?e, ?l), useSkillOnLocation(?igniter, ?s, ?l)).

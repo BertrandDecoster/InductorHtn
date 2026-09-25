@@ -1,0 +1,69 @@
+% FIXTURE: shared_consumable - one bomb, two walls
+%
+% Evaluating each blocker from a fresh world says the loadout {bomb, flare}
+% wins: the bomb clears the gate, and the bomb clears the wall. The encounter
+% says otherwise. There is one charge, it is spent on the gate, and nothing is
+% left for the wall. Only {bomb, rope} clears the level.
+%
+% F4 must report the encounter number as `loadout_feasibility` (1 of 3) and
+% keep the per-blocker number beside it as `loadout_feasibility_independent`
+% (2 of 3), and it must name the gap.
+
+ally(player).
+role(player, player).
+blocker(gate).
+blocker(wall).
+
+% One charge. The token is what makes the bomb single-use: the operator
+% deletes it, so a second clear(?b) via the bomb finds nothing to bind.
+charge(player, bomb, c1).
+
+% Rope only helps on the wall.
+ropeClears(wall).
+
+% Default kit so the level itself is solvable; F4 strips these and re-adds
+% the selected picks.
+hasSkill(player, bomb).
+hasSkill(player, rope).
+
+% ==========================================================================
+% Operators
+% ==========================================================================
+
+opBomb(?a, ?b, ?tok) :- del(charge(?a, bomb, ?tok)), add(cleared(?b)).
+opClimb(?a, ?b) :- del(), add(cleared(?b)).
+
+% ==========================================================================
+% Methods
+% ==========================================================================
+
+clear(?b) :-
+    if(blocker(?b), hasSkill(player, bomb), first(charge(player, bomb, ?tok))),
+    do(opBomb(player, ?b, ?tok)).
+
+clear(?b) :-
+    if(blocker(?b), hasSkill(player, rope), ropeClears(?b)),
+    do(opClimb(player, ?b)).
+
+breakOut :- if(), do(clear(gate), clear(wall)).
+
+% ==========================================================================
+% Declared choice space: pick 2 of 3 against 2 blockers, in play order
+% ==========================================================================
+
+funChoiceSpace(kit, 2).
+funChoice(kit, bomb).
+funChoice(kit, rope).
+funChoice(kit, flare).
+
+funChoiceFact(bomb, hasSkill(player, bomb)).
+funChoiceFact(rope, hasSkill(player, rope)).
+funChoiceFact(flare, hasSkill(player, flare)).
+
+funBlocker(gate).
+funBlocker(wall).
+
+funBlockerGoal(gate, clear(gate)).
+funBlockerGoal(wall, clear(wall)).
+
+goals(breakOut).

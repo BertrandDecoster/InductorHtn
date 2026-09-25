@@ -1,0 +1,10 @@
+{
+  "name": "fixture_shared_consumable",
+  "version": "1.0.0",
+  "layer": "level",
+  "description": "Calibration fixture: a loadout that wins every blocker taken alone but not the encounter, because one consumable is needed twice. See docs/FUN_METRICS.md section 7.",
+  "dependencies": [],
+  "certified": false,
+  "provides": [],
+  "requires": []
+}

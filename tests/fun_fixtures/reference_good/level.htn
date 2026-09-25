@@ -28,11 +28,9 @@
 %       them, and no plan is only them.
 
 % === Cast ===
-ally(player).
-ally(companionA).
-ally(companionB).
 companion(companionA).
 companion(companionB).
+companion(player).
 
 % === The objective ===
 vaultSite(vault).

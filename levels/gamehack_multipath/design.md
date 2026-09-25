@@ -2,15 +2,7 @@
 
 ## Purpose
 
-Prove the decomposed GameHack stack composes broadly, not just end-to-end. Where
-`gamehack_mvp` exercised a single ally with a single strategy, this level arranges
-a world in which:
-
-- All three damage strategies succeed independently: `wetAndElectrocute`,
-  `stunAndSlowSkill`, `stunAndBurn`.
-- All three paths of `applyTagNotPresent` (ally skill, location, non-ally mob skill)
-  produce viable plans for at least one tag.
-- `planToDamage(gob)` returns many structurally distinct plans rather than one.
+Prove the GameHack stack composes broadly, not just end to end. Where `gamehack_mvp` has a single plan, this level arranges a world in which all three strategies succeed, each combo has several locations, and skills are held or granted by shrines, so `defeat(gob)` returns many structurally distinct plans.
 
 ## Layer
 
@@ -18,67 +10,49 @@ level
 
 ## Dependencies
 
-- `gamehack/primitives/gh_movement`
-- `gamehack/primitives/gh_tags`
-- `gamehack/primitives/gh_aggro`
-- `gamehack/primitives/gh_skills`
-- `gamehack/actions/gh_tag_application`
-- `gamehack/strategies/wet_and_electrocute`
-- `gamehack/strategies/stun_and_slow_skill`
-- `gamehack/strategies/stun_and_burn`
-- `gamehack/goals/plan_to_damage`
+All GameHack components through the `defeat` goal.
 
 ## World Overview
 
-- Allies: `player`, `companionA` (waterSkill), `companionB` (fireballSkill),
-  `companionC` (no skill).
-- Enemies: `gob` (target), `teslaTower` (static, lightningSkill), `iceElemental`
-  (iceBlastSkill).
-- Locations: `arena` (where `gob` lives), `forge`, `glacier`, `lakeShore`, `sea`,
-  `volcano`.
-- `lakeShore` and `sea` apply `wet`; `glacier` applies `ice`.
-- Skill acquisition sites: `volcano`→`fireballSkill`, `glacier`→`iceBlastSkill`,
-  `lakeShore`→`waterSkill`.
-- `fireballSkill` has the `slow` modifier, which unlocks `stunAndSlowSkill`.
+- Companions: `player`, `companionA` (frostSkill: chilled), `companionB` (fireballSkill: burning, slow), `companionC` (no skill).
+- Enemies: `gob` (target), `teslaTower` (static, lightningSkill), `iceElemental` (iceBlastSkill).
+- Locations: `arena` (where `gob` is), `forge`, `glacier`, `lakeShore`, `sea`, `volcano`, `refinery`.
+- `lakeShore` and `sea` are wet, `glacier` is ice, `refinery` holds oil.
+- Objects that grant a skill: `volcanoShrine` (fireballSkill), `glacierShrine` (iceBlastSkill: stunned), `shoreShrine` (frostSkill).
+- gob is vulnerable to wet + chilled, ice + chilled and oil + burning.
 
 ## Examples
 
-### Example 1: `wetAndElectrocute(gob)` is viable
+### Example 1: wetAndFreeze
 
 **Given:** multipath world state
-**When:** `planToDamage(gob)` is planned
-**Then:** at least one plan contains both `opApplyTag(wet, gob)` and
-`opApplyTag(electrocute, gob)`.
+**When:** `wetAndFreeze(gob)`
+**Then:** 36 plans (three locations, a lurer and a chilled caster)
 
-### Example 2: `stunAndSlowSkill(gob)` is viable
+### Example 2: stunAndSlow
 
-**Given:** two distinct allies can carry `iceBlastSkill` and `fireballSkill`
-**When:** `planToDamage(gob)` is planned
-**Then:** at least one plan contains `opSynchronize` (the hallmark of the
-simultaneous two-ally strategy).
+**Given:** multipath world state
+**When:** `stunAndSlow(gob)`
+**Then:** 12 plans, each with `opSynchronize`
 
-### Example 3: `stunAndBurn(gob)` is viable
+### Example 3: oilAndBurn
 
-**Given:** ice and fire tags both reachable (via glacier / iceElemental /
-iceBlastSkill learning, and fireballSkill direct or learned at volcano)
-**When:** `planToDamage(gob)` is planned
-**Then:** at least one plan contains both `opApplyTag(ice, gob)` and
-`opApplyTag(fire, gob)`.
+**Given:** multipath world state
+**When:** `oilAndBurn(gob)`
+**Then:** 12 plans (gob lured into the refinery)
 
 ### Example 4: Plan multiplicity
 
 **Given:** multipath world state
-**When:** `planToDamage(gob)` is planned with `FindAllPlans`
-**Then:** at least **10** distinct plans are returned.
+**When:** `defeat(gob)`
+**Then:** 60 distinct plans (36 + 12 + 12)
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | Ally-skill dispatcher path | At least one plan applies `wet` via an ally's `waterSkill`, detectable by the `opApplyTag(clean, gob)` side-effect (only `waterSkill` carries the `clean` tag). |
-| P2 | Location dispatcher path | At least one plan applies `wet` by luring `gob` to `lakeShore` or `sea` (contains `bringMobToLocation`). |
-| P3 | Mob-skill dispatcher path (electrocute) | At least one plan applies `electrocute` by bringing `gob` together with `teslaTower` (contains `bringMobsTogether`). |
-| P4 | Mob-skill dispatcher path (ice) | At least one plan applies `ice` by bringing `gob` together with `iceElemental`. |
-| P5 | State after `wetAndElectrocute(gob)` | Running that strategy leaves `hasTag(gob, wet)` and `hasTag(gob, electrocute)` in state. |
-| P6 | State after `stunAndBurn(gob)` | Running that strategy leaves `hasTag(gob, ice)` and `hasTag(gob, fire)` in state. |
-| P7 | Skill acquisition in `stunAndSlowSkill` | At least one plan contains `opSwapSkill` or `opGetSkill` paired with `opSynchronize`, proving the learn-a-skill path fires. |
+| P1 | Water and ice | gob is frozen at the lake shore, the sea and the glacier |
+| P2 | Held skill | companionA, who holds frostSkill, chills gob while another companion lures it |
+| P3 | Skill from a shrine | Some stunAndSlow plan has `opSwapSkill` or `opGetSkill` with `opSynchronize` |
+| P4 | Oil becomes burning | oilAndBurn leaves the refinery burning and gob dead |
+| P5 | Two companions | Every plan ends with gob dead, and two different companions act in it |

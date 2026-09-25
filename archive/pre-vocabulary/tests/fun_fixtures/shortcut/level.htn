@@ -1,0 +1,41 @@
+% FIXTURE: shortcut
+% Failure mode: the level is about a combo, and one solution skips it.
+% Must be flagged by: F7 (a plan never uses the intended group).
+%
+% Smith, Butler & Popovic (FDG 2013): puzzle quality hinges on the absence of
+% unwanted solutions. The level is built around soak -> conduct -> shock. A
+% pit trap also wins, and by every other measure it is a good second route:
+% a three-step chain, two actors, no operator shared with the combo. That is
+% exactly why F1-F6 cannot see the problem. Only the author knows the pit was
+% never meant to be there, so only a declaration can catch it.
+
+% === World ===
+enemy(golem).
+ally(player).
+ally(companionA).
+
+% === Operators ===
+opSoak(?a, ?t) :- del(), add(wet(?t)).
+opConduct(?a, ?t) :- del(), add(conductive(?t)).
+opShock(?a, ?t) :- del(), add(dead(?t)).
+
+opLure(?a, ?t) :- del(), add(lured(?t)).
+opOpenPit(?a) :- del(), add(pitOpen).
+opDrop(?a, ?t) :- del(), add(dead(?t)).
+
+% === The intended combo, and the shortcut around it ===
+defeat(?t) :- if(enemy(?t)), do(soak(?t), conduct(?t), shock(?t)).
+defeat(?t) :- if(enemy(?t)), do(lure(?t), openPit(?t), drop(?t)).
+
+soak(?t) :- if(enemy(?t)), do(opSoak(companionA, ?t)).
+conduct(?t) :- if(wet(?t)), do(opConduct(player, ?t)).
+shock(?t) :- if(conductive(?t)), do(opShock(companionA, ?t)).
+
+lure(?t) :- if(enemy(?t)), do(opLure(companionA, ?t)).
+openPit(?t) :- if(lured(?t)), do(opOpenPit(player)).
+drop(?t) :- if(pitOpen, lured(?t)), do(opDrop(companionA, ?t)).
+
+% === Declared intent: every win goes through the shock ===
+funIntended(combo, opShock).
+
+goals(defeat(golem)).

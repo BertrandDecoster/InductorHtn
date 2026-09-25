@@ -1,0 +1,57 @@
+% FIXTURE: shared_linchpin
+% Failure mode: three "strategies" that all die to one fact.
+% Must be flagged by: F2 independence, and ONLY under --ablate.
+%
+% This is the fixture that justifies the counterfactual harness. Fire, ice and
+% shock score well on every observational metric: three classes, distinct
+% operators, distinct mechanisms, plans of reasonable length. But all three
+% route through `exposed(?t)`, which one world fact supplies. Delete
+% `generatorOnline` and the whole level dies at once, so the player never had
+% three options - they had one option with three skins.
+%
+% Syntactic distance cannot see this. Ablation can, and nothing else in the
+% toolchain can.
+
+% === World ===
+enemy(gob).
+at(gob, hall).
+ally(player).
+at(player, hall).
+
+% The single point of failure, laundered through a rule so it does not look
+% like one.
+generatorOnline.
+exposed(?t) :- enemy(?t), generatorOnline.
+
+hasFireRig(player).
+hasIceRig(player).
+hasShockRig(player).
+
+% === Operators, deliberately disjoint per route ===
+opStokeFire(?a) :- del(), add(stoked(?a)).
+opAimFlame(?a, ?t) :- del(), add(aimed(?t, flame)).
+opIgnite(?a, ?t) :- del(), add(hasTag(?t, burning)).
+
+opVentCold(?a) :- del(), add(vented(?a)).
+opAimFrost(?a, ?t) :- del(), add(aimed(?t, frost)).
+opChill(?a, ?t) :- del(), add(hasTag(?t, frozen)).
+
+opCharge(?a) :- del(), add(charged(?a)).
+opAimArc(?a, ?t) :- del(), add(aimed(?t, arc)).
+opDischarge(?a, ?t) :- del(), add(hasTag(?t, shocked)).
+
+% === Three routes, one dependency ===
+defeat(?t) :- if(enemy(?t)), do(theBurn(?t)).
+defeat(?t) :- if(enemy(?t)), do(theFreeze(?t)).
+defeat(?t) :- if(enemy(?t)), do(theShock(?t)).
+
+theBurn(?t) :- if(exposed(?t), hasFireRig(?a)),
+    do(opStokeFire(?a), opAimFlame(?a, ?t), opIgnite(?a, ?t)).
+
+theFreeze(?t) :- if(exposed(?t), hasIceRig(?a)),
+    do(opVentCold(?a), opAimFrost(?a, ?t), opChill(?a, ?t)).
+
+theShock(?t) :- if(exposed(?t), hasShockRig(?a)),
+    do(opCharge(?a), opAimArc(?a, ?t), opDischarge(?a, ?t)).
+
+goals(defeat(gob)).

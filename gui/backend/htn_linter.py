@@ -3,6 +3,7 @@ HTN Linter - Syntax and Semantic Checks
 Analyzes parsed HTN rules for common errors and warnings.
 """
 
+import re
 from typing import List, Dict, Set, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
@@ -674,7 +675,11 @@ class HtnLinter:
                     ))
 
             if rule.is_operator:
-                # Empty del() and empty add() might be intentional but worth warning
+                # Empty del() and empty add() might be intentional but worth warning.
+                # The vocabulary's "already true" operators (opStayInLocation,
+                # opTagAlreadyOnTarget, opTargetNotAggroed, ...) are no-ops on purpose.
+                if re.search(r'Already|^opStay|Not[A-Z]', rule.head.name):
+                    continue
                 if rule.del_clause and len(rule.del_clause.args) == 0 and \
                    rule.add_clause and len(rule.add_clause.args) == 0:
                     self.diagnostics.append(Diagnostic(
@@ -686,6 +691,12 @@ class HtnLinter:
 
     def _check_singleton_variables(self):
         """Check for variables that appear only once (typo warning)"""
+        # A task with several methods shares one head: a parameter that one method
+        # doesn't need (bringEnemyTo's lurer when the enemy is already there) is not a typo.
+        method_counts: Dict[str, int] = defaultdict(int)
+        for rule in self.rules:
+            if rule.is_method:
+                method_counts[f"{rule.head.name}/{len(rule.head.args)}"] += 1
         for rule in self.rules:
             var_counts: Dict[str, int] = defaultdict(int)
 
@@ -720,8 +731,13 @@ class HtnLinter:
             for var in negated:
                 var_counts[var] = max(var_counts.get(var, 0), 2)
 
+            head_vars = set(rule.head.get_variables())
+            shared_head = rule.is_method and method_counts[f"{rule.head.name}/{len(rule.head.args)}"] > 1
+
             # Report singletons (except _ which is intentionally ignored)
             for var, count in var_counts.items():
+                if shared_head and var in head_vars:
+                    continue
                 if count == 1 and not var.startswith('_') and var != '?_':
                     self.diagnostics.append(Diagnostic(
                         rule.line, 1, len(var), 'warning',

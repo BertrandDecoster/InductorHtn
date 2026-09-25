@@ -1,0 +1,21 @@
+{
+  "name": "the_slipstream",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Freeze the floor under an enemy; it slides into a hazard location it is weak to",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T19:00:40.049941"
+  },
+  "provides": [
+    "theSlipstream/1"
+  ],
+  "requires": []
+}

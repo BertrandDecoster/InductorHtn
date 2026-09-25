@@ -1,0 +1,21 @@
+{
+  "name": "gh_doors",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Doors for GameHack domains: two companions on two plates unlock a door",
+  "dependencies": [],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-09-25T18:29:58.773158"
+  },
+  "provides": [
+    "opDoorAlreadyUnlocked/1",
+    "opSynchronizeOnPlates/4",
+    "opUnlock/1",
+    "unlockDoor/1"
+  ],
+  "requires": []
+}

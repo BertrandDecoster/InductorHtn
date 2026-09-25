@@ -1,0 +1,54 @@
+% FIXTURE: companions_solo
+% Seat finding: the AI companions can win while the controlled one stands idle.
+% Must be flagged by: F6 (soloable_plans > 0) - a WARN, not a fail.
+%
+% Two genuinely distinct routes of reasonable length, so F1, F2 and F3 are
+% satisfied. Every operator can bind to a companion, so most plans never
+% involve the controlled companion at all. That is acceptable by design as
+% long as two companions had to cooperate (GDD 3.6): single_actor_plans stays
+% 0 here, so the pillar holds and the family warns about the seat instead of
+% failing. The warning tells a designer to hand the human another companion,
+% or to give the encounter a role this seat's kit fills.
+
+% === World ===
+enemy(gob).
+at(gob, hall).
+
+ally(player).
+ally(companionA).
+ally(companionB).
+at(player, hall).
+at(companionA, hall).
+at(companionB, hall).
+
+hasSkill(companionA, wetSkill).
+hasSkill(companionB, shockSkill).
+hasSkill(companionA, ropeSkill).
+hasSkill(companionB, pitSkill).
+hasSkill(player, wetSkill).
+
+% === Route A operators ===
+opDouse(?a, ?t) :- del(), add(hasTag(?t, wet)).
+opCharge(?a) :- del(), add(charged(?a)).
+opDischarge(?a, ?t) :- del(), add(hasTag(?t, shocked)).
+
+% === Route B operators ===
+opDigPit(?a) :- del(), add(pitReady(?a)).
+opSnare(?a, ?t) :- del(), add(hasTag(?t, snared)).
+opTopple(?a, ?t) :- del(), add(hasTag(?t, fallen)).
+
+% === Two routes, neither requiring the player ===
+defeat(?t) :- if(enemy(?t)), do(theShockRoute(?t)).
+defeat(?t) :- if(enemy(?t)), do(thePitRoute(?t)).
+
+theShockRoute(?t) :-
+    if(ally(?a1), ally(?a2), \==(?a1, ?a2),
+       hasSkill(?a1, wetSkill), hasSkill(?a2, shockSkill)),
+    do(opDouse(?a1, ?t), opCharge(?a2), opDischarge(?a2, ?t)).
+
+thePitRoute(?t) :-
+    if(ally(?a1), ally(?a2), \==(?a1, ?a2),
+       hasSkill(?a1, pitSkill), hasSkill(?a2, ropeSkill)),
+    do(opDigPit(?a1), opSnare(?a2, ?t), opTopple(?a1, ?t)).
+
+goals(defeat(gob)).

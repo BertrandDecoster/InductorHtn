@@ -72,11 +72,13 @@ Layers: Primitives → Strategies → Goals → Levels. `PYTHONPATH=src/Python p
 htn_components <command>`: `check`, `status`, `test <path>`, `test-all`, `certify <path>`,
 `trace <level>`, `play <level>`, `verify <level>`, plus the `fun*` commands (`htn-level` skill).
 
-Certified components: the original tree (primitives `locomotion`, `tags`, `aggro`; strategies
-`the_burn`, `the_slipstream`; goals `defeat_enemy`, `clear_room`; level `puzzle1`) and
-GameHack (`components/gamehack/`: primitives `gh_movement`, `gh_tags`, `gh_aggro`,
-`gh_skills`; action `gh_tag_application`; strategies `wet_and_electrocute`,
-`stun_and_slow_skill`, `stun_and_burn`; goal `plan_to_damage`; levels `gamehack_*`).
+Two component trees, both in the words of `docs/authoring/vocabulary.md` (the originals are in
+`archive/pre-vocabulary/` and `archive/pre-tag-system/`): the original tree (primitives
+`locomotion`, `tags`, `aggro`, `skills`; strategies `oil_and_burn`, `wet_and_freeze`; goals `defeat`, `clear_location`;
+challenge `door`; level `puzzle1`) and GameHack (`components/gamehack/`: primitives
+`gh_movement`, `gh_tags`, `gh_aggro`, `gh_skills`, `gh_doors`; strategies `wet_and_freeze`,
+`oil_and_burn`, `stun_and_slow`; goals `defeat`, `complete_toy_level`;
+levels `gamehack_*`). Run `status` for which are certified.
 
 ## C++ Engine Rules
 

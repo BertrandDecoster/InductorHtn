@@ -1,0 +1,37 @@
+{
+  "name": "door",
+  "version": "1.0.0",
+  "layer": "challenges",
+  "description": "A locked door opens when a companion stands on its plate",
+  "dependencies": [
+    "primitives/locomotion"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T19:00:41.344728"
+  },
+  "provides": [
+    "opDoorAlreadyUnlocked/1",
+    "opUnlock/1",
+    "signature/2",
+    "unlockDoor/1"
+  ],
+  "requires": [
+    "goToLocation/2"
+  ],
+  "challenge": {
+    "class": "C",
+    "behavioral_axes": [
+      "plan_length",
+      "door_count"
+    ],
+    "expected": {
+      "min_plans": 1,
+      "max_plans": 5,
+      "min_distinct_methods": 1
+    }
+  }
+}

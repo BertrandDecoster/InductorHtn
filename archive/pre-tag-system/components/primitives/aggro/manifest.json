@@ -1,0 +1,27 @@
+{
+  "name": "aggro",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Enemies take a target (hasAggro); a lurer brings an enemy to a location",
+  "dependencies": [
+    "primitives/locomotion"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T19:00:38.679635"
+  },
+  "provides": [
+    "getAggro/2",
+    "loseAggro/2",
+    "bringEnemyTo/3",
+    "opAggro/2",
+    "opRemoveAggro/2",
+    "opTargetAlreadyAggroed/2",
+    "opTargetNotAggroed/2",
+    "opEnemyAlreadyAtLocation/2"
+  ],
+  "requires": []
+}

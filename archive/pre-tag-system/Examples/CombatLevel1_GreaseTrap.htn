@@ -1,0 +1,191 @@
+% WIP (owner-rated 4/5): good architecture - named strategies (theBurn, theSlipstream) with
+% their roles bound in if(), and small reusable verbs. Rewritten in docs/authoring/vocabulary.md
+% (the original is in archive/pre-vocabulary/).
+
+% =============================================================================
+% Combat Level 1: The Grease Trap (Tutorial)
+% =============================================================================
+%
+% Setting: a small map with weak "Swarmer" enemies, weak to fire and to cold. One room is
+% covered in oil.
+%
+% Plan A: "The Burn" - a lurer brings the swarmer onto the oil, and a companion with a burning
+%   skill ignites it from afar: the oil becomes a burning floor, and everyone standing there
+%   burns (the swarmer, and the lurer with it).
+% Plan B: "The Slipstream" - a companion with a freezing skill freezes the oil into a frozen
+%   floor, and a lurer brings the swarmer onto it: the swarmer freezes.
+% =============================================================================
+
+% =============================================================================
+% Goal: a menu of strategies, one plan per strategy that works
+% =============================================================================
+
+% It already holds a tag it is weak to.
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead)), first(vulnerableTo(?t, ?tag), hasTag(?t, ?tag))),
+    do(opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead)), not(vulnerableTo(?t, ?tag), hasTag(?t, ?tag))),
+    do(theBurn(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead)), not(vulnerableTo(?t, ?tag), hasTag(?t, ?tag))),
+    do(theSlipstream(?t), opApplyTag(dead, ?t)).
+
+% =============================================================================
+% Strategies
+% =============================================================================
+
+% Plan A: a lurer brings the enemy onto a floor that catches fire, a second companion ignites it.
+theBurn(?e) :-
+    if(enemy(?e), vulnerableTo(?e, burning), not(immune(?e, burning)),
+       not(hasTag(?e, ?held), tagCombines(?held, burning, ?other)), not(hasTag(?e, ?held2), tagCombines(burning, ?held2, ?other2)),
+       locationCanApplyTag(?l, ?floor), tagCombines(?floor, burning, burning),
+       companion(?igniter), hasSkill(?igniter, ?s), skillAppliesTag(?s, burning),
+       companion(?lurer), \==(?lurer, ?igniter)),
+    do(bringEnemyTo(?lurer, ?e, ?l), useSkillOnLocation(?igniter, ?s, ?l)).
+
+% Plan B: a companion freezes a floor that freezes, a second one lures the enemy onto it.
+theSlipstream(?e) :-
+    if(enemy(?e), vulnerableTo(?e, frozen), not(immune(?e, frozen)),
+       not(hasTag(?e, ?held), tagCombines(?held, frozen, ?other)), not(hasTag(?e, ?held2), tagCombines(frozen, ?held2, ?other2)),
+       locationCanApplyTag(?l, ?floor), tagCombines(?floor, frozen, frozen),
+       companion(?freezer), hasSkill(?freezer, ?s), skillAppliesTag(?s, frozen),
+       companion(?lurer), \==(?lurer, ?freezer)),
+    do(useSkillOnLocation(?freezer, ?s, ?l), bringEnemyTo(?lurer, ?e, ?l), useLocationToApplyTag(?l, frozen, ?e)).
+
+% =============================================================================
+% Verbs
+% =============================================================================
+
+% An agent is a companion, a neutral or an enemy.
+agent(?x) :- companion(?x).
+agent(?x) :- neutral(?x).
+agent(?x) :- enemy(?x).
+
+% The location's tag lands on ?t, who stands there.
+useLocationToApplyTag(?l, ?tag, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?tag), hasTag(?t, ?tag)),
+    do(opTagAlreadyOnTarget(?tag, ?t)).
+useLocationToApplyTag(?l, ?tag, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))),
+    do(opApplyTag(?tag, ?t), combineTags(?t)).
+
+% ?a uses skill ?s on location ?l (the engine handles range); its tags land there.
+useSkillOnLocation(?a, ?s, ?l) :- if(hasSkill(?a, ?s), location(?l)),
+    do(opUseSkill(?a, ?s, ?l), applySkillTagsToLocation(?s, ?l)).
+
+applySkillTagsToLocation(?s, ?l) :- allOf, if(skillAppliesTag(?s, ?tag)), do(applyTagToLocation(?tag, ?l)).
+applySkillTagsToLocation(?s, ?l) :- if(not(skillAppliesTag(?s, ?tag))), do().
+
+% A location's tag changes only when one of its tags reacts to ?tag; then everyone there gets its tags.
+applyTagToLocation(?tag, ?l) :- if(not(locationCanApplyTag(?l, ?tag)), first(locationCanApplyTag(?l, ?old), tagCombines(?old, ?tag, ?result))),
+    do(opAddLocationTag(?tag, ?l), combineTags(?l), applyLocationTagsToAgents(?l)).
+applyTagToLocation(?tag, ?l) :- if(not(locationCanApplyTag(?l, ?old), tagCombines(?old, ?tag, ?result))), do().
+
+% Every agent at ?l gets the location's tags, one at a time, each landing combining.
+applyLocationTagsToAgents(?l) :- if(first(agent(?a), at(?a, ?l), locationCanApplyTag(?l, ?t), not(hasTag(?a, ?t)), not(immune(?a, ?t)))),
+    do(opApplyTag(?t, ?a), combineTags(?a), applyLocationTagsToAgents(?l)).
+applyLocationTagsToAgents(?l) :- if(not(agent(?a), at(?a, ?l), locationCanApplyTag(?l, ?t), not(hasTag(?a, ?t)), not(immune(?a, ?t)))), do().
+
+% Two tags on an agent react: replace them by their result; repeat until none do.
+combineTags(?x) :- if(not(location(?x)),
+       first(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new), not(hasTag(?x, ?new), \==(?new, ?a), \==(?new, ?b)))),
+    do(opRemoveTag(?a, ?x), opRemoveTag(?b, ?x), opApplyTag(?new, ?x), combineTags(?x)).
+combineTags(?x) :- if(not(location(?x)),
+       not(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new), not(hasTag(?x, ?new), \==(?new, ?a), \==(?new, ?b))),
+       first(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new))),
+    do(opRemoveTag(?a, ?x), opRemoveTag(?b, ?x), combineTags(?x)).
+combineTags(?x) :- if(not(location(?x)), not(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new))), do().
+% The same on a location's tags.
+combineTags(?x) :- if(location(?x),
+       first(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new),
+             not(locationCanApplyTag(?x, ?new), \==(?new, ?a), \==(?new, ?b)))),
+    do(opRemoveLocationTag(?a, ?x), opRemoveLocationTag(?b, ?x), opAddLocationTag(?new, ?x), combineTags(?x)).
+combineTags(?x) :- if(location(?x),
+       not(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new),
+           not(locationCanApplyTag(?x, ?new), \==(?new, ?a), \==(?new, ?b))),
+       first(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new))),
+    do(opRemoveLocationTag(?a, ?x), opRemoveLocationTag(?b, ?x), combineTags(?x)).
+combineTags(?x) :- if(location(?x), not(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new))), do().
+
+% ?a is at ?l; the engine finds the path. Enemies after ?a follow.
+goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
+goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
+    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
+
+% ?a stands where ?t is.
+goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
+
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)))), do().
+
+% ?e is after ?a: already, instead of another target, or for the first time.
+getAggro(?e, ?a) :- if(hasAggro(?e, ?a)), do(opTargetAlreadyAggroed(?e, ?a)).
+getAggro(?e, ?a) :- if(hasAggro(?e, ?old), \==(?old, ?a)), do(opRemoveAggro(?e, ?old), opAggro(?e, ?a)).
+getAggro(?e, ?a) :- if(not(hasAggro(?e, ?any))), do(opAggro(?e, ?a)).
+
+% Enemy ?e is at ?l: the lurer walks to it, takes its aggro, and walks to ?l.
+bringEnemyTo(?lurer, ?e, ?l) :- if(at(?e, ?l)), do(opEnemyAlreadyAtLocation(?e, ?l)).
+bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
+    do(goToSameLocation(?lurer, ?e), getAggro(?e, ?lurer), goToLocation(?lurer, ?l)).
+
+% =============================================================================
+% Operators: game actions
+% =============================================================================
+
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
+opUseSkill(?a, ?s, ?target) :- del(), add().
+opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
+opRemoveTag(?tag, ?t) :- del(hasTag(?t, ?tag)), add().
+opAddLocationTag(?tag, ?l) :- del(), add(locationCanApplyTag(?l, ?tag)).
+opRemoveLocationTag(?tag, ?l) :- del(locationCanApplyTag(?l, ?tag)), add().
+opAggro(?e, ?a) :- del(), add(hasAggro(?e, ?a)).
+opRemoveAggro(?e, ?a) :- del(hasAggro(?e, ?a)), add().
+
+% Already true: no state change, the plan shows it.
+opStayInLocation(?a) :- del(), add().
+opTagAlreadyOnTarget(?tag, ?t) :- del(), add().
+opTargetAlreadyAggroed(?e, ?a) :- del(), add().
+opEnemyAlreadyAtLocation(?e, ?l) :- del(), add().
+
+% =============================================================================
+% World
+% =============================================================================
+
+companion(player). companion(warden). companion(arcanist).
+enemy(swarmer1). enemy(swarmer2). enemy(swarmer3).
+
+% Swarmers die of fire and of cold.
+vulnerableTo(swarmer1, burning). vulnerableTo(swarmer2, burning). vulnerableTo(swarmer3, burning).
+vulnerableTo(swarmer1, frozen). vulnerableTo(swarmer2, frozen). vulnerableTo(swarmer3, frozen).
+
+%   roomNW ---corridorN--- roomNE
+%     |                      |
+%  corridorW              corridorE
+%     |                      |
+%   roomSW ---corridorS--- roomSE
+location(roomNW). location(roomNE). location(roomSW). location(roomSE).
+location(corridorN). location(corridorS). location(corridorE). location(corridorW).
+
+linked(roomNW, corridorN). linked(corridorN, roomNW).
+linked(corridorN, roomNE). linked(roomNE, corridorN).
+linked(roomNE, corridorE). linked(corridorE, roomNE).
+linked(corridorE, roomSE). linked(roomSE, corridorE).
+linked(roomSE, corridorS). linked(corridorS, roomSE).
+linked(corridorS, roomSW). linked(roomSW, corridorS).
+linked(roomSW, corridorW). linked(corridorW, roomSW).
+linked(corridorW, roomNW). linked(roomNW, corridorW).
+
+at(player, roomNW). at(warden, roomNW). at(arcanist, roomNW).
+at(swarmer1, roomNE). at(swarmer2, roomSE). at(swarmer3, corridorS).
+
+% An oil patch in the empty room.
+locationCanApplyTag(roomSW, oily).
+
+hasSkill(warden, magnetizeSkill). hasSkill(warden, shieldSkill).
+hasSkill(arcanist, freezeSkill). hasSkill(arcanist, lightningSkill).
+hasSkill(player, igniteSkill). hasSkill(player, gustSkill).
+skillAppliesTag(freezeSkill, frozen).
+skillAppliesTag(igniteSkill, burning).
+
+% Oil burns into a burning floor, and freezes into a frozen one.
+tagCombines(oily, burning, burning).
+tagCombines(oily, frozen, frozen).
+
+goals(defeat(swarmer1)).

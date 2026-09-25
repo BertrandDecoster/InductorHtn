@@ -1,0 +1,30 @@
+{
+  "name": "gamehack_mvp",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "MVP world exercising wetAndElectrify via applyTag dispatcher path 1",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_skills",
+    "gamehack/actions/gh_tag_application",
+    "gamehack/strategies/wet_and_electrify",
+    "gamehack/goals/defeat"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:30:06.624287"
+  },
+  "provides": [
+    "at/2",
+    "companion/1",
+    "enemy/1",
+    "hasSkill/2",
+    "location/1",
+    "skillAppliesTag/2"
+  ],
+  "requires": []
+}

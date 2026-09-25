@@ -9,20 +9,20 @@ enemy(imp).
 at(gob, hall).
 at(imp, hall).
 
-ally(player).
-ally(companionA).
+companion(player).
+companion(companionA).
 at(player, hall).
 at(companionA, hall).
 
 % Default kit so the level itself is solvable; F4 strips it.
-hasTool(player, hammer).
+hasSkill(player, hammerSkill).
 
 opPrepare(?a, ?t) :- del(), add(prepared(?a, ?t)).
-opUse(?a, ?tool, ?t) :- del(), add(hasTag(?t, beaten)).
+opUse(?a, ?s, ?t) :- del(), add(hasTag(?t, beaten)).
 
 defeat(?t) :-
-    if(enemy(?t), ally(?a), hasTool(?a, ?tool)),
-    do(opPrepare(?a, ?t), opUse(?a, ?tool, ?t)).
+    if(enemy(?t), companion(?a), hasSkill(?a, ?s)),
+    do(opPrepare(?a, ?t), opUse(?a, ?s, ?t)).
 
 clearHall :- if(), do(defeat(gob), defeat(imp)).
 
@@ -31,10 +31,10 @@ funChoice(kit, hammer).
 funChoice(kit, torch).
 funChoice(kit, rope).
 funChoice(kit, net).
-funChoiceFact(hammer, hasTool(player, hammer)).
-funChoiceFact(torch, hasTool(player, torch)).
-funChoiceFact(rope, hasTool(player, rope)).
-funChoiceFact(net, hasTool(player, net)).
+funChoiceFact(hammer, hasSkill(player, hammerSkill)).
+funChoiceFact(torch, hasSkill(player, torchSkill)).
+funChoiceFact(rope, hasSkill(player, ropeSkill)).
+funChoiceFact(net, hasSkill(player, netSkill)).
 funBlocker(gob).
 funBlocker(imp).
 funBlockerGoal(gob, defeat(gob)).

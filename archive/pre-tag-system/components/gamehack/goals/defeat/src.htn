@@ -1,0 +1,8 @@
+% defeat - goal: take an enemy out of the fight. A menu of strategies, one plan per strategy that works.
+
+% === Signatures (for TYP001 linter) ===
+signature(defeat, [agent]).
+
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndElectrify(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndBurn(?t), opApplyTag(dead, ?t)).

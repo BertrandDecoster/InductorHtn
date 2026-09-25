@@ -2,7 +2,7 @@
   "name": "gh_aggro",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "Aggro targeting and mob luring for GameHack domains",
+  "description": "Aggro and luring for GameHack domains: getAggro, bringEnemyTo",
   "dependencies": [
     "gamehack/primitives/gh_movement"
   ],
@@ -11,18 +11,18 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-04-20T23:34:13.829121"
+    "last_checked": "2026-09-25T20:53:28.815350"
   },
   "provides": [
-    "aggroTarget/2",
-    "bringMobToLocation/2",
-    "bringMobsTogether/2",
+    "bringEnemyTo/3",
+    "getAggro/2",
     "opAggro/2",
+    "opEnemyAlreadyAtLocation/2",
     "opRemoveAggro/2",
-    "opTargetAlreadyAggroed/0"
+    "opTargetAlreadyAggroed/2"
   ],
   "requires": [
     "goToLocation/2",
-    "opAggroMoveTo/3"
+    "goToSameLocation/2"
   ]
 }

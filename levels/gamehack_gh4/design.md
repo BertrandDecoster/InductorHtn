@@ -2,7 +2,7 @@
 
 ## Purpose
 
-GH4-style world demonstrating the `wetAndElectrocute` strategy. Two allies have direct skills (companionE: lightningSkill, companionW: waterSkill). The `stunAndSlowSkill` strategy is not viable because no stun/slow skills exist. Multiple paths exist for applying wet (ally skill, lake, sea) and electrocute (ally skill, teslaTower, electricityElemental).
+GH4-style world where exactly one strategy works: `wetAndFreeze`. companionE holds lightningSkill (electrified), companionW holds frostSkill (chilled), the player holds none. The lake and the sea are wet; gob is vulnerable to wet + chilled. Nothing stuns and there is no oil, so `oilAndBurn` and `stunAndSlow` have no plan.
 
 ## Layer
 
@@ -10,31 +10,20 @@ level
 
 ## Dependencies
 
-All GameHack components through `plan_to_damage` goal.
+All GameHack components through the `defeat` goal.
 
 ## Examples
 
-### Example 1: planToDamage(gob) succeeds
+### Example 1: defeat(gob)
 
 **Given:** GH4 world state
-**When:** `planToDamage(gob)`
-**Then:** Plan found using wetAndElectrocute strategy
-
-### Example 2: Wet via ally skill
-
-**Given:** companionW has waterSkill
-**When:** `applyTag(wet, gob)`
-**Then:** companionW applies wet to gob
-
-### Example 3: Electrocute via ally skill
-
-**Given:** companionE has lightningSkill
-**When:** `applyTag(electrocute, gob)`
-**Then:** companionE applies electrocute to gob
+**When:** `defeat(gob)`
+**Then:** 4 plans: the player or companionE lures gob into the lake or the sea; companionW walks there and chills it (`opApplyTag(stunned, gob), opApplyTag(dead, gob)`)
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | Strategy | Only wetAndElectrocute plans (no stunAndSlowSkill) |
-| P2 | Both tags | Target has both wet and electrocute after plan |
+| P1 | One strategy | 4 wetAndFreeze plans; oilAndBurn and stunAndSlow have none |
+| P2 | Tags | After the first plan, gob is stunned and dead |
+| P3 | Two companions | Every plan ends with gob dead, and two different companions act in it |

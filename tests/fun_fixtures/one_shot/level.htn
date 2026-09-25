@@ -8,22 +8,22 @@
 
 % === World ===
 enemy(gob).
-ally(player).
+companion(player).
 at(player, hall).
 at(gob, hall).
 
-hasSkill(player, fireball).
-hasSkill(player, lightning).
-hasSkill(player, meteor).
+hasSkill(player, fireballSkill).
+hasSkill(player, lightningSkill).
+hasSkill(player, meteorSkill).
 
 % === Operators ===
-opFireball(?a, ?t) :- del(), add(hasTag(?t, burned)).
-opLightning(?a, ?t) :- del(), add(hasTag(?t, shocked)).
+opFireball(?a, ?t) :- del(), add(hasTag(?t, burning)).
+opLightning(?a, ?t) :- del(), add(hasTag(?t, electrified)).
 opMeteor(?a, ?t) :- del(), add(hasTag(?t, crushed)).
 
 % === Three routes, one operator each ===
-defeat(?t) :- if(enemy(?t), ally(?a), hasSkill(?a, fireball)), do(opFireball(?a, ?t)).
-defeat(?t) :- if(enemy(?t), ally(?a), hasSkill(?a, lightning)), do(opLightning(?a, ?t)).
-defeat(?t) :- if(enemy(?t), ally(?a), hasSkill(?a, meteor)), do(opMeteor(?a, ?t)).
+defeat(?t) :- if(enemy(?t), companion(?a), hasSkill(?a, fireballSkill)), do(opFireball(?a, ?t)).
+defeat(?t) :- if(enemy(?t), companion(?a), hasSkill(?a, lightningSkill)), do(opLightning(?a, ?t)).
+defeat(?t) :- if(enemy(?t), companion(?a), hasSkill(?a, meteorSkill)), do(opMeteor(?a, ?t)).
 
 goals(defeat(gob)).

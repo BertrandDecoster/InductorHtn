@@ -1,0 +1,40 @@
+% gh_tags - tags on agents: getting a tag onto a target, and the ways a tag lands (a skill, a location).
+% applyTagNotPresent (one method per way) is in the gh_tag_application action.
+
+% === Signatures (for TYP001 linter) ===
+signature(opApplyTag, [tag, agent]).
+signature(opUseSkill, [agent, skill, agent]).
+signature(opTagAlreadyOnTarget, [tag, agent]).
+signature(applyTag, [tag, agent]).
+signature(useSkillOnTarget, [agent, skill, agent]).
+signature(applySkillTags, [skill, agent]).
+signature(useLocationToApplyTag, [location, tag, agent]).
+signature(useAgentSkillToApplyTag, [agent, skill, agent]).
+
+% === Operators ===
+
+opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
+opUseSkill(?a, ?s, ?t) :- del(), add().
+
+% Already true: no state change, the plan shows it.
+opTagAlreadyOnTarget(?tag, ?t) :- del(), add().
+
+% === Methods ===
+
+% ?t has ?tag.
+applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(applyTagNotPresent(?tag, ?t)).
+
+% The skill is used; its tags land on ?t.
+useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do(opUseSkill(?a, ?s, ?t), applySkillTags(?s, ?t)).
+
+applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))),
+    do(opApplyTag(?tag, ?t)).
+applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag)))),
+    do().
+
+% The location's tag lands on ?t, who stands there.
+useLocationToApplyTag(?l, ?tag, ?t) :- if(at(?t, ?l)), do(opApplyTag(?tag, ?t)).
+
+% The non-companion ?ag, standing with ?t, uses its skill on it.
+useAgentSkillToApplyTag(?ag, ?s, ?t) :- if(at(?ag, ?l), at(?t, ?l)), do(useSkillOnTarget(?ag, ?s, ?t)).

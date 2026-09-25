@@ -1,0 +1,21 @@
+% stun_and_slow - two companions: one stuns the target while the other's slow skill lands.
+% Depends on: gh_tags (useSkillOnTarget), gh_skills (prepareToUseSkill), gh_movement
+
+% === Signatures (for TYP001 linter) ===
+signature(stunAndSlow, [agent]).
+signature(opSynchronize, [agent, agent]).
+
+% === Operators ===
+
+opSynchronize(?a1, ?a2) :- del(), add().
+
+% === Methods ===
+
+% Stunned and, at the same moment, hit by a second companion's slow skill.
+stunAndSlow(?t) :-
+    if(enemy(?t), not(immune(?t, stunned)),
+       skillAppliesTag(?stun, stunned), skillHasTag(?slow, slow), \==(?stun, ?slow),
+       companion(?a1), companion(?a2), \==(?a1, ?a2)),
+    do(prepareToUseSkill(?a1, ?stun, ?t), prepareToUseSkill(?a2, ?slow, ?t),
+       opSynchronize(?a1, ?a2),
+       useSkillOnTarget(?a1, ?stun, ?t), useSkillOnTarget(?a2, ?slow, ?t)).

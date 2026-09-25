@@ -1,0 +1,9 @@
+% defeat - goal: take an enemy out of the fight. A menu of strategies, one plan per strategy that works.
+% The two location-combo strategies defeat a vulnerable enemy themselves; stunAndSlow ends it.
+
+% === Signatures (for TYP001 linter) ===
+signature(defeat, [agent]).
+
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndFreeze(?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndBurn(?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), opApplyTag(dead, ?t)).

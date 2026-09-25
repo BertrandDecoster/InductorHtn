@@ -123,7 +123,7 @@ def test_cache_identity_tracks_dependency_sources_and_fingerprint_config(tmp_pat
     level = root / "levels" / "l"
     level.mkdir(parents=True)
     (level / "level.htn").write_text(
-        "ally(player).\ngo :- if(), do(opX(player)).\ngoals(go).\n", encoding="utf-8"
+        "companion(player).\ngo :- if(), do(opX(player)).\ngoals(go).\n", encoding="utf-8"
     )
     (level / "manifest.json").write_text(json.dumps({
         "name": "l", "version": "1.0.0", "layer": "level",

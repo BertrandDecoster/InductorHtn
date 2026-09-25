@@ -1,10 +1,11 @@
 % GameHack GH7 Level: GH7-style world state
-% Two allies with combat skills (companionI: iceBlast, companionF: fireball)
-% Both stunAndSlowSkill and wetAndElectrocute strategies viable
+% Three companions: companionI (iceBlast: stunned), companionF (fireball: burning, slow), the player (none).
+% Shrines grant frostSkill (chilled), iceBlastSkill and fireballSkill. A wet lake and a kitchen with oil:
+% wetAndFreeze, oilAndBurn and stunAndSlow all work.
 
 % === Type Declarations (for TYP001 linter) ===
 
-% Agents (characters: player, allies, enemies)
+% Agents (companions and enemies)
 type(agent, player).
 type(agent, companionI).
 type(agent, companionF).
@@ -21,31 +22,23 @@ type(location, mountain).
 type(location, lake).
 type(location, sea).
 type(location, volcano).
+type(location, kitchen).
 
-% Tags (status effects)
-type(tag, wet).
-type(tag, electrocute).
-type(tag, clean).
-type(tag, ice).
-type(tag, fire).
-type(tag, stun).
-type(tag, slow).
+% Objects (grant skills)
+type(object, seaShrine).
+type(object, mountainShrine).
+type(object, volcanoShrine).
 
 % Skills (abilities)
 type(skill, iceBlastSkill).
 type(skill, fireballSkill).
 type(skill, lightningSkill).
-type(skill, waterSkill).
+type(skill, frostSkill).
 
 % === Agents ===
-agent(player).
-agent(companionI).
-agent(companionF).
-agent(gob).
-
-ally(player).
-ally(companionI).
-ally(companionF).
+companion(player).
+companion(companionI).
+companion(companionF).
 enemy(gob).
 enemy(mimic).
 enemy(electricityElemental).
@@ -68,11 +61,13 @@ location(mountain).
 location(lake).
 location(sea).
 location(volcano).
+location(kitchen).
 
-% === Environment ===
+% === Location tags ===
 locationCanApplyTag(lake, wet).
+locationCanApplyTag(kitchen, oil).
 
-immune(electricityElemental, electrocute).
+immune(electricityElemental, electrified).
 
 static(teslaTower).
 
@@ -83,15 +78,25 @@ hasSkill(teslaTower, lightningSkill).
 
 skillHasTag(fireballSkill, slow).
 
-skillAppliesTag(iceBlastSkill, stun).
-skillAppliesTag(fireballSkill, fire).
-skillAppliesTag(lightningSkill, electrocute).
-skillAppliesTag(waterSkill, wet).
-skillAppliesTag(waterSkill, clean).
+skillAppliesTag(iceBlastSkill, stunned).
+skillAppliesTag(fireballSkill, burning).
+skillAppliesTag(lightningSkill, electrified).
+skillAppliesTag(frostSkill, chilled).
 
-canGetSkillAtLocation(sea, waterSkill).
-canGetSkillAtLocation(mountain, iceBlastSkill).
-canGetSkillAtLocation(volcano, fireballSkill).
+% === Objects that grant a skill ===
+object(seaShrine).
+at(seaShrine, sea).
+canGetSkillFrom(seaShrine, frostSkill).
+object(mountainShrine).
+at(mountainShrine, mountain).
+canGetSkillFrom(mountainShrine, iceBlastSkill).
+object(volcanoShrine).
+at(volcanoShrine, volcano).
+canGetSkillFrom(volcanoShrine, fireballSkill).
+
+% === What defeats whom ===
+vulnerableToLocationCombo(gob, wet, chilled).
+vulnerableToLocationCombo(gob, oil, burning).
 
 % === Level Goal ===
-goals(planToDamage(gob)).
+goals(defeat(gob)).

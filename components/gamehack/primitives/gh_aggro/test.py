@@ -8,6 +8,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from htn_test_framework import HtnTestSuite
 
+WORLD = ["location(room)", "location(hut)", "location(lake)", "companion(player)", "enemy(gob)"]
+LURE_GOB_TO_LAKE = ("opMoveTo(player, room, hut), opAggro(gob, player), "
+                    "opMoveTo(player, hut, lake), opAggroMoveTo(gob, hut, lake)")
+
 
 class GhAggroTest(HtnTestSuite):
     """Test suite for gh_aggro primitive."""
@@ -21,135 +25,51 @@ class GhAggroTest(HtnTestSuite):
     # =========================================================================
 
     def test_example_1_new_aggro(self):
-        """Example 1: New aggro (no prior)
-
-        Given: at(gob, hut), at(player, room), ally(player)
-        When: aggroTarget(gob, player)
-        Then: opAggro(gob, player), aggro(gob, player) in state
-        """
-        self.set_state([
-            "at(gob, hut)",
-            "at(player, room)",
-            "ally(player)"
-        ])
-
-        self.assert_plan("aggroTarget(gob, player).",
-            contains=["opAggro(gob, player)"])
-
-        self.assert_state_after("aggroTarget(gob, player).",
-            has=["aggro(gob,player)"])
+        """Example 1: an enemy with no target takes the companion."""
+        self.set_state(WORLD + ["at(gob, hut)", "at(player, room)"])
+        self.assert_plan_set("getAggro(gob, player).", ["opAggro(gob, player)"])
+        self.assert_state_after("getAggro(gob, player).", has=["hasAggro(gob,player)"])
 
     def test_example_2_swap_aggro(self):
-        """Example 2: Swap aggro
-
-        Given: aggro(gob, companionE), ally(player)
-        When: aggroTarget(gob, player)
-        Then: opRemoveAggro then opAggro
-        """
-        self.set_state([
-            "aggro(gob, companionE)",
-            "ally(player)"
-        ])
-
-        self.assert_plan("aggroTarget(gob, player).",
-            contains=["opRemoveAggro(gob, companionE)", "opAggro(gob, player)"])
+        """Example 2: an enemy after someone else switches target."""
+        self.set_state(WORLD + ["hasAggro(gob, companionE)"])
+        self.assert_plan_set("getAggro(gob, player).",
+            ["opRemoveAggro(gob, companionE), opAggro(gob, player)"])
 
     def test_example_3_already_aggroed(self):
-        """Example 3: Already aggroed
+        """Example 3: already after the companion."""
+        self.set_state(WORLD + ["hasAggro(gob, player)"])
+        self.assert_plan_set("getAggro(gob, player).", ["opTargetAlreadyAggroed(gob, player)"])
 
-        Given: aggro(gob, player)
-        When: aggroTarget(gob, player)
-        Then: opTargetAlreadyAggroed
-        """
-        self.set_state([
-            "aggro(gob, player)"
-        ])
+    def test_example_4_bring_enemy_to_location(self):
+        """Example 4: the lurer walks to the enemy, takes its aggro, walks to the location."""
+        self.set_state(WORLD + ["at(gob, hut)", "at(player, room)"])
+        self.assert_plan_set("bringEnemyTo(player, gob, lake).", [LURE_GOB_TO_LAKE])
+        self.assert_state_after("bringEnemyTo(player, gob, lake).", has=["at(gob,lake)"])
 
-        self.assert_plan("aggroTarget(gob, player).",
-            contains=["opTargetAlreadyAggroed"])
+    def test_example_5_enemy_already_at_location(self):
+        """Example 5: the enemy already stands there."""
+        self.set_state(WORLD + ["at(gob, lake)", "at(player, room)"])
+        self.assert_plan_set("bringEnemyTo(player, gob, lake).", ["opEnemyAlreadyAtLocation(gob, lake)"])
 
-    def test_example_4_bring_mob_to_location(self):
-        """Example 4: Bring mob to location via aggro chain
-
-        Given: at(gob, hut), at(player, room), ally(player)
-        When: bringMobToLocation(gob, lake)
-        Then: Plan has aggro chain, gob ends at lake
-        """
-        self.set_state([
-            "at(gob, hut)",
-            "at(player, room)",
-            "ally(player)"
-        ])
-
-        self.assert_plan("bringMobToLocation(gob, lake).",
-            contains=["opAggroMoveTo(gob, hut, lake)"])
-
-        self.assert_state_after("bringMobToLocation(gob, lake).",
-            has=["at(gob,lake)"])
-
-    def test_example_5_bring_mob_already_at_location(self):
-        """Example 5: Mob already at target location
-
-        Given: at(gob, lake)
-        When: bringMobToLocation(gob, lake)
-        Then: Plan is empty
-        """
-        self.set_state([
-            "at(gob, lake)"
-        ])
-
-        self.assert_plan("bringMobToLocation(gob, lake).",
-            not_contains=["opMoveTo", "opAggroMoveTo", "opAggro"])
-
-    def test_example_6_static_mob_cannot_be_moved(self):
-        """Example 6: Static mob cannot be moved
-
-        Given: at(tower, lake), static(tower), at(player, room), ally(player)
-        When: bringMobToLocation(tower, hut)
-        Then: Planning fails
-        """
-        self.set_state([
-            "at(tower, lake)",
-            "static(tower)",
-            "at(player, room)",
-            "ally(player)"
-        ])
-
-        self.assert_no_plan("bringMobToLocation(tower, hut).")
-
-    def test_example_7_bring_mobs_together_already(self):
-        """Example 7: Mobs already together
-
-        Given: at(gob, hut), at(teslaTower, hut)
-        When: bringMobsTogether(gob, teslaTower)
-        Then: Plan is empty
-        """
-        self.set_state([
-            "at(gob, hut)",
-            "at(teslaTower, hut)"
-        ])
-
-        self.assert_plan("bringMobsTogether(gob, teslaTower).",
-            not_contains=["opMoveTo", "opAggroMoveTo"])
+    def test_example_6_static_enemy_cannot_be_lured(self):
+        """Example 6: a static enemy never moves."""
+        self.set_state(WORLD + ["enemy(tower)", "at(tower, lake)", "static(tower)", "at(player, room)"])
+        self.assert_no_plan("bringEnemyTo(player, tower, hut).")
 
     # =========================================================================
     # Property Tests
     # =========================================================================
 
     def test_property_p1_single_aggro(self):
-        """P1: After aggro swap, mob has exactly one aggro target."""
-        self.set_state([
-            "aggro(gob, companionE)",
-            "ally(player)"
-        ])
-
-        self.run_goal("aggroTarget(gob, player)")
+        """P1: After an aggro swap, the enemy has exactly one target."""
+        self.set_state(WORLD + ["hasAggro(gob, companionE)"])
+        self.run_goal("getAggro(gob, player)")
         state = self.get_state()
-
-        aggro_targets = [f for f in state if f.startswith("aggro(gob,")]
+        aggro_targets = [f for f in state if f.startswith("hasAggro(gob,")]
         assert len(aggro_targets) == 1, \
             f"P1 violated: gob has {len(aggro_targets)} aggro targets: {aggro_targets}"
-        assert "aggro(gob,player)" in aggro_targets[0], \
+        assert "hasAggro(gob,player)" in aggro_targets[0], \
             f"P1 violated: expected aggro on player, got {aggro_targets}"
 
 

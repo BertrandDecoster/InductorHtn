@@ -9,28 +9,27 @@
 % keep the per-blocker number beside it as `loadout_feasibility_independent`
 % (2 of 3), and it must name the gap.
 
-ally(player).
-role(player, player).
+companion(player).
 blocker(gate).
 blocker(wall).
 
 % One charge. The token is what makes the bomb single-use: the operator
 % deletes it, so a second clear(?b) via the bomb finds nothing to bind.
-charge(player, bomb, c1).
+charge(player, bombSkill, c1).
 
 % Rope only helps on the wall.
 ropeClears(wall).
 
 % Default kit so the level itself is solvable; F4 strips these and re-adds
 % the selected picks.
-hasSkill(player, bomb).
-hasSkill(player, rope).
+hasSkill(player, bombSkill).
+hasSkill(player, ropeSkill).
 
 % ==========================================================================
 % Operators
 % ==========================================================================
 
-opBomb(?a, ?b, ?tok) :- del(charge(?a, bomb, ?tok)), add(cleared(?b)).
+opBomb(?a, ?b, ?tok) :- del(charge(?a, bombSkill, ?tok)), add(cleared(?b)).
 opClimb(?a, ?b) :- del(), add(cleared(?b)).
 
 % ==========================================================================
@@ -38,11 +37,11 @@ opClimb(?a, ?b) :- del(), add(cleared(?b)).
 % ==========================================================================
 
 clear(?b) :-
-    if(blocker(?b), hasSkill(player, bomb), first(charge(player, bomb, ?tok))),
+    if(blocker(?b), hasSkill(player, bombSkill), first(charge(player, bombSkill, ?tok))),
     do(opBomb(player, ?b, ?tok)).
 
 clear(?b) :-
-    if(blocker(?b), hasSkill(player, rope), ropeClears(?b)),
+    if(blocker(?b), hasSkill(player, ropeSkill), ropeClears(?b)),
     do(opClimb(player, ?b)).
 
 breakOut :- if(), do(clear(gate), clear(wall)).
@@ -56,9 +55,9 @@ funChoice(kit, bomb).
 funChoice(kit, rope).
 funChoice(kit, flare).
 
-funChoiceFact(bomb, hasSkill(player, bomb)).
-funChoiceFact(rope, hasSkill(player, rope)).
-funChoiceFact(flare, hasSkill(player, flare)).
+funChoiceFact(bomb, hasSkill(player, bombSkill)).
+funChoiceFact(rope, hasSkill(player, ropeSkill)).
+funChoiceFact(flare, hasSkill(player, flareSkill)).
 
 funBlocker(gate).
 funBlocker(wall).

@@ -1,0 +1,23 @@
+{
+  "name": "wet_and_freeze",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "A lurer brings an enemy into water or onto ice; a second companion chills it there",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "primitives/skills"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T20:51:40.723842"
+  },
+  "provides": [
+    "wetAndFreeze/1"
+  ],
+  "requires": []
+}

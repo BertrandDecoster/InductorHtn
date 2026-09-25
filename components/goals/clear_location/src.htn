@@ -1,0 +1,8 @@
+% clear_location - Goal: every enemy at a location is out of the fight.
+% Depends on: defeat.
+
+% === Signatures (for the TYP001 linter) ===
+signature(clearLocation, [location]).
+
+clearLocation(?l) :- allOf, if(enemy(?e), at(?e, ?l), not(hasTag(?e, dead))), do(defeat(?e)).
+clearLocation(?l) :- if(not(enemy(?e), at(?e, ?l), not(hasTag(?e, dead)))), do().

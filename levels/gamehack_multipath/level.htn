@@ -1,11 +1,10 @@
 % GameHack Multipath Level
-% Ambitious world state: all three damage strategies simultaneously viable,
-% multiple dispatcher paths exercised for the same tag (ally skill, location,
-% and non-ally mob skill). `planToDamage(gob)` returns many distinct plans.
+% Four companions, every strategy at once, several locations for the combos (water, ice, oil),
+% and skills held or granted by shrines. defeat(gob) returns many plans.
 
 % === Type Declarations (for TYP001 linter) ===
 
-% Agents (characters: player, allies, enemies)
+% Agents (companions and enemies)
 type(agent, player).
 type(agent, companionA).
 type(agent, companionB).
@@ -21,35 +20,24 @@ type(location, glacier).
 type(location, lakeShore).
 type(location, sea).
 type(location, volcano).
+type(location, refinery).
 
-% Tags (status effects)
-type(tag, wet).
-type(tag, electrocute).
-type(tag, clean).
-type(tag, ice).
-type(tag, fire).
-type(tag, stun).
-type(tag, slow).
+% Objects (grant skills)
+type(object, volcanoShrine).
+type(object, glacierShrine).
+type(object, shoreShrine).
 
 % Skills (abilities)
-type(skill, waterSkill).
+type(skill, frostSkill).
 type(skill, fireballSkill).
 type(skill, lightningSkill).
 type(skill, iceBlastSkill).
 
 % === Agents ===
-agent(player).
-agent(companionA).
-agent(companionB).
-agent(companionC).
-agent(gob).
-agent(teslaTower).
-agent(iceElemental).
-
-ally(player).
-ally(companionA).
-ally(companionB).
-ally(companionC).
+companion(player).
+companion(companionA).
+companion(companionB).
+companion(companionC).
 enemy(gob).
 enemy(teslaTower).
 enemy(iceElemental).
@@ -70,36 +58,47 @@ location(glacier).
 location(lakeShore).
 location(sea).
 location(volcano).
+location(refinery).
 
-% === Environment: locations that apply tags ===
+% === Location tags ===
 locationCanApplyTag(lakeShore, wet).
 locationCanApplyTag(sea, wet).
 locationCanApplyTag(glacier, ice).
+locationCanApplyTag(refinery, oil).
 
-% === Static entities (cannot be lured) ===
+% === Static agents (cannot be lured) ===
 static(teslaTower).
 
 % === Skills currently held ===
-hasSkill(companionA, waterSkill).
+hasSkill(companionA, frostSkill).
 hasSkill(companionB, fireballSkill).
 hasSkill(teslaTower, lightningSkill).
 hasSkill(iceElemental, iceBlastSkill).
 
-% === Skill acquisition sites ===
-canGetSkillAtLocation(volcano, fireballSkill).
-canGetSkillAtLocation(glacier, iceBlastSkill).
-canGetSkillAtLocation(lakeShore, waterSkill).
-
 % === Skill -> tag mappings ===
-skillAppliesTag(waterSkill, wet).
-skillAppliesTag(waterSkill, clean).
-skillAppliesTag(lightningSkill, electrocute).
-skillAppliesTag(fireballSkill, fire).
-skillAppliesTag(iceBlastSkill, stun).
-skillAppliesTag(iceBlastSkill, ice).
+skillAppliesTag(frostSkill, chilled).
+skillAppliesTag(lightningSkill, electrified).
+skillAppliesTag(fireballSkill, burning).
+skillAppliesTag(iceBlastSkill, stunned).
 
-% === Slow modifier on fireballSkill unlocks stunAndSlowSkill precondition ===
+% === fireballSkill is slow, which makes stunAndSlow possible ===
 skillHasTag(fireballSkill, slow).
 
+% === Objects that grant a skill ===
+object(volcanoShrine).
+at(volcanoShrine, volcano).
+canGetSkillFrom(volcanoShrine, fireballSkill).
+object(glacierShrine).
+at(glacierShrine, glacier).
+canGetSkillFrom(glacierShrine, iceBlastSkill).
+object(shoreShrine).
+at(shoreShrine, lakeShore).
+canGetSkillFrom(shoreShrine, frostSkill).
+
+% === What defeats whom ===
+vulnerableToLocationCombo(gob, wet, chilled).
+vulnerableToLocationCombo(gob, ice, chilled).
+vulnerableToLocationCombo(gob, oil, burning).
+
 % === Level Goal ===
-goals(planToDamage(gob)).
+goals(defeat(gob)).

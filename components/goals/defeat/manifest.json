@@ -1,0 +1,25 @@
+{
+  "name": "defeat",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "An enemy is out of the fight: a menu of wetAndFreeze and oilAndBurn",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "primitives/skills",
+    "strategies/wet_and_freeze",
+    "strategies/oil_and_burn"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T20:51:41.211760"
+  },
+  "provides": [
+    "defeat/1"
+  ],
+  "requires": []
+}

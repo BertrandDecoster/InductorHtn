@@ -1,211 +1,92 @@
-"""Tests for tags primitive component."""
+"""Tests for the tags primitive component."""
 
 import os
 import sys
 
-# Add parent directories to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../src/Python")))
 
 from htn_test_framework import HtnTestSuite
 
+WORLD = [
+    "location(pond)", "location(pit)", "location(rink)", "location(field)",
+    "locationCanApplyTag(pond, wet)", "locationCanApplyTag(pit, oil)", "locationCanApplyTag(rink, ice)",
+    # the pond: a companion and two enemies, one vulnerable to wet + electrified
+    "companion(ward)", "enemy(gob)", "enemy(imp)", "at(ward, pond)", "at(gob, pond)", "at(imp, pond)",
+    "vulnerableToLocationCombo(imp, wet, electrified)", "vulnerableToLocationCombo(gob, wet, chilled)",
+    # the oil pit: a companion, two enemies (orc vulnerable to oil + burning) and a barrel
+    "companion(sol)", "enemy(orc)", "enemy(rat)", "at(sol, pit)", "at(orc, pit)", "at(rat, pit)", "at(barrel, pit)",
+    "vulnerableToLocationCombo(orc, oil, burning)",
+    # the ice rink
+    "enemy(yak)", "enemy(elk)", "at(yak, rink)", "at(elk, rink)", "vulnerableToLocationCombo(yak, ice, chilled)",
+    # plain ground
+    "enemy(ant)", "at(ant, field)", "immune(ant, burning)",
+]
+
 
 class TagsTest(HtnTestSuite):
-    """Test suite for tags primitive."""
+    """Test suite for the tags primitive."""
 
     def setup(self):
-        """Load the tags component (resets planner for clean state)."""
         self.load_component("primitives/tags")
+        self.set_state(WORLD)
 
     # =========================================================================
     # Example Tests (from design.md)
     # =========================================================================
 
-    def test_example_1_simple_tag_application(self):
-        """Example 1: Simple tag application
+    def test_example_1_electrified_in_water(self):
+        """Example 1: electrified in water: everyone there is electrified; the vulnerable is defeated."""
+        self.assert_plan_set("landSkillTag(electrified, gob).", [
+            "opApplyTag(electrified, ward), opApplyTag(electrified, gob), opApplyTag(electrified, imp), "
+            "opApplyTag(dead, imp)"])
 
-        Given: Entity has no tags
-        When: applyTag(entity1, burning)
-        Then: Plan contains opApplyTag, final state has hasTag(entity1, burning)
-        """
-        # No initial state needed (entity has no tags)
-        self.assert_plan("applyTag(entity1, burning).",
-            contains=["opApplyTag(entity1, burning)"])
+    def test_example_2_burning_on_oil(self):
+        """Example 2: burning on oil: the oil catches fire, every agent there burns (not the barrel)."""
+        self.assert_plan_set("landSkillTag(burning, orc).", [
+            "opRemoveLocationTag(oil, pit), opAddLocationTag(burning, pit), "
+            "opApplyTag(burning, sol), opApplyTag(burning, orc), opApplyTag(burning, rat), opApplyTag(dead, orc)"])
 
-        self.assert_state_after("applyTag(entity1, burning).",
-            has=["hasTag(entity1,burning)"])
+    def test_example_3_chilled_in_water(self):
+        """Example 3: chilled in water: the target alone is stunned, and defeated if vulnerable."""
+        self.assert_plan_set("landSkillTag(chilled, gob).", ["opApplyTag(stunned, gob), opApplyTag(dead, gob)"])
 
-    def test_example_2_tag_combination(self):
-        """Example 2: Tag combination (burning + wet = steam)
+    def test_example_4_chilled_on_ice(self):
+        """Example 4: chilled on ice: stunned; only the vulnerable one is defeated."""
+        self.assert_plan_set("landSkillTag(chilled, yak).", ["opApplyTag(stunned, yak), opApplyTag(dead, yak)"])
+        self.assert_plan_set("landSkillTag(chilled, elk).", ["opApplyTag(stunned, elk)"])
 
-        Given: hasTag(entity1, wet)
-        When: applyTag(entity1, burning)
-        Then: Entity has steam, not wet or burning
-        """
-        self.set_state([
-            "hasTag(entity1, wet)"
-        ])
+    def test_example_5_no_combo(self):
+        """Example 5: no combo where the target stands: the tag just lands."""
+        self.assert_plan_set("landSkillTag(electrified, orc).", ["opApplyTag(electrified, orc)"])
 
-        self.assert_plan("applyTag(entity1, burning).",
-            contains=["opRemoveTag(entity1, wet)", "opApplyTag(entity1, steam)"])
+    def test_example_6_immune(self):
+        """Example 6: an immune target: nothing lands."""
+        self.assert_plan_set("landSkillTag(burning, ant).", [""])
 
-        self.assert_state_after("applyTag(entity1, burning).",
-            has=["hasTag(entity1,steam)"],
-            not_has=["hasTag(entity1,wet)", "hasTag(entity1,burning)"])
-
-    def test_example_3_same_tag_noop(self):
-        """Example 3: Applying same tag (no-op)
-
-        Given: hasTag(entity1, burning)
-        When: applyTag(entity1, burning)
-        Then: No operators, still has burning
-        """
-        self.set_state([
-            "hasTag(entity1, burning)"
-        ])
-
-        self.assert_plan("applyTag(entity1, burning).",
-            not_contains=["opApplyTag", "opRemoveTag"])
-
-    def test_example_4_remove_tag(self):
-        """Example 4: Remove tag
-
-        Given: hasTag(entity1, burning)
-        When: removeTag(entity1, burning)
-        Then: Tag is removed
-        """
-        self.set_state([
-            "hasTag(entity1, burning)"
-        ])
-
-        self.assert_plan("removeTag(entity1, burning).",
-            contains=["opRemoveTag(entity1, burning)"])
-
-        self.assert_state_after("removeTag(entity1, burning).",
-            not_has=["hasTag(entity1,burning)"])
+    def test_example_7_already_there(self):
+        """Example 7: the target already has the tag."""
+        self.set_state(["hasTag(elk, burning)"])
+        self.assert_plan_set("landTag(burning, elk).", ["opTagAlreadyOnTarget(burning, elk)"])
 
     # =========================================================================
     # Property Tests
     # =========================================================================
 
-    def test_property_p1_no_double_tags(self):
-        """P1: An entity cannot have the same tag twice.
+    def test_property_p1_the_skill_alone_never_defeats(self):
+        """P1: a tag with no combo never defeats, even an enemy vulnerable to a combo with it."""
+        self.assert_state_after("landSkillTag(burning, imp).", has=["hasTag(imp,burning)"],
+                                not_has=["hasTag(imp,dead)"])
 
-        After applying a tag that already exists, there should still be
-        exactly one instance of that tag.
-        """
-        self.set_state([
-            "hasTag(entity1, burning)"
-        ])
-
-        # Apply the same tag again
-        self.run_goal("applyTag(entity1, burning)")
-        state = self.get_state()
-
-        # Count how many burning tags exist for entity1
-        burning_count = sum(1 for f in state if "hasTag(entity1,burning)" in f)
-
-        assert burning_count == 1, f"P1 violated: expected 1 burning tag, got {burning_count}"
-
-    def test_property_p2_combination_replaces(self):
-        """P2: After combination, neither original tag exists.
-
-        Test all defined combinations.
-        """
-        # Test burning + wet = steam
-        self.set_state([
-            "hasTag(entity1, wet)"
-        ])
-        self.run_goal("applyTag(entity1, burning)")
-        state = self.get_state()
-
-        # Should have steam, not wet or burning
-        has_steam = any("hasTag(entity1,steam)" in f for f in state)
-        has_wet = any("hasTag(entity1,wet)" in f for f in state)
-        has_burning = any("hasTag(entity1,burning)" in f for f in state)
-
-        assert has_steam, "P2 violated: should have steam"
-        assert not has_wet, "P2 violated: should not have wet"
-        assert not has_burning, "P2 violated: should not have burning"
-
-    def test_property_p3_commutative_wet_electrified(self):
-        """P3: Commutative combinations - wet + electrified and electrified + wet
-
-        Both should produce stunned.
-        """
-        # Test wet + electrified
-        self.setup()  # Reset
-        self.set_state([
-            "hasTag(entity1, wet)"
-        ])
-        self.run_goal("applyTag(entity1, electrified)")
-        state1 = self.get_state()
-
-        # Test electrified + wet
-        self.setup()  # Reset
-        self.set_state([
-            "hasTag(entity1, electrified)"
-        ])
-        self.run_goal("applyTag(entity1, wet)")
-        state2 = self.get_state()
-
-        # Both should result in stunned
-        has_stunned1 = any("hasTag(entity1,stunned)" in f for f in state1)
-        has_stunned2 = any("hasTag(entity1,stunned)" in f for f in state2)
-
-        assert has_stunned1, "P3 violated: wet + electrified should produce stunned"
-        assert has_stunned2, "P3 violated: electrified + wet should produce stunned"
-
-    # =========================================================================
-    # Example Tests (continued)
-    # =========================================================================
-
-    def test_example_5_frozen_plus_burning_equals_wet(self):
-        """Example 5: Frozen + burning = wet (ice melts)."""
-        self.set_state([
-            "hasTag(entity1, frozen)"
-        ])
-
-        self.assert_state_after("applyTag(entity1, burning).",
-            has=["hasTag(entity1,wet)"],
-            not_has=["hasTag(entity1,frozen)", "hasTag(entity1,burning)"])
-
-    def test_example_6_remove_nonexistent_tag_noop(self):
-        """Example 6: Remove nonexistent tag (no-op)."""
-        # No initial tags
-        self.assert_plan("removeTag(entity1, burning).",
-            not_contains=["opRemoveTag"])
-
-    def test_example_7_multiple_entities_independent(self):
-        """Example 7: Tags on different entities are independent."""
-        self.set_state([
-            "hasTag(entity1, burning)",
-            "hasTag(entity2, wet)"
-        ])
-
-        # Apply wet to entity1 (should combine with burning -> steam)
-        self.assert_plan("applyTag(entity1, wet).",
-            contains=["opRemoveTag(entity1, burning)", "opApplyTag(entity1, steam)"])
-
-    def test_example_8_electronics_plus_electrified_equals_disabled(self):
-        """Example 8: Electronics + electrified = disabled (device shutdown)."""
-        self.set_state([
-            "hasTag(device1, electronics)"
-        ])
-
-        self.assert_state_after("applyTag(device1, electrified).",
-            has=["hasTag(device1,disabled)"],
-            not_has=["hasTag(device1,electronics)", "hasTag(device1,electrified)"])
+    def test_property_p2_only_oil_changes(self):
+        """P2: electrified in water leaves the location wet."""
+        self.assert_state_after("landSkillTag(electrified, gob).", has=["locationCanApplyTag(pond,wet)"])
 
 
 def run_tests():
     """Run all tests in this file."""
     suite = TagsTest()
-    suite.setup()
-
-    # Run all test methods
     for method_name in dir(suite):
         if method_name.startswith("test_"):
-            # Reset state for each test
             suite.setup()
             method = getattr(suite, method_name)
             try:
@@ -214,7 +95,6 @@ def run_tests():
                 suite._record(False, method_name, str(e))
             except Exception as e:
                 suite._record(False, method_name, f"Error: {e}")
-
     print(suite.summary())
     return suite.all_passed()
 

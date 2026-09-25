@@ -1,0 +1,10 @@
+{
+  "name": "fixture_single_path",
+  "version": "1.0.0",
+  "layer": "level",
+  "description": "Calibration fixture: degenerate by construction. See docs/FUN_METRICS.md section 7.",
+  "dependencies": [],
+  "certified": false,
+  "provides": [],
+  "requires": []
+}

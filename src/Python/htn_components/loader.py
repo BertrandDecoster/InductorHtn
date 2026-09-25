@@ -142,7 +142,7 @@ class ComponentLoader:
 
     Usage:
         loader = ComponentLoader(planner, project_root)
-        loader.load("gamehack/goals/plan_to_damage")
+        loader.load("gamehack/goals/defeat")
         loader.load_level_htn("levels/gamehack_mvp")  # optional
         loader.verify_contracts()
     """

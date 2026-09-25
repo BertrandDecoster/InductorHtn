@@ -1,0 +1,30 @@
+{
+  "name": "gh_aggro",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Aggro and luring for GameHack domains: getAggro, bringEnemyTo, bringAgentsTogether",
+  "dependencies": [
+    "gamehack/primitives/gh_movement"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:29:57.679905"
+  },
+  "provides": [
+    "bringAgentsTogether/3",
+    "bringEnemyTo/3",
+    "getAggro/2",
+    "opAgentsAlreadyTogether/2",
+    "opAggro/2",
+    "opEnemyAlreadyAtLocation/2",
+    "opRemoveAggro/2",
+    "opTargetAlreadyAggroed/2"
+  ],
+  "requires": [
+    "goToLocation/2",
+    "goToSameLocation/2"
+  ]
+}

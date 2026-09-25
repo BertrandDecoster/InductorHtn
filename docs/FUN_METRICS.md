@@ -73,7 +73,7 @@ funChoiceFact(waterSkill, hasSkill(companionA, waterSkill)).  % how a pick alter
 funChoiceFact(waterSkill, hasSkill(companionB, waterSkill)).  % a pick may carry several facts
 
 funBlocker(gob).                                              % must be solved
-funBlockerGoal(gob, planToDamage(gob)).                       % optional; else derived from goals()
+funBlockerGoal(gob, defeat(gob)).                             % optional; else derived from goals()
 ```
 
 Semantics: a loadout is evaluated by taking the level's fact set, **removing every `funChoiceFact` of
@@ -196,7 +196,7 @@ at risk of.
 | `mechanism_disjointness` | Fraction of class pairs whose mechanism sets are not nested in one another. |
 | `independence` *(needs `--ablate`)* | Number of class pairs with **disjoint critical-fact sets**. A fact is *critical* for a class if removing it from the initial state kills every plan in that class. |
 | `shared_linchpin` *(needs `--ablate`)* | A single fact whose removal kills **all** classes. |
-| `goal_target_linchpins` *(needs `--ablate`)* | Linchpins that name an atom from the goal itself — `enemy(gob)` for the goal `planToDamage(gob)`. Tracked but never counted as a flaw: delete the target and there is nothing to plan against, which is true of every level and says nothing about its design. They are also excluded when comparing classes, since a shared target is shared by definition and would otherwise mask genuine independence. |
+| `goal_target_linchpins` *(needs `--ablate`)* | Linchpins that name an atom from the goal itself — `enemy(gob)` for the goal `defeat(gob)`. Tracked but never counted as a flaw: delete the target and there is nothing to plan against, which is true of every level and says nothing about its design. They are also excluded when comparing classes, since a shared target is shared by definition and would otherwise mask genuine independence. |
 | `shared_gates` *(needs `--ablate`)* | Facts every route needs **because a declared blocker needs them** — removing the fact also kills a `funBlockerGoal`. A corridor both routes walk through, or the Warden both routes rely on, is infrastructure the encounter passes through, not one idea under several names. Gates are reported as a note and excluded from independence. Cast facts (`role/2`, `signature/2`) are never linchpin candidates. |
 | `ablation_conclusive`, `ablation_unknown_probes` | Whether every ablation probe finished. When any did not, linchpin and independence claims are withheld. |
 | `landmark_facts`, `landmark_operators`, `landmark_ratio` | **Landmarks** (Hoffmann, Porteous & Sebastia 2004) over the enumerated set: facts every plan adds, operator names every plan uses, and landmark facts as a share of the mean facts a plan achieves. The goal's own effects are always landmarks; what else is there is the bottleneck every route must pass through. Reported, not banded. Cheap and observational, unlike `shared_linchpin`. |
@@ -496,7 +496,8 @@ Three findings worth acting on, in priority order:
    (`soloable_plans`), and whether one companion carried a plan alone (`single_actor_plans`) was not
    measured yet. Still worth acting on, as a ruleset property: nothing in the gamehack components
    gives the controlled seat a role.
-2. **`multipath`'s three strategies are real but shallow-looking.** Ablation confirms all three class
+2. **`multipath`'s three strategies are real but shallow-looking** (measured before the 2026-09-25
+   tag-system rewrite, with the strategies of that time). Ablation confirms all three class
    pairs have disjoint critical fact sets — `stunAndSlowSkill` needs
    `canGetSkillAtLocation(glacier,iceBlastSkill)`, `wetAndElectrocute` needs
    `hasSkill(teslaTower,lightningSkill)`, `stunAndBurn` needs `skillAppliesTag(fireballSkill,fire)` —
@@ -562,7 +563,7 @@ metrics rise while ratings fall, the metrics are being gamed.
 
 ```bash
 PYTHONPATH=src/Python python -m htn_components verify gamehack_mvp            # ends with the scorecard; gates only on funExpect + F7
-PYTHONPATH=src/Python python -m htn_components play gamehack_mvp --class wetAndElectrocute
+PYTHONPATH=src/Python python -m htn_components play gamehack_mvp --class wetAndFreeze
 PYTHONPATH=src/Python python -m htn_components play gamehack_mvp --solution 0 -i
 ```
 

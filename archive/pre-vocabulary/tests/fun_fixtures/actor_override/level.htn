@@ -1,0 +1,19 @@
+% FIXTURE: actor_override - the actor is not the first argument
+% opCast puts the skill first and the caster second, and opShout is a
+% flourish the author declares as bookkeeping. The level says so with
+% funActor/2 and funNoop/1, and F6 must honour both: the cast is the
+% player's action, the shout is nobody's.
+
+ally(player).
+role(player, player).
+enemy(gob).
+
+funActor(opCast, 1).
+funNoop(opShout).
+
+opShout(?a) :- del(), add(shouted(?a)).
+opCast(?skill, ?caster, ?t) :- del(), add(hasTag(?t, ?skill)).
+
+defeat(?t) :- if(enemy(?t)), do(opShout(player), opCast(fire, player, ?t)).
+
+goals(defeat(gob)).

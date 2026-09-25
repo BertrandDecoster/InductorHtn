@@ -1,0 +1,22 @@
+{
+  "name": "the_burn",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "An enemy weak to burning is lured onto oil, and a companion ignites the location",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T19:00:39.633496"
+  },
+  "provides": [
+    "theBurn/1"
+  ],
+  "requires": []
+}

@@ -1,0 +1,15 @@
+% the_slipstream - Strategy: freeze the floor under an enemy, and it slides into an adjacent hazard it is weak to.
+% Depends on: locomotion, tags.
+
+% === Signatures (for the TYP001 linter) ===
+signature(theSlipstream, [agent]).
+
+theSlipstream(?e) :-
+    if(enemy(?e), not(static(?e)), at(?e, ?l),
+       locationCanApplyTag(?l, ?floor), tagCombines(?floor, frozen, frozen),
+       companion(?freezer), hasSkill(?freezer, ?s), skillAppliesTag(?s, frozen),
+       linked(?l, ?h), not(blockedLink(?l, ?h, ?blocker)), locationCanApplyTag(?h, ?tag),
+       vulnerableTo(?e, ?tag), not(immune(?e, ?tag)),
+       not(tagCombines(frozen, ?tag, ?any)), not(tagCombines(?tag, frozen, ?any2)),
+       not(hasTag(?e, ?held), tagCombines(?held, ?tag, ?other)), not(hasTag(?e, ?held2), tagCombines(?tag, ?held2, ?other2))),
+    do(useSkillOnLocation(?freezer, ?s, ?l), forceMove(?e, ?h), useLocationToApplyTag(?h, ?tag, ?e)).

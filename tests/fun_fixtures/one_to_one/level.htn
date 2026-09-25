@@ -1,5 +1,5 @@
 % FIXTURE: one_to_one - a matching exercise
-% Fire tools beat the goblin, ice tools beat the imp, wind does nothing.
+% Burning skills beat the goblin, frost skills beat the imp, wind does nothing.
 % Feasibility sits inside its band (four of ten pairs win) and nothing is
 % mandatory, so the counts look healthy. `multi_use_factor` is the only
 % metric that sees each pick solves exactly one blocker: the player is
@@ -10,28 +10,28 @@ enemy(imp).
 at(gob, hall).
 at(imp, vault).
 
-ally(player).
+companion(player).
 at(player, hall).
 
-weakTo(gob, fire).
-weakTo(imp, ice).
+vulnerableTo(gob, burning).
+vulnerableTo(imp, frozen).
 
-toolTag(fireSkill, fire).
-toolTag(emberSkill, fire).
-toolTag(iceSkill, ice).
-toolTag(frostSkill, ice).
-toolTag(windSkill, gust).
+skillAppliesTag(fireSkill, burning).
+skillAppliesTag(emberSkill, burning).
+skillAppliesTag(iceSkill, frozen).
+skillAppliesTag(frostSkill, frozen).
+skillAppliesTag(windSkill, gust).
 
 % Default kit so the level itself is solvable; F4 strips it.
-hasTool(player, fireSkill).
-hasTool(player, iceSkill).
+hasSkill(player, fireSkill).
+hasSkill(player, iceSkill).
 
 opReady(?a, ?t) :- del(), add(readied(?a, ?t)).
 opStrike(?a, ?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
 
 defeat(?t) :-
-    if(enemy(?t), weakTo(?t, ?tag), ally(?a),
-       hasTool(?a, ?tool), toolTag(?tool, ?tag)),
+    if(enemy(?t), vulnerableTo(?t, ?tag), companion(?a),
+       hasSkill(?a, ?s), skillAppliesTag(?s, ?tag)),
     do(opReady(?a, ?t), opStrike(?a, ?tag, ?t)).
 
 clearBoth :- if(), do(defeat(gob), defeat(imp)).
@@ -42,11 +42,11 @@ funChoice(kit, emberSkill).
 funChoice(kit, iceSkill).
 funChoice(kit, frostSkill).
 funChoice(kit, windSkill).
-funChoiceFact(fireSkill, hasTool(player, fireSkill)).
-funChoiceFact(emberSkill, hasTool(player, emberSkill)).
-funChoiceFact(iceSkill, hasTool(player, iceSkill)).
-funChoiceFact(frostSkill, hasTool(player, frostSkill)).
-funChoiceFact(windSkill, hasTool(player, windSkill)).
+funChoiceFact(fireSkill, hasSkill(player, fireSkill)).
+funChoiceFact(emberSkill, hasSkill(player, emberSkill)).
+funChoiceFact(iceSkill, hasSkill(player, iceSkill)).
+funChoiceFact(frostSkill, hasSkill(player, frostSkill)).
+funChoiceFact(windSkill, hasSkill(player, windSkill)).
 funBlocker(gob).
 funBlocker(imp).
 funBlockerGoal(gob, defeat(gob)).

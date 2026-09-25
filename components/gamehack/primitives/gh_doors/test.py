@@ -7,6 +7,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from htn_test_framework import HtnTestSuite
 
+PLATES = ["plateOpens(plate1, door1)", "plateOpens(plate2, door1)"]
+COMPANIONS = ["companion(companion1)", "companion(companion2)"]
+
 
 class GhDoorsTest(HtnTestSuite):
     """Test suite for gh_doors primitive."""
@@ -15,65 +18,54 @@ class GhDoorsTest(HtnTestSuite):
         self.load_component("gamehack/primitives/gh_doors")
 
     def test_example_1_basic_unlock(self):
-        """Locked door, two plates, two allies -> synchronize then unlock."""
-        self.set_state([
-            "locked(door1)",
-            "plateOpens(plate1, door1)",
-            "plateOpens(plate2, door1)",
-            "ally(companion1)",
-            "ally(companion2)",
+        """Locked door, two plates, two companions -> synchronize on the plates, then unlock.
+        Each companion can take either plate: four plans."""
+        self.set_state(["locked(door1)"] + PLATES + COMPANIONS)
+        self.assert_plan_set("unlockDoor(door1).", [
+            "opSynchronizeOnPlates(companion1, companion2, plate1, plate2), opUnlock(door1)",
+            "opSynchronizeOnPlates(companion1, companion2, plate2, plate1), opUnlock(door1)",
+            "opSynchronizeOnPlates(companion2, companion1, plate1, plate2), opUnlock(door1)",
+            "opSynchronizeOnPlates(companion2, companion1, plate2, plate1), opUnlock(door1)",
         ])
-
-        self.assert_plan("unlockDoor(door1).",
-            contains=["opUnlock(door1)"])
-
-        self.assert_state_after("unlockDoor(door1).",
-            not_has=["locked(door1)"])
+        self.assert_state_after("unlockDoor(door1).", not_has=["locked(door1)"])
 
     def test_example_2_already_unlocked(self):
-        """No `locked` fact -> empty plan."""
-        self.set_state([
-            "plateOpens(plate1, door1)",
-            "plateOpens(plate2, door1)",
-            "ally(companion1)",
-            "ally(companion2)",
-        ])
+        """No `locked` fact -> the plan shows opDoorAlreadyUnlocked."""
+        self.set_state(PLATES + COMPANIONS)
+        self.assert_plan_set("unlockDoor(door1).", ["opDoorAlreadyUnlocked(door1)"])
 
-        self.assert_plan("unlockDoor(door1).",
-            not_contains=["opSynchronizeOnPlates", "opUnlock"])
-
-    def test_example_3_no_allies_fails(self):
-        """Locked door with plates but no allies -> planning fails."""
-        self.set_state([
-            "locked(door1)",
-            "plateOpens(plate1, door1)",
-            "plateOpens(plate2, door1)",
-        ])
-
+    def test_example_3_no_companions_fails(self):
+        """Locked door with plates but no companions -> planning fails."""
+        self.set_state(["locked(door1)"] + PLATES)
         self.assert_no_plan("unlockDoor(door1).")
 
     def test_example_4_one_plate_fails(self):
-        """Only one plate linked -> planning fails (need two distinct)."""
-        self.set_state([
-            "locked(door1)",
-            "plateOpens(plate1, door1)",
-            "ally(companion1)",
-            "ally(companion2)",
-        ])
-
+        """Only one plate linked -> planning fails (two distinct plates are needed)."""
+        self.set_state(["locked(door1)", "plateOpens(plate1, door1)"] + COMPANIONS)
         self.assert_no_plan("unlockDoor(door1).")
 
     def test_property_p2_distinct_plates_bound(self):
-        """Plan operator must bind both distinct plates."""
-        self.set_state([
-            "locked(door1)",
-            "plateOpens(plate1, door1)",
-            "plateOpens(plate2, door1)",
-            "ally(companion1)",
-            "ally(companion2)",
-        ])
-        self.assert_plan("unlockDoor(door1).",
-            contains=["plate1", "plate2"])
+        """The plan binds both distinct plates."""
+        self.set_state(["locked(door1)"] + PLATES + COMPANIONS)
+        self.assert_plan("unlockDoor(door1).", contains=["plate1", "plate2"])
+
+    def test_property_p1_atomic_unlock(self):
+        """P1: every plan both synchronizes on the plates and unlocks; afterwards the door is not locked."""
+        self.set_state(["locked(door1)"] + PLATES + COMPANIONS)
+        self.assert_plan("unlockDoor(door1).", contains=["opSynchronizeOnPlates", "opUnlock(door1)"])
+        self.assert_state_after("unlockDoor(door1).", not_has=["locked(door1)"])
+
+    def test_property_p3_distinct_companions(self):
+        """P3: one companion can't stand on both plates."""
+        self.set_state(["locked(door1)"] + PLATES + ["companion(companion1)"])
+        self.assert_no_plan("unlockDoor(door1).")
+
+    def test_property_p4_idempotent(self):
+        """P4: unlocking an unlocked door changes no state."""
+        self.set_state(PLATES + COMPANIONS)
+        before = set(self.get_state())
+        self.run_goal("unlockDoor(door1)")
+        assert set(self.get_state()) == before, "P4 violated: state changed"
 
 
 def run_tests():

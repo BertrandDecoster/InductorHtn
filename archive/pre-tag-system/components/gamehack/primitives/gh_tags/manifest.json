@@ -1,0 +1,27 @@
+{
+  "name": "gh_tags",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Tags on agents for GameHack domains: applyTag and the ways a tag lands",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:37:21.711030"
+  },
+  "provides": [
+    "applySkillTags/2",
+    "applyTag/2",
+    "opApplyTag/2",
+    "opTagAlreadyOnTarget/2",
+    "opUseSkill/3",
+    "useAgentSkillToApplyTag/3",
+    "useLocationToApplyTag/3",
+    "useSkillOnTarget/3"
+  ],
+  "requires": [
+    "applyTagNotPresent/2"
+  ]
+}

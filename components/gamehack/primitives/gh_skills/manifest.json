@@ -2,7 +2,7 @@
   "name": "gh_skills",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "Skill acquisition and preparation for GameHack domains",
+  "description": "Skill preparation for GameHack domains, getting a skill from an object",
   "dependencies": [
     "gamehack/primitives/gh_movement"
   ],
@@ -11,16 +11,15 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-04-20T23:34:13.985489"
+    "last_checked": "2026-09-25T20:53:29.914055"
   },
   "provides": [
-    "getSkillFromLocation/3",
+    "getSkillFrom/3",
     "opGetSkill/2",
     "opSwapSkill/3",
     "prepareToUseSkill/3"
   ],
   "requires": [
-    "goToLocation/2",
     "goToSameLocation/2"
   ]
 }

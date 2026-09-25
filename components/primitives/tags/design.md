@@ -2,7 +2,18 @@
 
 ## Purpose
 
-Manage status effects (tags) on entities. Tags represent conditions like burning, frozen, stunned, etc. When certain tags combine, they produce different results (e.g., burning + wet = steam).
+A skill's tag lands on an agent (`hasTag(?who, ?tag)`), and combines with the one tag of the
+location the agent stands on (`locationCanApplyTag(?l, ?tag)`). The physics is three location
+combos (`locationCombo/2`); there are no other combinations. Each combo defeats the enemies
+there that are `vulnerableToLocationCombo` it; the skill alone never does.
+
+| Location + skill tag | Result |
+|---|---|
+| `wet` + `electrified` | everyone there is `electrified`; the location stays wet |
+| `oil` + `burning` | everyone there is `burning`; the oil becomes `burning` |
+| `wet` or `ice` + `chilled` | the target alone is `stunned` |
+
+The verbs are copied from `Examples/Combos.htn`, the reference.
 
 ## Layer
 
@@ -10,150 +21,58 @@ primitive
 
 ## Dependencies
 
-None (foundational component)
-
-## Operators
-
-| Operator | Description |
-|----------|-------------|
-| `opApplyTag(?entity, ?tag)` | Add a tag to an entity |
-| `opRemoveTag(?entity, ?tag)` | Remove a tag from an entity |
+None.
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `applyTag(?entity, ?tag)` | Apply tag with combination logic. If entity has a combinable tag, both are replaced with the result. |
-| `removeTag(?entity, ?tag)` | Remove a tag. No-op if tag doesn't exist. |
+| `landSkillTag(?tag, ?t)` | one method per combo, and one for "no combo where `?t` stands": the tag just lands |
+| `landTag(?tag, ?t)` | `?t` has the tag (`opTagAlreadyOnTarget` if it had it); nothing on an immune agent |
+| `tagEveryoneAt(?tag, ?l)` | every agent at `?l` (companion, neutral or enemy) gets the tag |
+| `defeatVulnerable(?e, ?base, ?tag)` | `?e` is dead if it is vulnerable to the combo |
+| `defeatVulnerableAt(?base, ?tag, ?l)` | the same for every enemy at `?l` |
 
-## Tag Combinations
+`agent(?x)` is a rule here: a companion, a neutral or an enemy.
 
-Built-in combinations (can be extended per-level):
+## Operators
 
-| Tag 1 | Tag 2 | Result |
-|-------|-------|--------|
-| burning | wet | steam |
-| wet | electrified | stunned |
-| frozen | burning | wet |
-| electronics | electrified | disabled |
-
-Note: Combinations are commutative (order doesn't matter).
-
-## Required Facts
-
-| Fact | Description |
-|------|-------------|
-| `hasTag(?entity, ?tag)` | Entity currently has this tag |
-| `vulnerability(?entity, ?tag)` | Entity is vulnerable to this tag type |
-
-## Parameters
-
-No configurable parameters. Tag combinations are defined as facts.
+| Operator | Effect |
+|----------|--------|
+| `opApplyTag(?tag, ?t)` | adds `hasTag` |
+| `opAddLocationTag(?tag, ?l)`, `opRemoveLocationTag(?tag, ?l)` | add or remove `locationCanApplyTag` |
+| `opTagAlreadyOnTarget(?tag, ?t)` | already true (no state change) |
 
 ## Examples
 
-### Example 1: Simple tag application
+The world: a wet `pond` (companion ward, enemies gob and imp; imp vulnerable to wet +
+electrified, gob to wet + chilled), an oil `pit` (companion sol, enemies orc and rat, a barrel;
+orc vulnerable to oil + burning), an ice `rink` (yak vulnerable to ice + chilled, elk), and a
+plain `field` (ant, immune to burning).
 
-**Given:**
-- Entity has no tags
+### Example 1: Electrified in water
+**When:** `landSkillTag(electrified, gob)` **Then:** ward, gob and imp are electrified; imp is dead
 
-**When:**
-- `applyTag(entity1, burning)`
+### Example 2: Burning on oil
+**When:** `landSkillTag(burning, orc)` **Then:** the pit's oil becomes burning; sol, orc and rat
+burn (not the barrel); orc is dead
 
-**Then:**
-- Plan contains: `opApplyTag(entity1, burning)`
-- Final state has: `hasTag(entity1, burning)`
+### Example 3: Chilled in water
+**When:** `landSkillTag(chilled, gob)` **Then:** gob alone is stunned, and dead
 
-### Example 2: Tag combination (burning + wet = steam)
+### Example 4: Chilled on ice
+**Then:** yak is stunned and dead; elk is only stunned
 
-**Given:**
-- `hasTag(entity1, wet)`
+### Example 5: No combo
+**When:** `landSkillTag(electrified, orc)` (electrified on oil) **Then:** `opApplyTag(electrified, orc)`
 
-**When:**
-- `applyTag(entity1, burning)`
+### Example 6: Immune
+**When:** `landSkillTag(burning, ant)` **Then:** the empty plan
 
-**Then:**
-- Plan contains: `opRemoveTag(entity1, wet)`, `opApplyTag(entity1, steam)`
-- Final state has: `hasTag(entity1, steam)`
-- Final state does not have: `hasTag(entity1, wet)`, `hasTag(entity1, burning)`
-
-### Example 3: Applying same tag (no-op)
-
-**Given:**
-- `hasTag(entity1, burning)`
-
-**When:**
-- `applyTag(entity1, burning)`
-
-**Then:**
-- Plan contains: empty (no operators)
-- Final state has: `hasTag(entity1, burning)`
-
-### Example 4: Remove tag
-
-**Given:**
-- `hasTag(entity1, burning)`
-
-**When:**
-- `removeTag(entity1, burning)`
-
-**Then:**
-- Plan contains: `opRemoveTag(entity1, burning)`
-- Final state does not have: `hasTag(entity1, burning)`
-
-### Example 5: Frozen + burning = wet (ice melts)
-
-**Given:**
-- `hasTag(entity1, frozen)`
-
-**When:**
-- `applyTag(entity1, burning)`
-
-**Then:**
-- Plan contains: `opRemoveTag(entity1, frozen)`, `opApplyTag(entity1, wet)`
-- Final state has: `hasTag(entity1, wet)`
-- Final state does not have: `hasTag(entity1, frozen)`, `hasTag(entity1, burning)`
-
-### Example 6: Remove nonexistent tag (no-op)
-
-**Given:**
-- Entity has no tags
-
-**When:**
-- `removeTag(entity1, burning)`
-
-**Then:**
-- Plan contains: empty (no operators)
-
-### Example 7: Tags on different entities are independent
-
-**Given:**
-- `hasTag(entity1, burning)`, `hasTag(entity2, wet)`
-
-**When:**
-- `applyTag(entity1, wet)`
-
-**Then:**
-- entity1 gets steam (burning + wet)
-- entity2 unchanged
-
-### Example 8: Electronics + electrified = disabled
-
-**Given:**
-- `hasTag(device1, electronics)`
-
-**When:**
-- `applyTag(device1, electrified)`
-
-**Then:**
-- Plan contains: `opRemoveTag(device1, electronics)`, `opApplyTag(device1, disabled)`
-- Final state has: `hasTag(device1, disabled)`
-- Final state does not have: `hasTag(device1, electronics)`, `hasTag(device1, electrified)`
+### Example 7: Already there
+**Then:** `landTag(burning, elk)` is `opTagAlreadyOnTarget(burning, elk)`
 
 ## Properties
 
-| ID | Property | Description |
-|----|----------|-------------|
-| P1 | No double tags | An entity cannot have the same tag twice |
-| P2 | Combination replaces | After combination, neither original tag exists |
-| P3 | Commutative combinations | A+B and B+A produce the same result |
+### P1: The skill alone never defeats
+### P2: Only oil changes its tag

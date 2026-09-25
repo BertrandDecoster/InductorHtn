@@ -1,0 +1,10 @@
+% stun_and_burn - stunned, then burning.
+% Depends on: gh_tags (applyTag)
+
+% === Signatures (for TYP001 linter) ===
+signature(stunAndBurn, [agent]).
+
+% Stunned, then burning.
+stunAndBurn(?t) :-
+    if(enemy(?t), not(immune(?t, stunned)), not(immune(?t, burning))),
+    do(applyTag(stunned, ?t), applyTag(burning, ?t)).

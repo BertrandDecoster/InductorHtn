@@ -1,0 +1,18 @@
+% door - Challenge: a locked door opens when a companion stands on its plate.
+% Depends on: locomotion (goToLocation).
+
+% === Signatures (for the TYP001 linter) ===
+signature(unlockDoor, [door]).
+signature(opUnlock, [door]).
+signature(opDoorAlreadyUnlocked, [door]).
+
+% ?d is not locked: already, or a companion stands on the single plate that opens it.
+unlockDoor(?d) :- if(not(locked(?d))), do(opDoorAlreadyUnlocked(?d)).
+unlockDoor(?d) :- if(locked(?d), plateOpens(?p, ?d), not(plateOpens(?p2, ?d), \==(?p2, ?p)), at(?p, ?l), companion(?a)),
+    do(goToLocation(?a, ?l), opUnlock(?d)).
+
+% === Operators ===
+opUnlock(?d) :- del(locked(?d)), add().
+
+% Already true: no state change, the plan shows it.
+opDoorAlreadyUnlocked(?d) :- del(), add().

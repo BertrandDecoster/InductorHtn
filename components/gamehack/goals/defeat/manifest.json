@@ -1,0 +1,27 @@
+{
+  "name": "defeat",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Goal: take an enemy out of the fight, a menu of strategies",
+  "dependencies": [
+    "gamehack/strategies/wet_and_freeze",
+    "gamehack/strategies/oil_and_burn",
+    "gamehack/strategies/stun_and_slow"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T20:53:28.433254"
+  },
+  "provides": [
+    "defeat/1"
+  ],
+  "requires": [
+    "oilAndBurn/1",
+    "opApplyTag/2",
+    "stunAndSlow/1",
+    "wetAndFreeze/1"
+  ]
+}

@@ -1,0 +1,29 @@
+% FIXTURE: single_path
+% Failure mode: exactly one way to do it.
+% Must be flagged by: F1 (strategy_classes < 2).
+%
+% One goal method, one route, no alternatives anywhere. There is nothing for
+% the player to choose and nothing to discover.
+
+% === World ===
+ally(player).
+enemy(gob).
+at(player, hall).
+at(gob, hall).
+hasSkill(player, swordSkill).
+skillAppliesTag(swordSkill, wounded).
+
+% === Operators ===
+opStrike(?a, ?t, ?tag) :- del(), add(hasTag(?t, ?tag)).
+opBrace(?a) :- del(ready(?a)), add(braced(?a)).
+opCommit(?a, ?t) :- del(braced(?a)), add(committed(?a, ?t)).
+
+ready(player).
+
+% === The only route ===
+defeat(?t) :-
+    if(enemy(?t), ally(?a), at(?a, ?l), at(?t, ?l),
+       hasSkill(?a, ?s), skillAppliesTag(?s, ?tag)),
+    do(opBrace(?a), opCommit(?a, ?t), opStrike(?a, ?t, ?tag)).
+
+goals(defeat(gob)).

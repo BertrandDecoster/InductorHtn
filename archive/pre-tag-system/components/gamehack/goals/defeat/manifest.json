@@ -1,0 +1,27 @@
+{
+  "name": "defeat",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Goal: take an enemy out of the fight, a menu of strategies",
+  "dependencies": [
+    "gamehack/strategies/stun_and_slow",
+    "gamehack/strategies/wet_and_electrify",
+    "gamehack/strategies/stun_and_burn"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:30:01.510602"
+  },
+  "provides": [
+    "defeat/1"
+  ],
+  "requires": [
+    "opApplyTag/2",
+    "stunAndBurn/1",
+    "stunAndSlow/1",
+    "wetAndElectrify/1"
+  ]
+}

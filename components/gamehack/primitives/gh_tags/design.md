@@ -2,7 +2,16 @@
 
 ## Purpose
 
-Tag (status effect) application system for GameHack domains. Provides the mechanics for applying tags to targets via skills, with support for multi-tag skills (one skill applying multiple effects). The `applyTag` method dispatches to `applyTagNotPresent` (defined by gh_tag_application action layer) when a tag is not yet present.
+A skill's tags land on its target, combining with the tag of the location the target stands on. A companion holding the skill and standing with the target uses it (`useSkillOnTarget`); each of its tags lands through `landSkillTag`:
+
+| Location + skill tag | Result |
+|---|---|
+| `wet` + `electrified` | everyone there is `electrified`; the location stays wet |
+| `oil` + `burning` | the oil becomes `burning`; everyone there is `burning` |
+| `wet` or `ice` + `chilled` | the target alone is `stunned` |
+| anything else | the tag just lands on the target |
+
+Each combo defeats (`dead`) the enemies there that are `vulnerableToLocationCombo` it; a skill alone never does. The component also holds the physics (`locationCombo` facts), `agent/1` (every companion, neutral and enemy) and the tag types.
 
 ## Layer
 
@@ -10,85 +19,90 @@ primitive
 
 ## Dependencies
 
-None (foundational component)
+None.
 
 ## Operators
 
 | Operator | Description |
 |----------|-------------|
-| `opApplyTag(?tag, ?t)` | Add a tag to a target. `del(), add(hasTag(?t, ?tag))` |
-| `opTagAlreadyOnTarget(?tag, ?t)` | No-op when tag already present |
+| `opUseSkill(?a, ?s, ?t)` | No state change; the engine plays the skill |
+| `opApplyTag(?tag, ?t)` | Adds `hasTag(?t, ?tag)` |
+| `opAddLocationTag(?tag, ?l)`, `opRemoveLocationTag(?tag, ?l)` | Adds or removes `locationCanApplyTag(?l, ?tag)` |
+| `opTagAlreadyOnTarget(?tag, ?t)` | Already true: no state change |
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `applyTag(?tag, ?t)` | Dispatch: if tag present → no-op, else → `applyTagNotPresent` |
-| `useSkillOnTarget(?a, ?s, ?t)` | Apply all tags from skill `?s` to target `?t` |
-| `applySkillTags_L_ApplyTag(?s, ?t)` | `anyOf` applies each tag from `skillAppliesTag(?s, ?tag)` |
-| `useLocationToApplyTag(?l, ?tag, ?t)` | Stub - game engine handles location-based tag application |
-| `useMobSkillToApplyTag(?m, ?s, ?t)` | Stub - game engine handles mob skill application |
+| `useSkillOnTarget(?a, ?s, ?t)` | `?a`, holding `?s` and standing with `?t`, uses it; each tag lands |
+| `applySkillTags(?s, ?t)` | Each of the skill's tags lands (`landSkillTag`) |
+| `landSkillTag(?tag, ?t)` | A skill's tag lands, with the location combo where `?t` stands |
+| `landTag(?tag, ?t)` | `?t` has the tag, unless immune |
+| `tagEveryoneAt(?tag, ?l)` | Every agent at `?l` has the tag |
+| `defeatVulnerable(?e, ?base, ?tag)`, `defeatVulnerableAt(?base, ?tag, ?l)` | The enemies vulnerable to that combo (`?e`, or everyone at `?l`) are `dead` |
 
 ## Required Facts
 
 | Fact | Description |
 |------|-------------|
-| `hasTag(?t, ?tag)` | Target currently has this tag |
-| `skillAppliesTag(?skill, ?tag)` | Skill produces this tag effect |
+| `hasSkill(?a, ?s)`, `skillAppliesTag(?s, ?tag)` | Skills and their tags |
+| `at(?x, ?l)`, `locationCanApplyTag(?l, ?tag)` | Where agents stand, and the location's one tag |
+| `companion/1`, `enemy/1`, `neutral/1` | The agents |
+| `immune(?t, ?tag)`, `hasTag(?t, ?tag)`, `vulnerableToLocationCombo(?e, ?base, ?tag)` | Optional |
 
 ## Examples
 
-### Example 1: Tag already present (no-op)
+### Example 1: No combo, the tag just lands
 
-**Given:**
-- `hasTag(gob, wet)`
+**Given:** pyro (fireballSkill: burning) and gob in the hall (no location tag)
+**When:** `useSkillOnTarget(pyro, fireballSkill, gob)`
+**Then:** the only plan is `opUseSkill(pyro, fireballSkill, gob), opApplyTag(burning, gob)`
 
-**When:**
-- `applyTag(wet, gob)`
+### Example 2: Every tag of the skill lands
 
-**Then:**
-- Plan contains: `opTagAlreadyOnTarget(wet, gob)`
-- No `opApplyTag` in plan
+**Given:** waterSkill applies `wet` and `clean`
+**When:** it is used on gob in the hall
+**Then:** `opApplyTag(wet, gob), opApplyTag(clean, gob)`
 
-### Example 2: Use skill to apply single tag
+### Example 3: Wet + electrified
 
-**Given:**
-- `skillAppliesTag(lightningSkill, electrocute)`
+**Given:** volt (lightningSkill), gob and orc at the wet lake; `vulnerableToLocationCombo(gob, wet, electrified)`
+**When:** `useSkillOnTarget(volt, lightningSkill, gob)`
+**Then:** the only plan electrifies volt, gob and orc, then `opApplyTag(dead, gob)`; the lake stays wet
 
-**When:**
-- `useSkillOnTarget(companionE, lightningSkill, gob)`
+### Example 4: Oil + burning
 
-**Then:**
-- Plan contains: `opApplyTag(electrocute, gob)`
-- Final state has: `hasTag(gob, electrocute)`
+**Given:** pyro, gob and orc in the kitchen, which holds oil; both enemies vulnerable to oil + burning
+**When:** `useSkillOnTarget(pyro, fireballSkill, gob)`
+**Then:** `opRemoveLocationTag(oil, kitchen), opAddLocationTag(burning, kitchen)`, pyro, gob and orc burning, both enemies dead
 
-### Example 3: Use skill to apply multiple tags
+### Example 5: Chilled on ice
 
-**Given:**
-- `skillAppliesTag(waterSkill, wet)`
-- `skillAppliesTag(waterSkill, clean)`
+**Given:** frost (frostSkill: chilled), gob and orc on the ice rink; gob vulnerable to ice + chilled
+**When:** `useSkillOnTarget(frost, frostSkill, gob)`
+**Then:** the only plan is `opUseSkill(frost, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)` (orc is untouched)
 
-**When:**
-- `useSkillOnTarget(companionW, waterSkill, gob)`
+### Example 6: Chilled in water, not vulnerable
 
-**Then:**
-- Plan contains: `opApplyTag(wet, gob)`, `opApplyTag(clean, gob)`
-- Final state has: `hasTag(gob, wet)`, `hasTag(gob, clean)`
+**Given:** frost and gob in the lake, no vulnerability
+**When:** `useSkillOnTarget(frost, frostSkill, gob)`
+**Then:** gob is stunned, not dead
 
-### Example 4: Skill with no tags (no-op)
+### Example 7: Immune and present tags
 
-**Given:**
-- No `skillAppliesTag` facts for `emptySkill`
+**Given:** Example 3 with `immune(orc, electrified)` and `hasTag(gob, electrified)`
+**When:** volt uses lightningSkill on gob
+**Then:** volt is electrified, `opTagAlreadyOnTarget(electrified, gob)`, orc gets nothing
 
-**When:**
-- `useSkillOnTarget(player, emptySkill, gob)`
+### Example 8: The user holds the skill and stands with the target
 
-**Then:**
-- Plan is empty (no operators)
+**Given:** pyro in the hall, gob in the lake
+**When:** `useSkillOnTarget(pyro, fireballSkill, gob)`, or frost (who lacks fireballSkill) tries
+**Then:** no plan
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | No duplicate tags | Applying a tag already present is idempotent |
-| P2 | Multi-tag complete | All tags from a multi-tag skill are applied |
+| P1 | No duplicate tags | A tag already present is not added twice |
+| P2 | Skill alone never defeats | Without a location combo, a vulnerable enemy is not defeated |

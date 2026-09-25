@@ -231,16 +231,16 @@ class TestBuildActivationDistribution:
         """C++ emits 'taskFunctor', 'unifyingMethods', 'viableMethods' (arrays)."""
         records = [
             {
-                "taskFunctor": "defeatEnemy",
-                "taskFull": "defeatEnemy(guard1)",
+                "taskFunctor": "defeat",
+                "taskFull": "defeat(guard1)",
                 "depth": 2,
-                "unifyingMethods": ["theBurn(guard1)", "theSlipstream(guard1)"],
-                "viableMethods": ["theBurn(guard1)"],
+                "unifyingMethods": ["oilAndBurn(guard1)", "wetAndFreeze(guard1)"],
+                "viableMethods": ["oilAndBurn(guard1)"],
             }
         ]
         dist = self._call(records)
-        assert "defeatEnemy" in dist
-        entry = dist["defeatEnemy"]
+        assert "defeat" in dist
+        entry = dist["defeat"]
         assert entry["activation_count"] == 1
         assert entry["unifying_count"] == 2
         assert entry["viable_count"] == 1
@@ -263,20 +263,20 @@ class TestBuildActivationDistribution:
         """Two records for the same functor merge correctly."""
         records = [
             {
-                "taskFunctor": "clearRoom",
+                "taskFunctor": "clearLocation",
                 "depth": 1,
                 "unifyingMethods": ["m1", "m2"],
                 "viableMethods": ["m1"],
             },
             {
-                "taskFunctor": "clearRoom",
+                "taskFunctor": "clearLocation",
                 "depth": 3,
                 "unifyingMethods": ["m1"],
                 "viableMethods": ["m1"],
             },
         ]
         dist = self._call(records)
-        entry = dist["clearRoom"]
+        entry = dist["clearLocation"]
         assert entry["activation_count"] == 2
         assert entry["unifying_count"] == 3   # 2 + 1
         assert entry["viable_count"] == 2      # 1 + 1

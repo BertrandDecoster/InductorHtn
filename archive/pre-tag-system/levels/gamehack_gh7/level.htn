@@ -1,0 +1,104 @@
+% GameHack GH7 Level: GH7-style world state
+% Two companions with combat skills (companionI: iceBlast, companionF: fireball)
+% stunAndSlow and wetAndElectrify both work
+
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (companions and enemies)
+type(agent, player).
+type(agent, companionI).
+type(agent, companionF).
+type(agent, gob).
+type(agent, mimic).
+type(agent, electricityElemental).
+type(agent, teslaTower).
+
+% Locations (named positions in the world)
+type(location, room).
+type(location, inn).
+type(location, hut).
+type(location, mountain).
+type(location, lake).
+type(location, sea).
+type(location, volcano).
+
+% Objects (grant skills)
+type(object, seaShrine).
+type(object, mountainShrine).
+type(object, volcanoShrine).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrified).
+type(tag, clean).
+type(tag, stunned).
+type(tag, burning).
+type(tag, slow).
+
+% Skills (abilities)
+type(skill, iceBlastSkill).
+type(skill, fireballSkill).
+type(skill, lightningSkill).
+type(skill, waterSkill).
+
+% === Agents ===
+companion(player).
+companion(companionI).
+companion(companionF).
+enemy(gob).
+enemy(mimic).
+enemy(electricityElemental).
+enemy(teslaTower).
+
+% === Positions ===
+at(player, room).
+at(companionI, inn).
+at(companionF, inn).
+at(mimic, room).
+at(gob, hut).
+at(electricityElemental, mountain).
+at(teslaTower, lake).
+
+% === Locations ===
+location(room).
+location(inn).
+location(hut).
+location(mountain).
+location(lake).
+location(sea).
+location(volcano).
+
+% === Environment ===
+locationCanApplyTag(lake, wet).
+
+immune(electricityElemental, electrified).
+
+static(teslaTower).
+
+% === Skills ===
+hasSkill(companionI, iceBlastSkill).
+hasSkill(companionF, fireballSkill).
+hasSkill(teslaTower, lightningSkill).
+
+skillHasTag(fireballSkill, slow).
+
+skillAppliesTag(iceBlastSkill, stunned).
+skillAppliesTag(fireballSkill, burning).
+skillAppliesTag(lightningSkill, electrified).
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(waterSkill, clean).
+
+
+% === Objects that grant a skill ===
+object(seaShrine).
+at(seaShrine, sea).
+canGetSkillFrom(seaShrine, waterSkill).
+object(mountainShrine).
+at(mountainShrine, mountain).
+canGetSkillFrom(mountainShrine, iceBlastSkill).
+object(volcanoShrine).
+at(volcanoShrine, volcano).
+canGetSkillFrom(volcanoShrine, fireballSkill).
+
+% === Level Goal ===
+goals(defeat(gob)).

@@ -2,30 +2,26 @@
   "name": "gamehack_mvp",
   "version": "0.1.0",
   "layer": "level",
-  "description": "MVP world exercising wetAndElectrocute via applyTag dispatcher path 1",
+  "description": "Smallest world: two companions, one wetAndFreeze plan",
   "dependencies": [
-    "gamehack/primitives/gh_movement",
-    "gamehack/primitives/gh_tags",
-    "gamehack/primitives/gh_skills",
-    "gamehack/actions/gh_tag_application",
-    "gamehack/strategies/wet_and_electrocute",
-    "gamehack/goals/plan_to_damage"
+    "gamehack/goals/defeat"
   ],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-04-22T15:03:51.827718"
+    "last_checked": "2026-09-25T20:53:35.177894"
   },
   "provides": [
-    "agent/1",
-    "ally/1",
     "at/2",
+    "companion/1",
     "enemy/1",
     "hasSkill/2",
     "location/1",
-    "skillAppliesTag/2"
+    "locationCanApplyTag/2",
+    "skillAppliesTag/2",
+    "vulnerableToLocationCombo/3"
   ],
   "requires": []
 }

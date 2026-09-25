@@ -1,0 +1,26 @@
+{
+  "name": "gh_tags",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "Tag application and skill-to-tag mapping for GameHack domains",
+  "dependencies": [],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-04-22T15:03:49.490260"
+  },
+  "provides": [
+    "applySkillTags_L_ApplyTag/2",
+    "applyTag/2",
+    "opApplyTag/2",
+    "opTagAlreadyOnTarget/2",
+    "useLocationToApplyTag/3",
+    "useMobSkillToApplyTag/3",
+    "useSkillOnTarget/3"
+  ],
+  "requires": [
+    "applyTagNotPresent/2"
+  ]
+}

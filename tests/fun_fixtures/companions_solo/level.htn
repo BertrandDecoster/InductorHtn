@@ -14,9 +14,9 @@
 enemy(gob).
 at(gob, hall).
 
-ally(player).
-ally(companionA).
-ally(companionB).
+companion(player).
+companion(companionA).
+companion(companionB).
 at(player, hall).
 at(companionA, hall).
 at(companionB, hall).
@@ -30,7 +30,7 @@ hasSkill(player, wetSkill).
 % === Route A operators ===
 opDouse(?a, ?t) :- del(), add(hasTag(?t, wet)).
 opCharge(?a) :- del(), add(charged(?a)).
-opDischarge(?a, ?t) :- del(), add(hasTag(?t, shocked)).
+opDischarge(?a, ?t) :- del(), add(hasTag(?t, electrified)).
 
 % === Route B operators ===
 opDigPit(?a) :- del(), add(pitReady(?a)).
@@ -42,12 +42,12 @@ defeat(?t) :- if(enemy(?t)), do(theShockRoute(?t)).
 defeat(?t) :- if(enemy(?t)), do(thePitRoute(?t)).
 
 theShockRoute(?t) :-
-    if(ally(?a1), ally(?a2), \==(?a1, ?a2),
+    if(companion(?a1), companion(?a2), \==(?a1, ?a2),
        hasSkill(?a1, wetSkill), hasSkill(?a2, shockSkill)),
     do(opDouse(?a1, ?t), opCharge(?a2), opDischarge(?a2, ?t)).
 
 thePitRoute(?t) :-
-    if(ally(?a1), ally(?a2), \==(?a1, ?a2),
+    if(companion(?a1), companion(?a2), \==(?a1, ?a2),
        hasSkill(?a1, pitSkill), hasSkill(?a2, ropeSkill)),
     do(opDigPit(?a1), opSnare(?a2, ?t), opTopple(?a1, ?t)).
 

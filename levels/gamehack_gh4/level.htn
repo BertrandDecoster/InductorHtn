@@ -1,10 +1,10 @@
 % GameHack GH4 Level: GH4-style world state
-% Two allies with direct skills (companionE: lightning, companionW: water)
-% Only wetAndElectrocute strategy viable (no stun/slow skills)
+% Three companions: companionE (lightning), companionW (frost), and the player (no skill).
+% Only wetAndFreeze works: gob is vulnerable to wet + chilled; nothing stuns, and there is no oil.
 
 % === Type Declarations (for TYP001 linter) ===
 
-% Agents (characters: player, allies, enemies)
+% Agents (companions and enemies)
 type(agent, player).
 type(agent, companionE).
 type(agent, companionW).
@@ -21,28 +21,14 @@ type(location, mountain).
 type(location, lake).
 type(location, sea).
 
-% Tags (status effects)
-type(tag, wet).
-type(tag, electrocute).
-type(tag, clean).
-type(tag, ice).
-type(tag, fire).
-type(tag, stun).
-type(tag, slow).
-
 % Skills (abilities)
 type(skill, lightningSkill).
-type(skill, waterSkill).
+type(skill, frostSkill).
 
 % === Agents ===
-agent(player).
-agent(companionE).
-agent(companionW).
-agent(gob).
-
-ally(player).
-ally(companionE).
-ally(companionW).
+companion(player).
+companion(companionE).
+companion(companionW).
 enemy(gob).
 enemy(mimic).
 enemy(electricityElemental).
@@ -65,23 +51,25 @@ location(mountain).
 location(lake).
 location(sea).
 
-% === Environment ===
+% === Location tags ===
 locationCanApplyTag(lake, wet).
 locationCanApplyTag(sea, wet).
 
-immune(electricityElemental, electrocute).
+immune(electricityElemental, electrified).
 
 static(teslaTower).
 
 % === Skills ===
 hasSkill(companionE, lightningSkill).
-hasSkill(companionW, waterSkill).
+hasSkill(companionW, frostSkill).
 hasSkill(teslaTower, lightningSkill).
 hasSkill(electricityElemental, lightningSkill).
 
-skillAppliesTag(lightningSkill, electrocute).
-skillAppliesTag(waterSkill, wet).
-skillAppliesTag(waterSkill, clean).
+skillAppliesTag(lightningSkill, electrified).
+skillAppliesTag(frostSkill, chilled).
+
+% === What defeats whom ===
+vulnerableToLocationCombo(gob, wet, chilled).
 
 % === Level Goal ===
-goals(planToDamage(gob)).
+goals(defeat(gob)).

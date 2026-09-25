@@ -1,0 +1,35 @@
+{
+  "name": "gamehack_gh4",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "GH4-style world with wetAndElectrify strategy",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro",
+    "gamehack/primitives/gh_skills",
+    "gamehack/actions/gh_tag_application",
+    "gamehack/strategies/wet_and_electrify",
+    "gamehack/strategies/stun_and_slow",
+    "gamehack/goals/defeat"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:30:02.762998"
+  },
+  "provides": [
+    "at/2",
+    "companion/1",
+    "enemy/1",
+    "hasSkill/2",
+    "immune/2",
+    "location/1",
+    "locationCanApplyTag/2",
+    "skillAppliesTag/2",
+    "static/1"
+  ],
+  "requires": []
+}

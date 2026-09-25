@@ -1,0 +1,105 @@
+% tags - Primitive: tags on agents and on locations, and how they combine.
+
+% === Signatures (for the TYP001 linter) ===
+signature(useLocationToApplyTag, [location, tag, agent]).
+signature(useSkillOnLocation, [agent, skill, location]).
+signature(applySkillTagsToLocation, [skill, location]).
+signature(applyTagToLocation, [tag, location]).
+signature(applyLocationTagsToAgents, [location]).
+signature(opApplyTag, [tag, agent]).
+signature(opRemoveTag, [tag, agent]).
+signature(opAddLocationTag, [tag, location]).
+signature(opRemoveLocationTag, [tag, location]).
+signature(opTagAlreadyOnTarget, [tag, agent]).
+
+% An agent is a companion, a neutral or an enemy.
+agent(?x) :- companion(?x).
+agent(?x) :- neutral(?x).
+agent(?x) :- enemy(?x).
+
+% === Agents ===
+
+% The location's tag lands on ?t, who stands there.
+useLocationToApplyTag(?l, ?tag, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?tag), hasTag(?t, ?tag)),
+    do(opTagAlreadyOnTarget(?tag, ?t)).
+useLocationToApplyTag(?l, ?tag, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))),
+    do(opApplyTag(?tag, ?t), combineTags(?t)).
+
+% === Locations ===
+
+% ?a uses skill ?s on location ?l (the engine handles range); its tags land there.
+useSkillOnLocation(?a, ?s, ?l) :- if(hasSkill(?a, ?s), location(?l)),
+    do(opUseSkill(?a, ?s, ?l), applySkillTagsToLocation(?s, ?l)).
+
+applySkillTagsToLocation(?s, ?l) :- allOf, if(skillAppliesTag(?s, ?tag)), do(applyTagToLocation(?tag, ?l)).
+applySkillTagsToLocation(?s, ?l) :- if(not(skillAppliesTag(?s, ?tag))), do().
+
+% A location's tag changes only when one of its tags reacts to ?tag (oil catches fire);
+% then everyone standing there gets the location's tags. Otherwise nothing happens.
+applyTagToLocation(?tag, ?l) :- if(not(locationCanApplyTag(?l, ?tag)), first(locationCanApplyTag(?l, ?old), tagCombines(?old, ?tag, ?result))),
+    do(opAddLocationTag(?tag, ?l), combineTags(?l), applyLocationTagsToAgents(?l)).
+applyTagToLocation(?tag, ?l) :- if(not(locationCanApplyTag(?l, ?old), tagCombines(?old, ?tag, ?result))), do().
+
+% Every agent at ?l gets the location's tags, one at a time, each landing combining.
+applyLocationTagsToAgents(?l) :- if(first(agent(?a), at(?a, ?l), locationCanApplyTag(?l, ?t), not(hasTag(?a, ?t)), not(immune(?a, ?t)))),
+    do(opApplyTag(?t, ?a), combineTags(?a), applyLocationTagsToAgents(?l)).
+applyLocationTagsToAgents(?l) :- if(not(agent(?a), at(?a, ?l), locationCanApplyTag(?l, ?t), not(hasTag(?a, ?t)), not(immune(?a, ?t)))), do().
+
+% === Combination: two tags on ?x react; repeat until none do ===
+
+% An agent: the pair is replaced by its result (unless it already has it as a third tag).
+combineTags(?x) :- if(not(location(?x)),
+       first(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new), not(hasTag(?x, ?new), \==(?new, ?a), \==(?new, ?b)))),
+    do(opRemoveTag(?a, ?x), opRemoveTag(?b, ?x), opApplyTag(?new, ?x), combineTags(?x)).
+combineTags(?x) :- if(not(location(?x)),
+       not(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new), not(hasTag(?x, ?new), \==(?new, ?a), \==(?new, ?b))),
+       first(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new))),
+    do(opRemoveTag(?a, ?x), opRemoveTag(?b, ?x), combineTags(?x)).
+combineTags(?x) :- if(not(location(?x)), not(hasTag(?x, ?a), hasTag(?x, ?b), tagCombines(?a, ?b, ?new))), do().
+
+% A location: the same, on its location tags.
+combineTags(?x) :- if(location(?x),
+       first(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new),
+             not(locationCanApplyTag(?x, ?new), \==(?new, ?a), \==(?new, ?b)))),
+    do(opRemoveLocationTag(?a, ?x), opRemoveLocationTag(?b, ?x), opAddLocationTag(?new, ?x), combineTags(?x)).
+combineTags(?x) :- if(location(?x),
+       not(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new),
+           not(locationCanApplyTag(?x, ?new), \==(?new, ?a), \==(?new, ?b))),
+       first(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new))),
+    do(opRemoveLocationTag(?a, ?x), opRemoveLocationTag(?b, ?x), combineTags(?x)).
+combineTags(?x) :- if(location(?x), not(locationCanApplyTag(?x, ?a), locationCanApplyTag(?x, ?b), tagCombines(?a, ?b, ?new))), do().
+
+% === Tag words ===
+type(tag, wet).
+type(tag, stunned).
+type(tag, burning).
+type(tag, electrified).
+type(tag, frozen).
+type(tag, oily).
+type(tag, dead).
+type(tag, steam).
+type(tag, disabled).
+type(tag, electronics).
+
+% === Combinations: ?a and ?b together become ?new (on an agent or a location) ===
+tagCombines(burning, wet, steam).
+tagCombines(wet, burning, steam).
+tagCombines(wet, electrified, stunned).
+tagCombines(electrified, wet, stunned).
+tagCombines(frozen, burning, wet).
+tagCombines(burning, frozen, wet).
+tagCombines(electronics, electrified, disabled).
+tagCombines(electrified, electronics, disabled).
+tagCombines(oily, burning, burning).
+tagCombines(oily, frozen, frozen).
+tagCombines(wet, frozen, frozen).
+
+% === Operators ===
+opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
+opRemoveTag(?tag, ?t) :- del(hasTag(?t, ?tag)), add().
+opUseSkill(?a, ?s, ?target) :- del(), add().
+opAddLocationTag(?tag, ?l) :- del(), add(locationCanApplyTag(?l, ?tag)).
+opRemoveLocationTag(?tag, ?l) :- del(locationCanApplyTag(?l, ?tag)), add().
+
+% Already true: no state change, the plan shows it.
+opTagAlreadyOnTarget(?tag, ?t) :- del(), add().

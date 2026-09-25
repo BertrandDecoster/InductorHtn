@@ -1,0 +1,26 @@
+{
+  "name": "clear_location",
+  "version": "0.1.0",
+  "layer": "goal",
+  "description": "Every enemy at a location is out of the fight",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "primitives/skills",
+    "strategies/wet_and_freeze",
+    "strategies/oil_and_burn",
+    "goals/defeat"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T20:51:41.513336"
+  },
+  "provides": [
+    "clearLocation/1"
+  ],
+  "requires": []
+}

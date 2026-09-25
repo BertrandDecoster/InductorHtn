@@ -2,19 +2,20 @@
   "name": "gh_doors",
   "version": "0.1.0",
   "layer": "primitive",
-  "description": "Door and pressure-plate primitive for GameHack domains",
+  "description": "Doors for GameHack domains: two companions on two plates unlock a door",
   "dependencies": [],
   "certified": false,
   "certification": {
-    "linter": false,
-    "tests_pass": false,
+    "linter": true,
+    "tests_pass": true,
     "design_match": false,
-    "last_checked": null
+    "last_checked": "2026-09-25T20:53:29.163787"
   },
   "provides": [
-    "unlockDoor/1",
+    "opDoorAlreadyUnlocked/1",
     "opSynchronizeOnPlates/4",
-    "opUnlock/1"
+    "opUnlock/1",
+    "unlockDoor/1"
   ],
   "requires": []
 }

@@ -1,0 +1,35 @@
+% aggro - Primitive: enemies take a target, and a lurer brings an enemy somewhere.
+% Depends on: locomotion (goToLocation; the enemies after the lurer follow it).
+
+% === Signatures (for the TYP001 linter) ===
+signature(getAggro, [agent, agent]).
+signature(loseAggro, [agent, agent]).
+signature(bringEnemyTo, [agent, agent, location]).
+signature(opAggro, [agent, agent]).
+signature(opRemoveAggro, [agent, agent]).
+signature(opTargetAlreadyAggroed, [agent, agent]).
+signature(opTargetNotAggroed, [agent, agent]).
+signature(opEnemyAlreadyAtLocation, [agent, location]).
+
+% ?e is after ?a: already, instead of another target, or for the first time.
+getAggro(?e, ?a) :- if(hasAggro(?e, ?a)), do(opTargetAlreadyAggroed(?e, ?a)).
+getAggro(?e, ?a) :- if(hasAggro(?e, ?old), \==(?old, ?a)), do(opRemoveAggro(?e, ?old), opAggro(?e, ?a)).
+getAggro(?e, ?a) :- if(not(hasAggro(?e, ?any))), do(opAggro(?e, ?a)).
+
+% ?e is no longer after ?a.
+loseAggro(?e, ?a) :- if(hasAggro(?e, ?a)), do(opRemoveAggro(?e, ?a)).
+loseAggro(?e, ?a) :- if(not(hasAggro(?e, ?a))), do(opTargetNotAggroed(?e, ?a)).
+
+% Enemy ?e is at ?l: the lurer walks to it, takes its aggro, and walks to ?l.
+bringEnemyTo(?lurer, ?e, ?l) :- if(at(?e, ?l)), do(opEnemyAlreadyAtLocation(?e, ?l)).
+bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
+    do(goToSameLocation(?lurer, ?e), getAggro(?e, ?lurer), goToLocation(?lurer, ?l)).
+
+% === Operators ===
+opAggro(?e, ?a) :- del(), add(hasAggro(?e, ?a)).
+opRemoveAggro(?e, ?a) :- del(hasAggro(?e, ?a)), add().
+
+% Already true: no state change, the plan shows it.
+opTargetAlreadyAggroed(?e, ?a) :- del(), add().
+opTargetNotAggroed(?e, ?a) :- del(), add().
+opEnemyAlreadyAtLocation(?e, ?l) :- del(), add().

@@ -1,0 +1,26 @@
+{
+  "name": "wet_and_electrify",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "Wet, then electrified",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro",
+    "gamehack/primitives/gh_skills",
+    "gamehack/actions/gh_tag_application"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:30:00.389000"
+  },
+  "provides": [
+    "wetAndElectrify/1"
+  ],
+  "requires": [
+    "applyTag/2"
+  ]
+}

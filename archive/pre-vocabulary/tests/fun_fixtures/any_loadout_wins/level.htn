@@ -1,0 +1,43 @@
+% FIXTURE: any_loadout_wins - no scarcity
+% Four interchangeable tools, two enemies that fall to any of them, and a
+% `defeat` that never checks where anyone stands. Every 2-of-4 pick clears
+% the encounter, so F4 must FAIL on feasibility: a choice with no wrong
+% answers is not a choice.
+
+enemy(gob).
+enemy(imp).
+at(gob, hall).
+at(imp, hall).
+
+ally(player).
+ally(companionA).
+at(player, hall).
+at(companionA, hall).
+
+% Default kit so the level itself is solvable; F4 strips it.
+hasTool(player, hammer).
+
+opPrepare(?a, ?t) :- del(), add(prepared(?a, ?t)).
+opUse(?a, ?tool, ?t) :- del(), add(hasTag(?t, beaten)).
+
+defeat(?t) :-
+    if(enemy(?t), ally(?a), hasTool(?a, ?tool)),
+    do(opPrepare(?a, ?t), opUse(?a, ?tool, ?t)).
+
+clearHall :- if(), do(defeat(gob), defeat(imp)).
+
+funChoiceSpace(kit, 2).
+funChoice(kit, hammer).
+funChoice(kit, torch).
+funChoice(kit, rope).
+funChoice(kit, net).
+funChoiceFact(hammer, hasTool(player, hammer)).
+funChoiceFact(torch, hasTool(player, torch)).
+funChoiceFact(rope, hasTool(player, rope)).
+funChoiceFact(net, hasTool(player, net)).
+funBlocker(gob).
+funBlocker(imp).
+funBlockerGoal(gob, defeat(gob)).
+funBlockerGoal(imp, defeat(imp)).
+
+goals(clearHall).

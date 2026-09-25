@@ -1,0 +1,53 @@
+% FIXTURE: chore
+% Failure mode: length without interlock.
+% Must be flagged by: F3 (interlock ~ 0 despite an acceptable plan length).
+%
+% Two genuinely different routes, each eight operators long - so F1 and F2 are
+% satisfied - but within a route nothing any operator does enables anything
+% another operator needs. Order is irrelevant. This is the failure F3 exists
+% to separate from real depth: a plan can be long and still be a to-do list.
+
+% === World ===
+enemy(gob).
+ally(player).
+at(player, hall).
+at(gob, hall).
+
+switch(s1). switch(s2). switch(s3). switch(s4).
+switch(s5). switch(s6). switch(s7). switch(s8).
+dial(d1). dial(d2). dial(d3). dial(d4).
+dial(d5). dial(d6). dial(d7). dial(d8).
+
+% === Route A operators: eight disjoint effects ===
+opFlip1(?a) :- del(), add(flipped(s1)).
+opFlip2(?a) :- del(), add(flipped(s2)).
+opFlip3(?a) :- del(), add(flipped(s3)).
+opFlip4(?a) :- del(), add(flipped(s4)).
+opFlip5(?a) :- del(), add(flipped(s5)).
+opFlip6(?a) :- del(), add(flipped(s6)).
+opFlip7(?a) :- del(), add(flipped(s7)).
+opFlip8(?a) :- del(), add(flipped(s8)).
+
+% === Route B operators: a different eight, equally disjoint ===
+opTurn1(?a) :- del(), add(turned(d1)).
+opTurn2(?a) :- del(), add(turned(d2)).
+opTurn3(?a) :- del(), add(turned(d3)).
+opTurn4(?a) :- del(), add(turned(d4)).
+opTurn5(?a) :- del(), add(turned(d5)).
+opTurn6(?a) :- del(), add(turned(d6)).
+opTurn7(?a) :- del(), add(turned(d7)).
+opTurn8(?a) :- del(), add(turned(d8)).
+
+% === Two routes, sixteen chores, zero causality ===
+defeat(?t) :- if(enemy(?t)), do(theSwitchRoute(?t)).
+defeat(?t) :- if(enemy(?t)), do(theDialRoute(?t)).
+
+theSwitchRoute(?t) :- if(ally(?a)),
+    do(opFlip1(?a), opFlip2(?a), opFlip3(?a), opFlip4(?a),
+       opFlip5(?a), opFlip6(?a), opFlip7(?a), opFlip8(?a)).
+
+theDialRoute(?t) :- if(ally(?a)),
+    do(opTurn1(?a), opTurn2(?a), opTurn3(?a), opTurn4(?a),
+       opTurn5(?a), opTurn6(?a), opTurn7(?a), opTurn8(?a)).
+
+goals(defeat(gob)).

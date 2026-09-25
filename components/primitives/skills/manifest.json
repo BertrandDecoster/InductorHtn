@@ -1,0 +1,27 @@
+{
+  "name": "skills",
+  "version": "0.1.0",
+  "layer": "primitive",
+  "description": "A companion gets a skill, stands with its target and uses it; the skill's tags land",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags"
+  ],
+  "certified": false,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": false,
+    "last_checked": "2026-09-25T20:49:37.003696"
+  },
+  "provides": [
+    "prepareToUseSkill/3",
+    "getSkillFrom/3",
+    "useSkillOnTarget/3",
+    "applySkillTags/2",
+    "opUseSkill/3",
+    "opGetSkill/2",
+    "opSwapSkill/3"
+  ],
+  "requires": []
+}

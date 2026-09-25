@@ -1,45 +1,42 @@
 % GameHack MVP Level: smallest meaningful world
-% Single ally co-located with target; ally has both direct skills.
-% Exercises applyTag -> applyTagNotPresent path 1 (ally-with-skill).
-% stunAndSlowSkill precondition fails (no skillHasTag(?,slow)) -> backtracks to wetAndElectrocute.
+% Two companions and one enemy in a room, a wet pool next door. Frost holds the only skill (chilled):
+% the player lures gob into the pool, frost chills it there. One plan.
 
 % === Type Declarations (for TYP001 linter) ===
 
-% Agents (characters: player, allies, enemies)
+% Agents (companions and enemies)
 type(agent, player).
+type(agent, frost).
 type(agent, gob).
 
 % Locations (named positions in the world)
 type(location, room).
-
-% Tags (status effects)
-type(tag, wet).
-type(tag, electrocute).
-type(tag, ice).
-type(tag, fire).
+type(location, pool).
 
 % Skills (abilities)
-type(skill, waterSkill).
-type(skill, lightningSkill).
+type(skill, frostSkill).
 
 % === Agents ===
-agent(player).
-agent(gob).
-
-ally(player).
+companion(player).
+companion(frost).
 enemy(gob).
 
-% === Positions (single location, co-located) ===
+% === Positions ===
 location(room).
+location(pool).
 at(player, room).
+at(frost, room).
 at(gob, room).
 
-% === Skills ===
-hasSkill(player, waterSkill).
-hasSkill(player, lightningSkill).
+% === Location tags ===
+locationCanApplyTag(pool, wet).
 
-skillAppliesTag(waterSkill, wet).
-skillAppliesTag(lightningSkill, electrocute).
+% === Skills ===
+hasSkill(frost, frostSkill).
+skillAppliesTag(frostSkill, chilled).
+
+% === What defeats whom ===
+vulnerableToLocationCombo(gob, wet, chilled).
 
 % === Level Goal ===
-goals(planToDamage(gob)).
+goals(defeat(gob)).

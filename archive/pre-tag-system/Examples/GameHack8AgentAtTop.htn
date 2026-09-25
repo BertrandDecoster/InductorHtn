@@ -1,0 +1,246 @@
+% WIP (owner-rated 4/5): the right architecture - a strategy menu, feasibility in if(),
+% applyTag with one method per way. The cleaned-up version is Examples/Combos.htn; copy that.
+% Rewritten in the vocabulary of docs/authoring/vocabulary.md; the original is in
+% archive/pre-vocabulary/Examples/. Commented-out facts are the owner's toggles.
+
+companion(player).
+companion(companionI).
+companion(companionF).
+%companion(companionE).
+%companion(companionW).
+
+enemy(gob).
+enemy(mimic).
+enemy(electricityElemental).
+enemy(teslaTower).
+
+at(player, room).
+at(companionI, inn).
+at(companionF, inn).
+%at(companionE, hut).
+%at(companionW, inn).
+at(mimic, room).
+at(gob, hut).
+at(electricityElemental, mountain).
+at(teslaTower, lake).
+
+location(room).
+location(inn).
+location(hut).
+location(mountain).
+location(lake).
+location(sea).
+location(volcano).
+
+locationCanApplyTag(lake, wet).
+%locationCanApplyTag(sea, wet).
+
+immune(electricityElemental, electrified).
+
+static(teslaTower).
+
+hasSkill(companionI, iceBlastSkill).
+hasSkill(companionF, fireballSkill).
+%hasSkill(companionE, lightningSkill).
+%hasSkill(companionW, waterSkill).
+
+hasSkill(teslaTower, lightningSkill).
+%hasSkill(electricityElemental, lightningSkill).
+
+skillHasTag(fireballSkill, slow).
+
+skillAppliesTag(iceBlastSkill, stunned).
+skillAppliesTag(fireballSkill, burning).
+skillAppliesTag(lightningSkill, electrified).
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(waterSkill, clean).
+
+object(seaShrine).
+at(seaShrine, sea).
+canGetSkillFrom(seaShrine, waterSkill).
+%object(lakeShrine).
+%at(lakeShrine, lake).
+%canGetSkillFrom(lakeShrine, waterSkill).
+object(mountainShrine).
+at(mountainShrine, mountain).
+canGetSkillFrom(mountainShrine, iceBlastSkill).
+object(volcanoShrine).
+at(volcanoShrine, volcano).
+canGetSkillFrom(volcanoShrine, fireballSkill).
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Goal: the enemy is out of the fight
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))),
+    do(stunAndSlow(?t), opApplyTag(dead, ?t)).
+
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))),
+    do(wetAndElectrify(?t), opApplyTag(dead, ?t)).
+
+% Simultaneous
+stunAndSlow(?t) :-
+    if(
+        enemy(?t),
+        not(immune(?t, stunned)),
+        skillHasTag(?slowSkill, slow),
+        skillAppliesTag(?stunSkill, stunned),
+        companion(?a1),
+        companion(?a2),
+        \==(?a1, ?a2)
+    ),
+    do(
+        prepareToUseSkill(?a1, ?stunSkill, ?t),
+        prepareToUseSkill(?a2, ?slowSkill, ?t),
+        opSynchronize(?a1, ?a2),
+        useSkillOnTarget(?a1, ?stunSkill, ?t),
+        useSkillOnTarget(?a2, ?slowSkill, ?t)
+    ).
+
+opSynchronize(?a1, ?a2) :-
+    del(), add().
+
+% Sequential
+wetAndElectrify(?t) :-
+    if(enemy(?t), not(immune(?t, wet)), not(immune(?t, electrified))),
+    do(applyTag(wet, ?t), applyTag(electrified, ?t)).
+
+applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)),
+    do(opTagAlreadyOnTarget(?tag, ?t)).
+
+opTagAlreadyOnTarget(?tag, ?t) :-
+    del(), add().
+
+applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))),
+    do(applyTagNotPresent(?tag, ?t)).
+
+% Companion applies skill
+applyTagNotPresent(?tag, ?t) :- if(companion(?a), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+
+% Location applies tag: ?t is already there, or a lurer brings it
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag), at(?t, ?l)),
+    do(useLocationToApplyTag(?l, ?tag, ?t)).
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag), not(at(?t, ?l)), companion(?lurer)),
+    do(bringEnemyTo(?lurer, ?t, ?l), useLocationToApplyTag(?l, ?tag, ?t)).
+
+% Other agent applies skill: already together, or a lurer brings them together
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?ag, ?s), skillAppliesTag(?s, ?tag), not(companion(?ag)), \==(?ag, ?t), at(?ag, ?l), at(?t, ?l)),
+    do(useAgentSkillToApplyTag(?ag, ?s, ?t)).
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?ag, ?s), skillAppliesTag(?s, ?tag), not(companion(?ag)), \==(?ag, ?t), at(?ag, ?l), not(at(?t, ?l)), companion(?lurer)),
+    do(bringAgentsTogether(?lurer, ?t, ?ag), useAgentSkillToApplyTag(?ag, ?s, ?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cast skill
+
+prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)),
+    do(goToSameLocation(?a, ?t)).
+
+prepareToUseSkill(?a, ?s, ?t) :- if(companion(?a), not(hasSkill(?a, ?s)), object(?o), canGetSkillFrom(?o, ?s)),
+    do(goToSameLocation(?a, ?o), getSkillFrom(?a, ?o, ?s), goToSameLocation(?a, ?t)).
+
+useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)),
+    do(opUseSkill(?a, ?s, ?t), applySkillTags(?s, ?t)).
+
+opUseSkill(?a, ?s, ?t) :-
+    del(), add().
+
+applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag))),
+    do(opApplyTag(?tag, ?t)).
+
+applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag), not(hasTag(?t, ?tag)), not(immune(?t, ?tag)))),
+    do().
+
+opApplyTag(?tag, ?t) :-
+    del(), add(hasTag(?t, ?tag)).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Get a skill from an object
+
+getSkillFrom(?a, ?o, ?s) :- if(at(?o, ?l), at(?a, ?l), hasSkill(?a, ?oldSkill)),
+    do(opSwapSkill(?a, ?oldSkill, ?s)).
+
+getSkillFrom(?a, ?o, ?s) :- if(at(?o, ?l), at(?a, ?l), not(hasSkill(?a, ?oldSkill))),
+    do(opGetSkill(?a, ?s)).
+
+opSwapSkill(?a, ?oldSkill, ?s) :-
+    del(hasSkill(?a, ?oldSkill)), add(hasSkill(?a, ?s)).
+
+opGetSkill(?a, ?s) :-
+    del(), add(hasSkill(?a, ?s)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Use location to apply tag
+
+useLocationToApplyTag(?l, ?tag, ?t) :- if(at(?t, ?l)),
+    do(opApplyTag(?tag, ?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Use non-companion agent to apply tag
+% Assume that we bring one agent to the other, we don't bring them both to a 3rd location
+
+bringAgentsTogether(?lurer, ?a1, ?a2) :- if(at(?a1, ?location), at(?a2, ?location)),
+    do(opAgentsAlreadyTogether(?a1, ?a2)).
+
+bringAgentsTogether(?lurer, ?a1, ?a2) :- if(not(static(?a1)), at(?a2, ?a2Location), not(at(?a1, ?a2Location))),
+    do(bringEnemyTo(?lurer, ?a1, ?a2Location)).
+
+bringAgentsTogether(?lurer, ?a1, ?a2) :- if(static(?a1), at(?a1, ?a1Location), not(at(?a2, ?a1Location))),
+    do(bringEnemyTo(?lurer, ?a2, ?a1Location)).
+
+opAgentsAlreadyTogether(?a1, ?a2) :-
+    del(), add().
+
+useAgentSkillToApplyTag(?ag, ?s, ?t) :- if(at(?ag, ?l), at(?t, ?l)),
+    do(useSkillOnTarget(?ag, ?s, ?t)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Move related
+goToSameLocation(?a, ?t) :- if(at(?t, ?location)),
+    do(goToLocation(?a, ?location)).
+
+goToLocation(?a, ?l) :- if(at(?a, ?l)),
+    do(opStayInLocation(?a)).
+goToLocation(?a, ?l) :- if(location(?l), at(?a, ?aLocation), \==(?l, ?aLocation)),
+    do(opMoveTo(?a, ?aLocation, ?l), enemiesFollow(?a, ?aLocation, ?l)).
+
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e))),
+    do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)))),
+    do().
+
+opMoveTo(?a, ?oldLocation, ?newLocation) :-
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opAggroMoveTo(?a, ?oldLocation, ?newLocation) :-
+    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opStayInLocation(?a) :-
+    del(), add().
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Aggro related
+bringEnemyTo(?lurer, ?e, ?l) :- if(at(?e, ?l)),
+    do(opEnemyAlreadyAtLocation(?e, ?l)).
+bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
+    do(goToSameLocation(?lurer, ?e), getAggro(?e, ?lurer), goToLocation(?lurer, ?l)).
+
+opEnemyAlreadyAtLocation(?e, ?l) :-
+    del(), add().
+
+getAggro(?e, ?a) :- if(hasAggro(?e, ?oldTarget), \==(?oldTarget, ?a)),
+    do(opRemoveAggro(?e, ?oldTarget), opAggro(?e, ?a)).
+getAggro(?e, ?a) :- if(not(hasAggro(?e, ?oldTarget))),
+    do(opAggro(?e, ?a)).
+getAggro(?e, ?a) :- if(hasAggro(?e, ?a)),
+    do(opTargetAlreadyAggroed(?e, ?a)).
+
+opRemoveAggro(?e, ?a) :-
+    del(hasAggro(?e, ?a)), add().
+opAggro(?e, ?a) :-
+    del(), add(hasAggro(?e, ?a)).
+opTargetAlreadyAggroed(?e, ?a) :-
+    del(), add().
+
+goals(defeat(gob)).

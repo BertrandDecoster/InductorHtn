@@ -138,7 +138,7 @@ def test_fake_multiplicity_trips_f1_redundancy_and_f2_distance():
     F1 must see the redundancy and F2 must see that the two classes are the
     same plan. F6 must not blame the controlled companion - the fixture is
     not about the player - which is what distinguishes this from a level that
-    is merely bad; its single-ally plans do trip the cooperation pillar.
+    is merely bad; its single-companion plans do trip the cooperation pillar.
     """
     profile = profile_for("fake_multiplicity")
     f1 = assert_not_pass(profile, "f1_multiplicity")

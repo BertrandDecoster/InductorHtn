@@ -1,6 +1,5 @@
-% gh_movement - GameHack movement primitive
-% Direct location-to-location movement (no room connections needed)
-% Handles goToLocation, goToSameLocation, and static entity checks
+% gh_movement - one-step movement: an agent goes to any location, the engine finds the path.
+% Enemies after the mover follow it.
 
 % === Signatures (for TYP001 linter) ===
 signature(opMoveTo, [agent, location, location]).
@@ -8,28 +7,26 @@ signature(opAggroMoveTo, [agent, location, location]).
 signature(opStayInLocation, [agent]).
 signature(goToLocation, [agent, location]).
 signature(goToSameLocation, [agent, agent]).
+signature(enemiesFollow, [agent, location, location]).
 
 % === Operators ===
 
-opMoveTo(?a, ?oldLocation, ?newLocation) :-
-    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
 
-opAggroMoveTo(?a, ?oldLocation, ?newLocation) :-
-    del(at(?a, ?oldLocation)), add(at(?a, ?newLocation)).
-
-opStayInLocation(?a) :-
-    del(), add().
+% Already true: no state change, the plan shows it.
+opStayInLocation(?a) :- del(), add().
 
 % === Methods ===
 
-% Go to a specific location
-goToLocation(?a, ?l) :- if(at(?a, ?l)),
-    do(opStayInLocation(?a)).
-goToLocation(?a, ?l) :- if(at(?a, ?aLocation), \==(?l, ?aLocation)),
-    do(opMoveTo(?a, ?aLocation, ?l)).
+% ?a stands where ?t is.
+goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
 
-% Go to the same location as a target entity
-goToSameLocation(?a, ?t) :- if(at(?a, ?location), at(?t, ?location)),
-    do(opStayInLocation(?a)).
-goToSameLocation(?a, ?t) :- if(not(static(?a)), at(?a, ?aOldLocation), at(?t, ?tOldLocation), \==(?aOldLocation, ?tOldLocation)),
-    do(goToLocation(?a, ?tOldLocation)).
+% ?a is at ?l; the engine finds the path. Enemies after ?a follow.
+goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
+goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
+    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
+
+% Every enemy after ?a that stood with it moves with it.
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().

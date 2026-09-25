@@ -1,0 +1,41 @@
+% GameHack MVP Level: smallest meaningful world
+% One companion stands with the target and holds both direct skills.
+% applyTagNotPresent way 1 (a companion skill); stunAndSlow fails (no slow skill), so only wetAndElectrify works.
+
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (companions and enemies)
+type(agent, player).
+type(agent, gob).
+
+% Locations (named positions in the world)
+type(location, room).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrified).
+type(tag, stunned).
+type(tag, burning).
+
+% Skills (abilities)
+type(skill, waterSkill).
+type(skill, lightningSkill).
+
+% === Agents ===
+companion(player).
+enemy(gob).
+
+% === Positions (single location, co-located) ===
+location(room).
+at(player, room).
+at(gob, room).
+
+% === Skills ===
+hasSkill(player, waterSkill).
+hasSkill(player, lightningSkill).
+
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(lightningSkill, electrified).
+
+% === Level Goal ===
+goals(defeat(gob)).

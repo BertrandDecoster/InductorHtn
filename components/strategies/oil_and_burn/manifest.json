@@ -1,0 +1,23 @@
+{
+  "name": "oil_and_burn",
+  "version": "0.1.0",
+  "layer": "strategy",
+  "description": "A lurer brings an enemy onto oil; a second companion sets it burning there",
+  "dependencies": [
+    "primitives/locomotion",
+    "primitives/tags",
+    "primitives/aggro",
+    "primitives/skills"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T20:51:40.348956"
+  },
+  "provides": [
+    "oilAndBurn/1"
+  ],
+  "requires": []
+}

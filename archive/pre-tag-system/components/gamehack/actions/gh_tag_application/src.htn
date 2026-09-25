@@ -1,0 +1,20 @@
+% gh_tag_application - the ways to get a tag that isn't there yet, one method per way.
+% A lurer is chosen only when something has to move, so no plan differs only by an idle lurer.
+% Depends on: gh_movement, gh_tags, gh_aggro, gh_skills
+
+% === Signatures (for TYP001 linter) ===
+signature(applyTagNotPresent, [tag, agent]).
+
+% Way 1: a companion uses a skill that applies it.
+applyTagNotPresent(?tag, ?t) :- if(companion(?a), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+% Way 2: ?t stands at a location that applies it, or a lurer brings it there.
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag), at(?t, ?l)),
+    do(useLocationToApplyTag(?l, ?tag, ?t)).
+applyTagNotPresent(?tag, ?t) :- if(locationCanApplyTag(?l, ?tag), not(at(?t, ?l)), companion(?lurer)),
+    do(bringEnemyTo(?lurer, ?t, ?l), useLocationToApplyTag(?l, ?tag, ?t)).
+% Way 3: a non-companion that holds such a skill hits ?t: they already stand together, or a lurer brings them together.
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?ag, ?s), skillAppliesTag(?s, ?tag), not(companion(?ag)), \==(?ag, ?t), at(?ag, ?l), at(?t, ?l)),
+    do(useAgentSkillToApplyTag(?ag, ?s, ?t)).
+applyTagNotPresent(?tag, ?t) :- if(hasSkill(?ag, ?s), skillAppliesTag(?s, ?tag), not(companion(?ag)), \==(?ag, ?t), at(?ag, ?l), not(at(?t, ?l)), companion(?lurer)),
+    do(bringAgentsTogether(?lurer, ?t, ?ag), useAgentSkillToApplyTag(?ag, ?s, ?t)).

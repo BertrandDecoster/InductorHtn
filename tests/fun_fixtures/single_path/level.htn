@@ -6,7 +6,7 @@
 % the player to choose and nothing to discover.
 
 % === World ===
-ally(player).
+companion(player).
 enemy(gob).
 at(player, hall).
 at(gob, hall).
@@ -22,7 +22,7 @@ ready(player).
 
 % === The only route ===
 defeat(?t) :-
-    if(enemy(?t), ally(?a), at(?a, ?l), at(?t, ?l),
+    if(enemy(?t), companion(?a), at(?a, ?l), at(?t, ?l),
        hasSkill(?a, ?s), skillAppliesTag(?s, ?tag)),
     do(opBrace(?a), opCommit(?a, ?t), opStrike(?a, ?t, ?tag)).
 

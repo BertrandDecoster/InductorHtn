@@ -20,11 +20,11 @@ order.
 ## 2. State the need and the strategies before any code
 
 Write down in a few lines, in comments or in your head:
-- **The need**, as a task: `damage(?e)`, `travel(?who, ?to)`, `clearRoom(?r)`.
+- **The need**, as a task: `damage(?e)`, `travel(?who, ?to)`, `clearLocation(?l)`.
 - **The strategies**, one line each: what must become true, in order. Example: "wet, then
-  electrocuted"; "stunned and slowed together by two allies".
+  electrified"; "stunned and slowed together by two companions".
 - **What makes each strategy possible**, the facts its `if()` will check. Choose skills by
-  property (`skillAppliesTag(?s, stun)`), never by name.
+  property (`skillAppliesTag(?s, stunned)`), never by name.
 - **The expected plans** on the sample world: which strategies should work, with whom.
 
 If a strategy reads like "go here, do this, then do that", rewrite it as the **states to
@@ -40,7 +40,7 @@ imitate anything the rubric calls slop, and don't copy from `bench/` or git hist
 ## 4. Write it
 
 - Reuse verbs that exist. Search `components/` and the examples for a verb that already
-  achieves the state (`applyTag`, `prepareToUseSkill`, `navigateTo`, `bringMobToLocation`)
+  achieves the state (`applyTag`, `prepareToUseSkill`, `goToLocation`, `bringEnemyTo`)
   before writing a new one.
 - Levels are facts plus a goal. Components never name level-specific characters, places or
   skills.

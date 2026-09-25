@@ -9,7 +9,7 @@
 
 % === World ===
 enemy(gob).
-ally(player).
+companion(player).
 at(player, hall).
 at(gob, hall).
 
@@ -42,11 +42,11 @@ opTurn8(?a) :- del(), add(turned(d8)).
 defeat(?t) :- if(enemy(?t)), do(theSwitchRoute(?t)).
 defeat(?t) :- if(enemy(?t)), do(theDialRoute(?t)).
 
-theSwitchRoute(?t) :- if(ally(?a)),
+theSwitchRoute(?t) :- if(companion(?a)),
     do(opFlip1(?a), opFlip2(?a), opFlip3(?a), opFlip4(?a),
        opFlip5(?a), opFlip6(?a), opFlip7(?a), opFlip8(?a)).
 
-theDialRoute(?t) :- if(ally(?a)),
+theDialRoute(?t) :- if(companion(?a)),
     do(opTurn1(?a), opTurn2(?a), opTurn3(?a), opTurn4(?a),
        opTurn5(?a), opTurn6(?a), opTurn7(?a), opTurn8(?a)).
 

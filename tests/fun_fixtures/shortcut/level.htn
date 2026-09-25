@@ -11,29 +11,29 @@
 
 % === World ===
 enemy(golem).
-ally(player).
-ally(companionA).
+companion(player).
+companion(companionA).
 
 % === Operators ===
-opSoak(?a, ?t) :- del(), add(wet(?t)).
-opConduct(?a, ?t) :- del(), add(conductive(?t)).
-opShock(?a, ?t) :- del(), add(dead(?t)).
+opSoak(?a, ?t) :- del(), add(hasTag(?t, wet)).
+opConduct(?a, ?t) :- del(), add(hasTag(?t, conductive)).
+opShock(?a, ?t) :- del(), add(hasTag(?t, dead)).
 
-opLure(?a, ?t) :- del(), add(lured(?t)).
+opLure(?a, ?t) :- del(), add(hasAggro(?t, ?a)).
 opOpenPit(?a) :- del(), add(pitOpen).
-opDrop(?a, ?t) :- del(), add(dead(?t)).
+opDrop(?a, ?t) :- del(), add(hasTag(?t, dead)).
 
 % === The intended combo, and the shortcut around it ===
 defeat(?t) :- if(enemy(?t)), do(soak(?t), conduct(?t), shock(?t)).
 defeat(?t) :- if(enemy(?t)), do(lure(?t), openPit(?t), drop(?t)).
 
 soak(?t) :- if(enemy(?t)), do(opSoak(companionA, ?t)).
-conduct(?t) :- if(wet(?t)), do(opConduct(player, ?t)).
-shock(?t) :- if(conductive(?t)), do(opShock(companionA, ?t)).
+conduct(?t) :- if(hasTag(?t, wet)), do(opConduct(player, ?t)).
+shock(?t) :- if(hasTag(?t, conductive)), do(opShock(companionA, ?t)).
 
 lure(?t) :- if(enemy(?t)), do(opLure(companionA, ?t)).
-openPit(?t) :- if(lured(?t)), do(opOpenPit(player)).
-drop(?t) :- if(pitOpen, lured(?t)), do(opDrop(companionA, ?t)).
+openPit(?t) :- if(hasAggro(?t, companionA)), do(opOpenPit(player)).
+drop(?t) :- if(pitOpen, hasAggro(?t, companionA)), do(opDrop(companionA, ?t)).
 
 % === Declared intent: every win goes through the shock ===
 funIntended(combo, opShock).

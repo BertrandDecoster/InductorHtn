@@ -1,0 +1,34 @@
+% FIXTURE: padded_variants
+% Failure mode: the extra "strategies" are one plan plus a pointless detour.
+% Must be flagged by: F1 (plan_uniqueness below the band; padded_classes).
+%
+% The Goodhart case for an agent told to raise multiplicity: add a method
+% that does the real plan and also wanders somewhere first. Every count goes
+% up - plans, classes, even pairwise distance - and the player gets nothing
+% new to discover. Uniqueness (diverse-planning literature) reads the plan
+% set for what it is: one route, and two copies of it with a garnish.
+
+% === World ===
+enemy(golem).
+ally(player).
+ally(companionA).
+place(garden).
+place(cellar).
+
+% === Operators ===
+opSoak(?a, ?t) :- del(), add(wet(?t)).
+opShock(?a, ?t) :- del(), add(dead(?t)).
+opWander(?a, ?p) :- del(), add(visited(?a, ?p)).
+opLoiter(?a, ?p) :- del(), add(lingered(?a, ?p)).
+
+% === One idea, three names ===
+defeat(?t) :- if(enemy(?t)), do(soak(?t), shock(?t)).
+defeat(?t) :- if(enemy(?t)), do(stroll(garden), soak(?t), shock(?t)).
+defeat(?t) :- if(enemy(?t)), do(linger(cellar), soak(?t), shock(?t)).
+
+soak(?t) :- if(enemy(?t)), do(opSoak(companionA, ?t)).
+shock(?t) :- if(wet(?t)), do(opShock(player, ?t)).
+stroll(?p) :- if(place(?p)), do(opWander(player, ?p)).
+linger(?p) :- if(place(?p)), do(opLoiter(player, ?p)).
+
+goals(defeat(golem)).

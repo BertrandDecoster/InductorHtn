@@ -31,7 +31,9 @@ pytestmark = pytest.mark.asyncio
 
 
 def _locomotion_src() -> str:
-    return (_REPO / "components" / "primitives" / "locomotion" / "src.htn").read_text()
+    # A frozen sample domain (hop-by-hop moveTo over connected/pathThrough): these tests
+    # compare the MCP with the framework, so they need a domain that doesn't change.
+    return (Path(__file__).parent / "fixtures" / "hop_locomotion.htn").read_text()
 
 
 def _normalise_facts(facts: list[str]) -> list[str]:

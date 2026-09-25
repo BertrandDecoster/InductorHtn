@@ -2,102 +2,63 @@
 
 ## Overview
 
-A introductory puzzle that demonstrates the core mechanics: luring enemies into hazards using theBurn and theSlipstream strategies.
-
-Based on Level 1 concepts from PUZZLE_IDEAS.md, adapted to room-level HTN planning.
+An introductory puzzle for oilAndBurn and wetAndFreeze. Two guards hold the generator room.
+Each is out of the fight only through one location combo, and each combo needs two companions:
+one lures the guard onto the right floor, the other uses the right skill on it there.
 
 ## Layout
 
 ```
     [storage]     [generator]
-         \           /
-          \         /
-           [main]
-             |
-        [corridor]
+         \           /  |
+          [main]        |
+             |          |
+        [corridor]------+
              |
           [exit]
 ```
 
-## Rooms
+The map is `linked` facts (both directions). Movement is one step: the engine pathfinds.
 
-| Room | Contents | Hazards |
-|------|----------|---------|
-| main | Player, Warden | - |
-| storage | Enemy (guard1) | Oil pool |
-| generator | - | Electricity |
-| corridor | Enemy (guard2) | - |
-| exit | (goal destination) | - |
+## Locations
 
-## Initial State
+| Location | Contents | Tag |
+|----------|----------|-----|
+| main | player, arcanist | - |
+| storage | - | oil |
+| generator | guard1 (oil + burning), guard2 (wet + chilled) | - |
+| corridor | - | wet |
+| exit | goal | - |
 
-- `at(player, main)` - Player starts in main room
-- `at(warden, main)` - Warden companion in main room
-- `at(guard1, storage)` - Guard enemy in storage
-- `at(guard2, corridor)` - Guard enemy in corridor
-- `isEnemy(guard1)` - guard1 is hostile
-- `isEnemy(guard2)` - guard2 is hostile
-- `roomHasHazard(storage, oil)` - Oil pool in storage
-- `roomHasHazard(generator, electricity)` - Electrical hazard
-- `connected(main, storage)` - Rooms are connected
-- `connected(main, generator)`
-- `connected(main, corridor)`
-- `connected(corridor, exit)`
-- `canApplyTag(player, burning)` - Player can ignite
-- `canApplyTag(arcanist, frozen)` - (Arcanist ability if present)
-- `vulnerableTo(guard1, burning)` - Guard1 weak to fire
-- `vulnerableTo(guard2, electrified)` - Guard2 weak to electricity
+## Companions
 
-## Goals
+| Companion | Skill | Tag |
+|-----------|-------|-----|
+| player | igniteSkill | burning |
+| arcanist | frostSkill | chilled |
 
-1. **Primary Goal**: Reach the exit with all guards defeated
-   - `clearRoom(storage)` - Defeat guard1
-   - `clearRoom(corridor)` - Defeat guard2
-   - `moveTo(player, exit)` - Reach exit
+## Goal
 
-## HTN Solutions
+`completePuzzle`: `clearLocation(generator)`, then both companions reach the exit.
 
-### Solution A: The Grease Trap
-1. Player lures guard1 to storage (already there)
-2. Player ignites oil in storage → guard1 gets burning tag
-3. Player uses theSlipstream on guard2 (freeze corridor, push into generator)
-4. Player moves to exit
+## HTN Solution (the only plan)
 
-### Solution B: Double Slipstream
-(Requires arcanist companion with freeze ability)
-1. Freeze path from storage to generator, push guard1 into electricity
-2. Freeze path from corridor to generator, push guard2 into electricity
-3. Player moves to exit
+1. The arcanist lures guard1 from the generator onto the storage's oil; the player walks there
+   and ignites it. The oil becomes burning; the player, the arcanist and guard1 burn; guard1
+   is dead.
+2. The player lures guard2 from the generator into the wet corridor; the arcanist walks there
+   and chills it. guard2 is stunned and dead.
+3. Both walk to the exit. The dead guards stay where they fell.
 
 ## Examples
 
 ### Example 1: Puzzle can be completed
+**When:** `completePuzzle` **Then:** exactly one plan (above)
 
-**Given:** Initial level state
-**When:** `completePuzzle`
-**Then:** Plan exists with operators
-
-### Example 2: Guard1 uses theBurn strategy
-
-**Given:** guard1 vulnerable to burning, storage has oil
-**When:** `defeatEnemy(guard1)`
-**Then:** guard1 has burning tag
-
-### Example 3: Guard2 uses theSlipstream strategy
-
-**Given:** guard2 vulnerable to electrified, generator has electricity
-**When:** `defeatEnemy(guard2)`
-**Then:** guard2 has electrified tag
+### Example 2: guard1 is defeated by oilAndBurn
+### Example 3: guard2 is defeated by wetAndFreeze
 
 ## Properties
 
-| ID | Property | Description |
-|----|----------|-------------|
-| P1 | All enemies tagged | After completion, all enemies have status tags |
-| P2 | Player at exit | After completion, player is at exit room |
-| P3 | Valid strategy selection | Strategy matches enemy vulnerability |
-
-## Success Criteria
-
-- All enemies have status tags (burning, electrified, etc.)
-- Player is at exit room
+### P1: All enemies dead after completion
+### P2: Both companions at the exit; the dead guards stay behind

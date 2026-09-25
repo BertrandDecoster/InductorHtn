@@ -1,92 +1,51 @@
 % Puzzle 1: The Grease Trap
-% An introductory puzzle demonstrating theBurn and theSlipstream strategies
-% Depends on: locomotion, tags, aggro, the_burn, the_slipstream, defeat_enemy, clear_room
+% An introductory puzzle for oilAndBurn and wetAndFreeze: two guards hold the generator room.
+% One must be lured onto the oil and set burning, the other into the water and chilled; then
+% both companions reach the exit.
+% Depends on: locomotion, tags, aggro, skills, oil_and_burn, wet_and_freeze, defeat, clear_location
 
-% === Type Declarations (for TYP001 linter) ===
+% === Goal ===
 
-% Entities (characters: player, allies, enemies)
-type(entity, player).
-type(entity, warden).
-type(entity, arcanist).
-type(entity, guard1).
-type(entity, guard2).
+completePuzzle :- if(), do(clearLocation(generator), reachExit).
 
-% Rooms (locations in the level)
-type(room, main).
-type(room, storage).
-type(room, generator).
-type(room, corridor).
-type(room, exit).
+% Every companion reaches the exit.
+reachExit :- allOf, if(companion(?c)), do(goToLocation(?c, exit)).
 
-% Tags (status effects applied to entities/rooms)
-type(tag, burning).
-type(tag, frozen).
-type(tag, wet).
-type(tag, electrified).
-type(tag, oil).
-type(tag, electricity).
+% === World ===
 
-% Hazards (environmental hazard types; dual-typed with tag where they coincide)
-type(hazard, oil).
-type(hazard, electricity).
-type(hazard, fire).
-type(hazard, spikes).
-type(hazard, acid).
+%    [storage]     [generator]
+%         \           /  |
+%           [main]      |
+%             |         |
+%        [corridor]-----+
+%             |
+%          [exit]
+location(main). location(storage). location(generator). location(corridor). location(exit).
 
-% === Level-specific Goal ===
+linked(main, storage). linked(storage, main).
+linked(main, generator). linked(generator, main).
+linked(main, corridor). linked(corridor, main).
+linked(corridor, exit). linked(exit, corridor).
+linked(corridor, generator). linked(generator, corridor).
 
-% Complete the puzzle: defeat all enemies and reach exit
-completePuzzle :-
-    if(),
-    do(defeatAllGuards, reachExit).
+companion(player). companion(arcanist).
+at(player, main). at(arcanist, main).
 
-% Defeat all guards in the level
-defeatAllGuards :-
-    if(),
-    do(clearRoom(storage), clearRoom(corridor)).
+enemy(guard1). enemy(guard2).
+at(guard1, generator). at(guard2, generator).
+vulnerableToLocationCombo(guard1, oil, burning).
+vulnerableToLocationCombo(guard2, wet, chilled).
 
-% Reach the exit room
-reachExit :-
-    if(),
-    do(moveTo(player, exit)).
+% An oil pool in the storage, a leak in the corridor.
+locationCanApplyTag(storage, oil).
+locationCanApplyTag(corridor, wet).
 
-% === Initial World State ===
+hasSkill(player, igniteSkill). skillAppliesTag(igniteSkill, burning).
+hasSkill(arcanist, frostSkill). skillAppliesTag(frostSkill, chilled).
 
-% Room connections (bidirectional)
-connected(main, storage).
-connected(storage, main).
-connected(main, generator).
-connected(generator, main).
-connected(main, corridor).
-connected(corridor, main).
-connected(corridor, exit).
-connected(exit, corridor).
+% === Type Declarations (for the TYP001 linter) ===
+type(agent, player). type(agent, arcanist). type(agent, guard1). type(agent, guard2).
+type(location, main). type(location, storage). type(location, generator). type(location, corridor). type(location, exit).
+type(skill, igniteSkill). type(skill, frostSkill).
 
-% Direct connections to hazard rooms for slipstream
-connected(corridor, generator).
-connected(generator, corridor).
-
-% Entity positions
-at(player, main).
-at(warden, main).
-at(guard1, storage).
-at(guard2, corridor).
-
-% Enemy markers
-isEnemy(guard1).
-isEnemy(guard2).
-
-% Environmental hazards
-roomHasHazard(storage, oil).
-roomHasHazard(generator, electricity).
-
-% Character abilities
-canApplyTag(player, burning).
-canApplyTag(arcanist, frozen).
-
-% Enemy vulnerabilities
-vulnerableTo(guard1, burning).
-vulnerableTo(guard2, electrified).
-
-% Level goal
 goals(completePuzzle).

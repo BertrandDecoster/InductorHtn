@@ -1,52 +1,80 @@
-% gh_tags - GameHack tag (status effect) application primitive
-% Handles tag application, skill-to-tag mapping, and stub operators
-% applyTagNotPresent is defined by the gh_tag_application action layer
+% gh_tags - a skill's tags land on its target, combining with the tag of the location it stands on.
+% The physics: locationCombo facts, and agent/1 (every companion, neutral and enemy).
 
 % === Signatures (for TYP001 linter) ===
 signature(opApplyTag, [tag, agent]).
+signature(opUseSkill, [agent, skill, agent]).
+signature(opAddLocationTag, [tag, location]).
+signature(opRemoveLocationTag, [tag, location]).
 signature(opTagAlreadyOnTarget, [tag, agent]).
-signature(applyTag, [tag, agent]).
 signature(useSkillOnTarget, [agent, skill, agent]).
-signature(applySkillTags_L_ApplyTag, [skill, agent]).
-signature(useLocationToApplyTag, [location, tag, agent]).
-signature(useMobSkillToApplyTag, [agent, skill, agent]).
+signature(applySkillTags, [skill, agent]).
+signature(landSkillTag, [tag, agent]).
+signature(landTag, [tag, agent]).
+signature(tagEveryoneAt, [tag, location]).
+signature(defeatVulnerable, [agent, tag, tag]).
+signature(defeatVulnerableAt, [tag, tag, location]).
+
+% === The tags (levels don't redeclare them) ===
+type(tag, wet). type(tag, oil). type(tag, ice). type(tag, burning).
+type(tag, electrified). type(tag, chilled). type(tag, stunned). type(tag, dead).
 
 % === Operators ===
 
-% Apply a tag to a target
-opApplyTag(?tag, ?t) :-
-    del(), add(hasTag(?t, ?tag)).
+opUseSkill(?a, ?s, ?t) :- del(), add().
+opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
+opAddLocationTag(?tag, ?l) :- del(), add(locationCanApplyTag(?l, ?tag)).
+opRemoveLocationTag(?tag, ?l) :- del(locationCanApplyTag(?l, ?tag)), add().
 
-% No-op when tag already on target
-opTagAlreadyOnTarget(?tag, ?t) :-
-    del(), add().
+% Already true: no state change, the plan shows it.
+opTagAlreadyOnTarget(?tag, ?t) :- del(), add().
 
 % === Methods ===
 
-% Apply tag - dispatch: already present or not
-applyTag(?tag, ?t) :- if(hasTag(?t, ?tag)),
-    do(opTagAlreadyOnTarget(?tag, ?t)).
+% ?a, holding ?s and standing with ?t, uses it; each of its tags lands on ?t.
+useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do(opUseSkill(?a, ?s, ?t), applySkillTags(?s, ?t)).
 
-applyTag(?tag, ?t) :- if(not(hasTag(?t, ?tag))),
-    do(applyTagNotPresent(?tag, ?t)).
+applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag)), do(landSkillTag(?tag, ?t)).
+applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))), do().
 
-% Use a skill on a target - applies all tags from that skill
-useSkillOnTarget(?a, ?s, ?t) :- if(),
-    do(applySkillTags_L_ApplyTag(?s, ?t)).
+% A skill's tag lands on ?t, and combines with the tag of the location ?t stands on.
+% Electrified in water: everyone there is electrified; the vulnerable are defeated.
+landSkillTag(electrified, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, wet)),
+    do(tagEveryoneAt(electrified, ?l), defeatVulnerableAt(wet, electrified, ?l)).
+% Burning on oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
+landSkillTag(burning, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, oil)),
+    do(opRemoveLocationTag(oil, ?l), opAddLocationTag(burning, ?l),
+       tagEveryoneAt(burning, ?l), defeatVulnerableAt(oil, burning, ?l)).
+% Chilled in water or on ice: ?t alone is stunned; if vulnerable, defeated.
+landSkillTag(chilled, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?base), locationCombo(?base, chilled)),
+    do(landTag(stunned, ?t), defeatVulnerable(?t, ?base, chilled)).
+% No combo where ?t stands: the tag just lands.
+landSkillTag(?tag, ?t) :- if(at(?t, ?l), not(locationCanApplyTag(?l, ?base), locationCombo(?base, ?tag))),
+    do(landTag(?tag, ?t)).
 
-% Apply all tags from a skill (anyOf for multi-tag skills)
-applySkillTags_L_ApplyTag(?s, ?t) :- anyOf, if(skillAppliesTag(?s, ?tag)),
-    do(opApplyTag(?tag, ?t)).
+% ?t has ?tag, unless it is immune.
+landTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).
+landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), immune(?t, ?tag)), do().
 
-applySkillTags_L_ApplyTag(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))),
-    do().
+% Every agent at ?l gets ?tag: companions, neutrals and enemies alike.
+tagEveryoneAt(?tag, ?l) :- allOf, if(agent(?a), at(?a, ?l)), do(landTag(?tag, ?a)).
+tagEveryoneAt(?tag, ?l) :- if(not(agent(?a), at(?a, ?l))), do().
 
-% === Tag application by location/mob (game engine visualizes, HTN tracks state) ===
+% An enemy vulnerable to this location combo is out of the fight.
+defeatVulnerable(?e, ?base, ?tag) :- if(vulnerableToLocationCombo(?e, ?base, ?tag), not(hasTag(?e, dead))), do(opApplyTag(dead, ?e)).
+defeatVulnerable(?e, ?base, ?tag) :- if(not(vulnerableToLocationCombo(?e, ?base, ?tag), not(hasTag(?e, dead)))), do().
 
-% Location applies tag to target
-useLocationToApplyTag(?l, ?tag, ?t) :- if(),
-    do(opApplyTag(?tag, ?t)).
+defeatVulnerableAt(?base, ?tag, ?l) :- allOf, if(enemy(?e), at(?e, ?l)), do(defeatVulnerable(?e, ?base, ?tag)).
+defeatVulnerableAt(?base, ?tag, ?l) :- if(not(enemy(?e), at(?e, ?l))), do().
 
-% Non-ally mob applies skill to target (applies all tags from the skill)
-useMobSkillToApplyTag(?m, ?s, ?t) :- if(),
-    do(applySkillTags_L_ApplyTag(?s, ?t)).
+% === The physics: which location tag combines with which skill tag ===
+
+agent(?x) :- companion(?x).
+agent(?x) :- neutral(?x).
+agent(?x) :- enemy(?x).
+
+locationCombo(wet, electrified).
+locationCombo(oil, burning).
+locationCombo(wet, chilled).
+locationCombo(ice, chilled).

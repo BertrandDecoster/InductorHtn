@@ -4,7 +4,7 @@
 %
 % "The Quick Way" and "The Clever Way" are the same three operators in the
 % same order; the only thing that varies across the plan set is which of the
-% twelve allies performs them. A plan count in the dozens looks like a rich
+% twelve companions performs them. A plan count in the dozens looks like a rich
 % level and is not one. This is the failure mode a level like
 % gamehack_multipath is most at risk of.
 
@@ -12,16 +12,16 @@
 enemy(gob).
 at(gob, hall).
 
-ally(a1). ally(a2). ally(a3). ally(a4). ally(a5). ally(a6).
-ally(a7). ally(a8). ally(a9). ally(a10). ally(a11). ally(player).
+companion(a1). companion(a2). companion(a3). companion(a4). companion(a5). companion(a6).
+companion(a7). companion(a8). companion(a9). companion(a10). companion(a11). companion(player).
 at(a1, hall). at(a2, hall). at(a3, hall). at(a4, hall).
 at(a5, hall). at(a6, hall). at(a7, hall). at(a8, hall).
 at(a9, hall). at(a10, hall). at(a11, hall). at(player, hall).
 
-hasSkill(a1, blade). hasSkill(a2, blade). hasSkill(a3, blade).
-hasSkill(a4, blade). hasSkill(a5, blade). hasSkill(a6, blade).
-hasSkill(a7, blade). hasSkill(a8, blade). hasSkill(a9, blade).
-hasSkill(a10, blade). hasSkill(a11, blade). hasSkill(player, blade).
+hasSkill(a1, bladeSkill). hasSkill(a2, bladeSkill). hasSkill(a3, bladeSkill).
+hasSkill(a4, bladeSkill). hasSkill(a5, bladeSkill). hasSkill(a6, bladeSkill).
+hasSkill(a7, bladeSkill). hasSkill(a8, bladeSkill). hasSkill(a9, bladeSkill).
+hasSkill(a10, bladeSkill). hasSkill(a11, bladeSkill). hasSkill(player, bladeSkill).
 
 % === Operators ===
 opReady(?a) :- del(), add(readied(?a)).
@@ -33,13 +33,13 @@ defeat(?t) :- if(enemy(?t)), do(theQuickWay(?t)).
 defeat(?t) :- if(enemy(?t)), do(theCleverWay(?t)).
 
 % The player always calls the shot (so F6 stays clean and redundancy is the
-% only thing under test); which ally swings is what varies.
+% only thing under test); which companion swings is what varies.
 theQuickWay(?t) :-
-    if(ally(?a), at(?a, ?l), at(?t, ?l), hasSkill(?a, blade)),
+    if(companion(?a), at(?a, ?l), at(?t, ?l), hasSkill(?a, bladeSkill)),
     do(opReady(player), opSwing(?a, ?t), opFinish(?a, ?t)).
 
 theCleverWay(?t) :-
-    if(ally(?a), at(?a, ?l), at(?t, ?l), hasSkill(?a, blade)),
+    if(companion(?a), at(?a, ?l), at(?t, ?l), hasSkill(?a, bladeSkill)),
     do(opReady(player), opSwing(?a, ?t), opFinish(?a, ?t)).
 
 goals(defeat(gob)).

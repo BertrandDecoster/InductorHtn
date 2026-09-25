@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Aggro and mob manipulation system for GameHack domains. Handles targeting enemies onto allies via aggro, luring mobs to specific locations through aggro chains, and bringing two mobs together. Used by the tag application layer to position enemies for location-based or mob-based tag effects.
+Aggro and luring for GameHack domains. An enemy takes a companion as its target (`getAggro`) and follows it; a lurer brings an enemy to a location (`bringEnemyTo`). The caller chooses the lurer.
 
 ## Layer
 
@@ -10,118 +10,73 @@ primitive
 
 ## Dependencies
 
-- `gamehack/primitives/gh_movement` (goToLocation, opAggroMoveTo)
+- `gamehack/primitives/gh_movement` (goToLocation, goToSameLocation)
 
 ## Operators
 
 | Operator | Description |
 |----------|-------------|
-| `opAggro(?t, ?a)` | Set target's aggro to ally |
-| `opRemoveAggro(?t, ?a)` | Remove target's aggro on ally |
-| `opTargetAlreadyAggroed()` | No-op when target already aggroed |
+| `opAggro(?e, ?a)` | Enemy `?e` is after `?a` |
+| `opRemoveAggro(?e, ?a)` | Enemy `?e` is no longer after `?a` |
+| `opTargetAlreadyAggroed(?e, ?a)` | Already true: no state change |
+| `opEnemyAlreadyAtLocation(?e, ?l)` | Already true: no state change |
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `aggroTarget(?t, ?a)` | Set target's aggro to ally. Handles swap, new, or already-aggroed. |
-| `bringMobToLocation(?t, ?l)` | Lure mob to location via aggro chain: ally goes to mob, aggros, moves to destination |
-| `bringMobsTogether(?m1, ?m2)` | Bring two mobs to same location. Moves non-static mob to the other. |
+| `getAggro(?e, ?a)` | `?e` is after `?a`: already, instead of another target, or for the first time |
+| `bringEnemyTo(?lurer, ?e, ?l)` | The lurer walks to the enemy, takes its aggro, and walks to `?l`; the enemy follows |
 
 ## Required Facts
 
 | Fact | Description |
 |------|-------------|
-| `at(?entity, ?location)` | Current location of an entity |
-| `aggro(?target, ?ally)` | Target is aggro'd onto ally (optional) |
-| `ally(?entity)` | Entity is an ally (can aggro enemies) |
-| `static(?entity)` | Entity cannot move (optional) |
+| `location(?l)`, `at(?x, ?l)` | Where agents are |
+| `enemy(?e)` | Only enemies can be lured |
+| `hasAggro(?e, ?a)` | Enemy `?e` is after `?a` (optional) |
+| `static(?x)` | Never moves (optional) |
 
 ## Examples
 
-### Example 1: New aggro (no prior)
+### Example 1: New aggro
 
-**Given:**
-- `at(gob, hut)`, `at(player, room)`
-- `ally(player)`
-
-**When:**
-- `aggroTarget(gob, player)`
-
-**Then:**
-- Plan contains: `opAggro(gob, player)`
-- Final state has: `aggro(gob, player)`
+**Given:** `at(gob, hut)`, `at(player, room)`
+**When:** `getAggro(gob, player)`
+**Then:** the only plan is `opAggro(gob, player)`; `hasAggro(gob, player)`
 
 ### Example 2: Swap aggro
 
-**Given:**
-- `aggro(gob, companionE)`
-- `ally(player)`
-
-**When:**
-- `aggroTarget(gob, player)`
-
-**Then:**
-- Plan contains: `opRemoveAggro(gob, companionE)`, `opAggro(gob, player)`
+**Given:** `hasAggro(gob, companionE)`
+**When:** `getAggro(gob, player)`
+**Then:** the only plan is `opRemoveAggro(gob, companionE), opAggro(gob, player)`
 
 ### Example 3: Already aggroed
 
-**Given:**
-- `aggro(gob, player)`
+**Given:** `hasAggro(gob, player)`
+**When:** `getAggro(gob, player)`
+**Then:** the only plan is `opTargetAlreadyAggroed(gob, player)`
 
-**When:**
-- `aggroTarget(gob, player)`
+### Example 4: Bring an enemy to a location
 
-**Then:**
-- Plan contains: `opTargetAlreadyAggroed()`
+**Given:** `at(gob, hut)`, `at(player, room)`
+**When:** `bringEnemyTo(player, gob, lake)`
+**Then:** the only plan is `opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, lake), opAggroMoveTo(gob, hut, lake)`; `at(gob, lake)`
 
-### Example 4: Bring mob to location
+### Example 5: Enemy already at the location
 
-**Given:**
-- `at(gob, hut)`, `at(player, room)`, `ally(player)`
+**Given:** `at(gob, lake)`
+**When:** `bringEnemyTo(player, gob, lake)`
+**Then:** the only plan is `opEnemyAlreadyAtLocation(gob, lake)`
 
-**When:**
-- `bringMobToLocation(gob, lake)`
+### Example 6: A static enemy can't be lured
 
-**Then:**
-- Plan contains: `goToLocation`, `aggroTarget`, `opAggroMoveTo`
-- Final state has: `at(gob, lake)`
-
-### Example 5: Bring mob already at location
-
-**Given:**
-- `at(gob, lake)`
-
-**When:**
-- `bringMobToLocation(gob, lake)`
-
-**Then:**
-- Plan is empty (no operators)
-
-### Example 6: Static mob cannot be moved
-
-**Given:**
-- `at(tower, lake)`, `static(tower)`, `at(player, room)`, `ally(player)`
-
-**When:**
-- `bringMobToLocation(tower, hut)`
-
-**Then:**
-- Planning fails
-
-### Example 7: Bring mobs together (already together)
-
-**Given:**
-- `at(gob, hut)`, `at(teslaTower, hut)`
-
-**When:**
-- `bringMobsTogether(gob, teslaTower)`
-
-**Then:**
-- Plan is empty (no operators)
+**Given:** `at(tower, lake)`, `static(tower)`, `at(player, room)`
+**When:** `bringEnemyTo(player, tower, hut)`
+**Then:** no plan
 
 ## Properties
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | Single aggro | A mob has at most one aggro target at a time |
+| P1 | Single aggro | An enemy has at most one aggro target at a time |

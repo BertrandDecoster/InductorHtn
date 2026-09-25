@@ -1,0 +1,38 @@
+{
+  "name": "gamehack_multipath",
+  "version": "0.1.0",
+  "layer": "level",
+  "description": "Ambitious world: all three damage strategies viable simultaneously and all three dispatcher paths exercised, yielding many distinct plans",
+  "dependencies": [
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro",
+    "gamehack/primitives/gh_skills",
+    "gamehack/actions/gh_tag_application",
+    "gamehack/strategies/wet_and_electrify",
+    "gamehack/strategies/stun_and_slow",
+    "gamehack/strategies/stun_and_burn",
+    "gamehack/goals/defeat"
+  ],
+  "certified": true,
+  "certification": {
+    "linter": true,
+    "tests_pass": true,
+    "design_match": true,
+    "last_checked": "2026-09-25T18:30:06.059231"
+  },
+  "provides": [
+    "at/2",
+    "canGetSkillFrom/2",
+    "companion/1",
+    "enemy/1",
+    "hasSkill/2",
+    "location/1",
+    "locationCanApplyTag/2",
+    "object/1",
+    "skillAppliesTag/2",
+    "skillHasTag/2",
+    "static/1"
+  ],
+  "requires": []
+}

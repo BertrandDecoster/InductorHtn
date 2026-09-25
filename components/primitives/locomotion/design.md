@@ -2,9 +2,8 @@
 
 ## Purpose
 
-High-level movement primitive for HTN planning. Handles room-to-room movement at the abstraction level where locations are rooms/areas, not grid tiles.
-
-The game engine handles low-level pathfinding (A*, tile-by-tile movement). This component only tracks which room/area an entity is in.
+Agents move between locations in one step: the game engine finds the path. Enemies that have
+aggro on an agent follow it, unless they are static or dead.
 
 ## Layer
 
@@ -12,108 +11,71 @@ primitive
 
 ## Dependencies
 
-None (foundational component)
-
-## Operators
-
-| Operator | Description |
-|----------|-------------|
-| `opMoveTo(?entity, ?from, ?to)` | Move entity from one location to another. Deletes `at(?entity, ?from)`, adds `at(?entity, ?to)`. |
+None.
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `moveTo(?entity, ?destination)` | Move entity to destination. Handles direct connections and multi-hop paths. No-op if already there. |
-| `canReach(?entity, ?destination)` | Query: check if entity can reach destination from current location. |
-| `reachable(?from, ?to)` | Query: check if path exists between two locations. |
+| `goToLocation(?a, ?l)` | `?a` is at `?l`; enemies after `?a` follow. `opStayInLocation` if already there. |
+| `goToSameLocation(?a, ?t)` | `?a` stands where `?t` is. |
+| `enemiesFollow(?a, ?from, ?to)` | The enemies after `?a` at `?from`, neither static nor dead, move to `?to`. |
+
+## Operators
+
+| Operator | Effect |
+|----------|--------|
+| `opMoveTo(?who, ?from, ?to)` | an agent walks |
+| `opAggroMoveTo(?e, ?from, ?to)` | an enemy follows its target |
+| `opStayInLocation(?a)` | already there (no state change) |
 
 ## Required Facts
 
-The following facts must be provided by the level/game:
-
-| Fact | Description |
-|------|-------------|
-| `at(?entity, ?location)` | Current location of an entity |
-| `connected(?from, ?to)` | Direct connection between locations |
-| `pathThrough(?from, ?to, ?via)` | Multi-hop path (optional, for complex layouts) |
-
-## Parameters
-
-No configurable parameters. Movement is instant at HTN level.
+`location(?l)`, `at(?x, ?l)`, and optionally `hasAggro(?e, ?a)`, `static(?x)`, `hasTag(?e, dead)`.
 
 ## Examples
 
-### Example 1: Direct movement
+### Example 1: One step, wherever the location is
 
-**Given:**
-- `at(player, roomA)`
-- `connected(roomA, roomB)`
+**Given:** `location(a)`, `location(d)`, `at(hero, a)`
+**When:** `goToLocation(hero, d)`
+**Then:** the only plan is `opMoveTo(hero, a, d)`
 
-**When:**
-- `moveTo(player, roomB)`
+### Example 2: Already there
 
-**Then:**
-- Plan contains: `opMoveTo(player, roomA, roomB)`
-- Final state has: `at(player, roomB)`
-- Final state does not have: `at(player, roomA)`
+**Given:** `at(hero, a)`
+**When:** `goToLocation(hero, a)`
+**Then:** the only plan is `opStayInLocation(hero)`
 
-### Example 2: Already at destination
+### Example 3: An enemy after the agent follows it
 
-**Given:**
-- `at(player, roomA)`
+**Given:** `at(hero, a)`, `at(orc, a)`, `hasAggro(orc, hero)`
+**When:** `goToLocation(hero, d)`
+**Then:** `opMoveTo(hero, a, d), opAggroMoveTo(orc, a, d)`
 
-**When:**
-- `moveTo(player, roomA)`
+### Example 4: A static enemy doesn't follow
 
-**Then:**
-- Plan contains: empty (no operators needed)
-- Final state has: `at(player, roomA)`
+**Given:** Example 3 with `static(orc)`
+**When:** `goToLocation(hero, d)`
+**Then:** `opMoveTo(hero, a, d)`
 
-### Example 3: Multi-hop path
+### Example 5: Stand with another agent
 
-**Given:**
-- `at(player, roomA)`
-- `connected(roomA, corridor)`
-- `connected(corridor, roomB)`
-- `pathThrough(roomA, roomB, corridor)`
+**Given:** `at(hero, a)`, `at(orc, d)`
+**When:** `goToSameLocation(hero, orc)`
+**Then:** `opMoveTo(hero, a, d)`
 
-**When:**
-- `moveTo(player, roomB)`
+### Example 6: A dead enemy doesn't follow
 
-**Then:**
-- Plan contains: `opMoveTo(player, roomA, corridor)`, `opMoveTo(player, corridor, roomB)`
-- Final state has: `at(player, roomB)`
-
-### Example 4: Unreachable destination
-
-**Given:**
-- `at(player, roomA)`
-- No connection to roomC
-
-**When:**
-- `moveTo(player, roomC)`
-
-**Then:**
-- Planning fails (no valid plan)
-
-### Example 5: Multiple entities move independently
-
-**Given:**
-- `at(player, roomA)`, `at(warden, roomB)`
-- `connected(roomA, roomB)`, `connected(roomB, roomC)`
-
-**When:**
-- `moveTo(player, roomB)` then `moveTo(warden, roomC)`
-
-**Then:**
-- Each entity moves independently
-- Final state: `at(player, roomB)`, `at(warden, roomC)`
+**Given:** Example 3 with `hasTag(orc, dead)`
+**Then:** `opMoveTo(hero, a, d)`
 
 ## Properties
 
-| ID | Property | Description |
-|----|----------|-------------|
-| P1 | Single location | An entity can only be at one location at a time |
-| P2 | Conservation | Moving doesn't create or destroy entities |
-| P3 | Idempotent | Moving to current location is a no-op |
+### P1: One position
+
+After any move, the agent is at exactly one location.
+
+### P2: Unknown locations are refused
+
+`goToLocation` to something that isn't a `location` has no plan.

@@ -1,0 +1,45 @@
+% GameHack MVP Level: smallest meaningful world
+% Single ally co-located with target; ally has both direct skills.
+% Exercises applyTag -> applyTagNotPresent path 1 (ally-with-skill).
+% stunAndSlowSkill precondition fails (no skillHasTag(?,slow)) -> backtracks to wetAndElectrocute.
+
+% === Type Declarations (for TYP001 linter) ===
+
+% Agents (characters: player, allies, enemies)
+type(agent, player).
+type(agent, gob).
+
+% Locations (named positions in the world)
+type(location, room).
+
+% Tags (status effects)
+type(tag, wet).
+type(tag, electrocute).
+type(tag, ice).
+type(tag, fire).
+
+% Skills (abilities)
+type(skill, waterSkill).
+type(skill, lightningSkill).
+
+% === Agents ===
+agent(player).
+agent(gob).
+
+ally(player).
+enemy(gob).
+
+% === Positions (single location, co-located) ===
+location(room).
+at(player, room).
+at(gob, room).
+
+% === Skills ===
+hasSkill(player, waterSkill).
+hasSkill(player, lightningSkill).
+
+skillAppliesTag(waterSkill, wet).
+skillAppliesTag(lightningSkill, electrocute).
+
+% === Level Goal ===
+goals(planToDamage(gob)).

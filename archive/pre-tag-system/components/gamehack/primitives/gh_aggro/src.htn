@@ -1,0 +1,39 @@
+% gh_aggro - aggro and luring: an enemy takes a companion as its target and follows it.
+% Depends on: gh_movement (goToLocation, goToSameLocation)
+
+% === Signatures (for TYP001 linter) ===
+signature(opAggro, [agent, agent]).
+signature(opRemoveAggro, [agent, agent]).
+signature(opTargetAlreadyAggroed, [agent, agent]).
+signature(opEnemyAlreadyAtLocation, [agent, location]).
+signature(opAgentsAlreadyTogether, [agent, agent]).
+signature(getAggro, [agent, agent]).
+signature(bringEnemyTo, [agent, agent, location]).
+signature(bringAgentsTogether, [agent, agent, agent]).
+
+% === Operators ===
+
+opAggro(?e, ?a) :- del(), add(hasAggro(?e, ?a)).
+opRemoveAggro(?e, ?a) :- del(hasAggro(?e, ?a)), add().
+
+% Already true: no state change, the plan shows it.
+opTargetAlreadyAggroed(?e, ?a) :- del(), add().
+opEnemyAlreadyAtLocation(?e, ?l) :- del(), add().
+opAgentsAlreadyTogether(?a1, ?a2) :- del(), add().
+
+% === Methods ===
+
+% ?e is after ?a: already, instead of another target, or for the first time.
+getAggro(?e, ?a) :- if(hasAggro(?e, ?a)), do(opTargetAlreadyAggroed(?e, ?a)).
+getAggro(?e, ?a) :- if(hasAggro(?e, ?old), \==(?old, ?a)), do(opRemoveAggro(?e, ?old), opAggro(?e, ?a)).
+getAggro(?e, ?a) :- if(not(hasAggro(?e, ?any))), do(opAggro(?e, ?a)).
+
+% Enemy ?e is at ?l: the lurer walks to it, takes its aggro, and walks to ?l.
+bringEnemyTo(?lurer, ?e, ?l) :- if(at(?e, ?l)), do(opEnemyAlreadyAtLocation(?e, ?l)).
+bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
+    do(goToSameLocation(?lurer, ?e), getAggro(?e, ?lurer), goToLocation(?lurer, ?l)).
+
+% ?a1 and ?a2 share a location: whichever can move is lured to the other.
+bringAgentsTogether(?lurer, ?a1, ?a2) :- if(at(?a1, ?l), at(?a2, ?l)), do(opAgentsAlreadyTogether(?a1, ?a2)).
+bringAgentsTogether(?lurer, ?a1, ?a2) :- if(not(static(?a1)), at(?a2, ?l), not(at(?a1, ?l))), do(bringEnemyTo(?lurer, ?a1, ?l)).
+bringAgentsTogether(?lurer, ?a1, ?a2) :- if(static(?a1), at(?a1, ?l), not(at(?a2, ?l))), do(bringEnemyTo(?lurer, ?a2, ?l)).

@@ -1,191 +1,78 @@
-"""Tests for locomotion primitive component."""
+"""Tests for the locomotion primitive component."""
 
 import os
 import sys
 
-# Add parent directories to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../src/Python")))
 
 from htn_test_framework import HtnTestSuite
 
+WORLD = ["location(a)", "location(b)", "location(d)", "at(hero, a)"]
+
 
 class LocomotionTest(HtnTestSuite):
-    """Test suite for locomotion primitive."""
+    """Test suite for the locomotion primitive."""
 
     def setup(self):
-        """Load the locomotion component (resets planner for clean state)."""
-        # load_component with reset_first=True (default) creates fresh planner
         self.load_component("primitives/locomotion")
 
     # =========================================================================
     # Example Tests (from design.md)
     # =========================================================================
 
-    def test_example_1_direct_movement(self):
-        """Example 1: Direct movement
+    def test_example_1_one_step(self):
+        """Example 1: one step, wherever the location is."""
+        self.set_state(WORLD)
+        self.assert_plan_set("goToLocation(hero, d).", ["opMoveTo(hero, a, d)"])
+        self.assert_state_after("goToLocation(hero, d).", has=["at(hero,d)"], not_has=["at(hero,a)"])
 
-        Given: at(player, roomA), connected(roomA, roomB)
-        When: moveTo(player, roomB)
-        Then: Plan contains opMoveTo, final state has at(player, roomB)
-        """
-        self.set_state([
-            "at(player, roomA)",
-            "connected(roomA, roomB)"
-        ])
+    def test_example_2_already_there(self):
+        """Example 2: already there."""
+        self.set_state(WORLD)
+        self.assert_plan_set("goToLocation(hero, a).", ["opStayInLocation(hero)"])
 
-        self.assert_plan("moveTo(player, roomB).",
-            contains=["opMoveTo(player, roomA, roomB)"])
+    def test_example_3_enemy_follows(self):
+        """Example 3: an enemy after the agent follows it."""
+        self.set_state(WORLD + ["at(orc, a)", "hasAggro(orc, hero)"])
+        self.assert_plan_set("goToLocation(hero, d).", ["opMoveTo(hero, a, d), opAggroMoveTo(orc, a, d)"])
 
-        # Note: facts are stored without spaces after commas
-        self.assert_state_after("moveTo(player, roomB).",
-            has=["at(player,roomB)"],
-            not_has=["at(player,roomA)"])
+    def test_example_4_static_enemy_stays(self):
+        """Example 4: a static enemy doesn't follow."""
+        self.set_state(WORLD + ["at(orc, a)", "hasAggro(orc, hero)", "static(orc)"])
+        self.assert_plan_set("goToLocation(hero, d).", ["opMoveTo(hero, a, d)"])
 
-    def test_example_2_already_at_destination(self):
-        """Example 2: Already at destination
+    def test_example_5_same_location(self):
+        """Example 5: stand with another agent."""
+        self.set_state(WORLD + ["at(orc, d)"])
+        self.assert_plan_set("goToSameLocation(hero, orc).", ["opMoveTo(hero, a, d)"])
 
-        Given: at(player, roomA)
-        When: moveTo(player, roomA)
-        Then: Plan is empty (no operators)
-        """
-        self.set_state([
-            "at(player, roomA)"
-        ])
-
-        # Should succeed with empty plan
-        self.assert_plan("moveTo(player, roomA).",
-            not_contains=["opMoveTo"])
-
-    def test_example_3_multi_hop_path(self):
-        """Example 3: Multi-hop path
-
-        Given: at(player, roomA), connections through corridor
-        When: moveTo(player, roomB)
-        Then: Plan contains two opMoveTo operations
-        """
-        self.set_state([
-            "at(player, roomA)",
-            "connected(roomA, corridor)",
-            "connected(corridor, roomB)",
-            "pathThrough(roomA, roomB, corridor)"
-        ])
-
-        self.assert_plan("moveTo(player, roomB).",
-            contains=["opMoveTo(player, roomA, corridor)",
-                     "opMoveTo(player, corridor, roomB)"])
-
-        # Note: facts are stored without spaces after commas
-        self.assert_state_after("moveTo(player, roomB).",
-            has=["at(player,roomB)"],
-            not_has=["at(player,roomA)"])
-
-    def test_example_4_unreachable_destination(self):
-        """Example 4: Unreachable destination
-
-        Given: at(player, roomA), no connection to roomC
-        When: moveTo(player, roomC)
-        Then: Planning fails
-        """
-        self.set_state([
-            "at(player, roomA)"
-            # No connections defined
-        ])
-
-        self.assert_no_plan("moveTo(player, roomC).")
+    def test_example_6_dead_enemy_stays(self):
+        """Example 6: a dead enemy doesn't follow."""
+        self.set_state(WORLD + ["at(orc, a)", "hasAggro(orc, hero)", "hasTag(orc, dead)"])
+        self.assert_plan_set("goToLocation(hero, d).", ["opMoveTo(hero, a, d)"])
 
     # =========================================================================
     # Property Tests
     # =========================================================================
 
-    def test_property_p1_single_location(self):
-        """P1: An entity can only be at one location at a time.
+    def test_property_p1_one_position(self):
+        """P1: after a move the agent is at exactly one location."""
+        self.set_state(WORLD)
+        self.run_goal("goToLocation(hero, b)")
+        positions = [f for f in self.get_state() if f.startswith("at(hero,")]
+        assert positions == ["at(hero,b)"], f"P1 violated: {positions}"
 
-        After moving, entity should not be at old location.
-        """
-        self.set_state([
-            "at(player, roomA)",
-            "connected(roomA, roomB)"
-        ])
-
-        # Run the goal
-        self.run_goal("moveTo(player, roomB)")
-        state = self.get_state()
-
-        # Count how many at(player, ?) facts exist
-        player_locations = [f for f in state if f.startswith("at(player,")]
-        assert len(player_locations) == 1, \
-            f"P1 violated: player at {len(player_locations)} locations: {player_locations}"
-
-    def test_property_p2_conservation(self):
-        """P2: Moving doesn't create or destroy entities.
-
-        The entity should still exist after moving.
-        """
-        self.set_state([
-            "at(player, roomA)",
-            "connected(roomA, roomB)"
-        ])
-
-        self.run_goal("moveTo(player, roomB)")
-        state = self.get_state()
-
-        # Player should still exist somewhere
-        player_exists = any(f.startswith("at(player,") for f in state)
-        assert player_exists, "P2 violated: player no longer exists after move"
-
-    def test_property_p3_idempotent(self):
-        """P3: Moving to current location is a no-op.
-
-        State should be unchanged after moving to same location.
-        """
-        self.set_state([
-            "at(player, roomA)"
-        ])
-
-        initial_state = set(self.get_state())
-        self.run_goal("moveTo(player, roomA)")
-        final_state = set(self.get_state())
-
-        # State should be identical
-        assert initial_state == final_state, \
-            f"P3 violated: state changed. Added: {final_state - initial_state}, Removed: {initial_state - final_state}"
-
-    # =========================================================================
-    # Additional Tests
-    # =========================================================================
-
-    def test_example_5_multiple_entities_independent(self):
-        """Example 5: Multiple entities move independently."""
-        self.set_state([
-            "at(player, roomA)",
-            "at(warden, roomB)",
-            "connected(roomA, roomB)",
-            "connected(roomB, roomC)"
-        ])
-
-        # Move player first
-        self.run_goal("moveTo(player, roomB)")
-
-        # Move warden (without resetting state)
-        self.run_goal("moveTo(warden, roomC)")
-
-        # Verify final state has both at destinations
-        state = self.get_state()
-        assert any("at(player,roomB)" in f for f in state), "Player should be at roomB"
-        assert any("at(warden,roomC)" in f for f in state), "Warden should be at roomC"
-        assert not any("at(player,roomA)" in f for f in state), "Player should not be at roomA"
-        assert not any("at(warden,roomB)" in f for f in state), "Warden should not be at roomB"
+    def test_property_p2_unknown_location(self):
+        """P2: a destination that isn't a location has no plan."""
+        self.set_state(WORLD)
+        self.assert_no_plan("goToLocation(hero, nowhere).")
 
 
 def run_tests():
     """Run all tests in this file."""
     suite = LocomotionTest()
-    suite.setup()
-
-    # Run all test methods
     for method_name in dir(suite):
         if method_name.startswith("test_"):
-            # Reset state for each test
             suite.setup()
             method = getattr(suite, method_name)
             try:
@@ -194,7 +81,6 @@ def run_tests():
                 suite._record(False, method_name, str(e))
             except Exception as e:
                 suite._record(False, method_name, f"Error: {e}")
-
     print(suite.summary())
     return suite.all_passed()
 
