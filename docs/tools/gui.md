@@ -218,7 +218,7 @@ gui/frontend/
 
 ## Adding New Components
 
-1. Create component in `src/components/`:
+1. Create component in `gui/frontend/src/components/`:
 ```jsx
 import React from 'react';
 import './NewComponent.css';

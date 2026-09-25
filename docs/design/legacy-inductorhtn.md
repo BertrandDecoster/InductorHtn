@@ -32,5 +32,5 @@ InductorHTN was first used in production in the iPhone strategy game
 
 This fork keeps all four pillars and layers additions on top — see
 [`../upgrades/`](../upgrades/) for the new ruleset keywords and planner
-instrumentation, and [`language-design.md`](language-design.md) for the
-ruleset-language choices.
+instrumentation, and [`../reference/language.md`](../reference/language.md) for the
+language as it is today.

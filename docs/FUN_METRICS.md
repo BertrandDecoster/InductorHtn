@@ -16,13 +16,13 @@ only interestingness assertions in the whole repo were two hand-written lines in
 (`levels/gamehack_multipath/test.py`: `>= 10` plans plus a complexity bound). The design intent lived
 in prose:
 
-- `src/docs/GDD.md` §2 Core Pillars — *"Challenges are designed to be solvable in several distinct
+- `docs/game-design/GDD.md` §2 Core Pillars — *"Challenges are designed to be solvable in several distinct
   ways"*; *"No single entity can overcome significant challenges alone"*; *"the player is crucial for
   initiating, enabling, and finalizing key actions."*
-- `src/docs/GDD.md` §3.6 Core Gameplay Principles — 2-3 ways per enemy; plans neither too long nor too
+- `docs/game-design/GDD.md` §3.6 Core Gameplay Principles — 2-3 ways per enemy; plans neither too long nor too
   short (*"is 'I cast fireball and everyone dies' a satisfying plan?"*); no single companion can solo
   the map, whoever controls it. The human's companion standing idle is a lesser, seat-level concern.
-- `src/docs/PUZZLE_IDEAS.md` — complexity comes from **depth** (combining existing rules), not
+- `docs/game-design/puzzle-ideas.md` — complexity comes from **depth** (combining existing rules), not
   **width** (adding new rules); no ambiguity; no frustration mechanics.
 
 This document turns that prose into a scorecard a human can read, disagree with, and iterate on.
@@ -333,7 +333,7 @@ seat metrics (`soloable_plans`, `player_load`, `player_decision_points`, `player
 how much the controlled companion has to do and decide *in the seat the level gives it*. They are
 level-design diagnostics, useful for choosing which companion the human should be, not proxies for
 the pillar. The scorecard reports `soloable_plans` above `soloable_plans_max` as a **warn**, never a
-fail; a level whose hypothesis wants the seat busy (`grease_trap`) pins that in its own tests.
+fail; a level whose hypothesis wants the seat busy pins that in its own tests.
 
 Two facts about the design shape this family. The player character and the AI companions are
 **interchangeable in ability** - they differ only by who controls them - so no ruleset may reserve
@@ -509,31 +509,12 @@ Three findings worth acting on, in priority order:
 
 No gamehack level declares a choice space, so F4 is `n/a` for them.
 
-### The first level on the core vocabulary — 2026-09-10
+### The core-vocabulary level — 2026-09-10 (deleted)
 
-`levels/grease_trap` (`components/core/*`): swarm in the gallery, iron bearer at the exit, oil in
-the corridor, pick 2 of 5 player skills. `fun grease_trap --ablate --loadouts`:
-
-| plans | classes | F1 | F2 | F3 | F4 | F5 | F6 | composite |
-|------:|--------:|----|----|----|----|----|----|----------:|
-| 2 | 2 (`theBurn`, `theSlipstream`) | pass | warn | pass | pass | warn | pass | 0.85 |
-
-F4: encounter feasibility 0.4 (= independent: nothing consumed across fights *with these picks*),
-4 winners, no mandatory pick, `flare` dead, 3 near misses. F6: no single-actor plan and no idle
-seat, load 0.58, teamwork
-0.58, 1 decision point. F2 warns on operator-name distance (0.33; both routes end in `opStatus` and
-`opCastRegion`) while ablation shows 1 independent pair and 18 shared gates (the corridor, the oil,
-the cast) - surface similarity, not a duplicate. F5 warns on decision breadth (1.73): single-method
-primitives drag the mean, by design. The hypothesis asked for ≥ 2 decision points and got 1: with the
-default kit each route is a single line once chosen. That is the next rule to change.
-
-The loop steered three design changes on the way here: iron for the bearer instead of a shield
-(so Magnetize, not Gust, is the answer to it), Magnetize moving iron only, and `lure` no longer
-dragging the Warden into the sludge. Two design laws then reshaped the ruleset without moving a
-number: the player character and the AI companions are interchangeable in ability (the
-player-only detonator became a primer/pay-off role rule), and the ruleset decomposes top-down
-from the need (`defeatGroup` → `theBurn`/`theSlipstream` → `blastDeadAt`/`strikeDead` →
-`castElement`, which binds the holder at the leaf). Same two plans, same scorecard.
+`levels/grease_trap` and `components/core/*` were deleted on 2026-09-25: the owner rated the
+core ruleset as slop (see `docs/authoring/rubric.md`). Its scorecard is in git history before
+commit `6ffa1e9`. It showed a level can pass F1-F6 with a ruleset whose design is poor, so the
+scorecard measures the shape of the plan space, not the quality of the rules.
 
 ## 8. Usage
 
@@ -550,7 +531,7 @@ PYTHONPATH=src/Python python -m htn_components fun-compare gamehack_mvp gamehack
 PYTHONPATH=src/Python python -m htn_components fun-all --range solution_information_bits teamwork_edge_ratio
 
 # held-out human signal: record ratings, then see which metrics track them
-PYTHONPATH=src/Python python -m htn_components fun-rate grease_trap --rating 4 --rater alice --note "slipstream felt clever"
+PYTHONPATH=src/Python python -m htn_components fun-rate gamehack_mvp --rating 4 --rater alice --note "the lure felt clever"
 PYTHONPATH=src/Python python -m htn_components fun-calibrate
 ```
 
@@ -580,9 +561,9 @@ there are at least 5. Keep the ratings away from the agent that iterates on a le
 metrics rise while ratings fall, the metrics are being gamed.
 
 ```bash
-PYTHONPATH=src/Python python -m htn_components verify grease_trap             # ends with the scorecard; gates only on funExpect + F7
-PYTHONPATH=src/Python python -m htn_components play grease_trap --class theSlipstream
-PYTHONPATH=src/Python python -m htn_components play grease_trap --solution 1 -i
+PYTHONPATH=src/Python python -m htn_components verify gamehack_mvp            # ends with the scorecard; gates only on funExpect + F7
+PYTHONPATH=src/Python python -m htn_components play gamehack_mvp --class wetAndElectrocute
+PYTHONPATH=src/Python python -m htn_components play gamehack_mvp --solution 0 -i
 ```
 
 `--ablate` and `--loadouts` re-plan many times and are disk-cached under
@@ -639,17 +620,17 @@ Two small additions were made outside the package, both additive:
 Implemented: the seven families (F7 and the plan-set structure metrics added 2026-09-23 from
 `research/fun-cross-reference.md`), `funExpect`, the rating log, the counterfactual harness with tri-state probes and
 dependency-aware caching, encounter feasibility, the agency metrics, the plan trie, narration,
-the `core/*` ruleset with `levels/grease_trap`, and the player-perspective MCP loop.
+and the player-perspective MCP loop.
 `python -m pytest tests/test_fun_metrics.py tests/test_fun_counterfactual.py tests/test_fun_agency.py
-tests/test_replay_sources.py tests/test_core_level.py tests/test_narrate.py
-mcp-server/tests/test_level_tools.py` — 61 passed.
+tests/test_replay_sources.py tests/test_narrate.py
+mcp-server/tests/test_level_tools.py`.
 
 Not done, deliberately: the metrics are not wired into `certify` as a gate; there is no GUI panel;
 no C++ was changed. Backlog, ranked by evidence × computability in
 `research/fun-cross-reference.md` §5.5: the catch (tempting dead-end prefixes, from method-failure
 tracking), campaign novelty and difficulty steps, noisy-policy leniency, persona spread; also telegraphed enemy intent (`intends/3`), a cost model (`funCost/2`) for
-nondominated approaches across time/risk/resources, companion inclinations, migrating the two older
-component trees to the core vocabulary, `toy_two_step`, and playthrough-derived metrics (observed
+nondominated approaches across time/risk/resources, companion inclinations, `toy_two_step`, and
+playthrough-derived metrics (observed
 decision breadth, recovery after a mistake) once `.playthroughs/` holds data.
 
 ## 12. Design recommendations
@@ -657,7 +638,8 @@ decision breadth, recovery after a mistake) once `.playthroughs/` holds data.
 Things the metrics and the play loop surfaced that are decisions for the GDD, not for this tool.
 
 - **Tactical Focus should default to the companions' intentions and the local affordances, not to
-  full plans.** Playing `grease_trap` through the MCP tools, the interesting moment is reading
+  full plans.** Playing a level through the MCP tools (it was `grease_trap`, since deleted), the
+  interesting moment is reading
   "Arcanist: I'll freeze the corridor" and deciding whether to let her, or to push the swarm onto the
   oil first. A full plan shown up front turns that into a button. Full plans belong behind an
   explicit "show me the whole idea" assistance step.

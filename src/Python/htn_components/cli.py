@@ -2743,27 +2743,6 @@ def cmd_fun_calibrate(args) -> int:
     return 0
 
 
-def cmd_combos(args) -> int:
-    """Replan a level for every skill assignment its seats can pick; check
-    that no single skill wins, a team is needed, and several choices and
-    methods work."""
-    import json as _json
-    from htn_components.combos import run_combos
-
-    level_dir = args.level
-    if not os.path.isdir(level_dir):
-        level_dir = os.path.join(PROJECT_ROOT, "levels", args.level)
-    if not os.path.exists(os.path.join(level_dir, "level.htn")):
-        print(f"Error: no level.htn in {level_dir}")
-        return 1
-    report = run_combos(level_dir, PROJECT_ROOT, timeout=args.timeout, workers=args.workers)
-    if args.json:
-        print(_json.dumps(report.to_dict(), indent=2))
-    else:
-        print(report.text())
-    return 0 if not report.failures else 1
-
-
 def _cmd_check(args) -> int:
     from .check import cmd_check
     return cmd_check(args)
@@ -2953,16 +2932,6 @@ Examples:
     check_parser.set_defaults(func=_cmd_check)
 
     # library-coverage command
-    combos_parser = subparsers.add_parser(
-        "combos",
-        help="Replan every skill assignment (comboSeat/comboPool); check no single skill or companion wins",
-    )
-    combos_parser.add_argument("level", help="Level name or directory")
-    combos_parser.add_argument("--json", action="store_true", help="JSON report")
-    combos_parser.add_argument("--timeout", type=float, default=180.0, help="Seconds per replan")
-    combos_parser.add_argument("--workers", type=int, default=None, help="Worker processes")
-    combos_parser.set_defaults(func=cmd_combos)
-
     lib_cov_parser = subparsers.add_parser(
         "library-coverage",
         help="Aggregate plan-space metrics across all levels",

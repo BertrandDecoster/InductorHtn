@@ -9,6 +9,11 @@ PYTHONPATH=src/Python python -m htn_components <command>
 ## Commands
 
 ```
+check <file.htn>... [--goal "task(args)."] [--plans N] [--fast]
+                                 # C++ compile (after the manifest's deps) with the real
+                                 # line:col, lint, and with --goal the plan set. Exit 1 on
+                                 # any error. A PostToolUse hook runs it with --fast on
+                                 # every .htn edit (.claude/hooks/htn_check.py).
 status                           # List all components with certification status
 test <path>                      # Run tests for a component
 certify <path> [--dry-run]       # Full certification (linter + tests + design)

@@ -14,5 +14,5 @@ Every executable and interface in the project. Each tool has its own page under
 
 ## Related reference
 
-- Authoring rulesets with these tools: [`reference/authoring-rulesets.md`](reference/authoring-rulesets.md)
+- Writing rulesets: [`reference/language.md`](reference/language.md), [`authoring/rubric.md`](authoring/rubric.md) and [`authoring/patterns.md`](authoring/patterns.md)
 - Stepping through a level with MCP: [`reference/challenge-play-protocol.md`](reference/challenge-play-protocol.md)

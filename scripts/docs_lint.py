@@ -32,7 +32,7 @@ def read(rel: str) -> str:
     if not p.exists():
         print(f"  ! source not found: {rel}", file=sys.stderr)
         return ""
-    return p.read_text()
+    return p.read_text(encoding="utf-8")
 
 
 # ---- extractors: ACTUAL surfaces (from code) -------------------------------
@@ -128,12 +128,54 @@ LINE_REF = re.compile(r'[A-Za-z_][\w]*\.(?:cpp|h|py|js|jsx):~?\d+|~line \d+')
 LINE_REF_DIRS = ["docs/reference", "docs/tools", "docs/upgrades", "docs/design"]
 
 
+LINK_RE = re.compile(r"\]\(([^)\s]+)\)")
+PATH_RE = re.compile(r"`((?:Examples|components|levels|docs|src|tests|scripts|gui|mcp-server|bench|\.claude)/[\w./-]+)`")
+
+
+# Files the tools create on first use; the docs may name them before they exist.
+CREATED_ON_USE = {"levels/fun_ratings.jsonl"}
+
+
+def link_sources() -> list[Path]:
+    """Live docs: dated records under docs/plans/ are history and are not checked."""
+    files = [ROOT / "CLAUDE.md", ROOT / "BUILD.md"]
+    files += [p for p in (ROOT / "docs").rglob("*.md") if "plans" not in p.relative_to(ROOT / "docs").parts]
+    files += list((ROOT / ".claude").glob("*/**/*.md"))
+    return [p for p in files if p.exists() and "worktrees" not in p.parts]
+
+
+def check_links() -> int:
+    """Markdown links and `repo/paths` in the live docs must point at files that exist.
+    A line that says the thing was deleted (or is in git history) is exempt."""
+    broken = []
+    for doc in link_sources():
+        rel_doc = doc.relative_to(ROOT).as_posix()
+        for n, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
+            if re.search(r"deleted|git history", line, flags=re.I):
+                continue
+            for target in LINK_RE.findall(line):
+                if re.match(r"[a-z]+:", target) or target.startswith("#"):
+                    continue
+                path = target.split("#")[0]
+                if path and not (doc.parent / path).exists():
+                    broken.append(f"{rel_doc}:{n}: link to missing {target}")
+            for path in PATH_RE.findall(line):
+                if any(c in path for c in "*<{") or path.endswith("/...") or path in CREATED_ON_USE:
+                    continue
+                if not (ROOT / path.rstrip("/.")).exists():
+                    broken.append(f"{rel_doc}:{n}: mentions missing `{path}`")
+    print(f"\n[links] {len(link_sources())} live docs -> {'OK' if not broken else 'BROKEN'}")
+    for b in broken:
+        print("  BROKEN " + b)
+    return len(broken)
+
+
 def check_no_line_refs() -> int:
     """file:line citations rot the instant code is edited. Cite symbols instead."""
     hits = []
     for d in LINE_REF_DIRS:
         for p in sorted((ROOT / d).rglob("*.md")):
-            for i, line in enumerate(p.read_text().splitlines(), 1):
+            for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
                 for m in LINE_REF.finditer(line):
                     hits.append((p.relative_to(ROOT), i, m.group(0)))
     print(f"\n[line-number refs] {', '.join(LINE_REF_DIRS)} -> "
@@ -165,6 +207,7 @@ def main() -> int:
     errors += check("Components CLI", "docs/tools/htn-components.md",
                     a_cli, documented_cli_commands(cli_doc, a_cli))
     errors += check_no_line_refs()
+    errors += check_links()
 
     print()
     if errors:

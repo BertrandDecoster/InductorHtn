@@ -182,7 +182,7 @@ if r.get("errors"):
 
 ## Parity with the test framework
 
-`tests/test_parity.py` proves the MCP produces the same plans and final
+`mcp-server/tests/test_parity.py` proves the MCP produces the same plans and final
 state as the `htn_test_framework.HtnTestSuite` (which the component tests
 use) for representative cases. Run with:
 

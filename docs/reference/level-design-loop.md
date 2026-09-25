@@ -50,7 +50,7 @@ funExpect(plan_length_median, atMost, 12).
 Name the idea the level is *about*, and anything that must never win:
 
 ```prolog
-funIntended(combo, opCastRegion).     % every plan must use a member of `combo`
+funIntended(combo, opSynchronize).     % every plan must use a member of `combo`
 funForbidden(opBribe).
 ```
 
@@ -87,7 +87,7 @@ fail. A gate failure rejects the change; it is not traded against score.
 Through the MCP server (`.mcp.json` starts it; `/mcp` shows `indhtn`):
 
 ```
-indhtn_load_level("grease_trap")        -> levelSessionId, observation, actions
+indhtn_load_level("gamehack_mvp")        -> levelSessionId, observation, actions
 indhtn_observe(id)                      -> what the player sees, companions' intentions
 indhtn_actions(id)                      -> the player's own legal moves (+ "wait")
 indhtn_act(id, action)                  -> take one; companions auto-advance
@@ -116,7 +116,7 @@ playthrough-derived metrics will be built on.
 
 ```
 indhtn_explain(id)     -> class reached, classes missed, alternatives at each decision
-indhtn_fun("grease_trap", ablate=true, loadouts=true)
+indhtn_fun("gamehack_mvp", ablate=true, loadouts=true)
 ```
 
 or from the shell:
