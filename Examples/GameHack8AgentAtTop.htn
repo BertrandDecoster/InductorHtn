@@ -1,3 +1,8 @@
+% WIP (owner-rated 4/5): the right architecture - a strategy menu, feasibility in if(),
+% applyTag with one method per way. The cleaned-up version is Examples/Combos.htn; copy that.
+% Don't copy from this file: stunAndSlowSkillDebug and useSkillOnTargetSafe (leftovers),
+% the stray bringMobToLocation/3, immune(?t, ?slowSkill) (should be the tag slow),
+% agent/1 (the vocabulary word is ally/1), and the commented-out facts.
 
 agent(player).
 agent(companionI).

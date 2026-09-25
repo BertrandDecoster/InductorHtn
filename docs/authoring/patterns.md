@@ -7,21 +7,22 @@ built like "acquire a skill" (P4). Every example below was rated 4-5★ by the o
 
 | # | Pattern | Use when | Read |
 |---|---|---|---|
-| P1 | Strategy menu | a need can be met several distinct ways | GameHack8 70-75, Taxi 9-12, TrunkThumper 245-300, GreaseTrap 222-228 |
-| P2 | Feasibility in `if()`, generic verbs in `do()` | writing any strategy | GameHack8 77-95 (`stunAndSlowSkill`), GreaseTrap 232-260 |
-| P3 | A strategy is the states to achieve | a combo is "get A, then get B" | GameHack8 118-120 (`wetAndElectrocute`) |
-| P4 | A verb whose methods are the ways | several ways to reach one state | GameHack8 132-142 (`applyTagNotPresent`), 148-152 (`prepareToUseSkill`) |
-| P5 | Already-done case first | a verb may find its state already true | GameHack8 122-129 (`applyTag`), 233-236 (`goToLocation`) |
-| P6 | Navigation by `pathNext` recursion | moving over a graph of areas | TrunkThumper 233-242, GreaseTrap 194-199 |
-| P7 | Lure: aggro, then walk, then follow | moving an enemy that won't go by itself | GreaseTrap 207-214, GameHack8 248-251 |
-| P8 | Distinct actors, synchronized | two companions must act together | GameHack8 77-95 (`\==(?a1, ?a2)`, `opSynchronize`) |
+| P1 | Strategy menu | a need can be met several distinct ways | **Combos 7-9**, Taxi 9-12, TrunkThumper 245-300 |
+| P2 | Feasibility in `if()`, generic verbs in `do()` | writing any strategy | **Combos 21-27** (`stunAndSlow`), GreaseTrap 239-267 |
+| P3 | A strategy is the states to achieve | a combo is "get A, then get B" | **Combos 16-18, 30-32** (`wetAndElectrocute`, `oilAndFire`) |
+| P4 | A verb whose methods are the ways | several ways to reach one state | **Combos 43-51** (`applyTagNotPresent`), 53-55 (`prepareToUseSkill`), 88-90 (`bringMobsTogether`) |
+| P5 | Already-done case first | a verb may find its state already true | **Combos 39-40** (`applyTag`), 73-74 (`goToLocation`) |
+| P6 | Movement | going somewhere | game rulesets: one step, **Combos 73-78** (the engine pathfinds, `vocabulary.md`); other domains: `pathNext` recursion, TrunkThumper 233-242 |
+| P7 | Lure: aggro, then walk, and it follows | moving an enemy that won't go by itself | **Combos 81-85**, 77-78 (`enemiesFollow`) |
+| P8 | Distinct actors, synchronized | two companions must act together | **Combos 21-27** (`\==(?a1, ?a2)`, `opSynchronize`) |
 | P9 | Variant selection with an `else` ladder | pick one version of an action, by priority | TrunkThumper 280-286, Game 62-70 |
 | P10 | One binding with `first()` | any one of several is enough | Taxi 11 (hail one taxi) |
-| P11 | Every binding with `allOf` | do it to each one that qualifies | GreaseTrap 167-169 (burn every enemy in the area) |
-| P12 | Optional consequence with `try()` | a side effect that happens when it can | GreaseTrap 155-161 (burning also burns the oil) |
+| P11 | Every binding with `allOf` | do it to each one that qualifies | **Combos 64-67** (a skill's tags), 77-78 (every follower) |
+| P12 | Optional consequence with `try()` | a side effect that happens when it can | GreaseTrap 162-168 (burning also burns the oil) |
 | P13 | Recursion that re-arms | a strategy that repairs its own precondition | TrunkThumper 296-300 |
 
-Paths: `Examples/GameHack8AgentAtTop.htn`, `Examples/Taxi.htn`, `Examples/TrunkThumper.htn`,
+`Examples/Combos.htn` is the reference for game rulesets: it uses the vocabulary of `vocabulary.md`.
+Paths: `Examples/Combos.htn`, `Examples/Taxi.htn`, `Examples/TrunkThumper.htn`,
 `Examples/CombatLevel1_GreaseTrap.htn`, `Examples/Game.htn`. The same ideas as reusable
 components: `components/gamehack/` (P2-P8) and `components/primitives/tags` (P5).
 

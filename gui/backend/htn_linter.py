@@ -656,10 +656,17 @@ class HtnLinter:
 
     def _check_empty_clauses(self):
         """Check for empty if/do/del/add clauses"""
+        # An empty do() is the idiomatic "already done" case (patterns.md P5) when the
+        # task has another method that does something. Only a task whose every
+        # method is empty does nothing.
+        has_work = set()
+        for rule in self.rules:
+            if rule.is_method and rule.do_clause and len(rule.do_clause.args) > 0:
+                has_work.add(f"{rule.head.name}/{len(rule.head.args)}")
         for rule in self.rules:
             if rule.is_method:
-                # Empty do() is problematic
-                if rule.do_clause and len(rule.do_clause.args) == 0:
+                key = f"{rule.head.name}/{len(rule.head.args)}"
+                if rule.do_clause and len(rule.do_clause.args) == 0 and key not in has_work:
                     self.diagnostics.append(Diagnostic(
                         rule.line, 1, 10, 'warning',
                         f"Method '{rule.head.name}' has empty do() clause - does nothing",
@@ -691,10 +698,27 @@ class HtnLinter:
             for var in rule.head.get_variables():
                 var_counts[var] += 1
 
-            # Count in body
+            # Count in body. A variable inside not(...) means "there is no such X":
+            # appearing once there is normal, so those occurrences are not counted.
+            def count(term):
+                if term.name == 'not' and not term.is_variable:
+                    return
+                if term.is_variable:
+                    var_counts[term.name] += 1
+                for arg in term.args:
+                    count(arg)
             for term in rule.body:
-                for var in term.get_variables():
-                    var_counts[var] += 1
+                count(term)
+            negated = set()
+            def collect_negated(term, inside=False):
+                if term.is_variable and inside:
+                    negated.add(term.name)
+                for arg in term.args:
+                    collect_negated(arg, inside or term.name == 'not')
+            for term in rule.body:
+                collect_negated(term)
+            for var in negated:
+                var_counts[var] = max(var_counts.get(var, 0), 2)
 
             # Report singletons (except _ which is intentionally ignored)
             for var, count in var_counts.items():

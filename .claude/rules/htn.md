@@ -16,6 +16,11 @@ the rubric, the patterns and the checks.
 - An effect or reaction engine that the strategies go through is slop.
 - Invented jargon is slop. Use plain game words, and few of them.
 
+**Vocabulary** (`docs/authoring/vocabulary.md`): one word per concept (`ally`, `enemy`, `at`,
+`hasSkill`, `skillAppliesTag`, `hasTag`, `immune`, `locationCanApplyTag`, `aggro`). Never coin a
+synonym; a concept that isn't listed is a question for the owner. The reference game ruleset is
+`Examples/Combos.htn`.
+
 **Dialect traps** (`docs/reference/language.md` explains and tests each one):
 - Variables are `?x`, constants lowercase, and `if()` is required even when empty.
 - `del` of a missing fact, or `add` of an existing one, is an error that **aborts the whole
@@ -25,7 +30,8 @@ the rubric, the patterns and the checks.
 - `try()` commits: once it has run, the plan without it is never tried.
 - An SWI built-in (`\+`, `\=`, `member`, `length`, `append`, `atom`, `var`) is **silently
   false**. There is no `;`. `/` on integers is integer division.
-- Navigation is `pathNext` recursion, never 1-, 2- and 3-hop ladders.
+- Game rulesets move in one step (`goToLocation`; the engine pathfinds). Elsewhere, navigate by
+  `pathNext` recursion, never 1-, 2- and 3-hop ladders.
 
 **Checks:** a hook runs `python -m htn_components check --fast` after every `.htn` edit. Run
 `check <file> --goal "task(args)."` to see the plans. Before calling the work done, have the

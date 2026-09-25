@@ -14,6 +14,8 @@ order.
 - `docs/reference/language.md`: the dialect. Every example in it is tested. Trust it over
   anything you remember from SWI-Prolog, PDDL or other HTN systems.
 - `docs/authoring/rubric.md`: the owner's quality rules, R1-R9, with good and bad code.
+- `docs/authoring/vocabulary.md` (game rulesets): the only words to use. A concept it lacks
+  is a question for the owner, not a new predicate.
 
 ## 2. State the need and the strategies before any code
 

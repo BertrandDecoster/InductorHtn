@@ -15,10 +15,12 @@ Always enter the Python venv first. On Windows: `source .venv/Scripts/activate`.
 - **Quality:** `docs/authoring/rubric.md`, the owner's rules. A strategy's `if()` states what
   makes it possible, and its `do()` lists the states to achieve with generic verbs. Imperative
   scripts, effect engines and invented jargon are slop.
-- **Examples, by pattern:** `docs/authoring/patterns.md`. The gold examples are
-  `Examples/Taxi.htn`, `Examples/Game.htn` and `Examples/TrunkThumper.htn`. Good architecture:
-  `Examples/GameHack8AgentAtTop.htn`, `Examples/CombatLevel1_GreaseTrap.htn` and
-  `components/gamehack/`.
+- **Vocabulary for game rulesets:** `docs/authoring/vocabulary.md`, one word per concept. Never
+  coin a synonym.
+- **Examples, by pattern:** `docs/authoring/patterns.md`. Reference game ruleset:
+  `Examples/Combos.htn`. Gold: `Examples/Taxi.htn`, `Examples/Game.htn`,
+  `Examples/TrunkThumper.htn`. Good architecture but WIP (see their headers and
+  `components/README.md`): GameHack8, GreaseTrap, `components/`.
 - **Checks:** a PostToolUse hook runs `python -m htn_components check --fast` on every `.htn`
   edit. `check <file> --goal "task."` prints the plans. The `htn-reviewer` agent scores a
   ruleset against the rubric.

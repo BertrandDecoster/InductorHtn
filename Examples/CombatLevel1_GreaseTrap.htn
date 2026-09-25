@@ -1,3 +1,10 @@
+% WIP (owner-rated 4/5): good architecture - named strategies (theBurn, theSlipstream) with
+% their roles bound in if(), and small reusable verbs.
+% Don't copy from this file: its vocabulary predates docs/authoring/vocabulary.md
+% (terrain -> locationCanApplyTag, health -> hasTag(?e, dead), condition -> hasTag,
+% hasAggro -> aggro, linked/navigateTo -> goToLocation), and defeatEnemy's else between
+% strategies (a goal is a menu of plain alternatives, rubric R5).
+
 % =============================================================================
 % Combat Level 1: The Grease Trap (Tutorial)
 % =============================================================================
