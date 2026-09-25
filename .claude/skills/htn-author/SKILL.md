@@ -56,7 +56,7 @@ b. `python -m htn_components check <file> --goal "task(args)."`: compare the pla
 c. No plan? Probe bottom-up: query each subtask alone, or use the MCP tool
    `indhtn_method_failures` to see which method fails and at which condition.
 d. Components and levels: `python -m htn_components test <path>`. Tests assert the plan set
-   (`assert_plan`, `assert_no_plan`, `assert_operator_sequence` in
+   (`assert_plan_set` for the exact plans, `assert_no_plan`, `assert_state_after` in
    `src/Python/htn_test_framework.py`).
 
 ## 6. Review

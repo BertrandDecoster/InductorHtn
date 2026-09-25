@@ -509,6 +509,42 @@ class HtnTestSuite:
 
         return self._record(True, message)
 
+    def assert_plan_set(self, goal: str, expected: List[str], msg: str = "") -> bool:
+        """
+        Assert the exact set of plans: every plan expected, no other plan, and no
+        plan found twice. Order between plans is ignored; order within a plan is not.
+
+        Each plan is written as the engine prints it: operators separated by ", ",
+        e.g. "opMoveTo(a, x, y), opApplyTag(wet, gob)". The empty plan is "".
+        This states what `assert_plan(contains=...)` cannot: that nothing else
+        is possible.
+
+        Example:
+            self.assert_plan_set("travel(ann, park).", [
+                "walk(ann, home, park)",
+                "cycle(ann, home, park)",
+            ])
+        """
+        if not self._ensure_planner():
+            return False
+        self._reload_file()
+        message = msg or f"Plan set: {goal}"
+        error, result = self._planner.FindAllPlansCustomVariables(goal)
+        if error is not None:
+            return self._record(False, message, f"Planning error: {error}")
+        solutions = json.loads(result)
+        got = [] if (solutions and isinstance(solutions[0], dict) and "false" in solutions[0]) \
+            else findAllPlansResultToPrologStringList(result)
+        if sorted(got) == sorted(expected):
+            return self._record(True, message)
+        missing = [p for p in expected if p not in got]
+        unexpected = [p for p in got if p not in expected]
+        dupes = sorted({p for p in got if got.count(p) > 1})
+        return self._record(False, message,
+            f"{len(got)} plans, expected {len(expected)}.\n"
+            f"       Missing: {missing[:3]}\n       Unexpected: {unexpected[:3]}"
+            + (f"\n       Found more than once: {dupes[:3]}" if dupes else ""))
+
     def assert_no_plan(self, goal: str, msg: str = "") -> bool:
         """
         Assert that planning fails (no valid plan exists).

@@ -44,10 +44,12 @@ def review(item, tmproot):
     outdir = os.path.join(tmproot, item["id"])
     os.makedirs(outdir)
     files = extract(item, outdir)
-    prompt = (agent_body() + "\n\nThe ruleset to review is these files (together they are one "
+    prompt = (agent_body() + "\n\nRead only the rubric, the language reference and the files "
+              "below; don't open any other file in the repository."
+              "\n\nThe ruleset to review is these files (together they are one "
               "ruleset; review them as a whole):\n" + "\n".join(files))
     proc = subprocess.run(["claude", "-p", prompt, "--output-format", "json", "--allowedTools",
-                           "Read Grep Glob", "--add-dir", outdir, "--strict-mcp-config"],
+                           "Read", "--add-dir", outdir, "--strict-mcp-config"],
                           cwd=REPO, capture_output=True, text=True, encoding="utf-8", timeout=900)
     meta = json.loads(proc.stdout)
     m = re.search(r"\{.*\}", meta.get("result", ""), flags=re.S)
