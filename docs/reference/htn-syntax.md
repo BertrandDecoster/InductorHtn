@@ -8,6 +8,9 @@ Superseded. The syntax reference is now part of the single language spec.
 - Patterns, with the gold examples to read:
   [`../authoring/patterns.md`](../authoring/patterns.md)
 - The workflow: the `htn-author` skill (`.claude/skills/htn-author/SKILL.md`)
+- The keyword reference that replaced this file:
+  [`ruleset-htn-syntax.md`](ruleset-htn-syntax.md). Where it disagrees with `language.md`,
+  `language.md` (test-backed) wins.
 
 The old text is in git history (before commit `6ffa1e9`). It contradicted the engine in
 places (`else`, `hidden`, `sortBy`, `try`), so don't use it.

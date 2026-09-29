@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Editor from '@monaco-editor/react'
 import axios from 'axios'
+import { registerHtn } from '../htnLanguage'
 import './EditorPanel.css'
 
 // Empty base => relative URLs through the Vite dev proxy (vite.config.js),
@@ -246,9 +247,10 @@ function EditorPanel({ sessionId, currentFile, onFileLoad }) {
       <div className="editor-container">
         <Editor
           height="100%"
-          defaultLanguage="prolog"
-          theme="vs-dark"
+          defaultLanguage="htn"
+          theme="htn-dark"
           value={content}
+          beforeMount={(monaco) => registerHtn(monaco)}
           onMount={(editor, monaco) => {
             editorRef.current = editor
             monacoRef.current = monaco

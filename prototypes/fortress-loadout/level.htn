@@ -1,0 +1,575 @@
+% fortress-loadout: cooperative skill-combo puzzle level.
+%
+% Player + 1 companion each equip ONE skill from a pool of 7 before the level
+% (21 unordered loadouts). Skills grant effects; methods are gated on which
+% effects the loadout can produce. Three challenges, each an OR over atoms,
+% each atom an OR over methods. Methods are cooperative combos: both
+% companions act simultaneously (parallel), or a skill meets the environment.
+%
+% Design rules:
+%   - Fight always works on non-invulnerable enemies (the baseline).
+%     Combo-requiring targets are marked invulnerable.
+%   - forcedMovement + adjacent element area = element applied.
+%   - Slot combos: distract (taunted|frozen|stunned) + reach the back
+%     (teleport|sneaky).
+%   - Challenge 1 is an It-Takes-Two style relay: one companion crosses a
+%     door only their skill opens, presses button 1, which unlocks a plain
+%     path for the other, who presses button 2 to let both through.
+%
+% Challenges 2-3 are movement-stripped (like prototypes/loadout-decision):
+% the loadout is the sole source of capability, so plans read as effect/
+% action sequences, not walking. Challenge 1 (rewritten 2026-06-17) is the
+% exception -- a data-driven traversal relay over an explicit area graph
+% (see docs/reference/ruleset-writing.md, "data plus general verbs").
+
+% === Sorts: unary facts ARE the types. skill(frostNova) means frostNova is
+% of type skill; the linter infers argument types from these (the engine
+% treats them as ordinary facts). An instance may have several sorts.
+% See docs/reference/ruleset-htn-syntax.md ("Types").
+agent(player).
+agent(companion).
+agent(gateGuard).
+agent(sentinel).
+agent(brute).
+
+skill(frostNova).
+skill(lightningStep).
+skill(tidalWave).
+skill(smokeBomb).
+skill(warHorn).
+skill(shadowStep).
+skill(grapplingHook).
+
+% Grantable effects: each is produced by some skill (see skillGrants).
+effect(frozen).
+effect(wet).
+effect(electrified).
+effect(slowed).
+effect(stunned).
+effect(taunted).
+effect(forcedMovement).
+effect(teleport).
+effect(sneaky).
+% Derived combo outputs: never granted by a skill, only produced by comboRule
+% and consumed by challenges 2-3. Kept separate from the grantable set above.
+effect(overloaded).
+effect(frozenSolid).
+% Environmental reciprocal: `fire` melts a frozen river back to water (see
+% meltIce, challenge 1). Deliberately NOT in the loadout pool -- this is an
+% ice-themed fortress and no equippable skill grants fire, so the melt is the
+% stated reciprocal physics (and a hook for an enemy/environmental fire
+% source), never a player action under any of the 21 loadouts.
+effect(fire).
+
+% Direction of an effect application: source = on the caster itself,
+% target = on an enemy or the environment. This is skillGrants' third column;
+% the unary sorts let the linter type it.
+direction(source).
+direction(target).
+
+area(moat).
+area(quenchPool).
+area(electricFence).
+area(chasm).
+
+% === Agents ===
+ally(player).
+ally(companion).
+enemy(gateGuard).
+enemy(sentinel).
+enemy(brute).
+
+% Fight never works on these two; combos are mandatory.
+invulnerable(sentinel).
+invulnerable(brute).
+
+mechanical(sentinel).
+organic(gateGuard).
+organic(brute).
+% The Brute is a fire elemental: water flash-steams off it before it bites,
+% unless the Brute is stunned while soaked.
+fireElemental(brute).
+
+% === The decision: 7 equippable skills, 2 effects each ===
+equippableSkill(frostNova).
+equippableSkill(lightningStep).
+equippableSkill(tidalWave).
+equippableSkill(smokeBomb).
+equippableSkill(warHorn).
+equippableSkill(shadowStep).
+equippableSkill(grapplingHook).
+
+% Index used to pick unordered skill pairs in playLevel.
+skillIdx(frostNova, 1).
+skillIdx(lightningStep, 2).
+skillIdx(tidalWave, 3).
+skillIdx(smokeBomb, 4).
+skillIdx(warHorn, 5).
+skillIdx(shadowStep, 6).
+skillIdx(grapplingHook, 7).
+
+% skillGrants(?skill, ?effect, ?direction): which effect a skill produces and
+% on whom (source = the caster itself, target = an enemy/the environment).
+% Direction is load-bearing: the same effect can be self-applied by one skill
+% and enemy-applied by another (forcedMovement below).
+skillGrants(frostNova,     frozen,         target).
+skillGrants(frostNova,     slowed,         target).
+skillGrants(lightningStep, electrified,    target).
+skillGrants(lightningStep, teleport,       source).
+skillGrants(tidalWave,     wet,            target).
+skillGrants(tidalWave,     forcedMovement, target).   % a wave shoves enemies
+skillGrants(smokeBomb,     sneaky,         source).
+skillGrants(smokeBomb,     slowed,         target).
+skillGrants(warHorn,       taunted,        target).
+skillGrants(warHorn,       stunned,        target).
+skillGrants(shadowStep,    teleport,       source).
+skillGrants(shadowStep,    sneaky,         source).
+% grapplingHook moves YOURSELF (hook a wall or entity, you are pulled to it):
+% forcedMovement on the caster. The hooked entity is briefly stunned.
+skillGrants(grapplingHook, forcedMovement, source).
+skillGrants(grapplingHook, stunned,        target).
+
+% === Effect algebra (world rules, not method-local hacks) ===
+% canApply(?source, ?effect, ?target): companion ?source can land ?effect on
+% ?target. A target-direction effect lands on an enemy; a source-direction
+% effect (teleport, sneaky, the grappling self-pull) lands on the caster itself.
+canApply(?source, ?effect, ?target) :-
+    equipped(?source, ?s), skillGrants(?s, ?effect, target), enemy(?target).
+canApply(?source, ?effect, ?source) :-
+    equipped(?source, ?s), skillGrants(?s, ?effect, source).
+
+% Two elemental effects landed together produce a derived effect.
+% Inputs must be skill-producible; outputs must never appear as inputs.
+comboRule(wet, electrified, overloaded).
+comboRule(wet, frozen, frozenSolid).
+lethalCombo(overloaded).
+lethalCombo(frozenSolid).
+
+% Effect classes used by slot combos.
+distracts(taunted).
+distracts(frozen).
+distracts(stunned).
+holdsInPlace(taunted).
+holdsInPlace(frozen).
+holdsInPlace(stunned).
+hardHold(frozen).
+hardHold(stunned).
+backAccess(teleport).
+backAccess(sneaky).
+
+% === Environment ===
+% Element areas apply their element to anything shoved into them.
+elementAreaAt(quenchPool, wet).
+elementAreaAt(electricFence, electrified).
+% Hazard areas remove anything shoved into them.
+hazardArea(moat).
+hazardArea(chasm).
+% adjacentArea: a solo shove is enough. lureSpot: needs taunt-lure + shove.
+adjacentArea(gateGuard, moat).
+% The sentinel's patrol passes right beside its own quench pool.
+adjacentArea(sentinel, quenchPool).
+lureSpot(brute, chasm).
+lureSpot(brute, electricFence).
+
+% === Metadata for the sweep (never queried by methods) ===
+challenge(enterFortress).
+challenge(secureWorkshop).
+challenge(defeatVaultBrute).
+
+% Ch.1 is a single data-driven relay (the old ledge/flooded/sensor routes are
+% now connectedSkill data, not separate atoms). Skill model rebuilt 2026-06-17
+% to arity-3 skillGrants (effect + direction); sweep refreshed, all properties
+% PASS (see README.md and docs/reference/ruleset-writing.md).
+challengeAtom(enterFortress, dataRelay).
+challengeAtom(secureWorkshop, overloadCore).
+challengeAtom(secureWorkshop, crushUnderPress).
+challengeAtom(secureWorkshop, attackBackWhileDistracted).
+challengeAtom(defeatVaultBrute, comboKill).
+challengeAtom(defeatVaultBrute, environmentKill).
+challengeAtom(defeatVaultBrute, bypassBrute).
+
+atomMethod(dataRelay, relay).
+atomMethod(overloadCore, skillCombo).
+atomMethod(overloadCore, poolDunk).
+atomMethod(crushUnderPress, holdAndCrush).
+atomMethod(attackBackWhileDistracted, distractAndStrike).
+atomMethod(comboKill, overloaded).
+atomMethod(comboKill, frozenSolid).
+atomMethod(environmentKill, chasmDrop).
+atomMethod(environmentKill, fenceFry).
+atomMethod(environmentKill, drowned).
+% kiteAndSlip commented out (2026-06-10): it let shadowStep+warHorn clear
+% challenge 3 with no elemental at all, making that pair dominant (72 full
+% plans vs 6-24 for every other loadout). Metadata stays in sync with the
+% commented method below.
+% atomMethod(bypassBrute, kiteAndSlip).
+atomMethod(bypassBrute, slowAndOutrun).
+
+% =====================================================================
+% Shared engines
+% =====================================================================
+% State-threading pass (2026-07-02): combos CONSUME their input tags and
+% finishers consume the combo result; area/hold/slow effects gate later
+% steps via helper-method if() preconditions. Every strategy is a causal
+% unlock chain (depth 3-5), not a flat montage -- see
+% docs/reference/ruleset-creating.md ("causal depth"). Strategy gates are
+% untouched, so which loadouts solve what is unchanged.
+
+% --- Skill use and combo bookkeeping ---
+opUseSkill(?w, ?s, ?e, ?t) :- del(), add(hasTag(?t, ?e)).
+% A combo reaction consumes its two element tags and produces the result.
+opCombo(?e1, ?e2, ?r, ?t) :- del(hasTag(?t, ?e1), hasTag(?t, ?e2)), add(hasTag(?t, ?r)).
+opAreaApplies(?a, ?e, ?t) :- del(), add(hasTag(?t, ?e)).
+% Terminal marker: which atom got resolved, by which authored method.
+opResolveAtom(?atom, ?how) :- del(), add(resolved(?atom)).
+
+% --- applyAreaEffect(?t, ?a): the area's element lands on whoever is in it.
+% Gated on inArea/2 (produced by a shove), so the soak causally depends on
+% getting the target there first.
+applyAreaEffect(?t, ?a) :-
+    if(inArea(?t, ?a), elementAreaAt(?a, ?e)),
+    do(opAreaApplies(?a, ?e, ?t)).
+
+% --- exposedToArea(?t, ?a, ?h): a target held (?h) inside a harmful element
+% area succumbs to it. Gated on both the shove result and the hold tag.
+exposedToArea(?t, ?a, ?h) :-
+    if(inArea(?t, ?a), hasTag(?t, ?h)),
+    do(opExposure(?t, ?a)).
+
+% --- shoveIntoArea(?t, ?a): get target ?t into area ?a ---
+% Solo: target already stands at the edge; one shove is enough.
+shoveIntoArea(?t, ?a) :-
+    if(adjacentArea(?t, ?a), equipped(?w, ?s), skillGrants(?s, forcedMovement, target)),
+    do(opShove(?w, ?s, ?t, ?a)).
+% Co-op: one companion lures the target to the edge while the other shoves.
+% The lured shove CONSUMES the taunt (the target lunged at the bait and the
+% shove redirects it), so the shove causally depends on the lure.
+shoveIntoArea(?t, ?a) :-
+    if(lureSpot(?t, ?a),
+       equipped(?w1, ?s1), skillGrants(?s1, taunted, target),
+       equipped(?w2, ?s2), skillGrants(?s2, forcedMovement, target), \==(?w1, ?w2)),
+    do(parallel(opLureToEdge(?w1, ?t, ?a), opShoveLured(?w2, ?s2, ?t, ?a))).
+
+opLureToEdge(?w, ?t, ?a) :- del(), add(hasTag(?t, taunted)).
+opShove(?w, ?s, ?t, ?a) :- del(), add(inArea(?t, ?a)).
+opShoveLured(?w, ?s, ?t, ?a) :- del(hasTag(?t, taunted)), add(inArea(?t, ?a)).
+
+% --- disableEnemy(?e): one abstraction, many interchangeable ways ---
+% Baseline: just fight. Always available against normal enemies.
+disableEnemy(?e) :-
+    if(enemy(?e), not(invulnerable(?e))),
+    do(opFight(player, ?e)).
+% Inflict a disabling effect (stun, freeze, taunt-hold).
+disableEnemy(?e) :-
+    if(enemy(?e), holdsInPlace(?d), canApply(?w, ?d, ?e)),
+    do(opDisableWith(?w, ?d, ?e)).
+% Shove into an adjacent hazard.
+disableEnemy(?e) :-
+    if(enemy(?e), hazardArea(?h), adjacentArea(?e, ?h)),
+    do(shoveIntoArea(?e, ?h), opFallsInto(?e, ?h)).
+
+opFight(?w, ?e) :- del(), add(neutralized(?e)).
+opDisableWith(?w, ?d, ?e) :- del(), add(hasTag(?e, ?d), neutralized(?e)).
+opFallsInto(?e, ?h) :- del(inArea(?e, ?h)), add(neutralized(?e)).
+
+% =====================================================================
+% Challenge 1: enterFortress -- the It-Takes-Two co-op relay
+% REWRITTEN 2026-06-17: data-driven model. General verbs (goTo, walk via
+% goTo, interact) operate over world facts (connected, connectedSkill,
+% locked, buttonEffect, at) -- replacing the old bespoke crossDoor /
+% opPressButton1 / walkUnlockedPath / opRejoin script. See
+% docs/reference/ruleset-writing.md, "data plus general verbs".
+%
+% A normal guard watches the courtyard. Past him the gatehouse is a small
+% area graph. The only initial way past the entrance is a fast-flowing river
+% (river/3 below): cross it by a self-move (teleport or a grappling self-pull)
+% or by freezing it into a walkable ice bridge, so the loadout decides whether
+% anyone can cross. Whoever reaches area1 presses button1 (key1), opening the plain
+% path to area2 for the partner; the partner presses button2 (key2), whose
+% single key opens BOTH inner doors (area1->end and area2->end) via allOf;
+% both walk to the end. 
+% =====================================================================
+
+% --- Challenge 1 world, as data ---
+area(fortress_entrance).
+area(fortress_area1).
+area(fortress_area2).
+area(fortress_end).
+
+at(player, fortress_entrance).
+at(companion, fortress_entrance).
+at(button1, fortress_area1).
+at(button2, fortress_area2).
+
+% The only initial link out of the entrance is a fast-flowing river that LINKS
+% yet BLOCKS the two banks (entrance and area1). Two kinds of crossing:
+%   (a) move yourself OVER it -- teleport, or a grappling-hook self-pull
+%       (connectedSkill + crossEffect, here); or
+%   (b) change the TERRAIN -- freeze the river into a walkable ice bridge,
+%       which lays a real connected/2 edge either bank can then walk
+%       (the "water indirection"; see river/freezeRiver/meltIce below).
+% crossEffect(?effect, ?dir) says which self-move effect, in which direction,
+% lets an actor traverse a skill-gated link. The direction is what stops
+% tidalWave's forcedMovement (target -- it shoves enemies, not itself) from
+% "crossing", while grapplingHook's forcedMovement (source) does. Freezing is
+% NOT a crossEffect: it mutates world state (see goTo's third clause).
+crossEffect(teleport, source).
+crossEffect(forcedMovement, source).
+
+connectedSkill(teleport, fortress_entrance, fortress_area1).
+connectedSkill(forcedMovement, fortress_entrance, fortress_area1).
+
+% --- The river: a freezable/meltable water barrier (the water indirection) ---
+% river(?r, ?a, ?b): water body ?r runs between banks ?a and ?b. It LINKS them
+% (two banks of one river) but BLOCKS walking while liquid -- there is no plain
+% connected/2 edge across it initially. Freeze it (freezeRiver) and it becomes
+% a walkable ice bridge: connected/2 is added BOTH ways. Apply fire to the ice
+% (meltIce) and the bridge melts -- the banks are walking-disconnected again.
+% riverLiquid/1 and riverFrozen/1 are its two states.
+river(gatehouseRiver, fortress_entrance, fortress_area1).
+riverLiquid(gatehouseRiver).
+
+% Locked doors as data: locked(?door, ?key, ?from, ?to). None are connected
+% initially; pressing the matching button opens them. key2 fits two doors,
+% so a single press opens both (allOf in openDoorsWithKey).
+locked(doorEntranceArea2, key1, fortress_entrance, fortress_area2).
+locked(doorArea1End, key2, fortress_area1, fortress_end).
+locked(doorArea2End, key2, fortress_area2, fortress_end).
+
+buttonEffect(button1, key1).
+buttonEffect(button2, key2).
+
+% --- The challenge: a flat relay over general, reusable verbs ---
+enterFortress() :-
+    if(ally(?c1), ally(?c2), \==(?c1, ?c2)),
+    do(disableEnemy(gateGuard),
+       goTo(?c1, fortress_area1),
+       interact(?c1, button1),
+       goTo(?c2, fortress_area2),
+       interact(?c2, button2),
+       goTo(?c1, fortress_end),
+       goTo(?c2, fortress_end),
+       opResolveAtom(dataRelay, relay)).
+
+% goTo: reach an adjacent area by any available means -- walk a plain link,
+% or cross a skill-gated link iff equipped with a skill granting its effect.
+goTo(?actor, ?area) :-
+    if(at(?actor, ?loc), connected(?loc, ?area)),
+    do(opMove(?actor, ?loc, ?area)).
+goTo(?actor, ?area) :-
+    if(at(?actor, ?loc), connectedSkill(?effect, ?loc, ?area),
+       crossEffect(?effect, ?dir),
+       equipped(?actor, ?s), skillGrants(?s, ?effect, ?dir)),
+    do(opMove(?actor, ?loc, ?area)).
+% Or cross a liquid river by freezing it into a bridge first, then walking
+% over. Freezing mutates the terrain (adds connected/2), unlike teleport/
+% grapple which only move the one caster.
+goTo(?actor, ?area) :-
+    if(at(?actor, ?loc), river(?r, ?loc, ?area), riverLiquid(?r),
+       equipped(?actor, ?s), skillGrants(?s, frozen, target)),
+    do(freezeRiver(?actor, ?r), opMove(?actor, ?loc, ?area)).
+
+% interact: act on a colocated object, firing whatever that object does.
+interact(?actor, ?object) :-
+    if(at(?actor, ?loc), at(?object, ?loc)),
+    do(pressButton(?object)).
+
+% A button presses its key; one key opens every door it fits (allOf).
+pressButton(?button) :-
+    if(buttonEffect(?button, ?key)),
+    do(openDoorsWithKey(?key)).
+openDoorsWithKey(?key) :-
+    allOf, if(locked(?door, ?key, ?from, ?to)),
+    do(opConnect(?from, ?to)).
+
+opMove(?actor, ?from, ?to) :- del(at(?actor, ?from)), add(at(?actor, ?to)).
+opConnect(?from, ?to) :- del(), add(connected(?from, ?to)).
+
+% --- Freeze / melt the river (the water indirection's world rules) ---
+% freezeRiver: an actor whose skill produces `frozen` (applied to the river)
+% lays a walkable ice bridge -- adds connected/2 BOTH ways, so either bank can
+% then walk across. The entrance->area1 shortcut for any freezer.
+freezeRiver(?actor, ?r) :-
+    if(river(?r, ?a, ?b), riverLiquid(?r),
+       equipped(?actor, ?s), skillGrants(?s, frozen, target)),
+    do(opFreeze(?actor, ?r), opConnect(?a, ?b), opConnect(?b, ?a)).
+
+% meltIce: the reciprocal. Fire on the ice bridge melts it -- the two banks
+% are walking-disconnected again (connected/2 removed both ways). Gated on a
+% skill that produces `fire`; no current loadout grants fire (see effect(fire)
+% above), so this is the stated reciprocal physics, exercised by goal/scenario.
+meltIce(?actor, ?r) :-
+    if(river(?r, ?a, ?b), riverFrozen(?r),
+       equipped(?actor, ?s), skillGrants(?s, fire, target)),
+    do(opMelt(?actor, ?r), opDisconnect(?a, ?b), opDisconnect(?b, ?a)).
+
+opFreeze(?actor, ?r) :- del(riverLiquid(?r)), add(riverFrozen(?r)).
+opMelt(?actor, ?r) :- del(riverFrozen(?r)), add(riverLiquid(?r)).
+opDisconnect(?from, ?to) :- del(connected(?from, ?to)), add().
+
+% =====================================================================
+% Challenge 2: secureWorkshop -- the Sentinel
+% An invulnerable machine. It always turns to face a close enemy and
+% knocks everyone back when several get close, so its core (on its back)
+% needs one companion to hold its attention while the other reaches it.
+% =====================================================================
+
+secureWorkshop() :- if(), do(overloadCore()).
+secureWorkshop() :- if(), do(crushUnderPress()).
+secureWorkshop() :- if(), do(attackBackWhileDistracted()).
+
+% Atom: overloadCore. Wet + electrified at the same time; the combo consumes
+% both tags, and discharging the overload (opFinishOff) consumes the combo:
+% useSkill x2 -> combo -> finish is a 3-deep causal chain.
+overloadCore() :-
+    if(equipped(?w1, ?s1), skillGrants(?s1, wet, target),
+       equipped(?w2, ?s2), skillGrants(?s2, electrified, target), \==(?w1, ?w2)),
+    do(parallel(opUseSkill(?w1, ?s1, wet, sentinel),
+                opUseSkill(?w2, ?s2, electrified, sentinel)),
+       opCombo(wet, electrified, overloaded, sentinel),
+       opFinishOff(sentinel, overloaded),
+       opResolveAtom(overloadCore, skillCombo)).
+% Or dunk it: shove it into the quench pool (the pool soaks whoever is IN it
+% -- applyAreaEffect gates on the shove's inArea), then electrify:
+% shove -> soak -> combo -> finish, 4 causal layers.
+overloadCore() :-
+    if(elementAreaAt(quenchPool, wet),
+       equipped(?w, ?s), skillGrants(?s, electrified, target)),
+    do(shoveIntoArea(sentinel, quenchPool),
+       applyAreaEffect(sentinel, quenchPool),
+       opUseSkill(?w, ?s, electrified, sentinel),
+       opCombo(wet, electrified, overloaded, sentinel),
+       opFinishOff(sentinel, overloaded),
+       opResolveAtom(overloadCore, poolDunk)).
+
+% Atom: crushUnderPress. Hold it under the forge press while the partner
+% pulls the lever. Pulling a lever needs no skill; holding does. The crush
+% CONSUMES both the pulled lever and the hold (the press lands on a target
+% that is held in place at that moment).
+crushUnderPress() :-
+    if(ally(?w1), ally(?w2), \==(?w1, ?w2),
+       holdsInPlace(?h), canApply(?w1, ?h, sentinel)),
+    do(parallel(opHoldUnder(?w1, ?h, sentinel), opPullLever(?w2)),
+       opCrush(sentinel, ?h),
+       opResolveAtom(crushUnderPress, holdAndCrush)).
+
+% Atom: attackBackWhileDistracted. One distracts, the other reaches the
+% back (teleport or sneaky) and strikes the core.
+attackBackWhileDistracted() :-
+    if(ally(?w1), ally(?w2), \==(?w1, ?w2),
+       distracts(?d), canApply(?w1, ?d, sentinel),
+       backAccess(?m), canApply(?w2, ?m, ?w2)),
+    do(parallel(opDistract(?w1, ?d, sentinel), opSlipBehind(?w2, ?m, sentinel)),
+       opStrikeCore(?w2, sentinel),
+       opResolveAtom(attackBackWhileDistracted, distractAndStrike)).
+
+opHoldUnder(?w, ?h, ?t) :- del(), add(hasTag(?t, ?h)).
+opPullLever(?w) :- del(), add(leverPulled).
+opCrush(?t, ?h) :- del(leverPulled, hasTag(?t, ?h)), add(neutralized(?t)).
+opDistract(?w, ?d, ?t) :- del(), add(hasTag(?t, ?d)).
+opSlipBehind(?w, ?m, ?t) :- del(), add(behind(?w, ?t)).
+opStrikeCore(?w, ?t) :- del(behind(?w, ?t)), add(neutralized(?t)).
+
+% =====================================================================
+% Challenge 3: defeatVaultBrute -- the Brute at the vault
+% An invulnerable elite. Kill it with a lethal elemental combo, feed it
+% to the environment, or do not fight it at all.
+% =====================================================================
+
+defeatVaultBrute() :- if(), do(comboKill()).
+defeatVaultBrute() :- if(), do(environmentKill()).
+defeatVaultBrute() :- if(), do(bypassBrute()).
+
+% Atom: comboKill. Both companions land the two halves of a lethal combo
+% at the same time (wet+electrified, or wet+frozen then shatter).
+comboKill() :-
+    if(comboRule(?e1, ?e2, ?r), lethalCombo(?r),
+       equipped(?w1, ?s1), skillGrants(?s1, ?e1, target),
+       equipped(?w2, ?s2), skillGrants(?s2, ?e2, target), \==(?w1, ?w2)),
+    do(parallel(opUseSkill(?w1, ?s1, ?e1, brute),
+                opUseSkill(?w2, ?s2, ?e2, brute)),
+       opCombo(?e1, ?e2, ?r, brute),
+       opFinishOff(brute, ?r),
+       opResolveAtom(comboKill, ?r)).
+
+% Atom: environmentKill. Lure-and-shove it into the chasm...
+environmentKill() :-
+    if(hazardArea(chasm)),
+    do(shoveIntoArea(brute, chasm),
+       opFallsInto(brute, chasm),
+       opResolveAtom(environmentKill, chasmDrop)).
+% ...or shove it into the electric fence and hold it there (the exposure
+% gates on BOTH the shove's inArea and the hold tag: lure -> shove -> fry)...
+environmentKill() :-
+    if(elementAreaAt(electricFence, electrified),
+       hardHold(?h), canApply(?w, ?h, brute)),
+    do(shoveIntoArea(brute, electricFence),
+       opHoldWith(?w, ?h, brute),
+       exposedToArea(brute, electricFence, ?h),
+       opResolveAtom(environmentKill, fenceFry)).
+% ...or drown the fire elemental: soak it and stun it at the same moment,
+% so it cannot flash-steam the water off.
+environmentKill() :-
+    if(fireElemental(brute),
+       equipped(?w1, ?s1), skillGrants(?s1, wet, target),
+       equipped(?w2, ?s2), skillGrants(?s2, stunned, target), \==(?w1, ?w2)),
+    do(parallel(opUseSkill(?w1, ?s1, wet, brute),
+                opUseSkill(?w2, ?s2, stunned, brute)),
+       opDouse(brute),
+       opResolveAtom(environmentKill, drowned)).
+
+% Atom: bypassBrute. Slow it and simply outrun it: outrunning gates on the
+% slow tag, and sealing the vault door gates on both companions having
+% escaped (slow -> outrun -> seal, 3 causal layers).
+outrunSlowed(?w, ?t) :-
+    if(hasTag(?t, slowed)),
+    do(opOutrun(?w, ?t)).
+sealVaultBehind() :-
+    if(escaped(player), escaped(companion)),
+    do(opShutVaultDoor()).
+% kiteAndSlip commented out (2026-06-10) to break shadowStep+warHorn
+% dominance -- taunt-kite + slip-past cleared the challenge with no
+% elemental investment (see README, observed matrix):
+% bypassBrute() :-
+%     if(ally(?w1), ally(?w2), \==(?w1, ?w2),
+%        canApply(?w1, taunted, brute),
+%        backAccess(?m), canApply(?w2, ?m, ?w2)),
+%     do(parallel(opKiteAway(?w1, brute), opSlipPast(?w2, ?m, brute)),
+%        opOpenVault(?w2),
+%        opResolveAtom(bypassBrute, kiteAndSlip)).
+bypassBrute() :-
+    if(equipped(?w, ?s), skillGrants(?s, slowed, target)),
+    do(opUseSkill(?w, ?s, slowed, brute),
+       outrunSlowed(player, brute),
+       outrunSlowed(companion, brute),
+       sealVaultBehind(),
+       opResolveAtom(bypassBrute, slowAndOutrun)).
+
+opHoldWith(?w, ?h, ?t) :- del(), add(hasTag(?t, ?h)).
+opExposure(?t, ?a) :- del(), add(neutralized(?t)).
+% Drowning consumes the simultaneous soak + stun (the water only takes if
+% the elemental cannot flash-steam it off).
+opDouse(?t) :- del(hasTag(?t, wet), hasTag(?t, stunned)), add(neutralized(?t)).
+% Finishing off consumes the lethal combo tag (the discharge IS the kill).
+opFinishOff(?t, ?r) :- del(hasTag(?t, ?r)), add(neutralized(?t)).
+opKiteAway(?w, ?t) :- del(), add(hasTag(?t, taunted)).
+opSlipPast(?w, ?m, ?t) :- del(), add(behind(?w, ?t)).
+opOpenVault(?w) :- del(), add(vaultOpen).
+opOutrun(?w, ?t) :- del(), add(escaped(?w)).
+opShutVaultDoor() :- del(), add(vaultSealed).
+
+% =====================================================================
+% Level roots
+% =====================================================================
+
+solveLevel() :- if(), do(enterFortress(), secureWorkshop(), defeatVaultBrute()).
+
+% Playable root: pick the unordered 2-skill loadout in-plan, then play.
+opEquip(?who, ?s) :- del(), add(equipped(?who, ?s)).
+
+playLevel() :-
+    if(equippableSkill(?s1), equippableSkill(?s2),
+       skillIdx(?s1, ?i1), skillIdx(?s2, ?i2), <(?i1, ?i2)),
+    do(opEquip(player, ?s1), opEquip(companion, ?s2), solveLevel()).
+
+goals(playLevel()).

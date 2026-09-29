@@ -60,6 +60,18 @@ docs/                    # All documentation; start at docs/README.md
 
 - **Language** → `docs/reference/language.md`; **quality** → `docs/authoring/rubric.md`,
   `docs/authoring/patterns.md`
+- **Ruleset guides** (from the doc trio) → `docs/reference/ruleset-writing.md` (heuristics,
+  examples, validated optimizations), `docs/reference/ruleset-htn-syntax.md` (keyword reference),
+  `docs/reference/ruleset-iterating.md` (debug / analyze / improve); Prolog →
+  `docs/reference/prolog-reference.md`. Where they disagree with `language.md`, the test-backed
+  `language.md` wins.
+- **Creating levels + quality gates** → `docs/reference/ruleset-creating.md` (brief-to-verified
+  workflow: causal-depth 3-5 DAG gate via `python -m indhtn_quality.dag`, loadout-sweep harness
+  via `python -m indhtn_quality.harness`; commands `/htn-create`, `/htn-audit`). Design rulings
+  and the canonical benign-lint list: `docs/reference/ruleset-policies.md`.
+- **Exemplars to copy** → `docs/reference/exemplars/` (Blocks World, Logistics, Barman, Rover in
+  InductorHTN syntax, one per design pattern). Improving a ruleset from an instruction: the
+  `/htn-improve` command (`.claude/commands/htn-improve.md`).
 - **Planner internals** → `docs/reference/planner-internals.md`
 - **Component system** (layers, manifests, CLI) → `docs/reference/component-system.md`
 - **Level design loop** → `docs/reference/level-design-loop.md`; **fun metrics** → `docs/FUN_METRICS.md`

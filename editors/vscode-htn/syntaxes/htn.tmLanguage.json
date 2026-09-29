@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "HTN",
+  "scopeName": "source.htn",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#variables" },
+    { "include": "#numbers" },
+    { "include": "#htn-keywords" },
+    { "include": "#builtins" },
+    { "include": "#rule-operator" },
+    { "include": "#operators" },
+    { "include": "#functions" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.percentage.htn",
+          "match": "%.*$"
+        },
+        {
+          "name": "comment.block.htn",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.htn",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.htn", "match": "\\\\." }
+      ]
+    },
+    "variables": {
+      "name": "variable.parameter.htn",
+      "match": "[?_][A-Za-z0-9_]*"
+    },
+    "numbers": {
+      "name": "constant.numeric.htn",
+      "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"
+    },
+    "htn-keywords": {
+      "name": "keyword.control.htn",
+      "match": "\\b(if|do|del|add|else|anyOf|allOf|hidden|parallel|try|first|increase|decrease)\\b"
+    },
+    "builtins": {
+      "name": "support.function.builtin.htn",
+      "match": "\\b(not|and|or|forall|findall|count|distinct|sortBy|is|assert|retract|retractall|write|writeln|print|nl|max|min|sum|abs|float|integer|atom_chars|atom_concat|downcase_atom|atomic)\\b"
+    },
+    "rule-operator": {
+      "name": "keyword.operator.rule.htn",
+      "match": ":-"
+    },
+    "operators": {
+      "name": "keyword.operator.htn",
+      "match": "\\\\==|=<|>=|==|\\\\=|<|>|=|\\+|\\-|\\*|/|!"
+    },
+    "functions": {
+      "name": "entity.name.function.htn",
+      "match": "[a-z][A-Za-z0-9_]*(?=\\s*\\()"
+    }
+  }
+}

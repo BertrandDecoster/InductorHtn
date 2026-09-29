@@ -28,4 +28,5 @@ Quick interactive exploration of a ruleset.
 | AI-driven stepping | MCP server — see [`mcp-server.md`](mcp-server.md) |
 
 For the full crafting/understanding workflow see
-[`../reference/language.md`](../reference/language.md) and [`../authoring/patterns.md`](../authoring/patterns.md).
+[`../reference/language.md`](../reference/language.md) and [`../authoring/patterns.md`](../authoring/patterns.md),
+and the writing heuristics in [`../reference/ruleset-writing.md`](../reference/ruleset-writing.md).

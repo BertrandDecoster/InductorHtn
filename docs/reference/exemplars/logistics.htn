@@ -1,0 +1,93 @@
+% Logistics / Transport -- translated to InductorHTN syntax.
+%
+% Source domain: the IPC "Logistics" / "Transport" planning domain (packages
+% delivered by trucks within a city and by planes between cities' airports).
+%
+% Pattern it teaches: DATA-DRIVEN VERBS OVER A CONNECTIVITY GRAPH. The map
+% lives entirely in facts (inCity/2, airport/1, at/2); a handful of general
+% verbs (deliver, carryByTruck, carryByPlane, moveTruck, movePlane) read those
+% facts instead of hard-coding routes. This is the closest analog in the
+% library to a level whose areas are linked by `connected/2` facts -- add or
+% gate an edge and the same verbs route over it, no new methods.
+%
+% Idioms on show:
+%   - case methods selected by mutually exclusive preconditions
+%     (already-there / same-city / different-city) => one deterministic plan
+%   - a vehicle reads its OWN position from state (at/2), so a move verb takes
+%     only a destination and gates self-moves out with not(=(...))
+%   - operators only mutate (load/unload/drive/fly); all gating is in if()
+%
+% Run it:  goals(deliver(pkg1, locB1)).  -- pkg1 from city A to city B.
+
+/* ---------- Operators ---------- */
+
+opLoadTruck(?pkg, ?truck, ?loc)    :- del(at(?pkg, ?loc)),  add(in(?pkg, ?truck)).
+opUnloadTruck(?pkg, ?truck, ?loc)  :- del(in(?pkg, ?truck)), add(at(?pkg, ?loc)).
+opLoadPlane(?pkg, ?plane, ?apt)    :- del(at(?pkg, ?apt)),  add(in(?pkg, ?plane)).
+opUnloadPlane(?pkg, ?plane, ?apt)  :- del(in(?pkg, ?plane)), add(at(?pkg, ?apt)).
+opDriveTruck(?truck, ?from, ?to)   :- del(at(?truck, ?from)), add(at(?truck, ?to)).
+opFlyPlane(?plane, ?from, ?to)     :- del(at(?plane, ?from)), add(at(?plane, ?to)).
+
+/* ---------- Methods ---------- */
+
+% deliver(?pkg, ?dest): three mutually exclusive cases.
+deliver(?pkg, ?dest) :- if(at(?pkg, ?dest)), do().      % already delivered
+
+deliver(?pkg, ?dest) :-                                 % same city -> one truck
+    if(at(?pkg, ?loc), inCity(?loc, ?city), inCity(?dest, ?city)),
+    do(carryByTruck(?pkg, ?loc, ?dest, ?city)).
+
+deliver(?pkg, ?dest) :-                                 % different city -> truck, plane, truck
+    if(at(?pkg, ?loc), inCity(?loc, ?cityFrom),
+       inCity(?dest, ?cityTo),
+       airport(?aptFrom), inCity(?aptFrom, ?cityFrom),
+       airport(?aptTo),   inCity(?aptTo, ?cityTo)),
+    do(carryByTruck(?pkg, ?loc, ?aptFrom, ?cityFrom),
+       carryByPlane(?pkg, ?aptFrom, ?aptTo),
+       carryByTruck(?pkg, ?aptTo, ?dest, ?cityTo)).
+
+% carryByTruck: pick the city's (city-bound) truck, fetch the package, drop at ?to.
+carryByTruck(?pkg, ?from, ?to, ?city) :-
+    if(truckBase(?truck, ?city)),
+    do(moveTruck(?truck, ?from),
+       opLoadTruck(?pkg, ?truck, ?from),
+       moveTruck(?truck, ?to),
+       opUnloadTruck(?pkg, ?truck, ?to)).
+
+% carryByPlane: same shape, between airports.
+carryByPlane(?pkg, ?aptFrom, ?aptTo) :-
+    if(plane(?plane)),
+    do(movePlane(?plane, ?aptFrom),
+       opLoadPlane(?pkg, ?plane, ?aptFrom),
+       movePlane(?plane, ?aptTo),
+       opUnloadPlane(?pkg, ?plane, ?aptTo)).
+
+% A vehicle reads its current location from state; moving to where it already is
+% is a no-op (empty do()), otherwise one drive/fly.
+moveTruck(?truck, ?to) :- if(at(?truck, ?to)), do().
+moveTruck(?truck, ?to) :- if(at(?truck, ?from), not(=(?from, ?to))), do(opDriveTruck(?truck, ?from, ?to)).
+
+movePlane(?plane, ?to) :- if(at(?plane, ?to)), do().
+movePlane(?plane, ?to) :- if(at(?plane, ?from), not(=(?from, ?to))), do(opFlyPlane(?plane, ?from, ?to)).
+
+/* ---------- World state ---------- */
+
+% Types (unary facts -> linter sorts).
+city(cityA).  city(cityB).
+truck(truckA).  truck(truckB).
+plane(plane1).
+package(pkg1).
+airport(aptA).  airport(aptB).
+
+% Map: which locations belong to which city.
+inCity(locA1, cityA).  inCity(locA2, cityA).  inCity(aptA, cityA).
+inCity(locB1, cityB).   inCity(aptB, cityB).
+
+% Trucks are bound to a city (they never leave it); planes fly between airports.
+truckBase(truckA, cityA).  truckBase(truckB, cityB).
+
+% Initial positions.
+at(truckA, locA1).  at(truckB, locB1).  at(plane1, aptA).
+at(pkg1, locA2).
+
+goals(deliver(pkg1, locB1)).
