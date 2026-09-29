@@ -19,6 +19,7 @@ from invariants import get_registry, get_enabled_invariants
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend requests
+app.json.compact = True  # debug mode would pretty-print, and plan trees are large
 
 # In-memory session storage
 sessions = {}

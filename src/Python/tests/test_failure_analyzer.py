@@ -396,7 +396,7 @@ class TestFailureAnalyzer(unittest.TestCase):
         self.assertEqual(result.failure_detail.category, FailureCategory.SUBTASK_FAILED)
 
     def test_alternative_tracking(self):
-        """Test tracking of alternative methods tried"""
+        """The methods tried before the current one come from the engine's triedMethods"""
         nodes = [
             {
                 'nodeID': 0,
@@ -409,28 +409,32 @@ class TestFailureAnalyzer(unittest.TestCase):
                 'isFailed': False,
                 'unifiers': [],
                 'conditionBindings': [],
-                'conditionTerms': []
-            },
-            {
-                'nodeID': 1,
-                'parentNodeID': -1,
-                'childNodeIDs': [],
-                'taskName': 'travel(park)',
-                'methodSignature': 'travel-by-bus(park)',
-                'isOperator': False,
-                'isSuccess': False,
-                'isFailed': True,
-                'unifiers': [],
-                'conditionBindings': [],
                 'conditionTerms': [],
-                'failureReason': 'No bus available'
+                'triedMethods': [{'method': 'travel-by-bus(park)', 'reason': 'No bus available'}]
             }
         ]
 
         result = self.analyzer.analyze_trace(nodes, 0)
 
-        # The successful node should have alternatives_tried populated
-        self.assertTrue(len(result.alternatives_tried) > 0)
+        self.assertEqual(len(result.alternatives_tried), 1)
+        self.assertEqual(result.alternatives_tried[0].method_name, 'travel-by-bus')
+        self.assertEqual(result.alternatives_tried[0].failure_reason, 'No bus available')
+
+    def test_condition_terms_from_the_engine_are_text(self):
+        """The engine sends condition terms as {functor, isVariable, args}; the analyzer shows text"""
+        nodes = [{
+            'nodeID': 0, 'parentNodeID': -1, 'childNodeIDs': [], 'taskName': 'go(park)',
+            'methodSignature': 'go(?to) => if(at(?from)), do(walk(?from, ?to))', 'isOperator': False,
+            'isSuccess': False, 'isFailed': True, 'unifiers': [], 'conditionBindings': [],
+            'failureReason': 'Condition failed: (at(?from))',
+            'conditionTerms': [{'functor': 'at', 'isVariable': False,
+                                'args': [{'functor': 'from', 'isVariable': True, 'args': []}]}],
+        }]
+
+        result = self.analyzer.analyze_trace(nodes, 0)
+
+        self.assertEqual(result.condition_terms, ['at(?from)'])
+        self.assertIn('at(?from)', result.failure_detail.message)
 
 
 class TestAnalyzePlanningTrace(unittest.TestCase):

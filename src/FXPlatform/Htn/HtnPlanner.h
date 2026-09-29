@@ -42,6 +42,9 @@ struct DecompTreeNode
     int failedConditionIndex;                     // Which condition term failed (-1 if none)
     std::string failedConditionTermJson;          // Structured JSON of the failing term
 
+    // Earlier method attempts on this task, before the current one: (method, why it was left)
+    std::vector<std::pair<std::string, std::string>> triedMethods;
+
     DecompTreeNode() : treeNodeID(-1), nodeID(-1), parentNodeID(-1), isOperator(false), isSuccess(false), isFailed(false), solutionID(-1), methodIndex(-1), failedConditionIndex(-1) {}
 
     std::string ToJson() const
@@ -97,7 +100,13 @@ struct DecompTreeNode
         }
         ss << "],";
         ss << "\"failedConditionIndex\":" << failedConditionIndex << ",";
-        ss << "\"failedConditionTerm\":" << (failedConditionTermJson.empty() ? "null" : failedConditionTermJson);
+        ss << "\"failedConditionTerm\":" << (failedConditionTermJson.empty() ? "null" : failedConditionTermJson) << ",";
+        ss << "\"triedMethods\":[";
+        for(size_t i = 0; i < triedMethods.size(); i++) {
+            ss << (i > 0 ? "," : "") << "{\"method\":\"" << escape(triedMethods[i].first)
+               << "\",\"reason\":\"" << escape(triedMethods[i].second) << "\"}";
+        }
+        ss << "]";
         ss << "}";
         return ss.str();
     }
@@ -233,6 +242,7 @@ private:
     std::vector<DecompTreeNode> decompositionTree;
     std::map<int, size_t> treeNodeIDToTreeIndex;  // Fast lookup: treeNodeID -> index in decompositionTree
     std::map<int, int> nodeIDToLastTreeNodeID;    // PlanNode nodeID -> last treeNodeID created for it
+    std::map<int, std::vector<int>> nodeIDToTreeNodeIDs;  // PlanNode nodeID -> every treeNodeID created for it (a failed try() shares its node)
     std::map<int, int> bookkeepingParents;  // Track parent relationships for bookkeeping tasks (tryEnd, etc.)
     int currentSolutionID;  // Incremented each time a solution is found
 

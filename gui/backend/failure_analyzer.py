@@ -100,12 +100,23 @@ class EnhancedNode:
         return result
 
 
+def term_to_string(term) -> str:
+    """A condition term as the engine sends it ({functor, isVariable, args}) as readable text"""
+    if not isinstance(term, dict):
+        return str(term)
+    if term.get('isVariable'):
+        return '?' + term.get('functor', '')
+    args = term.get('args') or []
+    if not args:
+        return term.get('functor', '')
+    return f"{term.get('functor', '')}({', '.join(term_to_string(a) for a in args)})"
+
+
 class FailureAnalyzer:
     """Analyzes planning traces to provide detailed failure information"""
 
     def __init__(self):
         self.current_facts: Set[str] = set()
-        self.all_methods: Dict[str, List[Dict]] = {}  # task_name -> list of method definitions
 
     def analyze_trace(self, nodes: List[Dict], solution_index: int,
                      initial_facts: List[str] = None) -> Optional[EnhancedNode]:
@@ -134,9 +145,6 @@ class FailureAnalyzer:
             key = n.get('treeNodeID', n['nodeID'])
             node_map[key] = n
 
-        # Find all nodes for each task (for alternative tracking)
-        self._build_method_index(nodes)
-
         # Find root
         roots = [n for n in nodes if n['parentNodeID'] == -1]
         if not roots:
@@ -144,19 +152,6 @@ class FailureAnalyzer:
 
         # Build enhanced tree
         return self._build_enhanced_tree(roots[0], node_map, solution_index)
-
-    def _build_method_index(self, nodes: List[Dict]):
-        """Build index of all method attempts for each task"""
-        self.all_methods.clear()
-
-        for node in nodes:
-            task_name = node.get('taskName', '')
-            if task_name:
-                # Extract base task name (without args)
-                base_name = task_name.split('(')[0]
-                if base_name not in self.all_methods:
-                    self.all_methods[base_name] = []
-                self.all_methods[base_name].append(node)
 
     def _build_enhanced_tree(self, node: Dict, node_map: Dict[int, Dict],
                             solution_index: int) -> EnhancedNode:
@@ -214,7 +209,7 @@ class FailureAnalyzer:
             status=status,
             bindings=bindings,
             condition_bindings=condition_bindings,
-            condition_terms=node.get('conditionTerms', []),
+            condition_terms=[term_to_string(t) for t in node.get('conditionTerms', [])],
             children=children
         )
 
@@ -230,7 +225,7 @@ class FailureAnalyzer:
     def _analyze_failure(self, enhanced: EnhancedNode, raw_node: Dict):
         """Analyze why a node failed and populate failure details"""
         raw_reason = raw_node.get('failureReason', '')
-        condition_terms = raw_node.get('conditionTerms', [])
+        condition_terms = enhanced.condition_terms
 
         # Categorize the failure
         category = self._categorize_failure(raw_reason, enhanced, raw_node)
@@ -391,31 +386,16 @@ class FailureAnalyzer:
         return term_name in builtins
 
     def _find_alternatives(self, node: EnhancedNode, raw_node: Dict):
-        """Find alternative methods that were tried for this task"""
-        task_base = node.task_name.split('(')[0] if node.task_name else ''
-
-        if not task_base or task_base not in self.all_methods:
-            return
-
-        alternatives = []
-        for method_node in self.all_methods[task_base]:
-            if method_node['nodeID'] == raw_node['nodeID']:
-                continue  # Skip self
-
-            sig = method_node.get('methodSignature') or method_node.get('operatorSignature', '')
-            name = sig.split('(')[0] if sig else task_base
-
-            is_success = method_node.get('isSuccess', False)
-            is_failed = method_node.get('isFailed', False)
-
-            alternatives.append(AlternativeAttempt(
-                method_name=name,
-                signature=sig,
-                success=is_success and not is_failed,
-                failure_reason=method_node.get('failureReason', '') if is_failed else None
-            ))
-
-        node.alternatives_tried = alternatives
+        """The methods the planner tried on this task before the current one (the engine's triedMethods)"""
+        node.alternatives_tried = [
+            AlternativeAttempt(
+                method_name=tried.get('method', '').split('(')[0],
+                signature=tried.get('method', ''),
+                success=False,
+                failure_reason=tried.get('reason') or None
+            )
+            for tried in raw_node.get('triedMethods', [])
+        ]
 
 
 def analyze_planning_trace(nodes: List[Dict], solution_index: int,

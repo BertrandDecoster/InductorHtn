@@ -12,6 +12,8 @@
 #include "HtnMethod.h"
 #include "HtnOperator.h"
 #include "HtnPlanner.h"
+#include <set>
+#include <algorithm>
 #include "HtnRule.h"
 #include "HtnRuleSet.h"
 #include "HtnTerm.h"
@@ -2089,6 +2091,14 @@ shared_ptr<HtnPlanner::SolutionType> HtnPlanner::SolutionFromCurrentNode(PlanSta
             solution->decompositionTree.push_back(treeNode);
         }
     }
+    // Children left by other attempts are not in this solution
+    std::set<int> inSolution;
+    for(const auto& treeNode : solution->decompositionTree) inSolution.insert(treeNode.treeNodeID);
+    for(auto& treeNode : solution->decompositionTree)
+    {
+        auto& kids = treeNode.childNodeIDs;
+        kids.erase(std::remove_if(kids.begin(), kids.end(), [&](int id) { return inSolution.count(id) == 0; }), kids.end());
+    }
 
     // Now roll up all the stats
     solution->highestMemoryUsed = planState->highestMemoryUsed;
@@ -2200,6 +2210,7 @@ void HtnPlanner::RecordTreeNode(PlanState* planState, int nodeID, int parentID, 
     size_t index = planState->decompositionTree.size();
     planState->treeNodeIDToTreeIndex[treeNodeID] = index;
     planState->nodeIDToLastTreeNodeID[nodeID] = treeNodeID;
+    planState->nodeIDToTreeNodeIDs[nodeID].push_back(treeNodeID);
     planState->decompositionTree.push_back(node);
 
     // Update parent's children list
@@ -2219,6 +2230,14 @@ void HtnPlanner::RecordMethodChoice(PlanState* planState, int nodeID, HtnMethod*
     auto it = planState->treeNodeIDToTreeIndex.find(treeNodeID);
     if(it != planState->treeNodeIDToTreeIndex.end()) {
         auto& node = planState->decompositionTree[it->second];
+
+        // A new method attempt on the same task: remember the previous one, and drop its failure
+        if(!node.methodSignature.empty()) {
+            node.triedMethods.push_back({node.methodSignature, node.isFailed ? node.failureReason : "backtracked"});
+        }
+        node.isFailed = false;
+        node.failureReason = "";
+
         node.methodSignature = method->ToString();
         node.isOperator = false;
         node.methodIndex = method->documentOrder();
@@ -2249,6 +2268,7 @@ void HtnPlanner::RecordConditionBindings(PlanState* planState, int nodeID, const
     auto it = planState->treeNodeIDToTreeIndex.find(treeNodeID);
     if(it != planState->treeNodeIDToTreeIndex.end()) {
         auto& node = planState->decompositionTree[it->second];
+        node.conditionBindings.clear();  // Each resolution of the condition is a separate attempt
         for(const auto& u : condition) {
             node.conditionBindings.push_back({u.first->ToString(), u.second->ToString()});
         }
@@ -2307,24 +2327,22 @@ void HtnPlanner::MarkPathSuccess(PlanState* planState, int leafNodeID)
         node.isSuccess = true;
         node.solutionID = planState->currentSolutionID;
 
-#ifdef INDHTN_TREE_SIBLING_TRACKING
-        // Recursively mark all descendants
-        std::function<void(int)> markDescendants = [&](int treeNodeID) {
-            auto nodeIt = planState->treeNodeIDToTreeIndex.find(treeNodeID);
-            if(nodeIt == planState->treeNodeIDToTreeIndex.end()) return;
-            auto& descendant = planState->decompositionTree[nodeIt->second];
-            descendant.isSuccess = true;
-            descendant.solutionID = planState->currentSolutionID;
-            for(int childTreeNodeID : descendant.childNodeIDs) {
-                markDescendants(childTreeNodeID);
-            }
-        };
-        for(int childTreeNodeID : node.childNodeIDs) {
-            markDescendants(childTreeNodeID);
-        }
-#endif
-
         currentTreeNodeID = node.parentNodeID;  // parentNodeID is now treeNodeID of parent
+    }
+
+    // The tasks of this plan are the PlanNodes on the stack: the current search path, including
+    // the subtasks finished before the leaf's. Marking every descendant of the path instead would
+    // also take in the attempts and earlier plans that backtracking leaves behind in the tree.
+    for(const auto& planNode : *planState->stack) {
+        auto idsIt = planState->nodeIDToTreeNodeIDs.find(planNode->nodeID());
+        if(idsIt == planState->nodeIDToTreeNodeIDs.end()) continue;
+        for(int treeNodeID : idsIt->second) {
+            auto it = planState->treeNodeIDToTreeIndex.find(treeNodeID);
+            if(it == planState->treeNodeIDToTreeIndex.end()) continue;
+            auto& node = planState->decompositionTree[it->second];
+            if(!node.isFailed) node.isSuccess = true;  // a failed try() stays failed, and is shown
+            node.solutionID = planState->currentSolutionID;
+        }
     }
     planState->currentSolutionID++;
 }
@@ -2465,6 +2483,7 @@ void HtnPlanner::CreateTreeNodeForTask(PlanState* planState, PlanNode* node)
 
     planState->treeNodeIDToTreeIndex[treeNode.treeNodeID] = planState->decompositionTree.size();
     planState->nodeIDToLastTreeNodeID[node->nodeID()] = treeNode.treeNodeID;
+    planState->nodeIDToTreeNodeIDs[node->nodeID()].push_back(treeNode.treeNodeID);
     planState->decompositionTree.push_back(treeNode);
 
     // Update parent's children list (using treeNodeID)

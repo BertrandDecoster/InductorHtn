@@ -99,6 +99,22 @@ function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, fa
   const [mode, setMode] = useState('htn')  // 'prolog' or 'htn'
   const [expandedGroups, setExpandedGroups] = useState({})
   const [expandedUnifiers, setExpandedUnifiers] = useState({})
+  // Execute timer: when the running query started, seconds so far, and the last run's total
+  const [startedAt, setStartedAt] = useState(null)
+  const [elapsed, setElapsed] = useState(0)
+  const [lastDuration, setLastDuration] = useState(null)
+
+  // Tick while the query runs; when it ends, keep its total
+  useEffect(() => {
+    if (startedAt === null) return
+    if (!loading) {
+      setLastDuration((Date.now() - startedAt) / 1000)
+      setStartedAt(null)
+      return
+    }
+    const timer = setInterval(() => setElapsed((Date.now() - startedAt) / 1000), 100)
+    return () => clearInterval(timer)
+  }, [loading, startedAt])
 
   // Load query history from localStorage on mount
   useEffect(() => {
@@ -121,6 +137,10 @@ function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, fa
     if (!trimmedQuery.endsWith('.')) {
       trimmedQuery = trimmedQuery + '.'
     }
+
+    setElapsed(0)
+    setLastDuration(null)
+    setStartedAt(Date.now())
 
     if (mode === 'htn') {
       onHtnExecute(trimmedQuery)
@@ -194,6 +214,12 @@ function QueryPanel({ onQueryExecute, onHtnExecute, queryResults, stateFacts, fa
               {loading ? 'Executing...' : 'Execute'}
             </button>
           </div>
+          {startedAt !== null && (
+            <div className="query-timer running">Running: {elapsed.toFixed(1)} s</div>
+          )}
+          {startedAt === null && lastDuration !== null && (
+            <div className="query-timer">Took {lastDuration.toFixed(1)} s</div>
+          )}
         </section>
 
         {/* Query Results Section */}
