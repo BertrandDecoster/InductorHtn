@@ -144,14 +144,32 @@ agent(?x) :- companion(?x).
 agent(?x) :- neutral(?x).
 agent(?x) :- enemy(?x).
 
-% A target with the location tag, hit by the skill tag, gets the result.
-locationCombo(wet, electrified, electrified).
+% A target with the location tag, hit by the skill tag, gets the result. The water's combo gives
+% `shocked`, not `electrified`: a result that is one of its own tags would set the combo off again
+% every step in the lake (the lake re-wets whoever stands in it).
+locationCombo(wet, electrified, shocked).
 locationCombo(oil, burning, burning).
 locationCombo(wet, chilled, stunned).
 locationCombo(ice, chilled, stunned).
 % On a location with the location tag, the combo reaches everyone there, and the location's tag becomes the third.
 comboSpreads(wet, electrified, wet).
 comboSpreads(oil, burning, burning).
+% The rest is level data for the env (companions-loop's tools/build_level_rules writes it into the
+% snapshot). A combo takes both tags off whoever it reaches, except those it keeps: the water stays
+% on (the lake re-wets anyway), the oil burns off, the ice stays. Never both: the zone re-landing
+% its tag on a target still carrying the other would fire the combo every step.
+comboKeeps(wet, electrified, wet).
+comboKeeps(wet, chilled, wet).
+comboKeeps(ice, chilled, ice).
+% A spreading combo hurts everyone it reaches.
+comboDamage(wet, electrified, 1).
+comboDamage(oil, burning, 1).
+% The oil set ablaze burns for 5 steps, 1 damage each step on whoever stands in it, and leaves
+% nothing behind (no zoneThen: the oil is gone).
+zoneLasts(burning, 5).
+zoneDamage(burning, 1).
+% Stunned: 3 steps.
+tagStatus(stunned, stunned, 3).
 
 % =============================================================================
 % World: three companions, a hideout behind a gate, water, oil and ice
