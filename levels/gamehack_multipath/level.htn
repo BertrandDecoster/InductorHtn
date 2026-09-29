@@ -65,6 +65,10 @@ locationCanApplyTag(lakeShore, wet).
 locationCanApplyTag(sea, wet).
 locationCanApplyTag(glacier, ice).
 locationCanApplyTag(refinery, oil).
+% Agents that start on a tagged location have its tag.
+hasTag(teslaTower, wet).
+hasTag(companionC, ice).
+hasTag(iceElemental, ice).
 
 % === Static agents (cannot be lured) ===
 static(teslaTower).

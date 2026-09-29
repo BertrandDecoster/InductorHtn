@@ -1,42 +1,7 @@
 % Assembled level: gamehack_multipath
 
-% === Component: gamehack/primitives/gh_movement ===
-% gh_movement - one-step movement: an agent goes to any location, the engine finds the path.
-% Enemies after the mover follow it.
-
-% === Signatures (for TYP001 linter) ===
-signature(opMoveTo, [agent, location, location]).
-signature(opAggroMoveTo, [agent, location, location]).
-signature(opStayInLocation, [agent]).
-signature(goToLocation, [agent, location]).
-signature(goToSameLocation, [agent, agent]).
-signature(enemiesFollow, [agent, location, location]).
-
-% === Operators ===
-
-opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
-opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
-
-% Already true: no state change, the plan shows it.
-opStayInLocation(?a) :- del(), add().
-
-% === Methods ===
-
-% ?a stands where ?t is.
-goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
-
-% ?a is at ?l; the engine finds the path. Enemies after ?a follow.
-goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
-goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
-    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
-
-% Every enemy after ?a that stood with it moves with it.
-enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))), do(opAggroMoveTo(?e, ?from, ?l)).
-enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().
-
-
 % === Component: gamehack/primitives/gh_tags ===
-% gh_tags - a skill's tags land on its target, combining with the tag of the location it stands on.
+% gh_tags - a skill's tags land on its target, combining with the location tag it carries; arriving lands a location's tag.
 % The physics: locationCombo facts, and agent/1 (every companion, neutral and enemy).
 
 % === Signatures (for TYP001 linter) ===
@@ -49,6 +14,7 @@ signature(useSkillOnTarget, [agent, skill, agent]).
 signature(applySkillTags, [skill, agent]).
 signature(landSkillTag, [tag, agent]).
 signature(landTag, [tag, agent]).
+signature(landLocationTag, [agent, location]).
 signature(tagEveryoneAt, [tag, location]).
 signature(defeatVulnerable, [agent, tag, tag]).
 signature(defeatVulnerableAt, [tag, tag, location]).
@@ -75,25 +41,35 @@ useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do
 applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag)), do(landSkillTag(?tag, ?t)).
 applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))), do().
 
-% A skill's tag lands on ?t, and combines with the tag of the location ?t stands on.
-% Electrified in water: everyone there is electrified; the vulnerable are defeated.
-landSkillTag(electrified, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, wet)),
+% A skill's tag lands on ?t, and combines with the location tag ?t carries.
+% Electrified on a wet ?t in water: everyone there is electrified; the vulnerable are defeated.
+landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), locationCanApplyTag(?l, wet)),
     do(tagEveryoneAt(electrified, ?l), defeatVulnerableAt(wet, electrified, ?l)).
-% Burning on oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
-landSkillTag(burning, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, oil)),
+% Electrified on a wet ?t out of the water: ?t alone.
+landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), not(locationCanApplyTag(?l, wet))),
+    do(landTag(electrified, ?t), defeatVulnerable(?t, wet, electrified)).
+% Burning on an oiled ?t on the oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
+landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), locationCanApplyTag(?l, oil)),
     do(opRemoveLocationTag(oil, ?l), opAddLocationTag(burning, ?l),
        tagEveryoneAt(burning, ?l), defeatVulnerableAt(oil, burning, ?l)).
-% Chilled in water or on ice: ?t alone is stunned; if vulnerable, defeated.
-landSkillTag(chilled, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?base), locationCombo(?base, chilled)),
+% Burning on an oiled ?t off the oil: ?t alone.
+landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), not(locationCanApplyTag(?l, oil))),
+    do(landTag(burning, ?t), defeatVulnerable(?t, oil, burning)).
+% Chilled on a wet or iced ?t: ?t alone is stunned; if vulnerable, defeated.
+landSkillTag(chilled, ?t) :- if(first(hasTag(?t, ?base), locationCombo(?base, chilled))),
     do(landTag(stunned, ?t), defeatVulnerable(?t, ?base, chilled)).
-% No combo where ?t stands: the tag just lands.
-landSkillTag(?tag, ?t) :- if(at(?t, ?l), not(locationCanApplyTag(?l, ?base), locationCombo(?base, ?tag))),
+% No combo on ?t: the tag just lands.
+landSkillTag(?tag, ?t) :- if(not(hasTag(?t, ?base), locationCombo(?base, ?tag))),
     do(landTag(?tag, ?t)).
 
 % ?t has ?tag, unless it is immune.
 landTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
 landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).
 landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), immune(?t, ?tag)), do().
+
+% ?x, arriving at ?l, gets the location's tag, if it has one, with its combo (oil walking into fire).
+landLocationTag(?x, ?l) :- if(locationCanApplyTag(?l, ?tag)), do(landSkillTag(?tag, ?x)).
+landLocationTag(?x, ?l) :- if(not(locationCanApplyTag(?l, ?tag))), do().
 
 % Every agent at ?l gets ?tag: companions, neutrals and enemies alike.
 tagEveryoneAt(?tag, ?l) :- allOf, if(agent(?a), at(?a, ?l)), do(landTag(?tag, ?a)).
@@ -116,6 +92,43 @@ locationCombo(wet, electrified).
 locationCombo(oil, burning).
 locationCombo(wet, chilled).
 locationCombo(ice, chilled).
+
+
+% === Component: gamehack/primitives/gh_movement ===
+% gh_movement - one-step movement: an agent goes to any location, the engine finds the path.
+% Enemies after the mover follow it; arriving lands the location's tag.
+% Depends on: gh_tags (landLocationTag)
+
+% === Signatures (for TYP001 linter) ===
+signature(opMoveTo, [agent, location, location]).
+signature(opAggroMoveTo, [agent, location, location]).
+signature(opStayInLocation, [agent]).
+signature(goToLocation, [agent, location]).
+signature(goToSameLocation, [agent, agent]).
+signature(enemiesFollow, [agent, location, location]).
+
+% === Operators ===
+
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
+
+% Already true: no state change, the plan shows it.
+opStayInLocation(?a) :- del(), add().
+
+% === Methods ===
+
+% ?a stands where ?t is.
+goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
+
+% ?a is at ?l and has its tag; the engine finds the path. Enemies after ?a follow.
+goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
+goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
+    do(opMoveTo(?a, ?from, ?l), landLocationTag(?a, ?l), enemiesFollow(?a, ?from, ?l)).
+
+% Every enemy after ?a that stood with it moves with it.
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))),
+    do(opAggroMoveTo(?e, ?from, ?l), landLocationTag(?e, ?l)).
+enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().
 
 
 % === Component: gamehack/primitives/gh_aggro ===
@@ -153,14 +166,16 @@ bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
 
 
 % === Component: gamehack/primitives/gh_skills ===
-% gh_skills - a companion holds a skill and stands with its target, getting the skill from an object first if needed.
-% Depends on: gh_movement (goToSameLocation)
+% gh_skills - a companion holds a skill and stands with its target, getting the skill from an object first if needed;
+% applyTag puts a tag on a target.
+% Depends on: gh_movement (goToSameLocation), gh_tags (useSkillOnTarget), gh_aggro (bringEnemyTo)
 
 % === Signatures (for TYP001 linter) ===
 signature(opSwapSkill, [agent, skill, skill]).
 signature(opGetSkill, [agent, skill]).
 signature(prepareToUseSkill, [agent, skill, agent]).
 signature(getSkillFrom, [agent, object, skill]).
+signature(applyTag, [agent, tag, agent]).
 
 % === Operators ===
 
@@ -168,6 +183,13 @@ opGetSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).
 opSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).
 
 % === Methods ===
+
+% ?t has ?tag, by ?a's doing: already, with a skill that applies it, or lured onto a location that gives it.
+applyTag(?a, ?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), locationCanApplyTag(?l, ?tag), not(at(?t, ?l))),
+    do(bringEnemyTo(?a, ?t, ?l)).
 
 % ?a holds ?s and stands with ?t: already has it, or gets it from an object first.
 prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).
@@ -180,45 +202,41 @@ getSkillFrom(?a, ?o, ?s) :- if(at(?o, ?l), at(?a, ?l), not(hasSkill(?a, ?any))),
 
 
 % === Component: gamehack/strategies/wet_and_freeze ===
-% wet_and_freeze - a lurer brings the target into water or onto ice; a second companion chills it there.
-% Depends on: gh_aggro (bringEnemyTo), gh_skills (prepareToUseSkill), gh_tags (useSkillOnTarget)
+% wet_and_freeze - the target is wet or iced (a lurer's doing), then chilled (a second companion's).
+% Depends on: gh_skills (applyTag)
 
 % === Signatures (for TYP001 linter) ===
 signature(wetAndFreeze, [agent]).
 
-% A lurer brings ?t into water or onto ice; a second companion chills it there.
+% Wet or iced (a lurer's doing), then chilled (a second companion's).
 wetAndFreeze(?t) :-
-    if(enemy(?t), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled), not(at(?t, ?l)),
-       skillAppliesTag(?cold, chilled),
+    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), not(hasTag(?t, ?base)), not(hasTag(?t, chilled)),
        companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(bringEnemyTo(?lurer, ?t, ?l),
-       prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
-% Already standing there: the caster alone chills it (fine: winning a level takes more than one combo).
+    do(applyTag(?lurer, ?base, ?t), applyTag(?caster, chilled, ?t)).
+% Already wet or iced: the caster alone chills it (fine: winning a level takes more than one combo).
 wetAndFreeze(?t) :-
-    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled),
-       skillAppliesTag(?cold, chilled), companion(?caster)),
-    do(prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
+    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), hasTag(?t, ?base), not(hasTag(?t, chilled)),
+       companion(?caster)),
+    do(applyTag(?caster, chilled, ?t)).
 
 
 % === Component: gamehack/strategies/oil_and_burn ===
-% oil_and_burn - a lurer brings the target onto oil; a second companion sets it burning there.
-% Depends on: gh_aggro (bringEnemyTo), gh_skills (prepareToUseSkill), gh_tags (useSkillOnTarget)
+% oil_and_burn - the target has oil (a lurer's doing), then is burning (a second companion's).
+% Depends on: gh_skills (applyTag)
 
 % === Signatures (for TYP001 linter) ===
 signature(oilAndBurn, [agent]).
 
-% A lurer brings ?t onto oil; a second companion sets it burning there.
+% Oil (a lurer's doing), then burning (a second companion's).
 oilAndBurn(?t) :-
-    if(enemy(?t), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning), not(at(?t, ?l)),
-       skillAppliesTag(?fire, burning),
+    if(enemy(?t), vulnerableToLocationCombo(?t, oil, burning), not(hasTag(?t, oil)), not(hasTag(?t, burning)),
        companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(bringEnemyTo(?lurer, ?t, ?l),
-       prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
-% Already standing on the oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
+    do(applyTag(?lurer, oil, ?t), applyTag(?caster, burning, ?t)).
+% Already has oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
 oilAndBurn(?t) :-
-    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning),
-       skillAppliesTag(?fire, burning), companion(?caster)),
-    do(prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
+    if(enemy(?t), vulnerableToLocationCombo(?t, oil, burning), hasTag(?t, oil), not(hasTag(?t, burning)),
+       companion(?caster)),
+    do(applyTag(?caster, burning, ?t)).
 
 
 % === Component: gamehack/strategies/stun_and_slow ===
@@ -254,7 +272,7 @@ signature(defeat, [agent]).
 
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndFreeze(?t)).
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndBurn(?t)).
-defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), landTag(dead, ?t)).
 
 
 % === Level-specific content ===
@@ -325,6 +343,10 @@ locationCanApplyTag(lakeShore, wet).
 locationCanApplyTag(sea, wet).
 locationCanApplyTag(glacier, ice).
 locationCanApplyTag(refinery, oil).
+% Agents that start on a tagged location have its tag.
+hasTag(teslaTower, wet).
+hasTag(companionC, ice).
+hasTag(iceElemental, ice).
 
 % === Static agents (cannot be lured) ===
 static(teslaTower).

@@ -9,13 +9,14 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:30.420044"
+    "last_checked": "2026-09-25T21:55:46.541622"
   },
   "provides": [
     "agent/1",
     "applySkillTags/2",
     "defeatVulnerable/3",
     "defeatVulnerableAt/3",
+    "landLocationTag/2",
     "landSkillTag/2",
     "landTag/2",
     "locationCombo/2",
@@ -24,7 +25,9 @@
     "opRemoveLocationTag/2",
     "opTagAlreadyOnTarget/2",
     "opUseSkill/3",
+    "signature/2",
     "tagEveryoneAt/2",
+    "type/2",
     "useSkillOnTarget/3"
   ],
   "requires": []

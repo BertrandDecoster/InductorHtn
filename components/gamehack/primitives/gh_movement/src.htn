@@ -1,5 +1,6 @@
 % gh_movement - one-step movement: an agent goes to any location, the engine finds the path.
-% Enemies after the mover follow it.
+% Enemies after the mover follow it; arriving lands the location's tag.
+% Depends on: gh_tags (landLocationTag)
 
 % === Signatures (for TYP001 linter) ===
 signature(opMoveTo, [agent, location, location]).
@@ -22,11 +23,12 @@ opStayInLocation(?a) :- del(), add().
 % ?a stands where ?t is.
 goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
 
-% ?a is at ?l; the engine finds the path. Enemies after ?a follow.
+% ?a is at ?l and has its tag; the engine finds the path. Enemies after ?a follow.
 goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
 goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
-    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
+    do(opMoveTo(?a, ?from, ?l), landLocationTag(?a, ?l), enemiesFollow(?a, ?from, ?l)).
 
 % Every enemy after ?a that stood with it moves with it.
-enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))),
+    do(opAggroMoveTo(?e, ?from, ?l), landLocationTag(?e, ?l)).
 enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().

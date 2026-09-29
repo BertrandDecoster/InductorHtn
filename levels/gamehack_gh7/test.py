@@ -70,16 +70,16 @@ class GamehackGh7Test(HtnTestSuite):
         while another companion lures gob into the lake: 3 lurers x 2 casters."""
         self._assert_count("wetAndFreeze(gob).", 6)
         self.assert_plan("wetAndFreeze(gob).", contains=[
-            "opMoveTo(companionI, inn, hut), opAggro(gob, companionI), opMoveTo(companionI, hut, lake), "
-            "opAggroMoveTo(gob, hut, lake), opMoveTo(player, room, sea), opGetSkill(player, frostSkill), "
-            "opMoveTo(player, sea, lake), opUseSkill(player, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)"])
+            "opMoveTo(companionI, inn, hut), opAggro(gob, companionI), opMoveTo(companionI, hut, lake), opApplyTag(wet, companionI), "
+            "opAggroMoveTo(gob, hut, lake), opApplyTag(wet, gob), opMoveTo(player, room, sea), opGetSkill(player, frostSkill), "
+            "opMoveTo(player, sea, lake), opApplyTag(wet, player), opUseSkill(player, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)"])
 
     def test_example_3_oil_and_burn(self):
         """Example 3: gob lured into the kitchen, set burning by companionF (or a fireball learned at the volcano)."""
         self._assert_count("oilAndBurn(gob).", 6)
         self.assert_plan("oilAndBurn(gob).", contains=[
-            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, kitchen), "
-            "opAggroMoveTo(gob, hut, kitchen), opMoveTo(companionF, inn, kitchen), opUseSkill(companionF, fireballSkill, gob), "
+            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, kitchen), opApplyTag(oil, player), "
+            "opAggroMoveTo(gob, hut, kitchen), opApplyTag(oil, gob), opMoveTo(companionF, inn, kitchen), opApplyTag(oil, companionF), opUseSkill(companionF, fireballSkill, gob), "
             "opRemoveLocationTag(oil, kitchen), opAddLocationTag(burning, kitchen), "
             "opApplyTag(burning, player), opApplyTag(burning, companionF), opApplyTag(burning, gob), opApplyTag(dead, gob)"])
 

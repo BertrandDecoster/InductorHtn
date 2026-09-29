@@ -14,10 +14,13 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:51:40.723842"
+    "last_checked": "2026-09-25T21:55:46.970993"
   },
   "provides": [
+    "signature/2",
     "wetAndFreeze/1"
   ],
-  "requires": []
+  "requires": [
+    "applyTag/3"
+  ]
 }

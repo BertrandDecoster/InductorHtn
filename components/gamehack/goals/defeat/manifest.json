@@ -13,14 +13,15 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:28.433254"
+    "last_checked": "2026-09-25T21:52:11.826986"
   },
   "provides": [
-    "defeat/1"
+    "defeat/1",
+    "signature/2"
   ],
   "requires": [
+    "landTag/2",
     "oilAndBurn/1",
-    "opApplyTag/2",
     "stunAndSlow/1",
     "wetAndFreeze/1"
   ]

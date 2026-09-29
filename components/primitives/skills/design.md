@@ -5,7 +5,8 @@
 A companion gets ready to use a skill (holds it and stands with the target), gets a skill it
 lacks from an object (`canGetSkillFrom(?o, ?s)`; the object stays), and uses a skill on a
 target in the same location: each of the skill's tags lands through `landSkillTag` (tags
-primitive), with the location's combo. The verbs are copied from `Examples/Combos.htn`.
+primitive), with its combo. `applyTag(?a, ?tag, ?t)` is the goal verb the strategies use: `?t`
+has the tag, by `?a`'s doing. The verbs are copied from `Examples/Combos.htn`.
 
 ## Layer
 
@@ -13,12 +14,13 @@ primitive
 
 ## Dependencies
 
-- `primitives/locomotion` (`goToSameLocation`), `primitives/tags` (`landSkillTag`)
+- `primitives/locomotion` (`goToSameLocation`), `primitives/tags` (`landSkillTag`), `primitives/aggro` (`bringEnemyTo`)
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
+| `applyTag(?a, ?tag, ?t)` | `?t` has the tag: already (`opTagAlreadyOnTarget`), `?a` uses a skill that applies it, or `?a` lures `?t` onto a location that gives it; never on an immune target |
 | `prepareToUseSkill(?a, ?s, ?t)` | holds `?s` and walks to `?t`; or walks to an object that grants it, learns it, then walks to `?t` |
 | `getSkillFrom(?a, ?o, ?s)` | standing at `?o`, learns `?s`: it replaces the current skill (`opSwapSkill`) or is the first (`opGetSkill`) |
 | `useSkillOnTarget(?a, ?s, ?t)` | `?a`, holding `?s` and standing with `?t`, uses it (`opUseSkill`); its tags land |
@@ -51,6 +53,15 @@ the hut, imp at the camp.
 
 ### Example 5: Every tag lands
 **Then:** stormSkill on imp: `opApplyTag(burning, imp), opApplyTag(electrified, imp)`
+
+### Example 6: applyTag with a skill
+**Then:** `applyTag(frost, chilled, gob)`: frost walks to the hut and uses frostSkill on gob
+
+### Example 7: applyTag with a location
+**Given:** a wet pond **Then:** `applyTag(pyro, wet, gob)`: pyro lures gob into the pond; both get wet
+
+### Example 8: Already there, or immune
+**Then:** `opTagAlreadyOnTarget(chilled, gob)` if gob is chilled; no plan on a target immune to it
 
 ## Properties
 

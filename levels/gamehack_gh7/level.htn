@@ -66,6 +66,8 @@ location(kitchen).
 % === Location tags ===
 locationCanApplyTag(lake, wet).
 locationCanApplyTag(kitchen, oil).
+% Agents that start on a tagged location have its tag.
+hasTag(teslaTower, wet).
 
 immune(electricityElemental, electrified).
 

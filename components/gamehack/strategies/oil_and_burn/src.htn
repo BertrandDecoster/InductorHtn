@@ -1,18 +1,16 @@
-% oil_and_burn - a lurer brings the target onto oil; a second companion sets it burning there.
-% Depends on: gh_aggro (bringEnemyTo), gh_skills (prepareToUseSkill), gh_tags (useSkillOnTarget)
+% oil_and_burn - the target has oil (a lurer's doing), then is burning (a second companion's).
+% Depends on: gh_skills (applyTag)
 
 % === Signatures (for TYP001 linter) ===
 signature(oilAndBurn, [agent]).
 
-% A lurer brings ?t onto oil; a second companion sets it burning there.
+% Oil (a lurer's doing), then burning (a second companion's).
 oilAndBurn(?t) :-
-    if(enemy(?t), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning), not(at(?t, ?l)),
-       skillAppliesTag(?fire, burning),
+    if(enemy(?t), vulnerableToLocationCombo(?t, oil, burning), not(hasTag(?t, oil)), not(hasTag(?t, burning)),
        companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(bringEnemyTo(?lurer, ?t, ?l),
-       prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
-% Already standing on the oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
+    do(applyTag(?lurer, oil, ?t), applyTag(?caster, burning, ?t)).
+% Already has oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
 oilAndBurn(?t) :-
-    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, oil), vulnerableToLocationCombo(?t, oil, burning),
-       skillAppliesTag(?fire, burning), companion(?caster)),
-    do(prepareToUseSkill(?caster, ?fire, ?t), useSkillOnTarget(?caster, ?fire, ?t)).
+    if(enemy(?t), vulnerableToLocationCombo(?t, oil, burning), hasTag(?t, oil), not(hasTag(?t, burning)),
+       companion(?caster)),
+    do(applyTag(?caster, burning, ?t)).

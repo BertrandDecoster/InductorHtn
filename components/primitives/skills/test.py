@@ -55,6 +55,24 @@ class SkillsTest(HtnTestSuite):
         self.assert_plan_set("useSkillOnTarget(pyro, stormSkill, imp).",
             ["opUseSkill(pyro, stormSkill, imp), opApplyTag(burning, imp), opApplyTag(electrified, imp)"])
 
+    def test_example_6_apply_tag_with_a_skill(self):
+        """Example 6: applyTag, the skill way: the companion uses a skill that applies the tag."""
+        self.assert_plan_set("applyTag(frost, chilled, gob).", [
+            "opMoveTo(frost, camp, hut), opUseSkill(frost, frostSkill, gob), opApplyTag(chilled, gob)"])
+
+    def test_example_7_apply_tag_with_a_location(self):
+        """Example 7: applyTag, the location way: the companion lures the enemy onto a location that gives the tag."""
+        self.set_state(["location(pond)", "locationCanApplyTag(pond, wet)"])
+        self.assert_plan_set("applyTag(pyro, wet, gob).", [
+            "opMoveTo(pyro, camp, hut), opAggro(gob, pyro), opMoveTo(pyro, hut, pond), opApplyTag(wet, pyro), "
+            "opAggroMoveTo(gob, hut, pond), opApplyTag(wet, gob)"])
+
+    def test_example_8_apply_tag_already_there_or_immune(self):
+        """Example 8: applyTag on a target that has the tag does nothing; an immune target can't get it."""
+        self.set_state(["hasTag(gob, chilled)", "immune(imp, chilled)"])
+        self.assert_plan_set("applyTag(frost, chilled, gob).", ["opTagAlreadyOnTarget(chilled, gob)"])
+        self.assert_no_plan("applyTag(frost, chilled, imp).")
+
     # =========================================================================
     # Property Tests
     # =========================================================================

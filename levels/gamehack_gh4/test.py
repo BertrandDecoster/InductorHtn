@@ -66,14 +66,14 @@ class GamehackGh4Test(HtnTestSuite):
         """Example 1: 4 plans, all wetAndFreeze: the player or companionE lures gob into the lake or the sea,
         companionW (the only chilled skill) chills it there."""
         self.assert_plan_set("defeat(gob).", [
-            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, lake), "
-            "opAggroMoveTo(gob, hut, lake), opMoveTo(companionW, inn, lake), " + CHILL,
-            "opStayInLocation(companionE), opAggro(gob, companionE), opMoveTo(companionE, hut, lake), "
-            "opAggroMoveTo(gob, hut, lake), opMoveTo(companionW, inn, lake), " + CHILL,
-            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, sea), "
-            "opAggroMoveTo(gob, hut, sea), opMoveTo(companionW, inn, sea), " + CHILL,
-            "opStayInLocation(companionE), opAggro(gob, companionE), opMoveTo(companionE, hut, sea), "
-            "opAggroMoveTo(gob, hut, sea), opMoveTo(companionW, inn, sea), " + CHILL,
+            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, lake), opApplyTag(wet, player), "
+            "opAggroMoveTo(gob, hut, lake), opApplyTag(wet, gob), opMoveTo(companionW, inn, lake), opApplyTag(wet, companionW), " + CHILL,
+            "opStayInLocation(companionE), opAggro(gob, companionE), opMoveTo(companionE, hut, lake), opApplyTag(wet, companionE), "
+            "opAggroMoveTo(gob, hut, lake), opApplyTag(wet, gob), opMoveTo(companionW, inn, lake), opApplyTag(wet, companionW), " + CHILL,
+            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, sea), opApplyTag(wet, player), "
+            "opAggroMoveTo(gob, hut, sea), opApplyTag(wet, gob), opMoveTo(companionW, inn, sea), opApplyTag(wet, companionW), " + CHILL,
+            "opStayInLocation(companionE), opAggro(gob, companionE), opMoveTo(companionE, hut, sea), opApplyTag(wet, companionE), "
+            "opAggroMoveTo(gob, hut, sea), opApplyTag(wet, gob), opMoveTo(companionW, inn, sea), opApplyTag(wet, companionW), " + CHILL,
         ])
 
     # =========================================================================

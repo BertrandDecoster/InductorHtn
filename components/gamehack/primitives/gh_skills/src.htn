@@ -1,11 +1,13 @@
-% gh_skills - a companion holds a skill and stands with its target, getting the skill from an object first if needed.
-% Depends on: gh_movement (goToSameLocation)
+% gh_skills - a companion holds a skill and stands with its target, getting the skill from an object first if needed;
+% applyTag puts a tag on a target.
+% Depends on: gh_movement (goToSameLocation), gh_tags (useSkillOnTarget), gh_aggro (bringEnemyTo)
 
 % === Signatures (for TYP001 linter) ===
 signature(opSwapSkill, [agent, skill, skill]).
 signature(opGetSkill, [agent, skill]).
 signature(prepareToUseSkill, [agent, skill, agent]).
 signature(getSkillFrom, [agent, object, skill]).
+signature(applyTag, [agent, tag, agent]).
 
 % === Operators ===
 
@@ -13,6 +15,13 @@ opGetSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).
 opSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).
 
 % === Methods ===
+
+% ?t has ?tag, by ?a's doing: already, with a skill that applies it, or lured onto a location that gives it.
+applyTag(?a, ?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), locationCanApplyTag(?l, ?tag), not(at(?t, ?l))),
+    do(bringEnemyTo(?a, ?t, ?l)).
 
 % ?a holds ?s and stands with ?t: already has it, or gets it from an object first.
 prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).

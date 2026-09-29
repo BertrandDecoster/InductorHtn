@@ -1,53 +1,22 @@
-% WIP (owner-rated 4/5): good architecture - named strategies with their roles bound in if(),
-% and small reusable verbs. Rewritten in docs/authoring/vocabulary.md and its tag system; the
-% verbs are Examples/Combos.htn's (the originals are in archive/pre-vocabulary/ and
-% archive/pre-tag-system/).
-
-% =============================================================================
-% Combat Level 1: The Grease Trap (Tutorial)
-% =============================================================================
-%
-% Setting: a small map with weak "Swarmer" enemies. One room is covered in oil, one corridor
-% in ice. A swarmer falls to burning on oil, or to chilling on ice.
-%
-% Plan A: oilAndBurn - a lurer brings the swarmer onto the oil, and a second companion sets it
-%   burning there: the oil catches fire, and everyone standing there burns.
-% Plan B: wetAndFreeze - a lurer brings the swarmer onto the ice, and a second companion
-%   chills it there: the swarmer alone is stunned.
-% =============================================================================
+% CombosLevelData: two companions defeat an enemy through its weakness, a location combo.
+% The combos are facts at the bottom (locationCombo, comboSpreads). Goals to try are at the bottom.
 
 % =============================================================================
 % Goal: a menu of strategies, one plan per strategy that works
 % =============================================================================
 
-defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndFreeze(?t)).
-defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndBurn(?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(defeatWithCombo(?t)).
 
 % =============================================================================
 % Strategies: if() says what makes it possible, do() lists the states to reach
 % =============================================================================
 
-% Wet or iced (a lurer's doing), then chilled (a second companion's).
-wetAndFreeze(?t) :-
-    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), not(hasTag(?t, ?base)), not(hasTag(?t, chilled)),
+% The enemy's weakness is a location combo: a lurer brings it onto a location that gives the
+% location tag, then a second companion lands the skill tag.
+defeatWithCombo(?t) :-
+    if(enemy(?t), vulnerableToLocationCombo(?t, ?locationTag, ?skillTag), locationCanApplyTag(?location, ?locationTag),
        companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(applyTag(?lurer, ?base, ?t), applyTag(?caster, chilled, ?t)).
-% Already wet or iced: the caster alone chills it (fine: winning a level takes more than one combo).
-wetAndFreeze(?t) :-
-    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), hasTag(?t, ?base), not(hasTag(?t, chilled)),
-       companion(?caster)),
-    do(applyTag(?caster, chilled, ?t)).
-
-% Oil (a lurer's doing), then burning (a second companion's).
-oilAndBurn(?t) :-
-    if(enemy(?t), vulnerableToLocationCombo(?t, oil, burning), not(hasTag(?t, oil)), not(hasTag(?t, burning)),
-       companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(applyTag(?lurer, oil, ?t), applyTag(?caster, burning, ?t)).
-% Already has oil: the caster alone sets it burning (fine: winning a level takes more than one combo).
-oilAndBurn(?t) :-
-    if(enemy(?t), vulnerableToLocationCombo(?t, oil, burning), hasTag(?t, oil), not(hasTag(?t, burning)),
-       companion(?caster)),
-    do(applyTag(?caster, burning, ?t)).
+    do(bringEnemyTo(?lurer, ?t, ?location), applyTag(?caster, ?skillTag, ?t)).
 
 % =============================================================================
 % Verbs: each method is one way to reach the state
@@ -76,25 +45,24 @@ applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag)), do(landSkillTag(
 applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))), do().
 
 % A skill's tag lands on ?t, and combines with the location tag ?t carries.
-% Electrified on a wet ?t in water: everyone there is electrified; the vulnerable are defeated.
-landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), locationCanApplyTag(?l, wet)),
-    do(tagEveryoneAt(electrified, ?l), defeatVulnerableAt(wet, electrified, ?l)).
-% Electrified on a wet ?t out of the water: ?t alone.
-landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), not(locationCanApplyTag(?l, wet))),
-    do(landTag(electrified, ?t), defeatVulnerable(?t, wet, electrified)).
-% Burning on an oiled ?t on the oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
-landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), locationCanApplyTag(?l, oil)),
-    do(opRemoveLocationTag(oil, ?l), opAddLocationTag(burning, ?l),
-       tagEveryoneAt(burning, ?l), defeatVulnerableAt(oil, burning, ?l)).
-% Burning on an oiled ?t off the oil: ?t alone.
-landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), not(locationCanApplyTag(?l, oil))),
-    do(landTag(burning, ?t), defeatVulnerable(?t, oil, burning)).
-% Chilled on a wet or iced ?t: ?t alone is stunned; if vulnerable, defeated.
-landSkillTag(chilled, ?t) :- if(first(hasTag(?t, ?base), locationCombo(?base, chilled))),
-    do(landTag(stunned, ?t), defeatVulnerable(?t, ?base, chilled)).
+% A spreading combo where ?t stands (wet + electrified in water, oil + burning on oil): everyone there; the vulnerable are defeated.
+landSkillTag(?tag, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?locationTag), hasTag(?t, ?locationTag),
+       locationCombo(?locationTag, ?tag, ?result), comboSpreads(?locationTag, ?tag, ?becomes)),
+    do(changeLocationTag(?l, ?locationTag, ?becomes), tagEveryoneAt(?result, ?l), defeatVulnerableAt(?locationTag, ?tag, ?l)).
+% Any other combo (wet + electrified out of the water, chilled on a wet or iced ?t): ?t alone; if vulnerable, defeated.
+landSkillTag(?tag, ?t) :- if(not(at(?t, ?l), locationCanApplyTag(?l, ?here), hasTag(?t, ?here), locationCombo(?here, ?tag, ?any), comboSpreads(?here, ?tag, ?becomes)),
+       first(hasTag(?t, ?locationTag), locationCombo(?locationTag, ?tag, ?result))),
+    do(landTag(?result, ?t), defeatVulnerable(?t, ?locationTag, ?tag)).
 % No combo on ?t: the tag just lands.
-landSkillTag(?tag, ?t) :- if(not(hasTag(?t, ?base), locationCombo(?base, ?tag))),
+landSkillTag(?tag, ?t) :- if(not(hasTag(?t, ?locationTag), locationCombo(?locationTag, ?tag, ?result))),
     do(landTag(?tag, ?t)).
+
+% ?l's tag ?old becomes ?new: it stays (water), it changes (the oil catches fire), or ?l had ?new already.
+changeLocationTag(?l, ?old, ?new) :- if(==(?old, ?new)), do().
+changeLocationTag(?l, ?old, ?new) :- if(\==(?old, ?new), locationCanApplyTag(?l, ?old), not(locationCanApplyTag(?l, ?new))),
+    do(opRemoveLocationTag(?old, ?l), opAddLocationTag(?new, ?l)).
+changeLocationTag(?l, ?old, ?new) :- if(\==(?old, ?new), locationCanApplyTag(?l, ?old), locationCanApplyTag(?l, ?new)),
+    do(opRemoveLocationTag(?old, ?l)).
 
 % ?t has ?tag, unless it is immune.
 landTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
@@ -119,12 +87,11 @@ defeatVulnerableAt(?base, ?tag, ?l) :- if(not(enemy(?e), at(?e, ?l))), do().
 % ?a stands where ?t is.
 goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
 
-% ?a is at ?l and has its tag; the engine finds the path. Enemies after ?a follow.
+% ?a is at ?l and has its tag; the engine finds the path. Living enemies after ?a follow.
 goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
 goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
     do(opMoveTo(?a, ?from, ?l), landLocationTag(?a, ?l), enemiesFollow(?a, ?from, ?l)).
 
-% The enemies after ?a move with it (not a static or a dead one).
 enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))),
     do(opAggroMoveTo(?e, ?from, ?l), landLocationTag(?e, ?l)).
 enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().
@@ -139,6 +106,12 @@ bringEnemyTo(?lurer, ?e, ?l) :- if(at(?e, ?l)), do(opEnemyAlreadyAtLocation(?e, 
 bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
     do(goToSameLocation(?lurer, ?e), getAggro(?e, ?lurer), goToLocation(?lurer, ?l)).
 
+% ?d is not locked: already, or two companions stand on its two plates together.
+unlockDoor(?d) :- if(not(locked(?d))), do(opDoorAlreadyUnlocked(?d)).
+unlockDoor(?d) :- if(locked(?d), first(plateOpens(?p1, ?d), plateOpens(?p2, ?d), \==(?p1, ?p2)), at(?p1, ?l1), at(?p2, ?l2),
+       companion(?a1), companion(?a2), \==(?a1, ?a2)),
+    do(goToLocation(?a1, ?l1), goToLocation(?a2, ?l2), opSynchronizeOnPlates(?a1, ?a2, ?p1, ?p2), opUnlock(?d)).
+
 % =============================================================================
 % Operators: game actions
 % =============================================================================
@@ -146,6 +119,7 @@ bringEnemyTo(?lurer, ?e, ?l) :- if(enemy(?e), not(static(?e)), not(at(?e, ?l))),
 opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
 opAggroMoveTo(?e, ?from, ?to) :- del(at(?e, ?from)), add(at(?e, ?to)).
 opUseSkill(?a, ?s, ?t) :- del(), add().
+opSynchronizeOnPlates(?a1, ?a2, ?p1, ?p2) :- del(), add().
 opApplyTag(?tag, ?t) :- del(), add(hasTag(?t, ?tag)).
 opAddLocationTag(?tag, ?l) :- del(), add(locationCanApplyTag(?l, ?tag)).
 opRemoveLocationTag(?tag, ?l) :- del(locationCanApplyTag(?l, ?tag)), add().
@@ -153,66 +127,94 @@ opAggro(?e, ?a) :- del(), add(hasAggro(?e, ?a)).
 opRemoveAggro(?e, ?a) :- del(hasAggro(?e, ?a)), add().
 opGetSkill(?a, ?s) :- del(), add(hasSkill(?a, ?s)).
 opSwapSkill(?a, ?old, ?s) :- del(hasSkill(?a, ?old)), add(hasSkill(?a, ?s)).
+opUnlock(?d) :- del(locked(?d)), add().
 
 % Already true: no state change, the plan shows it.
 opStayInLocation(?a) :- del(), add().
 opTagAlreadyOnTarget(?tag, ?t) :- del(), add().
 opTargetAlreadyAggroed(?e, ?a) :- del(), add().
 opEnemyAlreadyAtLocation(?e, ?l) :- del(), add().
+opDoorAlreadyUnlocked(?d) :- del(), add().
 
 % =============================================================================
-% The physics: which location tag combines with which skill tag
+% The physics: what each location tag and skill tag do together
 % =============================================================================
 
 agent(?x) :- companion(?x).
 agent(?x) :- neutral(?x).
 agent(?x) :- enemy(?x).
 
-locationCombo(wet, electrified).
-locationCombo(oil, burning).
-locationCombo(wet, chilled).
-locationCombo(ice, chilled).
+% A target with the location tag, hit by the skill tag, gets the result.
+locationCombo(wet, electrified, electrified).
+locationCombo(oil, burning, burning).
+locationCombo(wet, chilled, stunned).
+locationCombo(ice, chilled, stunned).
+% On a location with the location tag, the combo reaches everyone there, and the location's tag becomes the third.
+comboSpreads(wet, electrified, wet).
+comboSpreads(oil, burning, burning).
 
 % =============================================================================
-% World
+% World: three companions, a hideout behind a gate, water, oil and ice
 % =============================================================================
+%
+%            lake (wet) --- camp --- kitchen (oil)
+%                            |
+%   tower --- rink (ice) --- yard --[gate]-- hideout
+%
+% The gate opens when two companions stand on its two plates together.
 
-companion(player). companion(warden). companion(arcanist).
-enemy(swarmer1). enemy(swarmer2). enemy(swarmer3).
+companion(player). companion(pyro). companion(frost).
+enemy(gob). enemy(imp). enemy(turret).
+neutral(fisher).
+object(altar).
 
-% Swarmers fall to burning on oil, and to chilling on ice.
-vulnerableToLocationCombo(swarmer1, oil, burning). vulnerableToLocationCombo(swarmer1, ice, chilled).
-vulnerableToLocationCombo(swarmer2, oil, burning). vulnerableToLocationCombo(swarmer2, ice, chilled).
-vulnerableToLocationCombo(swarmer3, oil, burning). vulnerableToLocationCombo(swarmer3, ice, chilled).
+location(camp). location(lake). location(kitchen). location(yard). location(rink).
+location(tower). location(hideout).
 
-%   roomNW ---corridorN--- roomNE
-%     |                      |
-%  corridorW              corridorE
-%     |                      |
-%   roomSW ---corridorS--- roomSE
-location(roomNW). location(roomNE). location(roomSW). location(roomSE).
-location(corridorN). location(corridorS). location(corridorE). location(corridorW).
+linked(camp, lake). linked(lake, camp).
+linked(camp, kitchen). linked(kitchen, camp).
+linked(camp, yard). linked(yard, camp).
+linked(yard, rink). linked(rink, yard).
+linked(rink, tower). linked(tower, rink).
+linked(yard, hideout). linked(hideout, yard).
+blockedLink(yard, hideout, door(gate)). blockedLink(hideout, yard, door(gate)).
+locked(gate).
+plateOpens(westPlate, gate). plateOpens(eastPlate, gate).
+at(westPlate, yard). at(eastPlate, rink).
 
-linked(roomNW, corridorN). linked(corridorN, roomNW).
-linked(corridorN, roomNE). linked(roomNE, corridorN).
-linked(roomNE, corridorE). linked(corridorE, roomNE).
-linked(corridorE, roomSE). linked(roomSE, corridorE).
-linked(roomSE, corridorS). linked(corridorS, roomSE).
-linked(corridorS, roomSW). linked(roomSW, corridorS).
-linked(roomSW, corridorW). linked(corridorW, roomSW).
-linked(corridorW, roomNW). linked(roomNW, corridorW).
+locationCanApplyTag(lake, wet).
+locationCanApplyTag(kitchen, oil).
+locationCanApplyTag(rink, ice).
 
-at(player, roomNW). at(warden, roomNW). at(arcanist, roomNW).
-at(swarmer1, roomNE). at(swarmer2, roomSE). at(swarmer3, corridorS).
+at(player, camp). at(pyro, camp). at(frost, camp).
+at(gob, hideout). at(imp, hideout).
+at(turret, lake). at(fisher, lake).
+at(altar, tower).
+% Agents that start on a tagged location have its tag.
+hasTag(turret, wet). hasTag(fisher, wet).
 
-% An oil patch in the empty room, and ice in the west corridor.
-locationCanApplyTag(roomSW, oil).
-locationCanApplyTag(corridorW, ice).
+% Skills: each companion holds one; the altar grants a spark skill.
+hasSkill(player, iceBlastSkill). skillAppliesTag(iceBlastSkill, stunned).
+hasSkill(pyro, fireballSkill). skillAppliesTag(fireballSkill, burning).
+hasSkill(frost, frostSkill). skillAppliesTag(frostSkill, chilled).
+skillAppliesTag(sparkSkill, electrified).
+canGetSkillFrom(altar, sparkSkill).
 
-hasSkill(warden, magnetizeSkill). hasSkill(warden, shieldSkill).
-hasSkill(arcanist, freezeSkill). hasSkill(arcanist, lightningSkill).
-hasSkill(player, igniteSkill). hasSkill(player, gustSkill).
-skillAppliesTag(freezeSkill, chilled).
-skillAppliesTag(igniteSkill, burning).
+% gob falls to chilling in water or on ice, and to burning on oil.
+vulnerableToLocationCombo(gob, wet, chilled).
+vulnerableToLocationCombo(gob, ice, chilled).
+vulnerableToLocationCombo(gob, oil, burning).
+% imp falls only to electricity in water, and can't be stunned.
+vulnerableToLocationCombo(imp, wet, electrified).
+immune(imp, stunned).
+% The turret never moves; it sits in the lake, so one spark is enough.
+static(turret).
+vulnerableToLocationCombo(turret, wet, electrified).
 
-goals(defeat(swarmer1)).
+goals(defeat(gob)).
+% Goals to try:
+%   defeat(gob).                 one plan per weakness, location and pair of companions
+%   defeat(imp).                 only wet + electrified; the spark also takes out the turret
+%   defeat(turret).              already in the lake: the lurer has nothing to do, the caster brings the spark
+%   unlockDoor(gate).            two companions on the two plates
+%   applyTag(player, oil, gob).  the lurer brings gob onto the oil

@@ -22,9 +22,13 @@ WORLD = [
 ]
 
 
+LOCATION_TAG = {"lake": "wet", "rink": "ice", "kitchen": "oil"}
+
+
 def lure(lurer, to):
+    tag = LOCATION_TAG[to]
     return (f"opMoveTo({lurer}, camp, hut), opAggro(gob, {lurer}), "
-            f"opMoveTo({lurer}, hut, {to}), opAggroMoveTo(gob, hut, {to})")
+            f"opMoveTo({lurer}, hut, {to}), opApplyTag({tag}, {lurer}), opAggroMoveTo(gob, hut, {to}), opApplyTag({tag}, gob)")
 
 
 FREEZE = "opUseSkill(frost, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)"
@@ -46,8 +50,8 @@ class WetAndFreezeTest(HtnTestSuite):
         frost, the only one with a chilled skill, chills it there."""
         self.set_state(WORLD + ["vulnerableToLocationCombo(gob, wet, chilled)"])
         self.assert_plan_set("wetAndFreeze(gob).", [
-            lure("player", "lake") + ", opMoveTo(frost, camp, lake), " + FREEZE,
-            lure("pyro", "lake") + ", opMoveTo(frost, camp, lake), " + FREEZE,
+            lure("player", "lake") + ", opMoveTo(frost, camp, lake), opApplyTag(wet, frost), " + FREEZE,
+            lure("pyro", "lake") + ", opMoveTo(frost, camp, lake), opApplyTag(wet, frost), " + FREEZE,
         ])
 
     def test_example_2_water_or_ice(self):
@@ -70,10 +74,11 @@ class WetAndFreezeTest(HtnTestSuite):
                         "vulnerableToLocationCombo(gob, wet, chilled)"])
         self.assert_no_plan("wetAndFreeze(gob).")
 
-    def test_example_5_already_standing_in_water(self):
-        """Example 5: gob already stands in the lake: no lurer, frost alone chills it."""
-        self.set_state([f for f in WORLD if f != "at(gob, hut)"] + ["at(gob, lake)", "vulnerableToLocationCombo(gob, wet, chilled)"])
-        self.assert_plan_set("wetAndFreeze(gob).", ["opMoveTo(frost, camp, lake), " + FREEZE])
+    def test_example_5_already_wet(self):
+        """Example 5: gob starts in the lake, so it is wet: no lurer, frost alone chills it."""
+        self.set_state([f for f in WORLD if f != "at(gob, hut)"]
+                       + ["at(gob, lake)", "hasTag(gob, wet)", "vulnerableToLocationCombo(gob, wet, chilled)"])
+        self.assert_plan_set("wetAndFreeze(gob).", ["opMoveTo(frost, camp, lake), opApplyTag(wet, frost), " + FREEZE])
 
     # =========================================================================
     # Property Tests

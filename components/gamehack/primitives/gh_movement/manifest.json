@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "layer": "primitive",
   "description": "One-step movement for GameHack domains; enemies after the mover follow",
-  "dependencies": [],
+  "dependencies": [
+    "gamehack/primitives/gh_tags"
+  ],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:29.546174"
+    "last_checked": "2026-09-25T21:52:08.896843"
   },
   "provides": [
     "enemiesFollow/3",
@@ -17,7 +19,10 @@
     "goToSameLocation/2",
     "opAggroMoveTo/3",
     "opMoveTo/3",
-    "opStayInLocation/1"
+    "opStayInLocation/1",
+    "signature/2"
   ],
-  "requires": []
+  "requires": [
+    "landLocationTag/2"
+  ]
 }

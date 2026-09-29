@@ -8,13 +8,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from htn_test_framework import HtnTestSuite
 
 BURN_GUARD1 = ("opMoveTo(arcanist, main, generator), opAggro(guard1, arcanist), "
-               "opMoveTo(arcanist, generator, storage), opAggroMoveTo(guard1, generator, storage), "
-               "opMoveTo(player, main, storage), opUseSkill(player, igniteSkill, guard1), "
+               "opMoveTo(arcanist, generator, storage), opApplyTag(oil, arcanist), opAggroMoveTo(guard1, generator, storage), opApplyTag(oil, guard1), "
+               "opMoveTo(player, main, storage), opApplyTag(oil, player), opUseSkill(player, igniteSkill, guard1), "
                "opRemoveLocationTag(oil, storage), opAddLocationTag(burning, storage), "
                "opApplyTag(burning, player), opApplyTag(burning, arcanist), opApplyTag(burning, guard1), "
                "opApplyTag(dead, guard1)")
-CHILL_GUARD2 = ("opAggro(guard2, player), opMoveTo(player, generator, corridor), "
-                "opAggroMoveTo(guard2, generator, corridor), opMoveTo(arcanist, storage, corridor), "
+CHILL_GUARD2 = ("opAggro(guard2, player), opMoveTo(player, generator, corridor), opApplyTag(wet, player), "
+                "opAggroMoveTo(guard2, generator, corridor), opApplyTag(wet, guard2), opMoveTo(arcanist, storage, corridor), opApplyTag(wet, arcanist), "
                 "opUseSkill(arcanist, frostSkill, guard2), opApplyTag(stunned, guard2), opApplyTag(dead, guard2)")
 
 

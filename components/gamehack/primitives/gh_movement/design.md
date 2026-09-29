@@ -2,7 +2,7 @@
 
 ## Purpose
 
-One-step movement for GameHack domains: an agent goes to any location in one step, and the game engine finds the path. Enemies after the mover (`hasAggro`) follow it.
+One-step movement for GameHack domains: an agent goes to any location in one step, and the game engine finds the path. Enemies after the mover (`hasAggro`) follow it. An agent arriving at a tagged location gets its tag (`landLocationTag`, gh_tags).
 
 ## Layer
 
@@ -10,7 +10,7 @@ primitive
 
 ## Dependencies
 
-None (foundational component)
+- `gamehack/primitives/gh_tags` (landLocationTag)
 
 ## Operators
 
@@ -24,9 +24,9 @@ None (foundational component)
 
 | Method | Description |
 |--------|-------------|
-| `goToLocation(?a, ?l)` | `?a` is at `?l`; enemies after `?a` follow |
+| `goToLocation(?a, ?l)` | `?a` is at `?l` and has its tag; enemies after `?a` follow |
 | `goToSameLocation(?a, ?t)` | `?a` stands where `?t` is |
-| `enemiesFollow(?a, ?from, ?to)` | Every non-static, non-dead enemy after `?a` that stood at `?from` moves to `?to` |
+| `enemiesFollow(?a, ?from, ?to)` | Every non-static, non-dead enemy after `?a` that stood at `?from` moves to `?to` and gets its tag |
 
 ## Required Facts
 
@@ -36,6 +36,7 @@ None (foundational component)
 | `at(?x, ?l)` | Where an agent is |
 | `hasAggro(?e, ?a)` | Enemy `?e` is after `?a` (optional) |
 | `static(?x)` | Never moves (optional) |
+| `locationCanApplyTag(?l, ?tag)` | The tag an arriving agent gets (optional) |
 
 ## Examples
 

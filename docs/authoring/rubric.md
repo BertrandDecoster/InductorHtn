@@ -57,8 +57,9 @@ prepareToUseSkill(?a, ?s, ?t) :- if(companion(?a), not(hasSkill(?a, ?s)), object
     do(goToSameLocation(?a, ?o), getSkillFrom(?a, ?o, ?s), goToSameLocation(?a, ?t)).
 ```
 
-Then a strategy is just its roles and its states: in `oilAndBurn(?t)`, a lurer brings `?t` onto
-oil (`bringEnemyTo`), and a second companion gets a burning skill to it (`prepareToUseSkill`,
+Then a strategy is just its roles and its states: in `oilAndBurn(?t)`, `?t` has oil by a
+lurer's doing (`applyTag(?lurer, oil, ?t)`, a lure onto the oil), then burning by a second
+companion's (`applyTag(?caster, burning, ?t)`, a skill; `applyTag` calls `prepareToUseSkill`,
 `useSkillOnTarget`).
 
 **Slop:** helpers used by exactly one strategy (`makeTrap`, `coverAt`, `gatherIntoTrap`,

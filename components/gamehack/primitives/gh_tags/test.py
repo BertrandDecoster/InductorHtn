@@ -20,8 +20,13 @@ WORLD = [
 ]
 
 
+LOCATION_TAG = {"lake": "wet", "kitchen": "oil", "rink": "ice"}
+
+
 def at(*pairs):
-    return [f"at({a}, {l})" for a, l in pairs]
+    """Each agent at its location; one that starts on a tagged location has its tag (the engine reports it)."""
+    facts = [f"at({a}, {l})" for a, l in pairs]
+    return facts + [f"hasTag({a}, {LOCATION_TAG[l]})" for a, l in pairs if l in LOCATION_TAG]
 
 
 class GhTagsTest(HtnTestSuite):
@@ -95,6 +100,19 @@ class GhTagsTest(HtnTestSuite):
         self.set_state(WORLD + at(("pyro", "hall"), ("gob", "lake")))
         self.assert_no_plan("useSkillOnTarget(pyro, fireballSkill, gob).")
         self.assert_no_plan("useSkillOnTarget(frost, fireballSkill, gob).")
+
+    def test_example_9_arriving_lands_the_location_tag(self):
+        """Example 9: an agent arriving at a tagged location gets its tag; a plain location gives nothing."""
+        self.set_state(WORLD + at(("gob", "kitchen")))
+        self.assert_plan_set("landLocationTag(orc, kitchen).", ["opApplyTag(oil, orc)"])
+        self.assert_plan_set("landLocationTag(orc, hall).", [""])
+
+    def test_example_10_wet_off_the_water(self):
+        """Example 10: electrified on a wet enemy away from the water: it alone, defeated if vulnerable."""
+        self.set_state(WORLD + at(("volt", "hall"), ("gob", "hall"), ("orc", "hall"))
+                       + ["hasTag(gob, wet)", "vulnerableToLocationCombo(gob, wet, electrified)"])
+        self.assert_plan_set("useSkillOnTarget(volt, lightningSkill, gob).",
+            ["opUseSkill(volt, lightningSkill, gob), opApplyTag(electrified, gob), opApplyTag(dead, gob)"])
 
     # =========================================================================
     # Property Tests

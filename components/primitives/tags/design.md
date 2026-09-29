@@ -2,16 +2,19 @@
 
 ## Purpose
 
-A skill's tag lands on an agent (`hasTag(?who, ?tag)`), and combines with the one tag of the
-location the agent stands on (`locationCanApplyTag(?l, ?tag)`). The physics is three location
-combos (`locationCombo/2`); there are no other combinations. Each combo defeats the enemies
+An agent arriving at a location gets the location's one tag (`locationCanApplyTag(?l, ?tag)`):
+`wet`, `oil`, `ice` or `burning`. A skill's tag lands on an agent (`hasTag(?who, ?tag)`), and
+combines with the location tag the agent carries. The physics is three location combos
+(`locationCombo/2`); there are no other combinations. Each combo defeats the enemies
 there that are `vulnerableToLocationCombo` it; the skill alone never does.
 
-| Location + skill tag | Result |
+| Target's tag + skill tag | Result |
 |---|---|
-| `wet` + `electrified` | everyone there is `electrified`; the location stays wet |
-| `oil` + `burning` | everyone there is `burning`; the oil becomes `burning` |
+| `wet` + `electrified` | in water, everyone there is `electrified` (the location stays wet); elsewhere, the target alone |
+| `oil` + `burning` | on the oil, everyone there is `burning` and the oil becomes `burning`; elsewhere, the target alone |
 | `wet` or `ice` + `chilled` | the target alone is `stunned` |
+
+A world lists the tag of every agent that starts on a tagged location (the engine reports it).
 
 The verbs are copied from `Examples/Combos.htn`, the reference.
 
@@ -27,8 +30,9 @@ None.
 
 | Method | Description |
 |--------|-------------|
-| `landSkillTag(?tag, ?t)` | one method per combo, and one for "no combo where `?t` stands": the tag just lands |
+| `landSkillTag(?tag, ?t)` | one method per combo on `?t`'s tags, and one for "no combo": the tag just lands |
 | `landTag(?tag, ?t)` | `?t` has the tag (`opTagAlreadyOnTarget` if it had it); nothing on an immune agent |
+| `landLocationTag(?x, ?l)` | `?x`, arriving at `?l`, gets its tag (`landTag`), if it has one |
 | `tagEveryoneAt(?tag, ?l)` | every agent at `?l` (companion, neutral or enemy) gets the tag |
 | `defeatVulnerable(?e, ?base, ?tag)` | `?e` is dead if it is vulnerable to the combo |
 | `defeatVulnerableAt(?base, ?tag, ?l)` | the same for every enemy at `?l` |
@@ -45,7 +49,7 @@ None.
 
 ## Examples
 
-The world: a wet `pond` (companion ward, enemies gob and imp; imp vulnerable to wet +
+The world, each agent with its location's tag: a wet `pond` (companion ward, enemies gob and imp; imp vulnerable to wet +
 electrified, gob to wet + chilled), an oil `pit` (companion sol, enemies orc and rat, a barrel;
 orc vulnerable to oil + burning), an ice `rink` (yak vulnerable to ice + chilled, elk), and a
 plain `field` (ant, immune to burning).
@@ -71,6 +75,13 @@ burn (not the barrel); orc is dead
 
 ### Example 7: Already there
 **Then:** `landTag(burning, elk)` is `opTagAlreadyOnTarget(burning, elk)`
+
+### Example 8: Arriving
+**Then:** `landLocationTag(ant, pit)` is `opApplyTag(oil, ant)`; `landLocationTag(ant, field)` is empty
+
+### Example 9: Wet, off the water
+**Given:** eel, wet, in the field, vulnerable to wet + electrified
+**When:** `landSkillTag(electrified, eel)` **Then:** eel alone is electrified, and dead
 
 ## Properties
 

@@ -10,8 +10,8 @@ from htn_test_framework import HtnTestSuite
 from indhtnpy import findAllPlansResultToPrologStringList
 
 COMPANIONS = ("player", "frost")
-PLAN = ("opStayInLocation(player), opAggro(gob, player), opMoveTo(player, room, pool), opAggroMoveTo(gob, room, pool), "
-        "opMoveTo(frost, room, pool), opUseSkill(frost, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)")
+PLAN = ("opStayInLocation(player), opAggro(gob, player), opMoveTo(player, room, pool), opApplyTag(wet, player), opAggroMoveTo(gob, room, pool), opApplyTag(wet, gob), "
+        "opMoveTo(frost, room, pool), opApplyTag(wet, frost), opUseSkill(frost, frostSkill, gob), opApplyTag(stunned, gob), opApplyTag(dead, gob)")
 
 
 class GamehackMvpTest(HtnTestSuite):

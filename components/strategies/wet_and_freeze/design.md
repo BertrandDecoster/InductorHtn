@@ -2,8 +2,9 @@
 
 ## Purpose
 
-A lurer brings an enemy into water or onto ice; a second companion, holding a skill that
-applies `chilled`, walks to it and uses the skill. The wet-or-ice + chilled combo: the target
+An enemy is wet or iced (a lurer's doing: `applyTag(?lurer, ?base, ?t)` lures it there),
+then chilled (a second companion's: `applyTag(?caster, chilled, ?t)`). The wet-or-ice +
+chilled combo: the target
 alone is stunned, and defeated if it is vulnerable to that combo. Copied from
 `Examples/Combos.htn`. It replaces the old theSlipstream (ice no longer slides).
 
@@ -19,13 +20,13 @@ strategy
 
 | Method | Description |
 |--------|-------------|
-| `wetAndFreeze(?t)` | two methods: the enemy isn't there (`bringEnemyTo(?lurer, ?t, ?l)`, then a second companion, the caster, prepares and uses its chilling skill on `?t`), or it already stands there (the caster alone) |
+| `wetAndFreeze(?t)` | two methods: `applyTag(?lurer, ?base, ?t), applyTag(?caster, chilled, ?t)`, or, when `?t` already has `?base`, `applyTag(?caster, chilled, ?t)` alone |
 
 ## What makes it possible (`if()`)
 
-`enemy(?t)`, a location with a tag `?base` such that `vulnerableToLocationCombo(?t, ?base,
-chilled)`, a skill that applies `chilled`, and two distinct companions (a lurer and a caster)
-when the enemy isn't already there.
+`enemy(?t)`, a `?base` with `locationCombo(?base, chilled)` and `vulnerableToLocationCombo(?t,
+?base, chilled)`, and two distinct companions (a lurer and a caster) when the enemy doesn't have
+`?base` yet. The location and the chilling skill are `applyTag`'s ways.
 
 ## Examples
 
@@ -42,8 +43,8 @@ is stunned and dead
 ### Example 3: Not vulnerable, no plan
 ### Example 4: One companion is not enough, no plan
 
-### Example 5: Already in the water
-**Given:** gob in the corridor **Then:** one plan: frost walks there and chills it
+### Example 5: Already wet
+**Given:** gob in the corridor, wet **Then:** one plan: frost walks there and chills it
 
 ## Properties
 

@@ -2,16 +2,16 @@
 
 ## Purpose
 
-A skill's tags land on its target, combining with the tag of the location the target stands on. A companion holding the skill and standing with the target uses it (`useSkillOnTarget`); each of its tags lands through `landSkillTag`:
+An agent arriving at a location gets its tag (`landLocationTag`). A skill's tags land on its target, combining with the location tag the target carries. A companion holding the skill and standing with the target uses it (`useSkillOnTarget`); each of its tags lands through `landSkillTag`:
 
-| Location + skill tag | Result |
+| Target's tag + skill tag | Result |
 |---|---|
-| `wet` + `electrified` | everyone there is `electrified`; the location stays wet |
-| `oil` + `burning` | the oil becomes `burning`; everyone there is `burning` |
+| `wet` + `electrified` | in water, everyone there is `electrified` (the location stays wet); elsewhere, the target alone |
+| `oil` + `burning` | on the oil, the oil becomes `burning` and everyone there is `burning`; elsewhere, the target alone |
 | `wet` or `ice` + `chilled` | the target alone is `stunned` |
 | anything else | the tag just lands on the target |
 
-Each combo defeats (`dead`) the enemies there that are `vulnerableToLocationCombo` it; a skill alone never does. The component also holds the physics (`locationCombo` facts), `agent/1` (every companion, neutral and enemy) and the tag types.
+Each combo defeats (`dead`) the enemies there that are `vulnerableToLocationCombo` it; a skill alone never does. A world lists the tag of every agent that starts on a tagged location. The component also holds the physics (`locationCombo` facts), `agent/1` (every companion, neutral and enemy) and the tag types.
 
 ## Layer
 
@@ -36,7 +36,8 @@ None.
 |--------|-------------|
 | `useSkillOnTarget(?a, ?s, ?t)` | `?a`, holding `?s` and standing with `?t`, uses it; each tag lands |
 | `applySkillTags(?s, ?t)` | Each of the skill's tags lands (`landSkillTag`) |
-| `landSkillTag(?tag, ?t)` | A skill's tag lands, with the location combo where `?t` stands |
+| `landSkillTag(?tag, ?t)` | A skill's tag lands, with the combo on `?t`'s tags |
+| `landLocationTag(?x, ?l)` | `?x`, arriving at `?l`, gets its tag, if it has one |
 | `landTag(?tag, ?t)` | `?t` has the tag, unless immune |
 | `tagEveryoneAt(?tag, ?l)` | Every agent at `?l` has the tag |
 | `defeatVulnerable(?e, ?base, ?tag)`, `defeatVulnerableAt(?base, ?tag, ?l)` | The enemies vulnerable to that combo (`?e`, or everyone at `?l`) are `dead` |
@@ -51,6 +52,8 @@ None.
 | `immune(?t, ?tag)`, `hasTag(?t, ?tag)`, `vulnerableToLocationCombo(?e, ?base, ?tag)` | Optional |
 
 ## Examples
+
+An agent that starts in the lake is wet, in the kitchen has oil, on the rink has ice.
 
 ### Example 1: No combo, the tag just lands
 
@@ -99,6 +102,16 @@ None.
 **Given:** pyro in the hall, gob in the lake
 **When:** `useSkillOnTarget(pyro, fireballSkill, gob)`, or frost (who lacks fireballSkill) tries
 **Then:** no plan
+
+### Example 9: Arriving
+
+**Then:** `landLocationTag(orc, kitchen)` is `opApplyTag(oil, orc)`; `landLocationTag(orc, hall)` is empty
+
+### Example 10: Wet, off the water
+
+**Given:** volt, gob (wet, vulnerable to wet + electrified) and orc in the hall
+**When:** `useSkillOnTarget(volt, lightningSkill, gob)`
+**Then:** gob alone is electrified, and dead
 
 ## Properties
 

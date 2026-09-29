@@ -18,8 +18,10 @@ WORLD = [
 
 
 def lure_and_chill(l):
-    return (f"opMoveTo(pyro, camp, hut), opAggro(gob, pyro), opMoveTo(pyro, hut, {l}), "
-            f"opAggroMoveTo(gob, hut, {l}), opMoveTo(frost, camp, {l}), opUseSkill(frost, frostSkill, gob), "
+    tag = {"corridor": "wet", "rink": "ice"}[l]
+    return (f"opMoveTo(pyro, camp, hut), opAggro(gob, pyro), opMoveTo(pyro, hut, {l}), opApplyTag({tag}, pyro), "
+            f"opAggroMoveTo(gob, hut, {l}), opApplyTag({tag}, gob), "
+            f"opMoveTo(frost, camp, {l}), opApplyTag({tag}, frost), opUseSkill(frost, frostSkill, gob), "
             "opApplyTag(stunned, gob), opApplyTag(dead, gob)")
 
 
@@ -53,11 +55,11 @@ class WetAndFreezeTest(HtnTestSuite):
         self.set_state([f for f in WORLD if "pyro" not in f])
         self.assert_no_plan("wetAndFreeze(gob).")
 
-    def test_example_5_already_in_the_water(self):
-        """Example 5: already standing in the water: the caster alone chills it."""
-        self.set_state([f for f in WORLD if f != "at(gob, hut)"] + ["at(gob, corridor)"])
+    def test_example_5_already_wet(self):
+        """Example 5: gob starts in the water, so it is wet: the caster alone chills it."""
+        self.set_state([f for f in WORLD if f != "at(gob, hut)"] + ["at(gob, corridor)", "hasTag(gob, wet)"])
         self.assert_plan_set("wetAndFreeze(gob).", [
-            "opMoveTo(frost, camp, corridor), opUseSkill(frost, frostSkill, gob), "
+            "opMoveTo(frost, camp, corridor), opApplyTag(wet, frost), opUseSkill(frost, frostSkill, gob), "
             "opApplyTag(stunned, gob), opApplyTag(dead, gob)"])
 
     # =========================================================================

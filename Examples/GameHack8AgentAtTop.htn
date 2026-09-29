@@ -22,7 +22,7 @@ at(companionF, inn).
 at(mimic, room).
 at(gob, hut).
 at(electricityElemental, mountain).
-at(teslaTower, lake).
+at(teslaTower, lake). hasTag(teslaTower, wet).     % it starts in the water
 
 location(room).
 location(inn).
@@ -88,7 +88,7 @@ locationCombo(ice, chilled).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Goal: the enemy is out of the fight
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))),
-    do(stunAndSlow(?t), opApplyTag(dead, ?t)).
+    do(stunAndSlow(?t), landTag(dead, ?t)).
 
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))),
     do(wetAndFreeze(?t)).
@@ -104,21 +104,26 @@ stunAndSlow(?t) :-
        useSkillOnTarget(?a1, ?stun, ?t), useSkillOnTarget(?a2, ?slow, ?t)).
 
 % Sequential
-% A lurer brings ?t into water or onto ice; a second companion chills it there.
+% Wet or iced (a lurer's doing), then chilled (a second companion's).
 wetAndFreeze(?t) :-
-    if(enemy(?t), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled), not(at(?t, ?l)),
-       skillAppliesTag(?cold, chilled),
+    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), not(hasTag(?t, ?base)), not(hasTag(?t, chilled)),
        companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(bringEnemyTo(?lurer, ?t, ?l),
-       prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
-% Already standing there: the caster alone chills it (fine: winning a level takes more than one combo).
+    do(applyTag(?lurer, ?base, ?t), applyTag(?caster, chilled, ?t)).
+% Already wet or iced: the caster alone chills it (fine: winning a level takes more than one combo).
 wetAndFreeze(?t) :-
-    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled),
-       skillAppliesTag(?cold, chilled), companion(?caster)),
-    do(prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
+    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), hasTag(?t, ?base), not(hasTag(?t, chilled)),
+       companion(?caster)),
+    do(applyTag(?caster, chilled, ?t)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Cast skill, tags land, move, aggro
+
+% ?t has ?tag, by ?a's doing: already, with a skill that applies it, or lured onto a location that gives it.
+applyTag(?a, ?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), locationCanApplyTag(?l, ?tag), not(at(?t, ?l))),
+    do(bringEnemyTo(?a, ?t, ?l)).
 
 % ?a holds ?s and stands with ?t: already has it, or gets it from an object first.
 prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).
@@ -135,25 +140,35 @@ useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do
 applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag)), do(landSkillTag(?tag, ?t)).
 applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))), do().
 
-% A skill's tag lands on ?t, and combines with the tag of the location ?t stands on.
-% Electrified in water: everyone there is electrified; the vulnerable are defeated.
-landSkillTag(electrified, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, wet)),
+% A skill's tag lands on ?t, and combines with the location tag ?t carries.
+% Electrified on a wet ?t in water: everyone there is electrified; the vulnerable are defeated.
+landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), locationCanApplyTag(?l, wet)),
     do(tagEveryoneAt(electrified, ?l), defeatVulnerableAt(wet, electrified, ?l)).
-% Burning on oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
-landSkillTag(burning, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, oil)),
+% Electrified on a wet ?t out of the water: ?t alone.
+landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), not(locationCanApplyTag(?l, wet))),
+    do(landTag(electrified, ?t), defeatVulnerable(?t, wet, electrified)).
+% Burning on an oiled ?t on the oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
+landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), locationCanApplyTag(?l, oil)),
     do(opRemoveLocationTag(oil, ?l), opAddLocationTag(burning, ?l),
        tagEveryoneAt(burning, ?l), defeatVulnerableAt(oil, burning, ?l)).
-% Chilled in water or on ice: ?t alone is stunned; if vulnerable, defeated.
-landSkillTag(chilled, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?base), locationCombo(?base, chilled)),
+% Burning on an oiled ?t off the oil: ?t alone.
+landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), not(locationCanApplyTag(?l, oil))),
+    do(landTag(burning, ?t), defeatVulnerable(?t, oil, burning)).
+% Chilled on a wet or iced ?t: ?t alone is stunned; if vulnerable, defeated.
+landSkillTag(chilled, ?t) :- if(first(hasTag(?t, ?base), locationCombo(?base, chilled))),
     do(landTag(stunned, ?t), defeatVulnerable(?t, ?base, chilled)).
-% No combo where ?t stands: the tag just lands.
-landSkillTag(?tag, ?t) :- if(at(?t, ?l), not(locationCanApplyTag(?l, ?base), locationCombo(?base, ?tag))),
+% No combo on ?t: the tag just lands.
+landSkillTag(?tag, ?t) :- if(not(hasTag(?t, ?base), locationCombo(?base, ?tag))),
     do(landTag(?tag, ?t)).
 
 % ?t has ?tag, unless it is immune.
 landTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
 landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).
 landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), immune(?t, ?tag)), do().
+
+% ?x, arriving at ?l, gets the location's tag, if it has one, with its combo (oil walking into fire).
+landLocationTag(?x, ?l) :- if(locationCanApplyTag(?l, ?tag)), do(landSkillTag(?tag, ?x)).
+landLocationTag(?x, ?l) :- if(not(locationCanApplyTag(?l, ?tag))), do().
 
 % Every agent at ?l gets ?tag: companions, neutrals and enemies alike.
 tagEveryoneAt(?tag, ?l) :- allOf, if(agent(?a), at(?a, ?l)), do(landTag(?tag, ?a)).
@@ -169,12 +184,13 @@ defeatVulnerableAt(?base, ?tag, ?l) :- if(not(enemy(?e), at(?e, ?l))), do().
 % ?a stands where ?t is.
 goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
 
-% ?a is at ?l; the engine finds the path. Living enemies after ?a follow.
+% ?a is at ?l and has its tag; the engine finds the path. Living enemies after ?a follow.
 goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
 goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
-    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
+    do(opMoveTo(?a, ?from, ?l), landLocationTag(?a, ?l), enemiesFollow(?a, ?from, ?l)).
 
-enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))),
+    do(opAggroMoveTo(?e, ?from, ?l), landLocationTag(?e, ?l)).
 enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().
 
 % ?e is after ?a: already, instead of another target, or for the first time.

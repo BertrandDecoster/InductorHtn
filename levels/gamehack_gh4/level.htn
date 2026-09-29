@@ -54,6 +54,8 @@ location(sea).
 % === Location tags ===
 locationCanApplyTag(lake, wet).
 locationCanApplyTag(sea, wet).
+% Agents that start on a tagged location have its tag.
+hasTag(teslaTower, wet).
 
 immune(electricityElemental, electrified).
 

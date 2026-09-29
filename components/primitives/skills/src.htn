@@ -1,7 +1,8 @@
-% skills - Primitive: a companion gets a skill, stands with its target and uses it.
-% Depends on: locomotion (goToSameLocation), tags (landSkillTag).
+% skills - Primitive: a companion gets a skill, stands with its target and uses it; applyTag puts a tag on a target.
+% Depends on: locomotion (goToSameLocation), tags (landSkillTag), aggro (bringEnemyTo).
 
 % === Signatures (for the TYP001 linter) ===
+signature(applyTag, [agent, tag, agent]).
 signature(prepareToUseSkill, [agent, skill, agent]).
 signature(getSkillFrom, [agent, object, skill]).
 signature(useSkillOnTarget, [agent, skill, agent]).
@@ -9,6 +10,13 @@ signature(applySkillTags, [skill, agent]).
 signature(opUseSkill, [agent, skill, agent]).
 signature(opGetSkill, [agent, skill]).
 signature(opSwapSkill, [agent, skill, skill]).
+
+% ?t has ?tag, by ?a's doing: already, with a skill that applies it, or lured onto a location that gives it.
+applyTag(?a, ?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), skillAppliesTag(?s, ?tag)),
+    do(prepareToUseSkill(?a, ?s, ?t), useSkillOnTarget(?a, ?s, ?t)).
+applyTag(?a, ?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag)), locationCanApplyTag(?l, ?tag), not(at(?t, ?l))),
+    do(bringEnemyTo(?a, ?t, ?l)).
 
 % ?a holds ?s and stands with ?t: already has it, or gets it from an object first.
 prepareToUseSkill(?a, ?s, ?t) :- if(hasSkill(?a, ?s)), do(goToSameLocation(?a, ?t)).

@@ -17,10 +17,13 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:51:41.513336"
+    "last_checked": "2026-09-25T21:52:08.030775"
   },
   "provides": [
-    "clearLocation/1"
+    "clearLocation/1",
+    "signature/2"
   ],
-  "requires": []
+  "requires": [
+    "defeat/1"
+  ]
 }

@@ -1,18 +1,16 @@
-% wet_and_freeze - a lurer brings the target into water or onto ice; a second companion chills it there.
-% Depends on: gh_aggro (bringEnemyTo), gh_skills (prepareToUseSkill), gh_tags (useSkillOnTarget)
+% wet_and_freeze - the target is wet or iced (a lurer's doing), then chilled (a second companion's).
+% Depends on: gh_skills (applyTag)
 
 % === Signatures (for TYP001 linter) ===
 signature(wetAndFreeze, [agent]).
 
-% A lurer brings ?t into water or onto ice; a second companion chills it there.
+% Wet or iced (a lurer's doing), then chilled (a second companion's).
 wetAndFreeze(?t) :-
-    if(enemy(?t), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled), not(at(?t, ?l)),
-       skillAppliesTag(?cold, chilled),
+    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), not(hasTag(?t, ?base)), not(hasTag(?t, chilled)),
        companion(?lurer), companion(?caster), \==(?lurer, ?caster)),
-    do(bringEnemyTo(?lurer, ?t, ?l),
-       prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
-% Already standing there: the caster alone chills it (fine: winning a level takes more than one combo).
+    do(applyTag(?lurer, ?base, ?t), applyTag(?caster, chilled, ?t)).
+% Already wet or iced: the caster alone chills it (fine: winning a level takes more than one combo).
 wetAndFreeze(?t) :-
-    if(enemy(?t), at(?t, ?l), locationCanApplyTag(?l, ?base), vulnerableToLocationCombo(?t, ?base, chilled),
-       skillAppliesTag(?cold, chilled), companion(?caster)),
-    do(prepareToUseSkill(?caster, ?cold, ?t), useSkillOnTarget(?caster, ?cold, ?t)).
+    if(enemy(?t), locationCombo(?base, chilled), vulnerableToLocationCombo(?t, ?base, chilled), hasTag(?t, ?base), not(hasTag(?t, chilled)),
+       companion(?caster)),
+    do(applyTag(?caster, chilled, ?t)).

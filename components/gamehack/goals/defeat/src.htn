@@ -6,4 +6,4 @@ signature(defeat, [agent]).
 
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(wetAndFreeze(?t)).
 defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(oilAndBurn(?t)).
-defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), opApplyTag(dead, ?t)).
+defeat(?t) :- if(enemy(?t), not(hasTag(?t, dead))), do(stunAndSlow(?t), landTag(dead, ?t)).

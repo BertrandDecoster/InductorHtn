@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Skill preparation for GameHack domains. A companion holds a skill and stands with its target (`prepareToUseSkill`); if it lacks the skill, it first goes to an object that grants it (`canGetSkillFrom`) and learns it there (`getSkillFrom`), replacing its current skill. The object stays for the next companion.
+Skill preparation for GameHack domains. A companion holds a skill and stands with its target (`prepareToUseSkill`); if it lacks the skill, it first goes to an object that grants it (`canGetSkillFrom`) and learns it there (`getSkillFrom`), replacing its current skill. The object stays for the next companion. `applyTag(?a, ?tag, ?t)` is the goal verb the strategies use: `?t` has the tag, by `?a`'s doing.
 
 ## Layer
 
@@ -11,6 +11,8 @@ primitive
 ## Dependencies
 
 - `gamehack/primitives/gh_movement` (goToSameLocation)
+- `gamehack/primitives/gh_tags` (useSkillOnTarget)
+- `gamehack/primitives/gh_aggro` (bringEnemyTo)
 
 ## Operators
 
@@ -23,6 +25,7 @@ primitive
 
 | Method | Description |
 |--------|-------------|
+| `applyTag(?a, ?tag, ?t)` | `?t` has the tag: already (`opTagAlreadyOnTarget`), `?a` uses a skill that applies it, or `?a` lures `?t` onto a location that gives it; never on an immune target |
 | `prepareToUseSkill(?a, ?s, ?t)` | `?a` holds `?s` and stands with `?t`: already has it, or gets it from an object first |
 | `getSkillFrom(?a, ?o, ?s)` | `?a`, standing at object `?o`, learns `?s` (swap or first skill) |
 
@@ -66,6 +69,23 @@ primitive
 **Given:** as Example 3
 **When:** `prepareToUseSkill(player, iceBlastSkill, gob)`
 **Then:** `canGetSkillFrom(mountainShrine, iceBlastSkill)` still holds afterwards
+
+### Example 6: applyTag with a skill
+
+**Given:** companionI (iceBlastSkill: stunned) at the inn, gob at the hut
+**When:** `applyTag(companionI, stunned, gob)`
+**Then:** `opMoveTo(companionI, inn, hut), opUseSkill(companionI, iceBlastSkill, gob), opApplyTag(stunned, gob)`
+
+### Example 7: applyTag with a location
+
+**Given:** a wet lake; the player in the room
+**When:** `applyTag(player, wet, gob)`
+**Then:** the player lures gob into the lake: `opApplyTag(wet, player)`, then `opApplyTag(wet, gob)` as it follows
+
+### Example 8: Already there
+
+**Given:** `hasTag(gob, wet)`
+**Then:** `applyTag(player, wet, gob)` is `opTagAlreadyOnTarget(wet, gob)`
 
 ## Properties
 

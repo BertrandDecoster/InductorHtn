@@ -12,6 +12,11 @@ WORLD = ["location(room)", "location(inn)", "location(hut)", "location(sea)", "l
          "object(seaShrine)", "at(seaShrine, sea)", "canGetSkillFrom(seaShrine, waterSkill)",
          "object(mountainShrine)", "at(mountainShrine, mountain)", "canGetSkillFrom(mountainShrine, iceBlastSkill)"]
 
+# applyTag: companionI holds iceBlastSkill (stunned); the player has no skill; a wet lake.
+APPLY_WORLD = ["companion(companionI)", "companion(player)", "at(companionI, inn)", "at(player, room)",
+               "enemy(gob)", "at(gob, hut)", "hasSkill(companionI, iceBlastSkill)",
+               "skillAppliesTag(iceBlastSkill, stunned)", "location(lake)", "locationCanApplyTag(lake, wet)"]
+
 
 class GhSkillsTest(HtnTestSuite):
     """Test suite for gh_skills primitive."""
@@ -57,6 +62,24 @@ class GhSkillsTest(HtnTestSuite):
         self.set_state(WORLD + ["companion(player)", "at(player, room)", "at(gob, hut)"])
         self.assert_state_after("prepareToUseSkill(player, iceBlastSkill, gob).",
             has=["canGetSkillFrom(mountainShrine,iceBlastSkill)"])
+
+    def test_example_6_apply_tag_with_a_skill(self):
+        """Example 6: applyTag, the skill way: the companion uses a skill that applies the tag."""
+        self.set_state(WORLD + APPLY_WORLD)
+        self.assert_plan_set("applyTag(companionI, stunned, gob).", [
+            "opMoveTo(companionI, inn, hut), opUseSkill(companionI, iceBlastSkill, gob), opApplyTag(stunned, gob)"])
+
+    def test_example_7_apply_tag_with_a_location(self):
+        """Example 7: applyTag, the location way: the companion lures the enemy into the lake, which makes it wet."""
+        self.set_state(WORLD + APPLY_WORLD)
+        self.assert_plan_set("applyTag(player, wet, gob).", [
+            "opMoveTo(player, room, hut), opAggro(gob, player), opMoveTo(player, hut, lake), opApplyTag(wet, player), "
+            "opAggroMoveTo(gob, hut, lake), opApplyTag(wet, gob)"])
+
+    def test_example_8_apply_tag_already_there(self):
+        """Example 8: applyTag on a target that has the tag does nothing."""
+        self.set_state(WORLD + APPLY_WORLD + ["hasTag(gob, wet)"])
+        self.assert_plan_set("applyTag(player, wet, gob).", ["opTagAlreadyOnTarget(wet, gob)"])
 
     # =========================================================================
     # Property Tests

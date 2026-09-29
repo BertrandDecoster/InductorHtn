@@ -5,23 +5,31 @@
   "description": "A companion gets a skill, stands with its target and uses it; the skill's tags land",
   "dependencies": [
     "primitives/locomotion",
-    "primitives/tags"
+    "primitives/tags",
+    "primitives/aggro"
   ],
-  "certified": false,
+  "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
-    "design_match": false,
-    "last_checked": "2026-09-25T20:49:37.003696"
+    "design_match": true,
+    "last_checked": "2026-09-25T21:52:06.223984"
   },
   "provides": [
-    "prepareToUseSkill/3",
-    "getSkillFrom/3",
-    "useSkillOnTarget/3",
     "applySkillTags/2",
-    "opUseSkill/3",
+    "applyTag/3",
+    "getSkillFrom/3",
     "opGetSkill/2",
-    "opSwapSkill/3"
+    "opSwapSkill/3",
+    "opUseSkill/3",
+    "prepareToUseSkill/3",
+    "signature/2",
+    "useSkillOnTarget/3"
   ],
-  "requires": []
+  "requires": [
+    "bringEnemyTo/3",
+    "goToSameLocation/2",
+    "landSkillTag/2",
+    "opTagAlreadyOnTarget/2"
+  ]
 }

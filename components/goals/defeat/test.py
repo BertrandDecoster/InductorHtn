@@ -21,15 +21,15 @@ OGRE = ["enemy(ogre)", "at(ogre, hut)", "vulnerableToLocationCombo(ogre, oil, bu
 
 
 def oil_and_burn(e):
-    return (f"opMoveTo(frost, camp, hut), opAggro({e}, frost), opMoveTo(frost, hut, storage), "
-            f"opAggroMoveTo({e}, hut, storage), opMoveTo(pyro, camp, storage), opUseSkill(pyro, fireballSkill, {e}), "
+    return (f"opMoveTo(frost, camp, hut), opAggro({e}, frost), opMoveTo(frost, hut, storage), opApplyTag(oil, frost), "
+            f"opAggroMoveTo({e}, hut, storage), opApplyTag(oil, {e}), opMoveTo(pyro, camp, storage), opApplyTag(oil, pyro), opUseSkill(pyro, fireballSkill, {e}), "
             "opRemoveLocationTag(oil, storage), opAddLocationTag(burning, storage), "
             f"opApplyTag(burning, pyro), opApplyTag(burning, frost), opApplyTag(burning, {e}), opApplyTag(dead, {e})")
 
 
 def wet_and_freeze(e):
-    return (f"opMoveTo(pyro, camp, hut), opAggro({e}, pyro), opMoveTo(pyro, hut, corridor), "
-            f"opAggroMoveTo({e}, hut, corridor), opMoveTo(frost, camp, corridor), opUseSkill(frost, frostSkill, {e}), "
+    return (f"opMoveTo(pyro, camp, hut), opAggro({e}, pyro), opMoveTo(pyro, hut, corridor), opApplyTag(wet, pyro), "
+            f"opAggroMoveTo({e}, hut, corridor), opApplyTag(wet, {e}), opMoveTo(frost, camp, corridor), opApplyTag(wet, frost), opUseSkill(frost, frostSkill, {e}), "
             f"opApplyTag(stunned, {e}), opApplyTag(dead, {e})")
 
 

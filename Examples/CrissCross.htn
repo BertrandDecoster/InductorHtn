@@ -1,0 +1,138 @@
+% CrissCross: two companions, no enemies. Each holds the plate that opens the door the other
+% needs; holes are dashed over or filled with a crate. Goals to try are at the bottom.
+
+% =============================================================================
+% Goal: a menu of strategies, one plan per way that works
+% =============================================================================
+
+% Each companion finds their own way.
+everyoneReaches(?l) :- allOf, if(location(?l), companion(?a)), do(reachLocation(?a, ?l)).
+% The companions hold doors for each other.
+everyoneReaches(?l) :- if(location(?l)), do(holdDoorsForEachOther(?l)).
+
+% =============================================================================
+% Strategy: if() says what makes it possible, do() lists the states to reach
+% =============================================================================
+
+% Two plates for two doors, two companions: the first holds plate 1 while the second passes its
+% door to plate 2, then the second holds plate 2 while the first passes its door to the goal.
+holdDoorsForEachOther(?goal) :-
+    if(at(?p1, ?l1), plateOpens(?p1, ?d1), at(?p2, ?l2), plateOpens(?p2, ?d2), \==(?d1, ?d2),
+       companion(?a1), companion(?a2), \==(?a1, ?a2)),
+    do(reachLocation(?a1, ?l1), pressPlate(?a1, ?p1),
+       reachLocation(?a2, ?l2), pressPlate(?a2, ?p2),
+       reachLocation(?a1, ?goal), reachLocation(?a2, ?goal)).
+
+% =============================================================================
+% Verbs: each method is one way to reach the state
+% =============================================================================
+
+% ?a is at ?l: already, or it steps off its plate and follows the engine's path, link by link.
+reachLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
+reachLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)), do(leavePlate(?a), followPath(?a, ?l)).
+
+followPath(?a, ?l) :- if(at(?a, ?l)), do().
+followPath(?a, ?l) :- if(at(?a, ?from), pathNext(?from, ?l, ?next)), do(crossLink(?a, ?from, ?next), followPath(?a, ?l)).
+
+% ?a gets past the blocker between ?from and the next location ?to.
+% No blocker: walk.
+crossLink(?a, ?from, ?to) :- if(not(blockedLink(?from, ?to, ?any))), do(opMoveTo(?a, ?from, ?to)).
+% A door held open: walk through.
+crossLink(?a, ?from, ?to) :- if(blockedLink(?from, ?to, door(?d)), not(locked(?d))), do(opMoveTo(?a, ?from, ?to)).
+% A hole: dash over it.
+crossLink(?a, ?from, ?to) :- if(blockedLink(?from, ?to, hole), first(hasSkill(?a, ?s), skillHasTag(?s, dash))), do(opDashTo(?a, ?from, ?to)).
+% A hole: teleport over it.
+crossLink(?a, ?from, ?to) :- if(blockedLink(?from, ?to, hole), first(hasSkill(?a, ?s), skillHasTag(?s, teleport))), do(opTeleportTo(?a, ?from, ?to)).
+% A hole: push an object that fills holes, already at its edge, into it; then walk over.
+crossLink(?a, ?from, ?to) :- if(blockedLink(?from, ?to, hole), canFillHole(?o), at(?o, ?from)),
+    do(forceMove(?a, ?o, ?to), crossLink(?a, ?from, ?to)).
+
+% ?a pushes ?x from where both stand into the next location ?l.
+% Across an open link: ?x moves, and ?a follows it.
+forceMove(?a, ?x, ?l) :- if(at(?x, ?from), at(?a, ?from), linked(?from, ?l), not(blockedLink(?from, ?l, ?any)), not(static(?x)), not(onPlate(?x, ?p))),
+    do(leavePlate(?a), opForceMove(?a, ?x, ?from, ?l)).
+% Into a hole: ?x fills it, and the link is open both ways.
+forceMove(?a, ?x, ?l) :- if(at(?x, ?from), at(?a, ?from), canFillHole(?x), not(onPlate(?x, ?p)), blockedLink(?from, ?l, hole), blockedLink(?l, ?from, hole)),
+    do(opFillHole(?a, ?x, ?from, ?l)).
+
+% Plate ?p is held, so its door is unlocked until the plate is left.
+% ?a stands on it, and the door unlocks.
+pressPlate(?a, ?p) :- if(at(?p, ?l), at(?a, ?l), not(onPlate(?a, ?q)), not(onPlate(?x, ?p)), plateOpens(?p, ?d), locked(?d)),
+    do(opPressPlate(?a, ?p), opUnlock(?d)).
+% ?a stands on it, and the door is already held open by another of its plates.
+pressPlate(?a, ?p) :- if(at(?p, ?l), at(?a, ?l), not(onPlate(?a, ?q)), not(onPlate(?x, ?p)), plateOpens(?p, ?d), not(locked(?d))),
+    do(opPressPlate(?a, ?p)).
+% ?a pushes an object standing there onto it: the object holds the door, and ?a is free to go.
+pressPlate(?a, ?p) :- if(at(?p, ?l), at(?a, ?l), not(onPlate(?x, ?p)), plateOpens(?p, ?d), locked(?d),
+       object(?o), at(?o, ?l), not(static(?o)), not(onPlate(?o, ?q))),
+    do(opPushOntoPlate(?a, ?o, ?p), opUnlock(?d)).
+
+% ?a steps off its plate; the door locks again unless another of its plates is held.
+leavePlate(?a) :- if(onPlate(?a, ?p), plateOpens(?p, ?d), not(plateOpens(?q, ?d), \==(?q, ?p), onPlate(?x, ?q))),
+    do(opLeavePlate(?a, ?p), opLock(?d)).
+leavePlate(?a) :- if(onPlate(?a, ?p), plateOpens(?p, ?d), first(plateOpens(?q, ?d), \==(?q, ?p), onPlate(?x, ?q))),
+    do(opLeavePlate(?a, ?p)).
+leavePlate(?a) :- if(not(onPlate(?a, ?p))), do().
+
+% =============================================================================
+% Operators: game actions
+% =============================================================================
+
+opMoveTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opDashTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opTeleportTo(?who, ?from, ?to) :- del(at(?who, ?from)), add(at(?who, ?to)).
+opForceMove(?a, ?x, ?from, ?to) :- del(at(?a, ?from), at(?x, ?from)), add(at(?a, ?to), at(?x, ?to)).
+opFillHole(?a, ?x, ?from, ?to) :- del(at(?x, ?from), blockedLink(?from, ?to, hole), blockedLink(?to, ?from, hole)), add().
+opPressPlate(?a, ?p) :- del(), add(onPlate(?a, ?p)).
+opPushOntoPlate(?a, ?o, ?p) :- del(), add(onPlate(?o, ?p)).
+opLeavePlate(?a, ?p) :- del(onPlate(?a, ?p)), add().
+opUnlock(?d) :- del(locked(?d)), add().
+opLock(?d) :- del(), add(locked(?d)).
+
+% Already true: no state change, the plan shows it.
+opStayInLocation(?a) :- del(), add().
+
+% =============================================================================
+% World: a diamond of four locations, two plates, two holes, two crates
+% =============================================================================
+%
+%               exit
+%       [hatch] /    \ (pit)
+%           ledge     yard          ledgePlate opens the gate
+%      (gap)  \      / [gate]       yardPlate  opens the hatch
+%               hall
+%
+% Whoever holds the ledge plate can't pass the gate; whoever holds the yard plate can't pass
+% the hatch. crateA sits at the gap, crateB at the pit, and crateB can hold the yard plate instead.
+% No crate reaches the ledge whole, so its plate needs a companion: no one solves it alone.
+
+companion(player). companion(spark).
+object(crateA). object(crateB).
+canFillHole(crateA). canFillHole(crateB).
+
+location(hall). location(ledge). location(yard). location(exit).
+linked(hall, ledge). linked(ledge, hall).
+linked(hall, yard). linked(yard, hall).
+linked(ledge, exit). linked(exit, ledge).
+linked(yard, exit). linked(exit, yard).
+blockedLink(hall, ledge, hole). blockedLink(ledge, hall, hole).
+blockedLink(hall, yard, door(gate)). blockedLink(yard, hall, door(gate)).
+blockedLink(ledge, exit, door(hatch)). blockedLink(exit, ledge, door(hatch)).
+blockedLink(yard, exit, hole). blockedLink(exit, yard, hole).
+
+locked(gate). locked(hatch).
+plateOpens(ledgePlate, gate). at(ledgePlate, ledge).
+plateOpens(yardPlate, hatch). at(yardPlate, yard).
+
+at(player, hall). at(spark, hall).
+at(crateA, hall). at(crateB, yard).
+
+% spark dashes; the player has no skill.
+hasSkill(spark, lightningDashSkill). skillHasTag(lightningDashSkill, dash).
+
+goals(everyoneReaches(exit)).
+% Goals to try:
+%   everyoneReaches(exit).        5 plans, all holding doors for each other: who takes the ledge,
+%                                 how each hole is crossed, body or crate on the yard plate
+%   reachLocation(spark, ledge).  a dash, or crateA pushed into the gap
+%   reachLocation(player, yard).  no plan: the gate is locked until someone holds the ledge plate

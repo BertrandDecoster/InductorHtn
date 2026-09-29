@@ -14,10 +14,13 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:51:40.348956"
+    "last_checked": "2026-09-25T21:55:47.428719"
   },
   "provides": [
-    "oilAndBurn/1"
+    "oilAndBurn/1",
+    "signature/2"
   ],
-  "requires": []
+  "requires": [
+    "applyTag/3"
+  ]
 }

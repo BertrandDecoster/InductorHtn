@@ -4,22 +4,29 @@
   "layer": "primitive",
   "description": "Skill preparation for GameHack domains, getting a skill from an object",
   "dependencies": [
-    "gamehack/primitives/gh_movement"
+    "gamehack/primitives/gh_movement",
+    "gamehack/primitives/gh_tags",
+    "gamehack/primitives/gh_aggro"
   ],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:29.914055"
+    "last_checked": "2026-09-25T21:52:09.900688"
   },
   "provides": [
+    "applyTag/3",
     "getSkillFrom/3",
     "opGetSkill/2",
     "opSwapSkill/3",
-    "prepareToUseSkill/3"
+    "prepareToUseSkill/3",
+    "signature/2"
   ],
   "requires": [
-    "goToSameLocation/2"
+    "bringEnemyTo/3",
+    "goToSameLocation/2",
+    "opTagAlreadyOnTarget/2",
+    "useSkillOnTarget/3"
   ]
 }

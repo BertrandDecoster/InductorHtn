@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Two companions: a lurer brings the target onto oil, and a second companion sets it burning there. Burning on oil turns the oil into a burning location and sets everyone there burning (the lurer and the caster included), and defeats the enemies vulnerable to oil + burning. The strategy's `if()` requires that vulnerability.
+Two companions: the target has oil (a lurer's doing: `applyTag(?lurer, oil, ?t)` lures it onto oil), then is burning (a second companion's: `applyTag(?caster, burning, ?t)`). Burning on oil turns the oil into a burning location and sets everyone there burning (the lurer and the caster included), and defeats the enemies vulnerable to oil + burning. The strategy's `if()` requires that vulnerability.
 
 ## Layer
 
@@ -13,13 +13,13 @@ strategy
 - `gamehack/primitives/gh_movement`
 - `gamehack/primitives/gh_tags` (useSkillOnTarget and the location combos)
 - `gamehack/primitives/gh_aggro` (bringEnemyTo)
-- `gamehack/primitives/gh_skills` (prepareToUseSkill)
+- `gamehack/primitives/gh_skills` (applyTag)
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `oilAndBurn(?t)` | A lurer brings `?t` onto oil; a second companion sets it burning there. If `?t` already stands on oil, the caster alone sets it burning |
+| `oilAndBurn(?t)` | `applyTag(?lurer, oil, ?t), applyTag(?caster, burning, ?t)`; if `?t` already has oil, `applyTag(?caster, burning, ?t)` alone |
 
 ## Required Facts
 
@@ -53,9 +53,9 @@ Same world as wet_and_freeze: player, frost and pyro at camp; gob at the hut; th
 **When:** `oilAndBurn(gob)`
 **Then:** no plan
 
-### Example 4: Already standing on oil
+### Example 4: Already has oil
 
-**Given:** gob already stands in the kitchen
+**Given:** gob starts in the kitchen, so it has oil
 **When:** `oilAndBurn(gob)`
 **Then:** no lurer: the only plan is pyro walking to the kitchen and setting gob burning (the oil becomes burning, pyro and gob burn, gob is dead)
 

@@ -1,4 +1,5 @@
-% locomotion - Primitive: agents walk, and the enemies after them follow.
+% locomotion - Primitive: agents walk, and the enemies after them follow; arriving lands the location's tag.
+% Depends on: tags (landLocationTag).
 % One step per move: the game engine finds the path (docs/authoring/vocabulary.md).
 
 % === Signatures (for the TYP001 linter) ===
@@ -12,13 +13,14 @@ signature(opStayInLocation, [agent]).
 % ?a stands where ?t is.
 goToSameLocation(?a, ?t) :- if(at(?t, ?l)), do(goToLocation(?a, ?l)).
 
-% ?a is at ?l; the engine finds the path. Enemies after ?a follow.
+% ?a is at ?l and has its tag; the engine finds the path. Enemies after ?a follow.
 goToLocation(?a, ?l) :- if(at(?a, ?l)), do(opStayInLocation(?a)).
 goToLocation(?a, ?l) :- if(location(?l), at(?a, ?from), \==(?from, ?l)),
-    do(opMoveTo(?a, ?from, ?l), enemiesFollow(?a, ?from, ?l)).
+    do(opMoveTo(?a, ?from, ?l), landLocationTag(?a, ?l), enemiesFollow(?a, ?from, ?l)).
 
 % The enemies after ?a move with it (not a static or a dead one).
-enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))), do(opAggroMoveTo(?e, ?from, ?l)).
+enemiesFollow(?a, ?from, ?l) :- allOf, if(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead))),
+    do(opAggroMoveTo(?e, ?from, ?l), landLocationTag(?e, ?l)).
 enemiesFollow(?a, ?from, ?l) :- if(not(hasAggro(?e, ?a), at(?e, ?from), not(static(?e)), not(hasTag(?e, dead)))), do().
 
 % === Operators ===

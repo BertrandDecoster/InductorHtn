@@ -196,7 +196,7 @@ def test_property_p2_no_double_tags(self):        # Matches Property P2
 ### Composition Pattern
 - Components loaded via `HtnCompile()` calls (incremental). The planner accumulates rules from each call.
 - `load_component` reads `manifest.json` dependencies and recursively loads them first, then compiles the component's own `src.htn`. Order matters: higher layers reference methods/operators defined in lower layers.
-- Higher-layer files are very thin (often 2-5 lines of HTN). A strategy might just be `if(enemy(?t)), do(applyTag(wet, ?t), applyTag(electrified, ?t)).` — all the actual logic lives in the primitives it composes. Goals are even thinner: just method alternatives selecting between strategies.
+- Higher-layer files are very thin (often 2-5 lines of HTN). A strategy might just be `if(enemy(?t), companion(?lurer), companion(?caster), \==(?lurer, ?caster)), do(applyTag(?lurer, oil, ?t), applyTag(?caster, burning, ?t)).` — all the actual logic lives in the primitives it composes. Goals are even thinner: just method alternatives selecting between strategies.
 - No preprocessor - parameters are facts
 
 ### Parameter System
@@ -207,8 +207,8 @@ def test_property_p2_no_double_tags(self):        # Matches Property P2
 ### Words
 The facts, verbs and operators are the ones in
 [`../authoring/vocabulary.md`](../authoring/vocabulary.md): `hasTag(?agent, burning)`,
-`locationCanApplyTag(?l, oily)`, `hasAggro(?enemy, ?target)` (enemies follow their target;
-`bringEnemyTo` lures them), `tagCombines(wet, electrified, stunned)`.
+`locationCanApplyTag(?l, oil)`, `hasAggro(?enemy, ?target)` (enemies follow their target;
+`bringEnemyTo` lures them), `locationCombo(oil, burning)`.
 
 ## How to write the rules
 
@@ -279,10 +279,10 @@ tags, three location combos, `vulnerableToLocationCombo`. The earlier versions a
 `archive/pre-vocabulary/` and `archive/pre-tag-system/`.
 
 ### Primitives
-- **locomotion**: `goToLocation`, `goToSameLocation` (one step), `enemiesFollow`
-- **tags**: `landSkillTag` (the location combos), `landTag`, `tagEveryoneAt`, `defeatVulnerable`, `defeatVulnerableAt`; the `locationCombo` facts
+- **locomotion**: `goToLocation`, `goToSameLocation` (one step; arriving lands the location's tag), `enemiesFollow`
+- **tags**: `landSkillTag` (the location combos), `landTag`, `landLocationTag`, `tagEveryoneAt`, `defeatVulnerable`, `defeatVulnerableAt`; the `locationCombo` facts
 - **aggro**: `getAggro`, `bringEnemyTo`
-- **skills**: `prepareToUseSkill`, `getSkillFrom` (skills granted by objects), `useSkillOnTarget`, `applySkillTags`
+- **skills**: `applyTag` (a tag on a target, by an actor's skill or lure), `prepareToUseSkill`, `getSkillFrom` (skills granted by objects), `useSkillOnTarget`, `applySkillTags`
 
 ### Strategies
 - **oil_and_burn**: a lurer brings the enemy onto oil, a second companion burns it there
@@ -301,10 +301,10 @@ tags, three location combos, `vulnerableToLocationCombo`. The earlier versions a
 ### GameHack Components (`gamehack/`)
 
 #### Primitives
-- **gh_movement**: `goToLocation`, `goToSameLocation`, `enemiesFollow` (one step)
+- **gh_movement**: `goToLocation`, `goToSameLocation`, `enemiesFollow` (one step; arriving lands the location's tag)
 - **gh_tags**: `useSkillOnTarget`, `applySkillTags`, `landSkillTag` and the landing verbs (as in `tags`)
 - **gh_aggro**: `getAggro`, `bringEnemyTo`
-- **gh_skills**: `prepareToUseSkill`, `getSkillFrom` (skills granted by objects)
+- **gh_skills**: `applyTag`, `prepareToUseSkill`, `getSkillFrom` (skills granted by objects)
 - **gh_doors**: `unlockDoor` with two companions on two plates (`opSynchronizeOnPlates`)
 
 #### Strategies

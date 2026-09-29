@@ -16,10 +16,14 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:51:41.211760"
+    "last_checked": "2026-09-25T21:52:07.700897"
   },
   "provides": [
-    "defeat/1"
+    "defeat/1",
+    "signature/2"
   ],
-  "requires": []
+  "requires": [
+    "oilAndBurn/1",
+    "wetAndFreeze/1"
+  ]
 }

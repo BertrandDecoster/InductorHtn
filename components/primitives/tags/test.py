@@ -10,14 +10,18 @@ from htn_test_framework import HtnTestSuite
 WORLD = [
     "location(pond)", "location(pit)", "location(rink)", "location(field)",
     "locationCanApplyTag(pond, wet)", "locationCanApplyTag(pit, oil)", "locationCanApplyTag(rink, ice)",
+    # Every agent that starts on a tagged location has its tag (the engine reports it).
     # the pond: a companion and two enemies, one vulnerable to wet + electrified
     "companion(ward)", "enemy(gob)", "enemy(imp)", "at(ward, pond)", "at(gob, pond)", "at(imp, pond)",
+    "hasTag(ward, wet)", "hasTag(gob, wet)", "hasTag(imp, wet)",
     "vulnerableToLocationCombo(imp, wet, electrified)", "vulnerableToLocationCombo(gob, wet, chilled)",
     # the oil pit: a companion, two enemies (orc vulnerable to oil + burning) and a barrel
     "companion(sol)", "enemy(orc)", "enemy(rat)", "at(sol, pit)", "at(orc, pit)", "at(rat, pit)", "at(barrel, pit)",
+    "hasTag(sol, oil)", "hasTag(orc, oil)", "hasTag(rat, oil)",
     "vulnerableToLocationCombo(orc, oil, burning)",
     # the ice rink
     "enemy(yak)", "enemy(elk)", "at(yak, rink)", "at(elk, rink)", "vulnerableToLocationCombo(yak, ice, chilled)",
+    "hasTag(yak, ice)", "hasTag(elk, ice)",
     # plain ground
     "enemy(ant)", "at(ant, field)", "immune(ant, burning)",
 ]
@@ -56,7 +60,7 @@ class TagsTest(HtnTestSuite):
         self.assert_plan_set("landSkillTag(chilled, elk).", ["opApplyTag(stunned, elk)"])
 
     def test_example_5_no_combo(self):
-        """Example 5: no combo where the target stands: the tag just lands."""
+        """Example 5: no combo with the target's tags: the tag just lands."""
         self.assert_plan_set("landSkillTag(electrified, orc).", ["opApplyTag(electrified, orc)"])
 
     def test_example_6_immune(self):
@@ -67,6 +71,18 @@ class TagsTest(HtnTestSuite):
         """Example 7: the target already has the tag."""
         self.set_state(["hasTag(elk, burning)"])
         self.assert_plan_set("landTag(burning, elk).", ["opTagAlreadyOnTarget(burning, elk)"])
+
+    def test_example_8_arriving_lands_the_location_tag(self):
+        """Example 8: an agent arriving at a tagged location gets its tag; a plain location gives nothing."""
+        self.assert_plan_set("landLocationTag(ant, pit).", ["opApplyTag(oil, ant)"])
+        self.assert_plan_set("landLocationTag(ant, field).", [""])
+
+    def test_example_9_wet_off_the_water(self):
+        """Example 9: electrified on a wet enemy away from the water: it alone, and it is defeated if vulnerable."""
+        self.set_state(["enemy(eel)", "at(eel, field)", "hasTag(eel, wet)",
+                        "vulnerableToLocationCombo(eel, wet, electrified)"])
+        self.assert_plan_set("landSkillTag(electrified, eel).",
+                             ["opApplyTag(electrified, eel), opApplyTag(dead, eel)"])
 
     # =========================================================================
     # Property Tests

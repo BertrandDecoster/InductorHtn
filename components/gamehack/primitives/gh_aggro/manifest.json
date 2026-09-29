@@ -11,7 +11,7 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:28.815350"
+    "last_checked": "2026-09-25T21:52:09.309161"
   },
   "provides": [
     "bringEnemyTo/3",
@@ -19,7 +19,8 @@
     "opAggro/2",
     "opEnemyAlreadyAtLocation/2",
     "opRemoveAggro/2",
-    "opTargetAlreadyAggroed/2"
+    "opTargetAlreadyAggroed/2",
+    "signature/2"
   ],
   "requires": [
     "goToLocation/2",

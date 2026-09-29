@@ -2,8 +2,9 @@
 
 ## Purpose
 
-A lurer brings an enemy onto oil; a second companion, holding a skill that applies `burning`,
-walks to it and uses the skill. The oil + burning combo: the oil becomes a burning location,
+An enemy has oil (a lurer's doing: `applyTag(?lurer, oil, ?t)` lures it onto an oil
+location), then is burning (a second companion's: `applyTag(?caster, burning, ?t)`). The
+oil + burning combo: the oil becomes a burning location,
 everyone standing there burns (the lurer and the caster too), and the enemies vulnerable to
 oil + burning are defeated. Copied from `Examples/Combos.htn`. It replaces the old theBurn.
 
@@ -19,13 +20,13 @@ strategy
 
 | Method | Description |
 |--------|-------------|
-| `oilAndBurn(?t)` | two methods: the enemy isn't on the oil (`bringEnemyTo(?lurer, ?t, ?l)`, then a second companion, the caster, prepares and uses its burning skill on `?t`), or it already stands there (the caster alone) |
+| `oilAndBurn(?t)` | two methods: `applyTag(?lurer, oil, ?t), applyTag(?caster, burning, ?t)`, or, when `?t` already has oil, `applyTag(?caster, burning, ?t)` alone |
 
 ## What makes it possible (`if()`)
 
-`enemy(?t)`, an oil location (`locationCanApplyTag(?l, oil)`),
-`vulnerableToLocationCombo(?t, oil, burning)`, a skill that applies `burning`, and two
-distinct companions (a lurer and a caster) when the enemy isn't already on the oil.
+`enemy(?t)`, `vulnerableToLocationCombo(?t, oil, burning)`, and two distinct companions (a
+lurer and a caster) when the enemy has no oil yet. The oil location and the burning skill are
+`applyTag`'s ways.
 
 ## Examples
 
@@ -42,8 +43,8 @@ fireballSkill; the oil becomes burning; pyro, frost and gob burn; gob is dead
 ### Example 5: Every vulnerable enemy on the oil is defeated
 **Given:** imp, also vulnerable, already in the storage **Then:** both are dead
 
-### Example 6: Already on the oil
-**Given:** gob in the storage **Then:** one plan: pyro walks there and sets it burning
+### Example 6: Already has oil
+**Given:** gob in the storage, with oil **Then:** one plan: pyro walks there and sets it burning
 
 ## Properties
 

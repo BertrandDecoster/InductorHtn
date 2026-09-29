@@ -22,14 +22,19 @@ WORLD = [
 ]
 
 
+LOCATION_TAG = {"lake": "wet", "rink": "ice", "kitchen": "oil"}
+
+
 def lure(lurer, to):
+    tag = LOCATION_TAG[to]
     return (f"opMoveTo({lurer}, camp, hut), opAggro(gob, {lurer}), "
-            f"opMoveTo({lurer}, hut, {to}), opAggroMoveTo(gob, hut, {to})")
+            f"opMoveTo({lurer}, hut, {to}), opApplyTag({tag}, {lurer}), opAggroMoveTo(gob, hut, {to}), opApplyTag({tag}, gob)")
 
 
 
 def burn(lurer):
-    return (lure(lurer, "kitchen") + ", opMoveTo(pyro, camp, kitchen), opUseSkill(pyro, fireballSkill, gob), "
+    return (lure(lurer, "kitchen") + ", opMoveTo(pyro, camp, kitchen), opApplyTag(oil, pyro), "
+            "opUseSkill(pyro, fireballSkill, gob), "
             "opRemoveLocationTag(oil, kitchen), opAddLocationTag(burning, kitchen), "
             f"opApplyTag(burning, {lurer}), opApplyTag(burning, pyro), opApplyTag(burning, gob), opApplyTag(dead, gob)")
 
@@ -64,11 +69,12 @@ class OilAndBurnTest(HtnTestSuite):
                         "vulnerableToLocationCombo(gob, oil, burning)"])
         self.assert_no_plan("oilAndBurn(gob).")
 
-    def test_example_4_already_standing_on_oil(self):
-        """Example 4: gob already stands in the kitchen: no lurer, pyro alone sets it burning."""
-        self.set_state([f for f in WORLD if f != "at(gob, hut)"] + ["at(gob, kitchen)", "vulnerableToLocationCombo(gob, oil, burning)"])
+    def test_example_4_already_has_oil(self):
+        """Example 4: gob starts in the kitchen, so it has oil: no lurer, pyro alone sets it burning."""
+        self.set_state([f for f in WORLD if f != "at(gob, hut)"]
+                       + ["at(gob, kitchen)", "hasTag(gob, oil)", "vulnerableToLocationCombo(gob, oil, burning)"])
         self.assert_plan_set("oilAndBurn(gob).", [
-            "opMoveTo(pyro, camp, kitchen), opUseSkill(pyro, fireballSkill, gob), "
+            "opMoveTo(pyro, camp, kitchen), opApplyTag(oil, pyro), opUseSkill(pyro, fireballSkill, gob), "
             "opRemoveLocationTag(oil, kitchen), opAddLocationTag(burning, kitchen), "
             "opApplyTag(burning, pyro), opApplyTag(burning, gob), opApplyTag(dead, gob)"])
 

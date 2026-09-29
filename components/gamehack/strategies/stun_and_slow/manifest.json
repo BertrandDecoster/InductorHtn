@@ -13,10 +13,11 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:31.379452"
+    "last_checked": "2026-09-25T21:52:11.263382"
   },
   "provides": [
     "opSynchronize/2",
+    "signature/2",
     "stunAndSlow/1"
   ],
   "requires": [

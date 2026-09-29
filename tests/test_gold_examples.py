@@ -9,16 +9,22 @@ sys.path.insert(0, os.path.join(ROOT, "src", "Python"))
 from htn_test_framework import HtnTestSuite  # noqa: E402
 
 KILL = "opApplyTag(dead, gob)"
+TAG = {"lake": "wet", "kitchen": "oil"}   # arriving at a tagged location lands its tag
+
+
+def _arrive(who, frm, to, move="opMoveTo"):
+    tag = f"opApplyTag({TAG[to]}, {who}), " if to in TAG else ""
+    return f"{move}({who}, {frm}, {to}), {tag}"
 
 
 def _lure(lurer, to):
     return (f"opMoveTo({lurer}, camp, hut), opAggro(gob, {lurer}), "
-            f"opMoveTo({lurer}, hut, {to}), opAggroMoveTo(gob, hut, {to}), ")
+            + _arrive(lurer, "hut", to) + _arrive("gob", "hut", to, "opAggroMoveTo"))
 
 
 def _learn_fireball(who, old, to):
     return (f"opMoveTo({who}, camp, forge), opSwapSkill({who}, {old}, fireballSkill), "
-            f"opMoveTo({who}, forge, {to}), ")
+            + _arrive(who, "forge", to))
 
 
 def _ignite(caster, burned):
@@ -28,19 +34,19 @@ def _ignite(caster, burned):
 
 
 WET_AND_FREEZE = [
-    # a lurer brings gob into the lake; frost, a second companion, chills it there
-    _lure(lurer, "lake") + "opMoveTo(frost, camp, lake), opUseSkill(frost, frostSkill, gob), "
+    # gob is wet (a lurer brings it into the lake), then chilled (frost, a second companion)
+    _lure(lurer, "lake") + _arrive("frost", "camp", "lake") + "opUseSkill(frost, frostSkill, gob), "
     "opApplyTag(stunned, gob), " + KILL
     for lurer in ("player", "pyro")
 ]
 OIL_AND_BURN = [
-    # a lurer brings gob onto the oil; a second companion ignites it, and everyone there burns
-    _lure("player", "kitchen") + "opMoveTo(pyro, camp, kitchen), " + _ignite("pyro", ["player", "pyro", "gob"]),
+    # gob has oil (a lurer brings it onto the oil), then burns (a second companion); everyone there burns
+    _lure("player", "kitchen") + _arrive("pyro", "camp", "kitchen") + _ignite("pyro", ["player", "pyro", "gob"]),
     _lure("player", "kitchen") + _learn_fireball("frost", "frostSkill", "kitchen") + _ignite("frost", ["player", "frost", "gob"]),
     _lure("pyro", "kitchen") + _learn_fireball("player", "iceBlastSkill", "kitchen") + _ignite("player", ["player", "pyro", "gob"]),
     _lure("pyro", "kitchen") + _learn_fireball("frost", "frostSkill", "kitchen") + _ignite("frost", ["pyro", "frost", "gob"]),
     _lure("frost", "kitchen") + _learn_fireball("player", "iceBlastSkill", "kitchen") + _ignite("player", ["player", "frost", "gob"]),
-    _lure("frost", "kitchen") + "opMoveTo(pyro, camp, kitchen), " + _ignite("pyro", ["pyro", "frost", "gob"]),
+    _lure("frost", "kitchen") + _arrive("pyro", "camp", "kitchen") + _ignite("pyro", ["pyro", "frost", "gob"]),
 ]
 STUN_AND_SLOW = [
     "opMoveTo(player, camp, hut), opMoveTo(pyro, camp, hut), opSynchronize(player, pyro), "
@@ -89,13 +95,28 @@ def test_combos_a_location_combo_defeats_only_the_vulnerable(tmp_path):
 
 def test_combos_electrified_water_hits_everyone_there():
     # the electricity combo: every agent in the lake is electrified, the vulnerable defeated
+    # (a world states the tag of every agent that starts on a tagged location)
     suite = _suite("enemy(imp). at(imp, lake). at(gob, lake). hasSkill(zap, lightningSkill). "
                    "skillAppliesTag(lightningSkill, electrified). companion(zap). at(zap, lake). "
+                   "hasTag(imp, wet). hasTag(gob, wet). hasTag(zap, wet). "
                    "vulnerableToLocationCombo(imp, wet, electrified).")
     assert suite.assert_state_after("useSkillOnTarget(zap, lightningSkill, gob).",
                                     has=["hasTag(gob,electrified)", "hasTag(imp,electrified)",
                                          "hasTag(zap,electrified)", "hasTag(imp,dead)"],
                                     not_has=["hasTag(gob,dead)"]), suite.results[-1].details
+
+
+def test_combos_arriving_lands_the_location_tag():
+    suite = _suite()
+    assert suite.assert_state_after("goToLocation(player, lake).", has=["hasTag(player,wet)"]),         suite.results[-1].details
+
+
+def test_combos_an_oiled_enemy_needs_only_the_caster():
+    # gob already has oil and stands on it: oilAndBurn is one companion's burning skill
+    suite = _suite("hasTag(gob, oil).")
+    assert suite.assert_plan("oilAndBurn(gob).", contains=["opMoveTo(pyro, camp, hut), opUseSkill(pyro, fireballSkill, gob), "
+                                                           "opApplyTag(burning, gob), " + KILL],
+                             not_contains=["opAggro("]), suite.results[-1].details
 
 
 def test_combos_a_dead_enemy_needs_no_plan():

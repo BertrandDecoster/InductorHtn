@@ -3,21 +3,26 @@
   "version": "0.1.0",
   "layer": "primitive",
   "description": "One-step movement: agents walk, enemies after them follow",
-  "dependencies": [],
+  "dependencies": [
+    "primitives/tags"
+  ],
   "certified": true,
   "certification": {
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:49:36.078666"
+    "last_checked": "2026-09-25T21:52:05.321576"
   },
   "provides": [
+    "enemiesFollow/3",
     "goToLocation/2",
     "goToSameLocation/2",
-    "enemiesFollow/3",
-    "opMoveTo/3",
     "opAggroMoveTo/3",
-    "opStayInLocation/1"
+    "opMoveTo/3",
+    "opStayInLocation/1",
+    "signature/2"
   ],
-  "requires": []
+  "requires": [
+    "landLocationTag/2"
+  ]
 }

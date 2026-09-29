@@ -3,7 +3,8 @@
 ## Purpose
 
 Agents move between locations in one step: the game engine finds the path. Enemies that have
-aggro on an agent follow it, unless they are static or dead.
+aggro on an agent follow it, unless they are static or dead. An agent arriving at a tagged
+location gets its tag (`landLocationTag`, tags primitive).
 
 ## Layer
 
@@ -11,15 +12,15 @@ primitive
 
 ## Dependencies
 
-None.
+- `primitives/tags` (`landLocationTag`)
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `goToLocation(?a, ?l)` | `?a` is at `?l`; enemies after `?a` follow. `opStayInLocation` if already there. |
+| `goToLocation(?a, ?l)` | `?a` is at `?l` and has its tag; enemies after `?a` follow. `opStayInLocation` if already there. |
 | `goToSameLocation(?a, ?t)` | `?a` stands where `?t` is. |
-| `enemiesFollow(?a, ?from, ?to)` | The enemies after `?a` at `?from`, neither static nor dead, move to `?to`. |
+| `enemiesFollow(?a, ?from, ?to)` | The enemies after `?a` at `?from`, neither static nor dead, move to `?to` and get its tag. |
 
 ## Operators
 
@@ -31,7 +32,8 @@ None.
 
 ## Required Facts
 
-`location(?l)`, `at(?x, ?l)`, and optionally `hasAggro(?e, ?a)`, `static(?x)`, `hasTag(?e, dead)`.
+`location(?l)`, `at(?x, ?l)`, and optionally `hasAggro(?e, ?a)`, `static(?x)`, `hasTag(?e, dead)`,
+`locationCanApplyTag(?l, ?tag)`.
 
 ## Examples
 

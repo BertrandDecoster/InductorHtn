@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Goal: take an enemy out of the fight. A menu of strategies, one plain method each, so `FindAllPlans` returns one plan per strategy (and per binding) that works: `wetAndFreeze`, `oilAndBurn`, `stunAndSlow`. The two location-combo strategies defeat a vulnerable enemy themselves (the combo adds `dead`); `stunAndSlow` is followed by `opApplyTag(dead, ?t)`. An enemy that already has `dead` has no plan.
+Goal: take an enemy out of the fight. A menu of strategies, one plain method each, so `FindAllPlans` returns one plan per strategy (and per binding) that works: `wetAndFreeze`, `oilAndBurn`, `stunAndSlow`. The two location-combo strategies defeat a vulnerable enemy themselves (the combo adds `dead`); `stunAndSlow` is followed by `landTag(dead, ?t)` (its slow skill may already have landed a combo that defeated `?t`). An enemy that already has `dead` has no plan.
 
 ## Layer
 
@@ -59,5 +59,5 @@ Same world as the strategies: player (iceBlastSkill: stunned), frost (frostSkill
 
 | ID | Property | Description |
 |----|----------|-------------|
-| P1 | Ends dead | Every plan ends with `opApplyTag(dead, ?t)` |
+| P1 | Ends dead | Every plan leaves `?t` with `dead` |
 | P2 | Two companions | In every plan, two different companions act |

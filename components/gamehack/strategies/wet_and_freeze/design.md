@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Two companions: a lurer brings the target into water or onto ice, and a second companion chills it there. Chilled on a wet or ice location stuns the target, and defeats it if it is `vulnerableToLocationCombo` to that combo. The strategy's `if()` requires that vulnerability, so every plan ends with the target dead.
+Two companions: the target is wet or iced (a lurer's doing: `applyTag(?lurer, ?base, ?t)` lures it there), then chilled (a second companion's: `applyTag(?caster, chilled, ?t)`). Chilled on a wet or ice location stuns the target, and defeats it if it is `vulnerableToLocationCombo` to that combo. The strategy's `if()` requires that vulnerability, so every plan ends with the target dead.
 
 ## Layer
 
@@ -13,13 +13,13 @@ strategy
 - `gamehack/primitives/gh_movement`
 - `gamehack/primitives/gh_tags` (useSkillOnTarget and the location combos)
 - `gamehack/primitives/gh_aggro` (bringEnemyTo)
-- `gamehack/primitives/gh_skills` (prepareToUseSkill)
+- `gamehack/primitives/gh_skills` (applyTag)
 
 ## Methods
 
 | Method | Description |
 |--------|-------------|
-| `wetAndFreeze(?t)` | A lurer brings `?t` to a wet or ice location it is vulnerable on; a second companion chills it there. If `?t` already stands there, the caster alone chills it |
+| `wetAndFreeze(?t)` | `applyTag(?lurer, ?base, ?t), applyTag(?caster, chilled, ?t)` for a wet or ice `?base` it is vulnerable to; if `?t` already has `?base`, `applyTag(?caster, chilled, ?t)` alone |
 
 ## Required Facts
 
@@ -59,9 +59,9 @@ The examples use three companions at camp: player (iceBlastSkill), frost (frostS
 **When:** `wetAndFreeze(gob)`
 **Then:** no plan (the lurer and the caster are distinct)
 
-### Example 5: Already standing in water
+### Example 5: Already wet
 
-**Given:** gob already stands in the lake
+**Given:** gob starts in the lake, so it is wet
 **When:** `wetAndFreeze(gob)`
 **Then:** no lurer: the only plan is frost walking to the lake and chilling gob
 

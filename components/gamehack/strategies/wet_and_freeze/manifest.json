@@ -14,14 +14,13 @@
     "linter": true,
     "tests_pass": true,
     "design_match": true,
-    "last_checked": "2026-09-25T20:53:31.951932"
+    "last_checked": "2026-09-25T21:55:47.929227"
   },
   "provides": [
+    "signature/2",
     "wetAndFreeze/1"
   ],
   "requires": [
-    "bringEnemyTo/3",
-    "prepareToUseSkill/3",
-    "useSkillOnTarget/3"
+    "applyTag/3"
   ]
 }

@@ -1,4 +1,4 @@
-% gh_tags - a skill's tags land on its target, combining with the tag of the location it stands on.
+% gh_tags - a skill's tags land on its target, combining with the location tag it carries; arriving lands a location's tag.
 % The physics: locationCombo facts, and agent/1 (every companion, neutral and enemy).
 
 % === Signatures (for TYP001 linter) ===
@@ -11,6 +11,7 @@ signature(useSkillOnTarget, [agent, skill, agent]).
 signature(applySkillTags, [skill, agent]).
 signature(landSkillTag, [tag, agent]).
 signature(landTag, [tag, agent]).
+signature(landLocationTag, [agent, location]).
 signature(tagEveryoneAt, [tag, location]).
 signature(defeatVulnerable, [agent, tag, tag]).
 signature(defeatVulnerableAt, [tag, tag, location]).
@@ -37,25 +38,35 @@ useSkillOnTarget(?a, ?s, ?t) :- if(hasSkill(?a, ?s), at(?a, ?l), at(?t, ?l)), do
 applySkillTags(?s, ?t) :- allOf, if(skillAppliesTag(?s, ?tag)), do(landSkillTag(?tag, ?t)).
 applySkillTags(?s, ?t) :- if(not(skillAppliesTag(?s, ?tag))), do().
 
-% A skill's tag lands on ?t, and combines with the tag of the location ?t stands on.
-% Electrified in water: everyone there is electrified; the vulnerable are defeated.
-landSkillTag(electrified, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, wet)),
+% A skill's tag lands on ?t, and combines with the location tag ?t carries.
+% Electrified on a wet ?t in water: everyone there is electrified; the vulnerable are defeated.
+landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), locationCanApplyTag(?l, wet)),
     do(tagEveryoneAt(electrified, ?l), defeatVulnerableAt(wet, electrified, ?l)).
-% Burning on oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
-landSkillTag(burning, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, oil)),
+% Electrified on a wet ?t out of the water: ?t alone.
+landSkillTag(electrified, ?t) :- if(hasTag(?t, wet), at(?t, ?l), not(locationCanApplyTag(?l, wet))),
+    do(landTag(electrified, ?t), defeatVulnerable(?t, wet, electrified)).
+% Burning on an oiled ?t on the oil: the oil catches fire and everyone there burns; the vulnerable are defeated.
+landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), locationCanApplyTag(?l, oil)),
     do(opRemoveLocationTag(oil, ?l), opAddLocationTag(burning, ?l),
        tagEveryoneAt(burning, ?l), defeatVulnerableAt(oil, burning, ?l)).
-% Chilled in water or on ice: ?t alone is stunned; if vulnerable, defeated.
-landSkillTag(chilled, ?t) :- if(at(?t, ?l), locationCanApplyTag(?l, ?base), locationCombo(?base, chilled)),
+% Burning on an oiled ?t off the oil: ?t alone.
+landSkillTag(burning, ?t) :- if(hasTag(?t, oil), at(?t, ?l), not(locationCanApplyTag(?l, oil))),
+    do(landTag(burning, ?t), defeatVulnerable(?t, oil, burning)).
+% Chilled on a wet or iced ?t: ?t alone is stunned; if vulnerable, defeated.
+landSkillTag(chilled, ?t) :- if(first(hasTag(?t, ?base), locationCombo(?base, chilled))),
     do(landTag(stunned, ?t), defeatVulnerable(?t, ?base, chilled)).
-% No combo where ?t stands: the tag just lands.
-landSkillTag(?tag, ?t) :- if(at(?t, ?l), not(locationCanApplyTag(?l, ?base), locationCombo(?base, ?tag))),
+% No combo on ?t: the tag just lands.
+landSkillTag(?tag, ?t) :- if(not(hasTag(?t, ?base), locationCombo(?base, ?tag))),
     do(landTag(?tag, ?t)).
 
 % ?t has ?tag, unless it is immune.
 landTag(?tag, ?t) :- if(hasTag(?t, ?tag)), do(opTagAlreadyOnTarget(?tag, ?t)).
 landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), not(immune(?t, ?tag))), do(opApplyTag(?tag, ?t)).
 landTag(?tag, ?t) :- if(not(hasTag(?t, ?tag)), immune(?t, ?tag)), do().
+
+% ?x, arriving at ?l, gets the location's tag, if it has one, with its combo (oil walking into fire).
+landLocationTag(?x, ?l) :- if(locationCanApplyTag(?l, ?tag)), do(landSkillTag(?tag, ?x)).
+landLocationTag(?x, ?l) :- if(not(locationCanApplyTag(?l, ?tag))), do().
 
 % Every agent at ?l gets ?tag: companions, neutrals and enemies alike.
 tagEveryoneAt(?tag, ?l) :- allOf, if(agent(?a), at(?a, ?l)), do(landTag(?tag, ?a)).

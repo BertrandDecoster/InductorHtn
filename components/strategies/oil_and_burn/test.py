@@ -32,8 +32,9 @@ class OilAndBurnTest(HtnTestSuite):
         """Example 1: frost lures gob onto the oil; pyro sets it burning there. Everyone there burns."""
         self.set_state(WORLD)
         self.assert_plan_set("oilAndBurn(gob).", [
-            "opMoveTo(frost, camp, hut), opAggro(gob, frost), opMoveTo(frost, hut, storage), "
-            "opAggroMoveTo(gob, hut, storage), opMoveTo(pyro, camp, storage), opUseSkill(pyro, fireballSkill, gob), "
+            "opMoveTo(frost, camp, hut), opAggro(gob, frost), opMoveTo(frost, hut, storage), opApplyTag(oil, frost), "
+            "opAggroMoveTo(gob, hut, storage), opApplyTag(oil, gob), "
+            "opMoveTo(pyro, camp, storage), opApplyTag(oil, pyro), opUseSkill(pyro, fireballSkill, gob), "
             + BURN + "opApplyTag(dead, gob)"])
 
     def test_example_2_not_vulnerable(self):
@@ -53,14 +54,15 @@ class OilAndBurnTest(HtnTestSuite):
 
     def test_example_5_everyone_on_the_oil(self):
         """Example 5: a second vulnerable enemy already on the oil is defeated too."""
-        self.set_state(WORLD + ["enemy(imp)", "at(imp, storage)", "vulnerableToLocationCombo(imp, oil, burning)"])
+        self.set_state(WORLD + ["enemy(imp)", "at(imp, storage)", "hasTag(imp, oil)",
+                                "vulnerableToLocationCombo(imp, oil, burning)"])
         self.assert_state_after("oilAndBurn(gob).", has=["hasTag(gob,dead)", "hasTag(imp,dead)"])
 
-    def test_example_6_already_on_the_oil(self):
-        """Example 6: already standing on the oil: the caster alone sets it burning."""
-        self.set_state([f for f in WORLD if f != "at(gob, hut)"] + ["at(gob, storage)"])
+    def test_example_6_already_has_oil(self):
+        """Example 6: gob starts on the oil, so it has oil: the caster alone sets it burning."""
+        self.set_state([f for f in WORLD if f != "at(gob, hut)"] + ["at(gob, storage)", "hasTag(gob, oil)"])
         self.assert_plan_set("oilAndBurn(gob).", [
-            "opMoveTo(pyro, camp, storage), opUseSkill(pyro, fireballSkill, gob), "
+            "opMoveTo(pyro, camp, storage), opApplyTag(oil, pyro), opUseSkill(pyro, fireballSkill, gob), "
             "opRemoveLocationTag(oil, storage), opAddLocationTag(burning, storage), "
             "opApplyTag(burning, pyro), opApplyTag(burning, gob), opApplyTag(dead, gob)"])
 
